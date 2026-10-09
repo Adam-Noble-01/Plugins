@@ -1,0 +1,113 @@
+# Image Viewer: photo lens data (EXIF) reader, the photo-info callback and the
+# dialog assembly, in SketchUp's own bundled Ruby (no SketchUp model needed).
+#
+# Run: python tests/run_ruby_checks.py tests/photo_info.rb.test
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+Encoding.default_external = Encoding.find('UTF-8')
+require 'json'
+
+MODULE_DIR = File.expand_path('..', __dir__)
+EXIF_DIR   = File.join(__dir__, 'fixtures', 'exif')
+OUT_DIR    = File.join(__dir__, 'out')
+REAL_PNG   = 'C:/01__ValeProjects/ValeProjects__2026/57376__Phillips__Whitecard/01__ReferenceFiles/01__SiteImages/20240412_104237576_iOS.png'
+
+$passes = 0
+$fails = 0
+def check(name, cond, detail = nil)
+  if cond
+    $passes += 1
+  else
+    $fails += 1
+    puts "FAIL  #{name}#{detail ? '  ' + detail.inspect : ''}"
+  end
+end
+
+# ----------------------------------------------------------------------------- compile every module file
+Dir.glob(File.join(MODULE_DIR, '*.rb')).sort.each do |f|
+  begin
+    RubyVM::InstructionSequence.compile_file(f)
+    check("compiles #{File.basename(f)}", true)
+  rescue SyntaxError => e
+    check("compiles #{File.basename(f)}", false, e.message)
+  end
+end
+
+# ----------------------------------------------------------------------------- load the real modules
+module UI; class HtmlDialog; STYLE_DIALOG = 0; end; end
+module Sketchup
+  def self.platform; :platform_win; end
+  def self.active_model; nil; end
+end
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
+PI = Na__Noble3dModellingTools::Na__ImageCarousel__PhotoInfo
+DM = Na__Noble3dModellingTools::Na__ImageCarousel__DialogManager
+
+def read(name) = PI.Na__ImageCarousel__PhotoInfo__Read(File.join(EXIF_DIR, name))
+
+r = read('apple.jpg')
+check('jpeg focal35', r['focal35'] == 26, r)
+check('jpeg focal mm', (r['focalMm'] - 4.2).abs < 1e-9, r)
+check('jpeg make/model', r['make'] == 'Apple' && r['model'] == 'iPhone 12 Pro', r)
+check('jpeg lens model', r['lensModel'].to_s.include?('4.2mm'), r)
+check('jpeg not none', !r.key?('none'), r)
+
+r = read('apple.png')
+check('png eXIf focal35', r['focal35'] == 26, r)
+r = read('apple.webp')
+check('webp EXIF focal35', r['focal35'] == 26, r)
+r = read('apple.tif')
+puts "  (tiff result: #{r.inspect})"
+check('tiff read does not raise', r.is_a?(Hash) && r['path'], r)
+
+r = read('canon_be.jpg')
+check('big-endian EXIF focal35 (SHORT)', r['focal35'] == 35, r)
+check('big-endian make', r['make'] == 'Canon' && r['model'] == 'EOS R5', r)
+
+%w[plain.jpg corrupt.jpg truncated.png notimage.txt missing.jpg].each do |name|
+  r = read(name)
+  check("#{name} gives none", r['none'] == true && !r.key?('focal35'), r)
+end
+
+if File.file?(REAL_PNG)  # Adam's Phillips site photo: an iPhone PNG with no EXIF
+  t0 = Time.now
+  r = PI.Na__ImageCarousel__PhotoInfo__Read(REAL_PNG)
+  dt = Time.now - t0
+  check('real Phillips PNG has no lens data', r['none'] == true, r)
+  check('real 15 MB PNG read quickly (seek, not slurp)', dt < 0.5, dt)
+  puts "  (real PNG read in #{(dt * 1000).round(1)} ms)"
+end
+
+# ----------------------------------------------------------------------------- dialog callback output
+class FakeDialog
+  attr_reader :scripts
+  def initialize; @scripts = []; end
+  def execute_script(s); @scripts << s; end
+end
+d = FakeDialog.new
+DM.na_send_photo_info(d, File.join(EXIF_DIR, 'apple.jpg').tr('\\', '/'))
+js = d.scripts.last.to_s
+check('callback calls OnPhotoInfo', js.start_with?('window.Na__ImageViewer__OnPhotoInfo && window.Na__ImageViewer__OnPhotoInfo({'), js)
+payload = JSON.parse(js[/\((\{.*\})\);\z/, 1])
+check('callback payload focal35', payload['focal35'] == 26, payload)
+d2 = FakeDialog.new
+DM.na_send_photo_info(d2, File.join(EXIF_DIR, 'notimage.txt'))
+p2 = JSON.parse(d2.scripts.last[/\((\{.*\})\);\z/, 1])
+check('non-image path is not read', p2['none'] == true, p2)
+
+# ----------------------------------------------------------------------------- html assembly
+html = DM.na_render_html
+check('no placeholder left', !html.include?('{{'), html.scan(/\{\{[A-Z_]+\}\}/))
+%w[UiBridge Measurement PerspectiveSolver PerspectiveAngle].each do |part|
+  src = File.read(File.join(MODULE_DIR, "Na__Noble3dModellingTools__ImageCarousel__#{part}__.js"))
+  check("#{part} inlined byte for byte", html.include?(src))
+end
+check('html is UTF-8', html.encoding.to_s == 'UTF-8', html.encoding)
+Dir.mkdir(OUT_DIR) unless File.directory?(OUT_DIR)
+File.write(File.join(OUT_DIR, 'assembled.html'), html)
+
+puts "\n#{$passes} passed, #{$fails} failed"
+raise 'ruby checks failed' if $fails > 0

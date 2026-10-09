@@ -28,20 +28,28 @@
 # WHILE THE SELECTION IS THE BANK:
 # - Press anywhere and drag. The selected edge NEAREST the press drives the
 #   measurement and every other one rides along at the same size, with the
-#   whole batch previewed and mitred as a SHIFT bank always was. The drag is
-#   measured from where the press landed, so pressing a little off the edge
-#   does not open the cut with a jump.
+#   whole batch previewed and mitred as a SHIFT bank always was. The scrub
+#   measures height on screen from where the press landed (DrawnChamferScrub),
+#   so pressing off the edge opens the cut at its usual 25%, with no jump.
 # - SHIFT+click still adds or removes any edge, at any depth. BKSP un-banks the
 #   newest, ESC clears the bank and puts the deep picker back. A successful cut
 #   empties the bank, as it always did, and the retype stays open on the cut.
 #
+# A VERY LARGE SELECTION ASKS FIRST (5.1.22):
+# - More than NA_LARGE_SELECTION_EDGES selected edges and the user is asked,
+#   before a single one is solved, whether to take them all on — CTRL+A and a
+#   shortcut must not mould a whole model. No leaves the selection alone and
+#   deep-picks as usual; Cancel leaves the tool. See
+#   06__Tools__DrawnShared/Na__InsertPrimatives__DrawnLargeSelection__.rb.
+#
 # HOST CONTRACT — included by DrawnChamferTool after DrawnChamferRevise. The
-# host calls na_ps__adopt_selection from activate, routes an idle hover and an
-# idle click through na_ps__active?, and reads @na_ch_travel_zero in its drag.
+# host calls na_ps__adopt_selection from activate and routes an idle hover and
+# an idle click through na_ps__active?.
 #
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnLargeSelection__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnQuadRings__'
 
@@ -101,6 +109,7 @@ module Na__InsertPrimatives
 
             edges = selected.grep(Sketchup::Edge)
             return 0 if edges.empty?
+            return 0 unless na_ps__confirm_large(edges.length)               # <-- Asked before a single edge is solved
 
             path = Na__InsertPrimatives.Na__DeepPick__ContextPath
 
@@ -124,6 +133,29 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts "NA #{na_drawn__cut_title.upcase}: the selection could not be read (#{error.message}) — deep picking as usual"
             @na_ps_active = false
             0
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Take On a Very Large Selection Only If the User Says So
+        # true to bank the selection. No leaves it alone and deep-picks as
+        # usual; Cancel does the same and leaves the tool a beat later, from a
+        # timer, because this runs inside activate.
+        # ------------------------------------------------------------
+        def na_ps__confirm_large(count)
+            return true if count <= NA_LARGE_SELECTION_EDGES
+
+            answer = Na__InsertPrimatives.Na__LargeSelection__Ask(
+                :edges, count, na_drawn__tool_title, "#{na_drawn__cut_verb}ed", na_drawn__cut_verb.capitalize
+            )
+            return true if answer == :yes
+
+            if answer == :cancel
+                na_drawn__schedule_exit_tool
+            else
+                na_revise__notice("The #{Na__InsertPrimatives.Na__LargeSelection__Count(count)} selected edges are left alone — hover an edge to #{na_drawn__cut_verb} it")
+            end
+
+            false
         end
         # ---------------------------------------------------------------
 
@@ -191,18 +223,14 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Press Anywhere: Grab the Nearest Selected Edge
-        # The drag is zeroed where the press landed, so a press beside the
-        # edge rather than on it starts the cut at nothing, not at the gap.
+        # The scrub starts from wherever the press landed, so a press beside
+        # the edge rather than on it opens the cut at its usual 25%.
         # ------------------------------------------------------------
         def na_ps__grab(view, x, y)
             driver = na_ps__nearest(view, x, y)
             return false unless driver
 
-            return false unless na_drawn__grab_edge(view, x, y, driver)
-
-            start = na_drawn__corner_plane_point(view, x, y)
-            @na_ch_travel_zero = start ? (start - @na_ch_anchor).dot(@na_ch_bisector).to_f : 0.0
-            true
+            na_drawn__grab_edge(view, x, y, driver) ? true : false
         end
         # ---------------------------------------------------------------
 

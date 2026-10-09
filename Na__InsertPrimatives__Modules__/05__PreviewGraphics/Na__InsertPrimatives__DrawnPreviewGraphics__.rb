@@ -553,6 +553,87 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Draw a Pushed Face's Swept Volume THROUGH Whatever Stands in Front
+    # ------------------------------------------------------------
+    # Deep Push/Pull's counterpart of DrawFilledBoxOnTop, for a face pushed
+    # INTO its solid (5.1.22). near_loop is the face where it is, far_loop where
+    # it is going, point for point; far_triangles is the face's own
+    # triangulation moved with it, so a concave face or one with holes fills
+    # correctly. The far face and the side walls are filled and every edge
+    # outlined, in screen space with no depth test, so the volume the push
+    # removes reads through the face that would otherwise hide it. The near
+    # face is the model's own and shows through the fill.
+    #
+    # Returns false without drawing when any point sits behind a perspective
+    # camera, so the caller can fall back to the depth-tested draw.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawPrismOnTop(view, near_loop, far_loop, far_triangles, fill_color, border_color)
+        return false unless near_loop && far_loop && near_loop.length == far_loop.length && near_loop.length >= 3
+
+        near_2d = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, near_loop)
+        far_2d  = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, far_loop)
+        return false unless near_2d && far_2d
+
+        cap_2d = []
+        (far_triangles || []).each do |triangle|
+            projected = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, triangle)
+            return false unless projected && projected.length == 3
+
+            cap_2d.concat(projected)
+        end
+
+        count = near_2d.length
+        walls = []
+        sides = []
+
+        count.times do |index|
+            following = (index + 1) % count
+            walls << near_2d[index] << near_2d[following] << far_2d[following] << far_2d[index]
+            sides << near_2d[index] << far_2d[index]
+        end
+
+        view.drawing_color = fill_color
+        view.draw2d(GL_TRIANGLES, cap_2d) unless cap_2d.empty?
+        view.draw2d(GL_QUADS, walls)
+
+        view.line_stipple  = ''
+        view.line_width    = 2
+        view.drawing_color = border_color
+        view.draw2d(GL_LINE_LOOP, far_2d)
+        view.line_width    = 1
+        view.draw2d(GL_LINE_LOOP, near_2d)
+        view.draw2d(GL_LINES, sides)
+
+        true
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw a Filled, Bordered Quad THROUGH Whatever Stands in Front
+    # The 2D push's swept strip, pushed into its wall. false when it cannot be
+    # projected honestly, for the caller to fall back to DrawFilledQuad.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawFilledQuadOnTop(view, points, fill_color, border_color)
+        return false unless points && points.length == 4
+
+        quad_2d = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, points)
+        return false unless quad_2d && quad_2d.length == 4
+
+        view.drawing_color = fill_color
+        view.draw2d(GL_QUADS, quad_2d)
+
+        view.line_stipple  = ''
+        view.line_width    = 2
+        view.drawing_color = border_color
+        view.draw2d(GL_LINE_LOOP, quad_2d)
+
+        true
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Project World Points into Screen Space for draw2d
     # nil when ANY point cannot be projected honestly — a partly projected box
     # is worse than no box, because the half that did project looks correct.

@@ -21,6 +21,8 @@
 #   Na__EdgeColours__IsStandardName?(name)            - Returns true for MTE pattern names
 #   Na__EdgeColours__PurgeCache                       - Purge + fresh download
 #   Na__EdgeColours__LoadStatus                       - Returns :url | :cache_stale | :failed | :pending
+#   Na__EdgeColours__Palette                          - Ordered swatch list (Draw Profile > Edge Paint)
+#   Na__EdgeColours__FlatLookup                       - The flat name -> entry registry, nil until loaded
 #
 # =============================================================================
 
@@ -34,6 +36,7 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         @na_flat_registry = {}
+        @na_palette       = []
         @na_load_status   = :pending
 
         NA_CACHE_KEY                 = :edge_materials
@@ -51,6 +54,7 @@ module Na__ProfileTools__ProfilePathTracer
             if fetched
                 Na__DataLib__CacheData.Na__Cache__WriteToCache(NA_CACHE_KEY, fetched)
                 @na_flat_registry = self.Na__EdgeColours__Flatten(fetched)
+                @na_palette = self.Na__EdgeColours__BuildPalette(fetched)
                 @na_load_status = :url
                 return @na_flat_registry
             end
@@ -58,15 +62,18 @@ module Na__ProfileTools__ProfilePathTracer
             cached = Na__DataLib__CacheData.Na__Cache__ReadAnyCache(NA_CACHE_KEY)
             if cached
                 @na_flat_registry = self.Na__EdgeColours__Flatten(cached)
+                @na_palette = self.Na__EdgeColours__BuildPalette(cached)
                 @na_load_status = :cache_stale
                 return @na_flat_registry
             end
 
             @na_flat_registry = {}
+            @na_palette = []
             @na_load_status = :failed
             nil
         rescue => error
             @na_flat_registry = {}
+            @na_palette = []
             @na_load_status = :failed
             puts "⚠ [Na__EdgeColourManager] Load failed: #{error.message}"
             nil
@@ -103,6 +110,25 @@ module Na__ProfileTools__ProfilePathTracer
             flat
         end
 
+        # The swatches in the registry's own order, series by series: what the
+        # Draw Profile tab's Edge Paint palette offers. Reserved keys (Default)
+        # are left out; the tab offers SketchUp's default colour itself.
+        def self.Na__EdgeColours__BuildPalette(raw_data)
+            return [] unless raw_data.is_a?(Hash)
+            series_root = raw_data[NA_DATA_ROOT_KEY]
+            return [] unless series_root.is_a?(Hash)
+
+            series_root.each_with_object([]) do |(series_key, series_entries), palette|
+                next unless series_entries.is_a?(Hash)
+                series_entries.each do |mte_key, entry|
+                    next unless entry.is_a?(Hash)
+                    next if entry['IsReserved'] == true
+                    next if entry['SketchUpName'].to_s.empty?
+                    palette << entry.merge('MteKey' => mte_key.to_s, 'Series' => series_key.to_s)
+                end
+            end
+        end
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -132,6 +158,16 @@ module Na__ProfileTools__ProfilePathTracer
 
         def self.Na__EdgeColours__LoadStatus
             @na_load_status
+        end
+
+        def self.Na__EdgeColours__Palette
+            @na_palette.map(&:dup)
+        end
+
+        # nil until the registry has loaded, so a caller with its own fallback
+        # (the exporter reads the data library directly) still reaches it.
+        def self.Na__EdgeColours__FlatLookup
+            @na_flat_registry.empty? ? nil : @na_flat_registry
         end
 
     # endregion ----------------------------------------------------------------

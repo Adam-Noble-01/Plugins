@@ -41,6 +41,9 @@ module Na__InsertPrimatives
     NA_DRAWN_QUAD_PUSH_KEY      = 'DrawnQuadPushEnabled'
     NA_DRAWN_OGEE_FLIP_KEY      = 'DrawnOgeeFlipped'
     NA_DRAWN_FILLET_COVE_KEY    = 'DrawnFilletCove'
+    NA_DRAWN_OVOLO_CAVETTO_KEY  = 'DrawnOvoloCavetto'
+    NA_DRAWN_OVOLO_STEP_KEY     = 'DrawnOvoloStepMm'
+    NA_DRAWN_OVOLO_DEFAULT_STEP_MM = 5.0                                      # <-- Deep Ovolo's step until one is typed
 
     NA_DRAWN_DEFAULT_SEGMENTS   = 24                                          # <-- Matches the SketchUp native circle default
     NA_DRAWN_SEGMENT_CYCLE      = [8, 12, 16, 24, 32, 48, 64, 96].freeze      # <-- Right-click menu cycle order

@@ -85,6 +85,14 @@ require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__
 require_relative '../32__System__EditProfileMode/Na__ProfileTools__EditProfile__ProfileDeleter__'
 
 # -------------------------------------------------------------------------
+# REGION | System - Draw Profile (2D editor; writes library files directly)
+# -------------------------------------------------------------------------
+
+require_relative '../34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__ProfileWriter__'
+require_relative '../34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__TraceBridge__'
+require_relative '../34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__DialogHandlers__'
+
+# -------------------------------------------------------------------------
 # REGION | AppCore (must load last — depends on all systems above)
 # -------------------------------------------------------------------------
 

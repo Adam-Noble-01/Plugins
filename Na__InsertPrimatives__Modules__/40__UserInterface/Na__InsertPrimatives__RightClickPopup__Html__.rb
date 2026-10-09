@@ -120,6 +120,7 @@ module Na__InsertPrimatives
         chamfer_btn = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Chamfer',     'setChamferMode',       :drawn_chamfer,      active_key, submenu)
         fillet_btn  = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Fillet',      'setFilletMode',        :drawn_fillet,       active_key, submenu)
         ogee_btn    = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Ogee',        'setOgeeMode',          :drawn_ogee,         active_key, submenu)
+        ovolo_btn   = Na__InsertPrimatives.Na__RightClickPopup__ModeButton('Deep Ovolo / Cavetto', 'setOvoloMode',     :drawn_ovolo,        active_key, submenu)
 
         <<~HTML
         <!DOCTYPE html>
@@ -229,6 +230,7 @@ module Na__InsertPrimatives
             #{chamfer_btn}
             #{fillet_btn}
             #{ogee_btn}
+            #{ovolo_btn}
 
             <div class="rule"></div>
             <button id="gridBtn" onclick="sketchup.cycleGridStep()">Snap Grid: #{grid_label}</button>

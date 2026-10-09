@@ -18,6 +18,10 @@
     // - firstSyncComplete state + na__vvcs__applyButtonLockState(): greys out Update
     //   cards until first successful sync; guards Update actions when locked.
     //
+    // 06-Oct-2026 - Version 1.2.0
+    // - Library Project and Server rows (Export tab); Project Library group (Settings tab)
+    //   with Save Library Project / Use Folder Name; SKIP badge for skipped steps.
+    //
     // =============================================================================
 
 
@@ -152,6 +156,30 @@
         window.sketchup.na_vvcs_clear_path_override();
     }
 
+    function Na__Vvcs__SaveLibraryId() {
+        if (!window.sketchup || !window.sketchup.na_vvcs_save_library_id) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        var input = document.getElementById('naVvcsLibraryIdInput');
+        var value = input ? input.value.trim() : '';
+        if (!value) {
+            na__vvcs__setStatus('Enter a library project, e.g. 64135__Washington.', 'warning');
+            return;
+        }
+        window.sketchup.na_vvcs_save_library_id(value);
+    }
+
+    function Na__Vvcs__ClearLibraryId() {
+        if (!window.sketchup || !window.sketchup.na_vvcs_clear_library_id) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        var input = document.getElementById('naVvcsLibraryIdInput');
+        if (input) { input.value = ''; }
+        window.sketchup.na_vvcs_clear_library_id();
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -200,6 +228,50 @@
 
         if (pathInput && pathData.override_path) {
             pathInput.value = pathData.override_path;
+        }
+
+        na__vvcs__renderLibraryStatus(pathData.library || null);
+    }
+
+    // FUNCTION | Library Project + Server Rows, and the Settings Library Group
+    // ------------------------------------------------------------
+    function na__vvcs__renderLibraryStatus(library) {
+        var projectEl = document.getElementById('naVvcsLibraryProject');
+        var serverEl  = document.getElementById('naVvcsServerMode');
+        var pathEl    = document.getElementById('naVvcsLibraryPath');
+        var inputEl   = document.getElementById('naVvcsLibraryIdInput');
+        var base      = 'naVvcs__ProjectStatus__Value';
+
+        if (!library) {
+            if (projectEl) { projectEl.textContent = '—'; projectEl.className = base; }
+            if (serverEl)  { serverEl.textContent  = '—'; }
+            if (pathEl)    { pathEl.textContent    = '—'; }
+            return;
+        }
+
+        if (projectEl) {
+            if (library.error) {
+                projectEl.textContent = library.error;
+                projectEl.className   = base + ' ' + base + '--error';
+            } else if (!library.exists) {
+                projectEl.textContent = 'NEW: ' + library.rel + ' (created by the first sync, after you confirm)';
+                projectEl.className   = base + ' ' + base + '--new';
+            } else {
+                projectEl.textContent = library.rel + (library.source === 'override' ? ' (set in Settings)' : '');
+                projectEl.className   = base + (library.source === 'override' ? ' ' + base + '--override' : '');
+            }
+        }
+        if (serverEl) {
+            serverEl.textContent = library.push
+                ? 'Push to app.valegardenhouses.com (this project only)'
+                : 'Local only: push_to_server is off in the plugin AppConfig';
+        }
+        if (pathEl) {
+            pathEl.textContent = library.library_path || '—';
+        }
+        if (inputEl) {
+            inputEl.value       = library.source === 'override' ? (library.library_id || '') : '';
+            inputEl.placeholder = library.source === 'derived' && library.library_id ? library.library_id : '64135__Washington';
         }
     }
 
@@ -255,12 +327,12 @@
         var success = (step && typeof step.success === 'boolean') ? step.success : undefined;
         var status  = (step && step.status) ? String(step.status).toLowerCase() : '';
 
-        if (success === true || status === 'ok' || status === 'success') {
+        if (status === 'skip' || status === 'skipped') {
+            cls = 'skip'; label = 'SKIP';                                   // <-- Checked first: a skipped step still carries success
+        } else if (success === true || status === 'ok' || status === 'success') {
             cls = 'ok'; label = 'OK';
         } else if (success === false || status === 'error' || status === 'fail') {
             cls = 'error'; label = 'ERR';
-        } else if (status === 'skip' || status === 'skipped') {
-            cls = 'skip'; label = 'SKIP';
         } else {
             cls = 'running'; label = '...';
         }
@@ -330,6 +402,8 @@
     window.Na__Vvcs__RunSyncAction      = Na__Vvcs__RunSyncAction;
     window.Na__Vvcs__SavePathOverride   = Na__Vvcs__SavePathOverride;
     window.Na__Vvcs__ClearPathOverride  = Na__Vvcs__ClearPathOverride;
+    window.Na__Vvcs__SaveLibraryId      = Na__Vvcs__SaveLibraryId;
+    window.Na__Vvcs__ClearLibraryId     = Na__Vvcs__ClearLibraryId;
     window.Na__Vvcs__ReceiveReport      = Na__Vvcs__ReceiveReport;
     window.Na__Vvcs__ReceivePathStatus  = Na__Vvcs__ReceivePathStatus;
 

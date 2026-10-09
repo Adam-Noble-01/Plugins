@@ -88,6 +88,14 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                         <span class="naVvcs__ProjectStatus__Label">IMG## Scenes</span>
                         <span class="naVvcs__ProjectStatus__Value" id="naVvcsImgSceneCount">&mdash;</span>
                     </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Library Project</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsLibraryProject">&mdash;</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Server</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsServerMode">&mdash;</span>
+                    </div>
                 </div>
 
                 <!-- Sync action buttons -->
@@ -99,7 +107,7 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                         <span class="naVvcs__ActionCard__Icon">&#9654;</span>
                         <span class="naVvcs__ActionCard__Body">
                             <span class="naVvcs__ActionCard__Label">Sync Project To ValeVision 3D</span>
-                            <span class="naVvcs__ActionCard__Desc">Full sync: export images, capture cameras, export GLBs, upload to R2 and Whitecardopedia.</span>
+                            <span class="naVvcs__ActionCard__Desc">Full sync: export images, capture cameras, export GLBs, publish to the Project Library and push this project to app.valegardenhouses.com.</span>
                         </span>
                     </button>
 
@@ -108,7 +116,7 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                         <span class="naVvcs__ActionCard__Icon">&#128247;</span>
                         <span class="naVvcs__ActionCard__Body">
                             <span class="naVvcs__ActionCard__Label">Update Images For ValeVision 3D</span>
-                            <span class="naVvcs__ActionCard__Desc">Re-export IMG## whitecard scenes and sync new images + thumbnails to R2.</span>
+                            <span class="naVvcs__ActionCard__Desc">Re-export IMG## whitecard scenes, make 524p thumbnails, publish and push.</span>
                         </span>
                     </button>
 
@@ -117,7 +125,7 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                         <span class="naVvcs__ActionCard__Icon">&#128194;</span>
                         <span class="naVvcs__ActionCard__Body">
                             <span class="naVvcs__ActionCard__Label">Update GLB Models For ValeVision 3D</span>
-                            <span class="naVvcs__ActionCard__Desc">Archive existing GLBs, export fresh models via TrueVision3D, upload to R2.</span>
+                            <span class="naVvcs__ActionCard__Desc">Archive existing GLBs, export fresh models via TrueVision3D, publish and push.</span>
                         </span>
                     </button>
 
@@ -126,7 +134,7 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                         <span class="naVvcs__ActionCard__Icon">&#127910;</span>
                         <span class="naVvcs__ActionCard__Body">
                             <span class="naVvcs__ActionCard__Label">Update Camera Data For ValeVision 3D</span>
-                            <span class="naVvcs__ActionCard__Desc">Capture IMG## scene cameras, merge into local ProjectData JSON and R2 project.json.</span>
+                            <span class="naVvcs__ActionCard__Desc">Capture IMG## scene cameras into the local ProjectData JSON and the project record, then push.</span>
                         </span>
                     </button>
                 </div>
@@ -177,6 +185,39 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                                 onclick="Na__Vvcs__SavePathOverride()">Save Override</button>
                         <button type="button" class="naVvcs__Btn"
                                 onclick="Na__Vvcs__ClearPathOverride()">Clear Override</button>
+                    </div>
+                </div>
+
+                <!-- Project Library -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">Project Library</h3>
+                    <p class="naVvcs__SettingsGroup__Desc">
+                        Exports are published into the Vale Projects Master Library on this PC, then this
+                        project's folder alone is pushed to app.valegardenhouses.com by the Vale Virtual
+                        Server Manager. The library project is the project folder name without
+                        <code>__Whitecard</code> / <code>__Blockout</code> / <code>__MaxModel</code>. Set it here if
+                        this model belongs to a project with a different name. Saved into the model.
+                    </p>
+
+                    <div class="naVvcs__FieldRow">
+                        <label class="naVvcs__FieldRow__Label">Library Folder</label>
+                        <span class="naVvcs__FieldRow__ReadOnly" id="naVvcsLibraryPath">&mdash;</span>
+                    </div>
+
+                    <div class="naVvcs__FieldRow">
+                        <label class="naVvcs__FieldRow__Label" for="naVvcsLibraryIdInput">Library Project</label>
+                        <input type="text"
+                               id="naVvcsLibraryIdInput"
+                               class="naVvcs__TextInput"
+                               placeholder="64135__Washington"
+                               autocomplete="off" spellcheck="false">
+                    </div>
+
+                    <div class="naVvcs__ButtonRow">
+                        <button type="button" class="naVvcs__Btn naVvcs__Btn--primary"
+                                onclick="Na__Vvcs__SaveLibraryId()">Save Library Project</button>
+                        <button type="button" class="naVvcs__Btn"
+                                onclick="Na__Vvcs__ClearLibraryId()">Use Folder Name</button>
                     </div>
                 </div>
 

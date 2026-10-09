@@ -91,6 +91,18 @@
 #   and a loop cut takes *N and /N the same way. Further in from the line the
 #   face is pushed exactly as before. See DrawnPushPullQuadOffset.
 #
+# PRESELECTED FACES (DrawnPushPullPreselect):
+# - Faces selected before the tool starts are pushed together. More than ten
+#   ask first (5.1.22): CTRL+A and the shortcut must not push a whole model.
+#
+# PUSHED INTO THE SOLID, THE PREVIEW IS THE VOLUME REMOVED (5.1.22):
+# - The orange preview is depth-tested, which is right for a push OUT: the
+#   new slab stands in front of the model. Pushed IN, every line of it is
+#   inside the solid and the face hides it — there was no feedback at all.
+#   So a face on a solid pushed against its normal draws the volume it will
+#   take away in the cutter red, through everything, exactly as Drawn
+#   Volume's subtract draws its cutter (5.1.6). Orange out, red in.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -1020,8 +1032,22 @@ module Na__InsertPrimatives
             moved_triangles = @na_pp_triangles.map { |points| points.map { |point| na_drawn__move_world_point(point, offset) } }
             moved_loop      = @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
 
-            Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, moved_triangles, NA_PP_RESULT_FILL)
-            Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, NA_PP_RESULT_BORDER)
+            if na_drawn__push_inward?(offset)
+                na_drawn__draw_inward_preview(view, moved_triangles, moved_loop)    # <-- Into the solid: the volume removed, in red, through the model
+            else
+                na_drawn__draw_sides(view, moved_triangles, moved_loop, NA_PP_RESULT_FILL, NA_PP_RESULT_BORDER)
+            end
+
+            na_drawn__draw_travel_arrow(view, offset)
+            na_drawn__draw_distance_label(view, moved_loop)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Pushed Face and Its Travel Lines, Depth-Tested
+        # ------------------------------------------------------------
+        def na_drawn__draw_sides(view, moved_triangles, moved_loop, fill, border)
+            Na__InsertPrimatives.Na__DrawnPreview__DrawTriangles(view, moved_triangles, fill)
+            Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, moved_loop, border)
 
             # Drawn here rather than through the preview module, so the pair of
             # loops has to be converted to draw space by hand.
@@ -1029,13 +1055,48 @@ module Na__InsertPrimatives
             side_to   = Na__InsertPrimatives.Na__DrawnPreview__ToDrawSpace(moved_loop)
 
             side_from.each_with_index do |point, index|
-                view.drawing_color = NA_PP_RESULT_BORDER
+                view.drawing_color = border
                 view.line_width    = 1
                 view.draw_line(point, side_to[index])
             end
+        end
+        # ---------------------------------------------------------------
 
-            na_drawn__draw_travel_arrow(view, offset)
-            na_drawn__draw_distance_label(view, moved_loop)
+        # FUNCTION | Is the Face Being Pushed Into Its Own Solid?
+        # ------------------------------------------------------------
+        # Against its normal, and the face is part of a shell: every one of its
+        # edges borders another face. A lone face pushed backwards is still
+        # an extrusion — it adds a volume behind it — so it stays orange.
+        # ------------------------------------------------------------
+        def na_drawn__push_inward?(offset)
+            normal = na_drawn__face_normal
+            return false unless normal && offset && offset.length > 0
+            return false unless offset.dot(normal) < 0.0
+
+            face = @na_pp_target ? @na_pp_target[:face] : nil
+            return false unless face && face.valid?
+
+            face.edges.all? { |edge| edge.faces.length >= 2 }
+        rescue StandardError
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Preview a Push Into the Solid as the Volume It Removes
+        # ------------------------------------------------------------
+        # In the cutter red, in screen space, so the face that would hide it
+        # does not. Falls back to the depth-tested draw, still red, when a
+        # corner sits behind the camera.
+        # ------------------------------------------------------------
+        def na_drawn__draw_inward_preview(view, moved_triangles, moved_loop)
+            drawn = Na__InsertPrimatives.Na__DrawnPreview__DrawPrismOnTop(
+                view, @na_pp_loop, moved_loop, moved_triangles,
+                NA_DRAWN_CUTTER_XRAY_FILL, NA_DRAWN_CUTTER_BORDER_COLOR
+            )
+            return true if drawn
+
+            na_drawn__draw_sides(view, moved_triangles, moved_loop, NA_DRAWN_CUTTER_FILL_COLOR, NA_DRAWN_CUTTER_BORDER_COLOR)
+            false
         end
         # ---------------------------------------------------------------
 
@@ -1124,7 +1185,8 @@ module Na__InsertPrimatives
                 if na_drawn__loop_cut_mode?
                     ["Loop cut #{distance} mm inset"]                          # <-- "(quads)" is redundant; a cut only happens with them on
                 else
-                    ["Push #{distance} mm#{na_drawn__quad_mode? ? '  (quads)' : ''}"]
+                    inward = na_drawn__push_inward?(na_drawn__push_offset_vector) ? ' in' : ''
+                    ["Push #{distance} mm#{inward}#{na_drawn__quad_mode? ? '  (quads)' : ''}"]
                 end
 
             if @na_axis_lock

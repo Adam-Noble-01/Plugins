@@ -4,6 +4,205 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.15 - 08-Oct-2026 - Edge Paint: Every Swept Line Takes Its Own Colour
+
+### Summary
+The edge colours a profile carries did not land on the right lines of the trace, so rails and mitre
+lines had to be repainted by hand. **Every edge the sweep makes is now traced back to where it came
+from: a line along the path takes its profile VERTEX's colour; a line on an end cap or a mitre takes
+its profile EDGE's colour.** A new **Edge Paint** tab in Draw Profile shows and sets both from the
+SSOT palette, and they save with the profile, in the library or on one trace.
+
+### What was wrong
+`Na__Geometry__ApplyUnifiedEdgeStates` gave each swept edge the style of the profile edge closest
+to it in **length**, and skipped the caps. A 3 m rail took the colour of whichever profile edge
+happened to be longest; a mitre line took the colour of whichever profile edge matched its
+length. 13 of the 33 library profiles carry more than one colour, and on those the result was near
+random. Capture was right all along: Create Profile stores each edge's colour faithfully.
+
+### The fix: colour by origin
+`Na__Geometry__ApplySweepEdgeColours` (shared by first build and every rebuild):
+- `Na__Geometry__BuildTransformedProfileFace` now also returns where it put each profile vertex.
+- From there the walk follows each vertex's rail along the path, one segment at a time, onto the
+  next segment at every mitre, and round to the seam on a closed loop
+  (`Na__Geometry__TraceSweptEdges`).
+- A **rail** takes its vertex's colour. An edge joining two neighbouring vertices' stations (the
+  caps, every mitre, the closed-loop seam) takes that **profile edge's** colour.
+- A vertex with no colour of its own follows its two edges, **the darker where they differ**, so a
+  corner of a black outline sweeps black.
+- Positions are compared only with positions read in the same context: no transformations at all,
+  per the Coordinate Rule.
+- Softening is unchanged: the 20 deg rule, and swept curve rails stay soft.
+- An edge the walk cannot place takes the profile's most used colour. The old length-matched
+  styling remains only as the fallback for a sweep whose cap cannot be found.
+- A datum vertex standing on the path sweeps along the path line. The walk takes the swept edge
+  over the temporary path edge lying with it; it takes the path edge only if Follow Me merged the
+  two into one.
+
+### Data (old readers ignore the new keys)
+| Where | Keys | Meaning |
+|---|---|---|
+| Mesh3D edge | `EdgeMaterialName`, `EdgeColourId`, `EdgeColourHex` (as before) | Its lines on the caps and every mitre. `EdgeColourId: Default` = SketchUp's own colour, no material |
+| Profile2D vertex | `SweepEdgeMaterialName`, `SweepEdgeColourId`, `SweepEdgeColourHex` (new) | The line it sweeps along the path. Absent = follows its edges |
+
+### Edge Paint tab (Draw Profile)
+- The palette is the SSOT's `Na__DataLib__CoreIndex__EdgeMaterials`: 17 swatches, Greyscale then
+  Accent Colour, through `Na__EdgeColourManager` (URL first, else the cached copy). Refresh colours
+  fetches again. Two specials: SketchUp default, and Unpainted.
+- Opening the tab takes the blue away. Edges show in their colours, a painted vertex as a dot, an
+  unpainted vertex as a ring in the colour it will follow. An unpainted edge carries a fine white
+  dash: it saves as the profile's usual colour. "Show colours on every tab" keeps them on.
+- **Paint tool (B)**, as SketchUp's Paint Bucket: click an edge or a vertex; Shift paints everything
+  of that colour; Ctrl paints the whole outline; Alt picks a colour up; clicking into a selection
+  paints all of it. Buttons: Paint selection, All edges, All vertices, Vertices follow edges. A
+  legend lists the colours in use.
+- Colours survive every edit. A split, trim or extend keeps the edge's colour, and so do copy,
+  mirror and move (a vertex's colour goes with its location). A fillet or chamfer takes the colour
+  of the edges it joins; an offset takes each source edge's; Rebuild Arcs keeps its lines' colour.
+  Undo and redo include paint.
+- Saved by Save (new or over), Update This Trace and Live. Every profile reopens in its colours.
+  From Model on a face brings its edge materials in.
+
+### Also fixed
+`Na__Exporter__LoadEdgeMaterialLookup` called `Na__EdgeColours__FlatLookup`, which did not exist.
+The NoMethodError was swallowed and an empty table cached, so Create Profile's fallback for an edge
+material that is not an MTE name never found its SSOT entry. Added; it returns nil until the
+registry has loaded, so the data-library fallback still runs.
+
+### Verified offline
+- `edge_paint.rb.test`, under SketchUp's bundled Ruby 3.2.2. It drives the real
+  EdgeColourManager (fed the SSOT JSON through a stub cache), writer, library parser, Interactive
+  engine, sweep and RegenerationEngine. Follow Me is a double that mitres as SketchUp does and tags
+  every edge with the cap vertex or vertices it came from; that tag is the ground truth.
+  Scenarios:
+  - the writer's fields;
+  - an open path with two mitres (one 90 deg, one sharper);
+  - unpainted vertices following the darker edge;
+  - a closed loop;
+  - `Default` making no material;
+  - a profile painted in 12 different colours, built inside an open group moved and rotated three
+    deep and inside a 2 / 1.5 / 0.5 scaled group, regenerated with the group closed, then Update
+    This Trace with the colours swapped;
+  - Belton (two colours, 111 rails and 148 section edges).
+
+  **9/9.** With the old styling forced back on, 6 of the 7 sweep scenarios fail.
+- `paint.test.js`, 25 checks: paint through every edit; the export lines up with the loop either way
+  round; export, then a writer-shaped record, then import is lossless; all 33 library profiles
+  reopen with every straight edge in its recorded colour; the vertex rule.
+- `smoke4.ui.js`, 22 headless checks on the real dialog, including canvas pixel colours: the blue
+  outline becomes the painted colours. Also Shift / Ctrl / Alt, undo, the legend, the save payload,
+  Belton opening in its two colours, and the narrow dialog.
+- The v1.6.14 suites below, and v1.6.13's `origin_helper.rb.test`, still pass; 43/43 Ruby files
+  compile.
+
+### To verify in SketchUp
+Reload Plugin Data, then **close and reopen** the Profile Path Tracer dialog (a new script file).
+Existing traces take the new colours the next time they rebuild (Regenerate Trace, an edited path,
+or Update This Trace).
+
+1. Trace Belton (or any profile with two colours) along an L-shaped path and inspect the rails and
+   both mitres: every line in the colour its profile edge or vertex has, nothing to repaint.
+2. Same in a group moved and rotated three deep, and in a scaled group.
+3. Draw Profile > open that profile > Edge Paint. The palette shows 17 SSOT colours. Paint one
+   vertex red, Update This Trace: exactly one line along the path turns red.
+4. Paint one edge blue: that edge's line turns blue on both end caps and at each mitre.
+5. Turn Live on, paint, and watch the trace follow; Ctrl+Z steps the paint back.
+6. Save the painted profile as a new library profile, trace it fresh, and check it matches.
+
+### Files touched
+| File | Change |
+|---|---|
+| `Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Colour by origin (`ApplySweepEdgeColours`, `TraceSweptEdges`, vertex and edge styles); the face builder returns its placement |
+| `Na__ProfileTools__AppData__EdgeColourManager__.rb` | `Na__EdgeColours__Palette`, `Na__EdgeColours__FlatLookup` |
+| `Na__ProfileTools__DrawProfile__ProfileWriter__.rb` | `edgePaint` / `vertexPaint` / `paintHex` written to Mesh3D edges and Profile2D vertices |
+| `Na__ProfileTools__DrawProfile__TraceBridge__.rb` | From Model on a face reads its edge materials |
+| `Na__ProfileTools__DrawProfile__DialogHandlers__.rb` | `na_profilepathtracer_draw_edge_palette` |
+| `Na__ProfileTools__DrawProfile__Tools__Paint__.js` (new) | Paint model, legend, the Paint tool |
+| Document, Loop, Ops, Editor, Viewport, Config, Bridge, MainUiLogic `.js`; DrawProfile `.css`; UiLayout `.html`; PluginReloader | Paint storage and survival, export and import, the paint view, the Edge Paint tab |
+
+# =======================================================================================
+
+## Profile Path Tracer - v1.6.14 - 08-Oct-2026 - Draw Profile Tab, This Trace Only, and Live
+
+### Summary
+A new **Draw Profile** tab: a 2D workspace for drawing profiles or editing existing ones, without
+SketchUp geometry. Its tools and drawing feel come from the TrueVision Layout Editor. A drawing
+saves straight into the profile library, and goes onto a placed trace either through the library
+or **on that trace only**, by hand or **live**.
+
+### What it does
+- **Open**: New; a library profile; or From Model. A selected Profile Trace opens its own profile
+  and binds the trace. A face opens its outline, with SketchUp arcs as arcs. Edges open as
+  segments.
+- **Edit Profile** on the Apply tab, beside Edit Path, opens the selected trace here.
+- **Tools**: Select (window and crossing, grips, vertex mode, move by values), Line, Rectangle, Arc
+  (2-point, centre, 3-point), Circle, Move and Copy (with SketchUp's 3x and /3 arrays), Rotate,
+  Mirror, Scale, Offset, Trim and Extend (with a fence), Corner, Fillet, Chamfer, Split, Dimension,
+  Measure, Set Datum.
+- **Drawing aids**: a grid (1 mm by default, configurable); object snaps (end, mid, intersection,
+  centre, quadrant, perpendicular, nearest) with TV's tracking; Ortho (F8 or Ctrl+L; Shift does
+  the opposite); arrow-key axis locks; a Measurements box for every tool.
+- **Curves** keep their segment count (`Ns`). They are saved as `Na__Geometry__Curves` and welded
+  into SketchUp curves when swept, so Follow Me softens them.
+- **Profile Check**: one closed outline, with each problem named, its fix given, and a click to find
+  it.
+- **Save** as a new library profile, or over the opened one (a `.bak` is written).
+- **This trace only**. Update This Trace puts the drawing on the bound trace as its own local
+  profile (dictionary keys `ProfileSource`, `LocalProfile`, `LocalProfileName`); the library and
+  every other trace are left alone. **Live** sends every change after 200 ms: one update in
+  flight, one queued, an unchanged drawing skipped, paused while the outline is broken. Revert to
+  Library goes back. Swapping the trace to a library profile clears its local one; Regenerate
+  keeps it.
+- The drawing is kept as a draft in the dialog and restored when it reopens.
+
+### Fixed along the way
+While a corner was dragged (and in vertex-mode Move, and Move with copy) the snapper read the
+previous frame's preview. It caught the dragged corner's own position about 2 mm behind the
+cursor, so corners stopped short. A drag now snaps to the drawing as it was before the drag began,
+leaving out whatever the drag moves or stretches ("the shape being moved is excluded", as in
+TrueVision). The Line tool still snaps to the segments it has just placed.
+
+### Verified offline
+- Node: geometry 40, loop and document 123 (all 33 library profiles round-trip; 96 arcs
+  recognised), Measurements box 22, ops 33.
+- Headless Chrome on the real dialog HTML with a fake SketchUp: 28 + 26 + 23 checks. Drawing; the
+  modify tools by mouse and keyboard; the save payloads; binding a trace; Update This Trace; Live's
+  debounce, queue and pause; Revert; the drag self-snap regressions.
+- `draw_profile.rb.test`, under SketchUp's Ruby 3.2.2 on the Coordinate Rule doubles, 14 scenarios:
+  - SaveNew and SaveOverwrite;
+  - the weld runs;
+  - a local update leaves the library file and the other traces alone, and a failed rebuild puts
+    the old profile back;
+  - a swap clears the local profile, Regenerate keeps it, and Revert returns to the library;
+  - Save to Library moves the trace onto the new profile;
+  - From Model on a face, and Update This Trace, inside a group moved and rotated three deep and
+    inside a scaled group, with the group open and closed. The trace lands exactly where a library
+    trace of the same outline does.
+
+### To verify in SketchUp
+Reload Plugin Data, then close and reopen the dialog.
+
+1. Select a trace; Apply tab > Edit Profile. Its profile opens and the trace is bound.
+2. Change the outline; Update This Trace. Only that trace changes; another trace on the same
+   profile does not.
+3. Turn Live on and drag a vertex. The trace follows about a fifth of a second after each change.
+4. Revert to Library; Save to Library as a new profile; and both again inside a group moved and
+   rotated three deep.
+
+### Files touched
+| File | Change |
+|---|---|
+| `34__System__DrawProfileMode/` (new) | The tab: Config, Geometry, Document, Loop, Snap, Viewport, Vcb, Ops, Editor, Tools (Draw, Modify), Bridge, MainUiLogic `.js`; ProfileWriter, TraceBridge, DialogHandlers `.rb` |
+| `Na__ProfileTools__UiFeature__Styles__DrawProfile__.css` (new) | Its styles |
+| DialogManager, Main, PluginReloader, TabRouter, UiLayout `.html`, Index and TabStrip `.css` | Wiring |
+| Apply tab Controls, Events and MainUiLogic `.js` | The Edit Profile button |
+| `Na__ProfileTools__CreateNewProfile__Exporter__.rb` | `Na__Geometry__Curves` in the geometry blocks |
+| `Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | Curve welding before Follow Me |
+| `Na__ProfileTools__AppData__DataSerializer__.rb` | Local profile keys and reader |
+| `Na__ProfileTools__RegenerationEngine__Main__.rb`, `Na__ProfileTools__ProfileSwapEngine__Main__.rb` | A local profile is swept first; a swap clears it and Regenerate keeps it |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.13 - 01-Oct-2026 - Origin Helper Lands on the Click Inside Groups
 
 ### Summary

@@ -409,6 +409,18 @@
             '\u21c6 Swap Profile',
             '  </button>',
 
+            // Opens the selected trace's profile in the Draw Profile tab, bound
+            // to the trace, so the edited outline can be put back on it (Update
+            // Trace). Ruby resolves the selection, as for Edit Path.
+            '  <button class="naButton naButtonSecondary" id="naBtnOpenDrawEditor"' + (isSwapBusy || isPreviewLive ? ' disabled' : '') + '',
+            '          title="' + (isSwapBusy
+                ? 'Unavailable while a trace is rebuilding.'
+                : isPreviewLive
+                    ? 'Unavailable while previewing \u2014 commit or cancel the preview first.'
+                    : 'Select a placed Profile Trace in the model, then click this to open its profile in the Draw Profile editor. Edit it, then Update Trace puts it back on the trace.') + '">',
+            '\u25f2 Edit Profile',
+            '  </button>',
+
             // The helper rail hugs a corner of the swept solid, so double-clicking
             // into it by hand is close to impossible. That is why the right-click
             // item exists; this is the same item, reachable without first finding

@@ -547,6 +547,11 @@ module Na__ProfileTools__ProfilePathTracer
         # Split out from the payload builder so the Edit Profile geometry
         # re-capture writes byte-identical geometry blocks into an existing file.
         # Two copies of this shape would drift the moment either side changed.
+        #
+        # Na__Geometry__Curves (v1.6.14) lists the outline's arcs by vertex id.
+        # Only the Draw Profile writer fills it; a capture from SketchUp writes
+        # it empty, so re-capturing a drawn profile cannot leave its old arcs
+        # pointing at the new vertices (the blocks are merged, not replaced).
         def self.Na__Exporter__BuildGeometryBlocks(geometry_data)
             mesh_edges = geometry_data['meshEdges'] || []
             soft_count = mesh_edges.count { |edge| edge['IsSoft'] == true }
@@ -559,7 +564,8 @@ module Na__ProfileTools__ProfilePathTracer
                     'Na__Geometry__CoordSystem' => 'Y=profile horizontal axis, Z=profile vertical axis | Units=mm',
                     'Na__Geometry__Vertices' => geometry_data['profileVertices'],
                     'Na__Geometry__Edges' => geometry_data['profileEdges'],
-                    'Na__Geometry__Faces' => geometry_data['profileFaces']
+                    'Na__Geometry__Faces' => geometry_data['profileFaces'],
+                    'Na__Geometry__Curves' => Array(geometry_data['profileCurves'])
                 },
                 'Na__Asset__Mesh3D' => {
                     'Na__Geometry__OriginNote' => 'Local 0,0,0 = clicked 00__OriginPoint helper location.',

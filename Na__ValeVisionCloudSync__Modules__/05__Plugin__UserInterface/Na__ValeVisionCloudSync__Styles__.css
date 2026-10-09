@@ -211,6 +211,15 @@ body {
     color                   : var(--naVvcs_Warning);
 }
 
+.naVvcs__ProjectStatus__Value--new {
+    color                   : var(--naVvcs_Warning);
+    font-weight             : 600;
+}
+
+.naVvcs__ProjectStatus__Value--error {
+    color                   : var(--naVvcs_Error);
+}
+
 /* endregion ------------------------------------------------------------------- */
 
 

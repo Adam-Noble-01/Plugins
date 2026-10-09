@@ -161,6 +161,55 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Does Deep Ovolo Cut a Cavetto (the Hollow) Instead of an Ovolo?
+    # TAB's choice, remembered between sessions like the fillet's round or cove.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__OvoloCavetto?
+        if @na_drawn_ovolo_cavetto.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_CAVETTO_KEY, false)
+            @na_drawn_ovolo_cavetto = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_ovolo_cavetto
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set Deep Ovolo to Cut a Cavetto or an Ovolo, Returning the Setting
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetOvoloCavetto(cavetto)
+        @na_drawn_ovolo_cavetto = (cavetto ? true : false)
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_CAVETTO_KEY, @na_drawn_ovolo_cavetto)
+        @na_drawn_ovolo_cavetto
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Step Deep Ovolo Leaves Beside Its Quarter Round, in mm
+    # The small square shoulder a joiner leaves at each end of the arc. It is
+    # the second value of an entry ("40,5") and is remembered between
+    # sessions, so a run of mouldings keeps one step. Zero is a plain quarter
+    # round or cove with no step at all.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__OvoloStepMm
+        if @na_drawn_ovolo_step_mm.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_STEP_KEY, NA_DRAWN_OVOLO_DEFAULT_STEP_MM).to_f
+            @na_drawn_ovolo_step_mm = stored >= 0.0 ? stored : NA_DRAWN_OVOLO_DEFAULT_STEP_MM
+        end
+
+        @na_drawn_ovolo_step_mm
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Remember a Typed Ovolo Step, Returning It in mm
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetOvoloStepMm(value_mm)
+        step = value_mm.to_f
+        step = 0.0 if step < 0.0
+        @na_drawn_ovolo_step_mm = step
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_STEP_KEY, step)
+        step
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Segment Count Used for Circles and Cylinders
     # ------------------------------------------------------------
     def self.Na__DrawnSettings__CircleSegments

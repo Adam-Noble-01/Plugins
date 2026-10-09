@@ -5,8 +5,8 @@
 # FILE       : Na__InsertPrimatives__DrawnChamfer__Limit__.rb
 # NAMESPACE  : Na__InsertPrimatives / Na__InsertPrimatives::DrawnChamferLimit
 # AUTHOR     : Noble Architecture
-# PURPOSE    : The largest cut an edge's faces can take, a drag that eases up
-#              to it and never past it, and a typed size refused above it
+# PURPOSE    : The largest cut an edge's faces can take, and a typed size
+#              refused above it
 # CREATED    : 2026
 #
 # DESCRIPTION:
@@ -24,15 +24,11 @@
 #   own solve so a chamfer, a round, a cove and an ogee each get their own
 #   answer. A batch takes the smallest of its edges.
 #
-# THE DRAG EASES INTO THE LIMIT (tanh):
-#   size = max × tanh(drag / max)
-# - Near the edge the curve's slope is 1, so a small cut still sits under the
-#   cursor exactly as before. Further out it bends over and settles on the
-#   maximum, which it approaches for as far as the mouse goes: there is no
-#   overshoot to fight, and the last few millimetres take a long, fine drag.
-#   The grid rounds the result, so dragging far enough lands exactly on the
-#   full size. CTRL's vertex snap is left absolute (a vertex is a vertex) and
-#   only clamped.
+# THE DRAG RUNS UP TO THE LIMIT:
+# - 5.1.18 eased the corner drag into it with a tanh curve. Since 5.1.22 the
+#   drag is a vertical scrub that opens at 25% of this limit and eases onto
+#   100% without passing it — see DrawnChamferScrub. CTRL's vertex snap is
+#   left absolute (a vertex is a vertex) and only clamped.
 #
 # THE FULL SIZE BUILDS:
 # - At 100% the face the cut runs across is consumed whole. The rebuild drops
@@ -185,16 +181,6 @@ module Na__InsertPrimatives
             sizes.min
         rescue StandardError
             nil
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Ease a Raw Drag Size Into the Limit
-        # Slope 1 at the edge, flattening onto the maximum. No limit, no change.
-        # ------------------------------------------------------------
-        def na_lm__ease(raw, max)
-            return raw.to_f if max.nil? || max.to_f <= 0.0 || raw.to_f <= 0.0
-
-            max.to_f * Math.tanh(raw.to_f / max.to_f)
         end
         # ---------------------------------------------------------------
 

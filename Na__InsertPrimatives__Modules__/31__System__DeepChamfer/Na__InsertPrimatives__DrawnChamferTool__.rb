@@ -10,8 +10,9 @@
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Hover to highlight the edge under the cursor, click to grab it, drag toward
-#   the corner to open the chamfer, click (or Enter, or a typed value) to cut.
+# - Hover to highlight the edge under the cursor, click to grab it — the
+#   preview opens at a quarter of the largest chamfer the faces allow — drag
+#   up for more and down for less, click (or Enter, or a typed value) to cut.
 #   Reaches edges inside groups and components without opening them, exactly as
 #   Deep Push/Pull reaches faces.
 # - The chamfer is symmetric IN WORLD SPACE: the same setback along each face,
@@ -19,13 +20,23 @@
 #   solved separately from the per-direction scale — the same trap the push
 #   tool's normal_scale guards against, in two directions at once.
 #
-# WHAT THE DRAG MEASURES:
-# - The cursor is projected onto the corner bisector (the diagonal running into
-#   the material between the two faces) and converted to the per-face setback,
-#   which is the number a joiner actually specifies — "a 50 chamfer" is 50 off
-#   each face, not 50 along the diagonal. The setback snaps to the voxel step;
-#   CTRL suspends that for vertex inference, so a chamfer can be dragged to stop
-#   exactly at an existing corner.
+# WHAT THE DRAG MEASURES (5.1.22 — a vertical scrub, see DrawnChamferScrub):
+# - The size is the per-face setback, the number a joiner actually specifies —
+#   "a 50 chamfer" is 50 off each face, not 50 along the diagonal. The grab
+#   opens it at 25% of the largest the faces allow; dragging UP the screen
+#   makes it bigger and DOWN makes it smaller, on every edge in every view.
+#   It used to follow the cursor into the corner, which on a top edge meant
+#   pulling the mouse down for more. The setback snaps to the voxel step.
+# - CTRL suspends all of that for vertex inference: the inferred vertex is
+#   projected onto the corner bisector (the diagonal running into the material
+#   between the two faces), so a chamfer can be set to stop exactly at an
+#   existing corner.
+#
+# C R O G V SWITCH THE PROFILE (5.1.22):
+# - Typed on its own, with nothing else in the measurements box: C chamfer,
+#   R radius (Deep Fillet), O or G ogee, V ovolo. The edges and the drag come
+#   across, exactly as the right-click menu hands them over. See
+#   DrawnChamferHotSwap.
 #
 # LESSONS CARRIED FROM THE PUSH/PULL SAGA (built in from the start, not found):
 # - The edit runs inside the edge's own context via ExecuteInContext, so the
@@ -79,10 +90,10 @@
 #
 # THE CUT CANNOT OUTGROW ITS FACES:
 # - At grab the faces are measured and the largest size they allow is known.
-#   The drag eases into it (slope 1 at the edge, flattening onto the maximum)
-#   so it cannot overshoot, and a typed size above it is refused with the
-#   limit named. The full size builds: the face it consumes is dropped. See
-#   DrawnChamferLimit.
+#   The scrub runs from nothing to that maximum and eases onto it, so it
+#   cannot overshoot, and a typed size above it is refused with the limit
+#   named. The full size builds: the face it consumes is dropped. See
+#   DrawnChamferLimit and DrawnChamferScrub.
 #
 # HOT SWAP FROM THE RIGHT-CLICK MENU:
 # - Chamfer, Fillet and Ogee chosen from the menu hand over the banked edges,
@@ -93,8 +104,9 @@
 # - Select loose edges BEFORE starting the tool and they are the edges it
 #   cuts: banked on activation, and a press anywhere drags them all from the
 #   nearest one. A group, a component or nothing selected leaves the deep
-#   picker exactly as it was. Deep Ogee and Deep Fillet inherit it. See
-#   DrawnChamferPreselect.
+#   picker exactly as it was. Deep Ogee, Deep Fillet and Deep Ovolo inherit
+#   it. More than 48 selected edges ask first (CTRL+A then a shortcut must
+#   not mould a whole model). See DrawnChamferPreselect.
 #
 # =============================================================================
 
@@ -107,6 +119,7 @@ require_relative 'Na__InsertPrimatives__DrawnChamfer__Mitre__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Revise__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Preselect__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__Limit__'
+require_relative 'Na__InsertPrimatives__DrawnChamfer__Scrub__'
 require_relative 'Na__InsertPrimatives__DrawnChamfer__HotSwap__'
 
 module Na__InsertPrimatives
@@ -127,8 +140,9 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnReviseShared                       # <-- After DrawnToolShared, so its life-cycle wrappers sit over the mixin's
         include Na__InsertPrimatives::DrawnChamferRevise                      # <-- The chamfer half of the revise contract
         include Na__InsertPrimatives::DrawnChamferPreselect                   # <-- Loose edges selected before the tool starts are the bank
-        include Na__InsertPrimatives::DrawnChamferLimit                       # <-- The largest cut the faces allow; the drag eases into it
-        include Na__InsertPrimatives::DrawnChamferHotSwap                     # <-- Chamfer / Fillet / Ogee from the menu keep the edges and the drag
+        include Na__InsertPrimatives::DrawnChamferLimit                       # <-- The largest cut the faces allow
+        include Na__InsertPrimatives::DrawnChamferScrub                       # <-- The drag: opens at 25% of that, up for more, down for less
+        include Na__InsertPrimatives::DrawnChamferHotSwap                     # <-- Chamfer / Fillet / Ogee / Ovolo from the menu or C R O V keep the edges and the drag
 
         NA_CH_HOVER_COLOR   = Sketchup::Color.new(  0, 110, 235, 235)
         NA_CH_SELECT_COLOR  = Sketchup::Color.new(226, 118,   0, 255)         # <-- Edges banked with SHIFT, waiting for the drag
@@ -185,8 +199,8 @@ module Na__InsertPrimatives
             @na_ch_cos_half     = 1.0
             @na_ch_batch        = []
             @na_ch_batch_solves = []
-            @na_ch_travel_zero  = 0.0                                         # <-- Travel at the press; non-zero only for a press beside a preselected edge
             @na_ch_max_size     = nil                                         # <-- The largest size the grabbed batch's faces allow, or nil
+            na_sc__clear                                                      # <-- No scrub until the next grab opens one
         end
         # ---------------------------------------------------------------
 
@@ -269,7 +283,8 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__activation_hints
             [
-                'Hover an edge, click to grab it, drag into the corner, click to cut',
+                'Hover an edge, click to grab it — the preview opens at 25% of the most the faces allow',
+                'Drag UP for a bigger chamfer, DOWN for a smaller one, then click to cut',
                 'SHIFT+click banks edges, then one drag cuts them all — BKSP un-banks, ESC clears',
                 'Reaches edges inside groups and components without opening them',
                 "Setback snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
@@ -278,7 +293,8 @@ module Na__InsertPrimatives
                 'Double-click an edge to cut it at the last setback placed (remembered in the model)',
                 'The edge must border exactly two faces',
                 'Select loose edges BEFORE starting the tool and they are the ones cut — press and drag anywhere',
-                'Right-click → Deep Fillet / Deep Ogee swaps the profile mid-drag, keeping the edges'
+                'Type C chamfer, R radius, O or G ogee, V ovolo on their own to swap the profile, keeping the edges',
+                'Right-click → Deep Fillet / Deep Ogee / Deep Ovolo swaps the profile mid-drag too'
             ]
         end
         # ---------------------------------------------------------------
@@ -487,10 +503,16 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Enter Cuts the Chamfer
+        # Except straight after C / R / O / V switched the profile: typed the
+        # measurements-box way, the letter is followed by Enter, and that Enter
+        # finishes the switch rather than cutting the profile just swapped in.
         # ------------------------------------------------------------
         def onReturn(view)
+            after_letter = na_hs__enter_after_letter?                         # <-- Asked first, so the flag never outlives this Enter
+
             return false unless na_drawn__ensure_known_state
             return false unless @na_state == :picking_depth
+            return true if after_letter
 
             na_drawn__commit_chamfer(view)
             na_drawn__update_status_text
@@ -557,6 +579,13 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | The Snap Keys, and the Letters That Swap the Profile
+        # ------------------------------------------------------------
+        def na_drawn__vertex_hint
+            'CTRL vertex  C R O V profile'
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Describe the Grabbed Edge Rather Than a Drawing Plane
         # ------------------------------------------------------------
         def na_drawn__plane_description
@@ -573,26 +602,18 @@ module Na__InsertPrimatives
         # REGION | Cursor Tracking — No Picking Mid-Drag
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | Measure the Drag Across the Corner Plane
-        # The cursor ray is intersected with the CORNER PLANE — the plane
-        # through the grab point spanned by the edge direction and the bisector
-        # — and the hit's component along the bisector becomes the travel.
-        # Because the bisector is exactly perpendicular to the edge, motion
-        # parallel to the edge contributes nothing, and at the grab instant the
-        # hit sits on the edge itself, so the chamfer starts from zero.
+        # FUNCTION | Read the Drag as a Size
+        # The plain drag is the vertical scrub (DrawnChamferScrub): it opened at
+        # 25% of the faces' limit when the edge was grabbed, and the cursor's
+        # height against the press scrubs it — up for more, down for less —
+        # whichever way the edge runs on screen. It used to be the cursor's
+        # travel along the corner bisector, which on a top edge seen from above
+        # meant pulling DOWN for a bigger cut.
         #
-        # The first build projected onto the bisector LINE with a closest-
-        # points solve instead. That is ill-conditioned whenever the click
-        # lands away from the line's anchor — grabbing near the end of a long
-        # edge opened with a phantom setback of over a metre, only settling as
-        # the cursor wandered toward the midpoint. A ray-plane intersection has
-        # no such regime: it is stable anywhere along the edge.
-        #
-        # The chamfer chord crosses the bisector at t = d * cos_half, so the
-        # WYSIWYG mapping — cut plane under the cursor — is d = t / cos_half.
-        # The setback is what snaps to the grid. An unsolvable frame (view
-        # grazing the corner plane) keeps the last good value; nothing is ever
-        # re-picked unless CTRL asks for vertex inference.
+        # CTRL's vertex snap stays absolute: the inferred vertex is projected
+        # onto the bisector and read through the tool's own size_from_travel,
+        # so the cut can be set to end exactly at a vertex. Nothing is picked
+        # mid-drag otherwise; the size is pure screen arithmetic.
         # ------------------------------------------------------------
         def na_drawn__update_cursor(view, x, y)
             @na_last_mouse_x = x
@@ -600,22 +621,19 @@ module Na__InsertPrimatives
 
             return false unless @na_state == :picking_depth && @na_ch_anchor && @na_ch_bisector
 
-            source =
-                if @na_ctrl_held
-                    na_drawn__input_point_position(view, x, y)                # <-- Deliberate vertex snapping only
-                else
-                    na_drawn__corner_plane_point(view, x, y)
-                end
+            if @na_ctrl_held
+                source = na_drawn__input_point_position(view, x, y)           # <-- Deliberate vertex snapping only
+                return false unless source
 
-            return false unless source
+                travel  = (source - @na_ch_anchor).dot(@na_ch_bisector).to_f
+                setback = na_drawn__snap_distance(na_drawn__size_from_travel(travel)).to_f
+            else
+                setback = na_sc__size_at(view, y)                             # <-- Up the screen is more, down is less
+                return false unless setback
+            end
 
-            travel  = (source - @na_ch_anchor).dot(@na_ch_bisector).to_f
-            travel -= @na_ch_travel_zero.to_f unless @na_ctrl_held               # <-- A press beside a preselected edge starts at nothing; a vertex snap stays absolute
-            raw     = na_drawn__size_from_travel(travel)
-            raw     = na_lm__ease(raw, @na_ch_max_size) unless @na_ctrl_held     # <-- Eases into the faces' limit; a vertex snap is only clamped
-            setback = na_drawn__snap_distance(raw).to_f
-            setback = 0.0 if setback < 0.0                                    # <-- Dragging out of the corner closes the chamfer
             setback = @na_ch_max_size.to_f if @na_ch_max_size && setback > @na_ch_max_size.to_f
+            setback = 0.0 if setback < 0.0                                    # <-- Scrubbed down to nothing closes the cut
 
             return false if na_drawn__locked?(:d)
 
@@ -623,21 +641,6 @@ module Na__InsertPrimatives
             @na_sign_d = 1.0
             na_drawn__refresh_solve
             true
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Intersect the Pick Ray with the Corner Plane
-        # ------------------------------------------------------------
-        def na_drawn__corner_plane_point(view, x, y)
-            return nil unless @na_ch_plane_normal
-
-            ray = view.pickray(x, y)
-            hit = Geom.intersect_line_plane(ray, [@na_ch_anchor, @na_ch_plane_normal])
-            return nil unless hit
-
-            na_drawn__point_in_front_of_ray?(ray, hit) ? hit : nil
-        rescue StandardError
-            nil
         end
         # ---------------------------------------------------------------
 
@@ -831,7 +834,9 @@ module Na__InsertPrimatives
                 banked[:edge] == target[:edge] && banked[:path] == target[:path]
             end
             @na_ch_batch_solves = []
-            @na_ch_max_size     = na_lm__max_for(@na_ch_batch)                # <-- Measured once per grab; the drag eases into it
+            @na_ch_max_size     = na_lm__max_for(@na_ch_batch)                # <-- Measured once per grab; the scrub runs up to it
+            @na_size_d          = na_sc__begin(view, @na_press_y)             # <-- Opens at 25% of it, already showing the cut
+            na_drawn__refresh_solve
 
             if @na_ch_batch.length > 1
                 Sketchup::set_status_text("Dragging #{@na_ch_batch.length} edges together", SB_PROMPT)
@@ -1178,7 +1183,7 @@ module Na__InsertPrimatives
                 setback = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs
                 text    = na_drawn__locked?(:d) ? "[#{setback}]" : setback.to_s
                 return "Chamfer #{text} mm — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Chamfer #{text} mm#{na_lm__range_note(@na_size_d, @na_ch_max_size)}#{na_drawn__stop_note} — release or click to cut"
+                return "Chamfer #{text} mm#{na_lm__range_note(@na_size_d, @na_ch_max_size)}#{na_drawn__stop_note} — drag up for more, down for less, release or click to cut"
             end
 
             return na_ps__status_detail if na_ps__active?

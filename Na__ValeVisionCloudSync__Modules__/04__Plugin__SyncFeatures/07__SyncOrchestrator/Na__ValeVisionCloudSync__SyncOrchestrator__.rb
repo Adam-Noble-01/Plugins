@@ -4,21 +4,30 @@
 #
 # FILE       : Na__ValeVisionCloudSync__SyncOrchestrator__.rb
 # NAMESPACE  : Na__ValeVisionCloudSync::Na__SyncOrchestrator
-# PURPOSE    : Coordinate the 4 Export-tab actions, shell to Python for R2
-#              upload and Whitecardopedia mirroring, parse JSON report,
-#              and drive the dialog's report panel and toasts.
+# PURPOSE    : Coordinate the 4 Export-tab actions, then shell to the Library
+#              Publisher (Python): publish into the Vale Projects Master Library
+#              and push this one project to app.valegardenhouses.com.
 # CREATED    : 25-Jun-2026
 #
 # DESCRIPTION:
 # - Maps the 4 UI buttons to step scopes (IDs match UiLayout onclick calls):
-#     sync_project       -> images + camera + GLB + python sync
-#     update_images      -> images only + python sync (images)
-#     update_glb_models  -> GLB archive + GLB export + python GLB upload to R2
-#     update_camera_data -> camera capture + python sync (cameras)
-# - Shells out to the Python single-project orchestrator when R2 upload is
-#   required; parses its JSON stdout for the final dialog report.
+#     sync_project       -> images + camera + GLB + publish all
+#     update_images      -> images + publish images
+#     update_glb_models  -> GLB archive + GLB export + publish GLBs
+#     update_camera_data -> camera capture + publish camera data
+# - Publish = 08__LibraryPublisher: checks the exports, fetches the server's newer
+#   copy of the project, writes the library buckets and record keys, then runs the
+#   Vale Virtual Server Manager's sync engine for THIS project folder only.
 # - Pushes progress via Na__DialogManager#na_push_status and
 #   Na__DialogManager#na_push_report_step.
+#
+# -----------------------------------------------------------------------------
+#
+# DEVELOPMENT LOG:
+# 06-Oct-2026 - Version 2.0.0
+# - Cloudflare R2 and the retired Gallery-folder script are gone. The last step of every
+#   action runs the Library Publisher; a failed export step stops it. A model whose
+#   library project does not exist yet asks before the sync creates it.
 #
 # =============================================================================
 
@@ -34,11 +43,10 @@ module Na__ValeVisionCloudSync
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-        PYTHON_TIMEOUT_SECONDS  = 300  # <-- 5-minute timeout for the Python orchestrator
-        SYNC_SCOPE_ALL          = 'sync_project'.freeze       # <-- Full sync (images + cameras + GLB + R2) [matches UI button]
-        SYNC_SCOPE_IMAGES       = 'update_images'.freeze      # <-- Images only + R2 [matches UI button]
-        SYNC_SCOPE_GLB          = 'update_glb_models'.freeze  # <-- GLB archive + export only [matches UI button]
-        SYNC_SCOPE_CAMERAS      = 'update_camera_data'.freeze # <-- Camera capture + R2 [matches UI button]
+        SYNC_SCOPE_ALL          = 'sync_project'.freeze       # <-- Full sync (images + cameras + GLB, publish + push) [matches UI button]
+        SYNC_SCOPE_IMAGES       = 'update_images'.freeze      # <-- Images, publish + push [matches UI button]
+        SYNC_SCOPE_GLB          = 'update_glb_models'.freeze  # <-- GLB archive + export, publish + push [matches UI button]
+        SYNC_SCOPE_CAMERAS      = 'update_camera_data'.freeze # <-- Camera capture, publish + push [matches UI button]
 
 # endregion -------------------------------------------------------------------
 
@@ -62,17 +70,31 @@ module Na__ValeVisionCloudSync
                 return report.merge(success: false, message: 'Project root not found.')
             end
 
+            # LIBRARY PROJECT | Known before the (slow) exports run, so a wrong id never costs an export
+            library = Na__ProjectPathMapper.Na__ValeVisionCloudSync__ResolveLibraryProject(model)
+            unless library[:error].to_s.empty?
+                dialog_manager.na_push_status('error', library[:error])
+                report[:steps] << { label: 'Resolve Library Project', success: false, message: library[:error] }
+                return report.merge(success: false, message: library[:error])
+            end
+            unless library[:exists] || na_confirm_new_library_project(library)
+                message = 'Cancelled. If this model belongs to an existing project, set its Library Project in Settings.'
+                report[:steps] << { label: 'Resolve Library Project', success: false, message: message }
+                return report.merge(success: false, message: message)
+            end
+            report[:library_id] = library[:library_id]
+
             dialog_manager.na_push_status('running', "Starting: #{na_scope_label(scope_id)}…")
 
             case scope_id
             when SYNC_SCOPE_ALL
-                report = na_run_full_sync(model, paths, project_name, dialog_manager, report)
+                report = na_run_full_sync(model, paths, library, project_name, dialog_manager, report)
             when SYNC_SCOPE_IMAGES
-                report = na_run_images_sync(paths, project_name, dialog_manager, report)
+                report = na_run_images_sync(paths, library, project_name, dialog_manager, report)
             when SYNC_SCOPE_GLB
-                report = na_run_glb_export(paths, project_name, dialog_manager, report)
+                report = na_run_glb_export(paths, library, project_name, dialog_manager, report)
             when SYNC_SCOPE_CAMERAS
-                report = na_run_camera_sync(paths, project_name, dialog_manager, report)
+                report = na_run_camera_sync(paths, library, project_name, dialog_manager, report)
             else
                 report[:message] = "Unknown sync scope: #{scope_id}"
                 report[:success] = false
@@ -84,6 +106,20 @@ module Na__ValeVisionCloudSync
             report
         end
 
+        # HELPER FUNCTION | Ask Before a Sync Creates a New Library Project
+        # ---------------------------------------------------------------
+        # The id becomes permanent once anything links to it (QR codes, gallery links),
+        # so a project the library does not have yet is created only on a clear yes.
+        # ---------------------------------------------------------------
+        def self.na_confirm_new_library_project(library)
+            text = "This model is not in the Project Library yet.\n\n" \
+                   "A new library project will be created:\n\n" \
+                   "    #{library[:library_id]}\n    in #{File.basename(File.dirname(library[:library_path].to_s))}\n\n" \
+                   "Its id is permanent once it is on the server. If the model belongs to an existing " \
+                   "project, choose No and set the Library Project in Settings.\n\nCreate it?"
+            UI.messagebox(text, MB_YESNO) == IDYES
+        end
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -92,7 +128,7 @@ module Na__ValeVisionCloudSync
 
         # FUNCTION | Full Sync (all steps)
         # ------------------------------------------------------------
-        def self.na_run_full_sync(model, paths, project_name, dialog_manager, report)
+        def self.na_run_full_sync(model, paths, library, project_name, dialog_manager, report)
             dialog_manager.na_push_status('running', 'Step 1/4 — Exporting scene images…')
             image_result = Na__SceneImageExporter.Na__ValeVisionCloudSync__ExportSceneImages(
                 paths[:project_root]
@@ -109,46 +145,43 @@ module Na__ValeVisionCloudSync
             glb_result = Na__GlbExportBridge.Na__ValeVisionCloudSync__ExportGlbs(paths, project_name)
             report[:steps] << na_step_entry('Export GLB Models', glb_result)
 
-            dialog_manager.na_push_status('running', 'Step 4/4 — Syncing to Cloudflare R2 and Whitecardopedia…')
-            python_result = na_run_python_orchestrator(paths, 'all')
-            na_append_python_steps(report, python_result)
+            dialog_manager.na_push_status('running', 'Step 4/4 — Publishing to the Project Library and pushing to the server…')
+            na_publish_after_exports(report, paths, library, 'all')
 
             na_finalise_report(report)
         end
 
         # FUNCTION | Images Only Sync
         # ------------------------------------------------------------
-        def self.na_run_images_sync(paths, project_name, dialog_manager, report)
+        def self.na_run_images_sync(paths, library, project_name, dialog_manager, report)
             dialog_manager.na_push_status('running', 'Step 1/2 — Exporting scene images…')
             image_result = Na__SceneImageExporter.Na__ValeVisionCloudSync__ExportSceneImages(
                 paths[:project_root]
             )
             report[:steps] << na_step_entry('Export Images', image_result)
 
-            dialog_manager.na_push_status('running', 'Step 2/2 — Syncing images to R2 + Whitecardopedia…')
-            python_result = na_run_python_orchestrator(paths, 'images')
-            na_append_python_steps(report, python_result)
+            dialog_manager.na_push_status('running', 'Step 2/2 — Publishing images and pushing to the server…')
+            na_publish_after_exports(report, paths, library, 'images')
 
             na_finalise_report(report)
         end
 
-        # FUNCTION | GLB Export + R2 Upload
+        # FUNCTION | GLB Export + Publish
         # ------------------------------------------------------------
-        def self.na_run_glb_export(paths, project_name, dialog_manager, report)
+        def self.na_run_glb_export(paths, library, project_name, dialog_manager, report)
             dialog_manager.na_push_status('running', 'Step 1/2 — Archiving existing GLBs and exporting…')
             glb_result = Na__GlbExportBridge.Na__ValeVisionCloudSync__ExportGlbs(paths, project_name)
             report[:steps] << na_step_entry('Export GLB Models', glb_result)
 
-            dialog_manager.na_push_status('running', 'Step 2/2 — Uploading GLBs to Cloudflare R2…')
-            python_result = na_run_python_orchestrator(paths, 'glb')   # <-- Mirror fresh GLBs to R2 + refresh index
-            na_append_python_steps(report, python_result)
+            dialog_manager.na_push_status('running', 'Step 2/2 — Publishing GLB models and pushing to the server…')
+            na_publish_after_exports(report, paths, library, 'glb')
 
             na_finalise_report(report)
         end
 
-        # FUNCTION | Camera Capture + R2 Sync
+        # FUNCTION | Camera Capture + Publish
         # ------------------------------------------------------------
-        def self.na_run_camera_sync(paths, project_name, dialog_manager, report)
+        def self.na_run_camera_sync(paths, library, project_name, dialog_manager, report)
             model = Sketchup.active_model
 
             dialog_manager.na_push_status('running', 'Step 1/2 — Capturing scene cameras…')
@@ -157,49 +190,69 @@ module Na__ValeVisionCloudSync
             )
             report[:steps] << na_step_entry('Capture Camera Data', camera_result)
 
-            dialog_manager.na_push_status('running', 'Step 2/2 — Syncing camera data to R2 + Whitecardopedia…')
-            python_result = na_run_python_orchestrator(paths, 'cameras')
-            na_append_python_steps(report, python_result)
+            dialog_manager.na_push_status('running', 'Step 2/2 — Publishing camera data and pushing to the server…')
+            na_publish_after_exports(report, paths, library, 'cameras')
 
             na_finalise_report(report)
+        end
+
+        # HELPER FUNCTION | Publish + Push, Only When Every Export Step Succeeded
+        # ---------------------------------------------------------------
+        def self.na_publish_after_exports(report, paths, library, action)
+            if report[:steps].any? { |step| !step[:success] }
+                report[:steps] << {
+                    label:   'Publish To Project Library',
+                    success: false,
+                    message: 'Skipped: an export step above failed. Nothing was published or pushed.'
+                }
+                return
+            end
+            na_append_python_steps(report, na_run_library_publisher(paths, library, action))
         end
 
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Python Orchestrator Shell-Out
+# REGION | Library Publisher Shell-Out
 # -----------------------------------------------------------------------------
 
-        # FUNCTION | Shell To The Python Single-Project Orchestrator
+        # FUNCTION | Shell To The Library Publisher (Python)
         # ------------------------------------------------------------
-        def self.na_run_python_orchestrator(paths, action)
-            py_config       = Na__ConfigLoader.Na__ValeVisionCloudSync__PythonConfig
-            wcp_root        = py_config['whitecardopedia_root'].to_s
-            script_rel      = py_config['orchestrator_script'].to_s
-            script_path     = File.join(wcp_root, script_rel).tr('\\', '/')  # <-- Forward slashes; Open3 accepts on Win
+        # The publisher writes the library on this PC and runs the Vale Virtual Server
+        # Manager's sync engine for this project folder only (--scope), so the push uses
+        # the engine's own connection guards, backups and undo.
+        # ---------------------------------------------------------------
+        def self.na_run_library_publisher(paths, library, action)
+            py_config = Na__ConfigLoader.Na__ValeVisionCloudSync__PythonConfig
+            lib_paths = Na__ConfigLoader.Na__ValeVisionCloudSync__LibraryPaths
 
-            unless File.exist?(script_path)
+            missing = [[:publisher, 'Library publisher'], [:engine, 'Server Manager sync engine'],
+                       [:sync_map, 'Server Manager sync map']].reject { |key, _| File.exist?(lib_paths[key]) }
+            unless missing.empty?
                 return {
                     success: false,
-                    message: "Python orchestrator script not found at:\n#{script_path}"
+                    message: missing.map { |key, name| "#{name} not found at #{lib_paths[key]}" }.join("\n") +
+                             "\nCheck the \"library\" block of the plugin AppConfig."
                 }
             end
-
-            project_root = paths[:project_root].to_s
-            project_dir  = File.basename(project_root)
-            year_folder  = na_derive_year_folder(project_root)
 
             resolution  = na_resolve_python_executable(py_config)           # <-- {command:, note:, trusted:}
             report_file = na_build_report_file_path                         # <-- Robust file channel (GUI host can't reliably capture stdout)
             script_args = [
-                '--project',     project_dir,
-                '--year',        year_folder,
-                '--action',      action,
+                '--project-root', paths[:project_root].to_s,
+                '--library-id',   library[:library_id].to_s,
+                '--year',         library[:year].to_s,
+                '--action',       action,
+                '--sync-map',     lib_paths[:sync_map],
+                '--engine',       lib_paths[:engine],
+                '--mapping',      lib_paths[:mapping],
                 '--json',
-                '--report-file', report_file
+                '--report-file',  report_file
             ]
+            script_args << '--create-new' unless library[:exists]           # <-- Confirmed by the user in RunSyncAction
+            script_args << '--local-only' unless lib_paths[:push]          # <-- AppConfig library.push_to_server = false
 
-            result = na_execute_python(resolution[:command], script_path, script_args, report_file)
+            result = na_execute_python(resolution[:command], lib_paths[:publisher], script_args, report_file)
             result[:interpreter_note] = resolution[:note]                   # <-- Surfaced as its own report line
             result[:interpreter_ok]   = resolution[:trusted]
             result
@@ -459,9 +512,10 @@ module Na__ValeVisionCloudSync
             content << '============================================================================='
             content << ' ValeVision Cloud Sync  -  Python Subprocess Run Log'
             content << '============================================================================='
-            content << ' The plugin shells out to a Python orchestrator to mirror this project to'
-            content << ' Cloudflare R2 + Whitecardopedia. This log records that single launch so any'
-            content << ' dialog error can be traced to exactly what ran and what came back.'
+            content << ' The plugin shells out to the Library Publisher, which publishes this project'
+            content << ' into the Project Library and pushes it with the Vale Virtual Server Manager'
+            content << ' engine. This log records that single launch so any dialog error can be traced'
+            content << ' to exactly what ran and what came back (the engine output is in stdout).'
             content << ''
             content << " Result      : #{report_ok ? 'OK  - report parsed' : 'FAIL - no report parsed'}"
             content << " Channel     : #{channel}"
@@ -560,11 +614,12 @@ module Na__ValeVisionCloudSync
             }
         end
 
-        # HELPER FUNCTION | Append Python Orchestrator Sub-Steps As Individual Report Lines
+        # HELPER FUNCTION | Append Library Publisher Sub-Steps As Individual Report Lines
         # ---------------------------------------------------------------
-        # Surfaces each Python step (Clone, Thumbnails, Upload, Merge...) as its
+        # Surfaces each publisher step (Check, Fetch, Publish, Verify, Push...) as its
         # own line so the dialog shows a full trail rather than a single summary.
         def self.na_append_python_steps(report, python_result)
+            report[:publish_message] = python_result[:message].to_s if python_result[:success]
             note = python_result[:interpreter_note].to_s
             unless note.empty?
                 report[:steps] << {
@@ -577,23 +632,29 @@ module Na__ValeVisionCloudSync
             sub_steps = python_result[:sub_steps]
             if sub_steps.is_a?(Array) && !sub_steps.empty?
                 sub_steps.each do |step|
-                    report[:steps] << {
+                    entry = {
                         label:   step['label'].to_s,
                         success: step['success'] == true,
                         message: step['message'].to_s
                     }
+                    entry[:status] = step['status'].to_s unless step['status'].to_s.empty?  # <-- 'skip' renders as SKIP
+                    report[:steps] << entry
                 end
             else
-                report[:steps] << na_step_entry('Sync to R2 + Whitecardopedia', python_result)
+                report[:steps] << na_step_entry('Publish To Project Library', python_result)
             end
         end
 
         def self.na_finalise_report(report)
             all_passed    = report[:steps].all? { |s| s[:success] }
             report[:success] = all_passed
-            report[:message] = all_passed ?
-                "#{na_scope_label(report[:scope])} completed successfully." :
+            report[:message] = if !all_passed
                 "#{na_scope_label(report[:scope])} completed with errors — see step details."
+            elsif report[:publish_message].to_s.empty?
+                "#{na_scope_label(report[:scope])} completed successfully."
+            else
+                "#{na_scope_label(report[:scope])}: #{report[:publish_message]}"   # <-- e.g. "... Published to the Project Library (not pushed)."
+            end
             report
         end
 
@@ -622,12 +683,6 @@ module Na__ValeVisionCloudSync
             return File.basename(model_path, '.skp') unless sketchup_idx && sketchup_idx > 0
 
             parts[sketchup_idx - 1]
-        end
-
-        def self.na_derive_year_folder(project_root)
-            parent_name = File.basename(File.dirname(project_root.to_s.tr('\\', '/'))) # <-- e.g. "ValeProjects__2026"
-            match       = parent_name.match(/(\d{4})/)                                 # <-- Extract 4-digit year
-            match ? match[1] : Time.now.year.to_s                                       # <-- Fallback to current year
         end
 
 # endregion -------------------------------------------------------------------

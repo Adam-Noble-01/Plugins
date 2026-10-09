@@ -27,6 +27,7 @@
 # - 31__System__DeepChamfer  : nested chamfer
 # - 32__System__DeepOgee     : nested ogee moulding (a Deep Chamfer subclass)
 # - 33__System__DeepFillet   : nested fillet / radius (a Deep Chamfer subclass)
+# - 34__System__DeepOvolo    : nested ovolo / cavetto, a quarter circle with a step (a Deep Chamfer subclass)
 # - 40__UserInterface        : right-click HtmlDialog
 #
 # =============================================================================

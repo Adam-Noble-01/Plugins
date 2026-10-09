@@ -17,6 +17,11 @@
 #   the page reports ready, a remembered folder is scanned and shown; a
 #   missing one gets a quiet note on the canvas. A model with nothing
 #   remembered opens empty and waits for Select Folder.
+# - Scripts and styles are inlined with the block form of gsub, so a
+#   backslash in a script (\1, \\, \') is inserted literally rather than
+#   read as a replacement escape.
+# - request_photo_info answers the Perspective Angle tool with the photo's
+#   lens data (PhotoInfo). Only files with an image extension are read.
 #
 # =============================================================================
 
@@ -94,12 +99,16 @@ module Na__Noble3dModellingTools
             style_path       = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Styles__.css')
             script_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiBridge__.js')
             measurement_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Measurement__.js')
+            solver_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveSolver__.js')
+            perspective_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveAngle__.js')
 
             template = File.read(layout_path)
             template
-                .gsub('{{STYLESHEET_CONTENT}}', File.read(style_path))
-                .gsub('{{UI_BRIDGE_SCRIPT}}',   File.read(script_path))
-                .gsub('{{MEASUREMENT_SCRIPT}}', File.read(measurement_path))
+                .gsub('{{STYLESHEET_CONTENT}}')        { File.read(style_path) }
+                .gsub('{{UI_BRIDGE_SCRIPT}}')          { File.read(script_path) }
+                .gsub('{{MEASUREMENT_SCRIPT}}')        { File.read(measurement_path) }
+                .gsub('{{PERSPECTIVE_SOLVER_SCRIPT}}') { File.read(solver_path) }
+                .gsub('{{PERSPECTIVE_ANGLE_SCRIPT}}')  { File.read(perspective_path) }
         end
 
 # endregion -------------------------------------------------------------------
@@ -140,6 +149,14 @@ module Na__Noble3dModellingTools
                     na_copy_path_to_clipboard(path)
                 rescue => error
                     puts "[Na__ImageCarousel] copy_path error: #{error.class}: #{error.message}"
+                end
+            end
+
+            dialog.add_action_callback('request_photo_info') do |_ctx, path|
+                begin
+                    na_send_photo_info(dialog, path)
+                rescue => error
+                    puts "[Na__ImageCarousel] request_photo_info error: #{error.class}: #{error.message}"
                 end
             end
         end
@@ -205,6 +222,18 @@ module Na__Noble3dModellingTools
                 })();
             JS
             dialog.execute_script(script)
+        end
+
+        # Lens data for the Perspective Angle tool. Only image files are read,
+        # and only their header bytes.
+        def self.na_send_photo_info(dialog, path)
+            file_path = path.to_s
+            info = if Na__ImageCarousel__FolderScanner.na_supported_extension?(file_path)
+                Na__ImageCarousel__PhotoInfo.Na__ImageCarousel__PhotoInfo__Read(file_path)
+            else
+                { 'path' => file_path, 'none' => true }
+            end
+            dialog.execute_script("window.Na__ImageViewer__OnPhotoInfo && window.Na__ImageViewer__OnPhotoInfo(#{info.to_json});")
         end
 
         def self.na_native_path(path)

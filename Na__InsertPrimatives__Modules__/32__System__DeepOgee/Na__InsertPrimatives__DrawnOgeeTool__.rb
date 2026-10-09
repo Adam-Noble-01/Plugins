@@ -11,13 +11,14 @@
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Deep Chamfer with a different cut. Hover an edge, click to grab it, drag
-#   into the corner to size the moulding, then click (or press Enter, or type
-#   a size) to cut it. SHIFT+click banks edges and one drag moulds them all;
+# - Deep Chamfer with a different cut. Hover an edge, click to grab it — the
+#   preview opens at 25% of the largest moulding the faces allow — drag up for
+#   more and down for less, then click (or press Enter, or type a size) to cut
+#   it. SHIFT+click banks edges and one drag moulds them all;
 #   where two banked edges meet at a square corner the profiles MITRE like a
 #   picture frame, so the four top edges of a box or a table top are one pass.
 # - Everything but the curve is shared: the chamfer tool supplies the deep
-#   pick, the SHIFT bank, the corner-plane drag, CTRL vertex snapping, grid
+#   pick, the SHIFT bank, the scrub drag, CTRL vertex snapping, grid
 #   snapping, one undo step per group, retype and double-click repeat; the
 #   profile sweep mixin (DrawnProfileSweepTool) plans, builds, mitres and
 #   previews any profile and carries it through the retype ghost. This class
@@ -92,7 +93,8 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__activation_hints
             [
-                'Hover an edge, click to grab it, drag into the corner, click to cut the moulding',
+                'Hover an edge, click to grab it — the preview opens at 25% of the most the faces allow',
+                'Drag UP for a bigger moulding, DOWN for a smaller one, then click to cut',
                 'SHIFT+click banks edges, then one drag moulds them all — square corners mitre',
                 'Reaches edges inside groups and components without opening them',
                 "Size snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
@@ -100,6 +102,7 @@ module Na__InsertPrimatives
                 "VCB: 40 | +5 | -5 sizes it   48s smooths the curve (now #{Na__InsertPrimatives.Na__DrawnSettings__CircleSegments} sides)",
                 'After cutting, keep typing: 60 resizes the ogee, +5 / -5 adjust it',
                 'Double-click an edge to mould it at the last size placed (remembered in the model)',
+                'Type C chamfer, R radius, O ogee, V ovolo on their own to swap the profile, keeping the edges',
                 'The edge must border exactly two faces'
             ]
         end
@@ -283,7 +286,7 @@ module Na__InsertPrimatives
                 size = Na__InsertPrimatives.Na__DrawnFormat__Mm(@na_size_d).abs
                 text = na_drawn__locked?(:d) ? "[#{size}]" : size.to_s
                 return "Ogee #{text} mm — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Ogee #{text} mm#{na_lm__range_note(@na_size_d, @na_ch_max_size)}#{na_drawn__stop_note} — release or click to cut"
+                return "Ogee #{text} mm#{na_lm__range_note(@na_size_d, @na_ch_max_size)}#{na_drawn__stop_note} — drag up for more, down for less, release or click to cut"
             end
 
             return na_ps__status_detail if na_ps__active?                        # <-- Preselected edges, from the chamfer

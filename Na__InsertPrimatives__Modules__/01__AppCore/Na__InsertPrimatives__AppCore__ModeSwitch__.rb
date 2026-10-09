@@ -144,6 +144,18 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Activate the Deep Ovolo Tool (Ovolo or Cavetto, With a Step)
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnOvoloTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnOvoloTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Activate the Click-and-Drag Pitched Roof Tool
     # ------------------------------------------------------------
     def self.Na__ModeSwitch__ActivateDrawnPitchedRoofTool
@@ -244,6 +256,13 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def Na__DrawnMode__SetFilletMode
             Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnFilletTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Ovolo Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetOvoloMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOvoloTool
         end
         # ---------------------------------------------------------------
 

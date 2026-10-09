@@ -22,6 +22,11 @@
 #   Na__Geometry__ApplyReverseFlip). Parent space is then world space as built —
 #   the space the regeneration engine rebuilds in.
 #
+# EDGE COLOURS BY ORIGIN (v1.6.15):
+#   Every edge Follow Me leaves is traced back to what it was swept from: a
+#   rail along the path takes its profile VERTEX's colour, a cap or mitre edge
+#   takes its profile EDGE's colour (Na__Geometry__ApplySweepEdgeColours).
+#
 # =============================================================================
 
 module Na__ProfileTools__ProfilePathTracer
@@ -800,13 +805,24 @@ module Na__ProfileTools__ProfilePathTracer
             )
             return { 'isSwept' => false, 'reason' => face_result['reason'] } unless face_result['isValid']
 
+            # Where each profile vertex stands on the cap, read before Follow Me:
+            # the colour pass walks each vertex's rail from here.
+            sweep_origin = {
+                start_points: face_result['transformedVertices'],
+                outer_ids:    face_result['outerIds'],
+                rail_points:  rail_points
+            }
+
             profile_face = face_result['profileFace']
             profile_face.followme(path_edges)
             target_entities.erase_entities(profile_face) if profile_face.valid?
 
             self.Na__Geometry__RemoveClosureSeamFaces(target_entities, closure_plane)
             self.Na__Geometry__EnsureShellFacesOutward(target_entities)
-            styled_edge_count = self.Na__Geometry__ApplyUnifiedEdgeStates(
+            styled_edge_count = self.Na__Geometry__ApplySweepEdgeColours(
+                target_entities, model, profile_data, path_edge_ids, sweep_origin
+            )
+            styled_edge_count ||= self.Na__Geometry__ApplyUnifiedEdgeStates(
                 target_entities, model, profile_data, path_edge_ids, resolved_path_data
             )
             self.Na__Geometry__ErasePathRailEdges(target_entities, path_edges)
@@ -1055,8 +1071,112 @@ module Na__ProfileTools__ProfilePathTracer
             profile_face = entities.add_face(outer_points)
             return { 'isValid' => false, 'reason' => 'Could not create profile face.' } unless profile_face
 
+            profile_face = self.Na__Geometry__WeldProfileCurves(entities, profile_face, profile_data, transformed_vertices, outer_ids)
+            return { 'isValid' => false, 'reason' => 'Profile face was lost while welding its curves.' } unless profile_face
+
             profile_face.reverse! if profile_face.normal.dot(frame_transform.zaxis) < 0
-            { 'isValid' => true, 'profileFace' => profile_face }
+            {
+                'isValid'             => true,
+                'profileFace'         => profile_face,
+                'transformedVertices' => transformed_vertices,
+                'outerIds'            => outer_ids.map(&:to_s)
+            }
+        end
+
+        # DRAWN CURVES (v1.6.14). A profile drawn in the Draw Profile tab lists
+        # its arcs in Na__Geometry__Curves, each as a run of outline vertex ids.
+        # The run's edges on the cap face are welded into one SketchUp curve
+        # before Follow Me, which then softens and smooths the faces it sweeps
+        # off the curve, so a 4-segment cove reads as one surface rather than
+        # four facets (the 20 deg rule in the styling pass would not soften
+        # it). A run that no longer describes consecutive outline edges lying
+        # on one circle is stale and skipped: the profile sweeps as before.
+        # Returns the cap face, which welding should leave alone; if it ever
+        # does not, the one face left in this context is the cap.
+        NA_CURVE_FIT_TOLERANCE_MM = 0.05
+
+        def self.Na__Geometry__WeldProfileCurves(entities, profile_face, profile_data, transformed_vertices, outer_ids)
+            runs = self.Na__Geometry__ProfileCurveRuns(profile_data, outer_ids)
+            return profile_face if runs.empty? || !entities.respond_to?(:weld)
+
+            runs.each do |run_ids|
+                edges = run_ids.each_cons(2).map do |id_a, id_b|
+                    self.Na__Geometry__FaceEdgeBetween(profile_face, transformed_vertices[id_a], transformed_vertices[id_b])
+                end
+                next if edges.empty? || edges.any?(&:nil?)
+                begin
+                    entities.weld(edges)
+                rescue => error
+                    Na__DebugTools.Na__Debug__Warn("Profile curve weld skipped: #{error.message}")
+                end
+                break unless profile_face.valid?
+            end
+
+            return profile_face if profile_face.valid?
+            entities.grep(Sketchup::Face).find(&:valid?)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Profile curve welding skipped: #{error.message}")
+            profile_face && profile_face.valid? ? profile_face : entities.grep(Sketchup::Face).find(&:valid?)
+        end
+
+        # [[vertex_id, ...], ...] for every curve record that is still a run of
+        # consecutive outline vertices (either way round) on one circle. A
+        # closed record (a circle) repeats its first id at the end.
+        def self.Na__Geometry__ProfileCurveRuns(profile_data, outer_ids)
+            profile_block = self.Na__Geometry__UnifiedProfileBlock(profile_data)
+            records = profile_block ? Array(profile_block['Na__Geometry__Curves']) : []
+            return [] if records.empty?
+
+            loop_ids = Array(outer_ids).map(&:to_s)
+            count = loop_ids.length
+            slot_of = {}
+            loop_ids.each_with_index { |vertex_id, index| slot_of[vertex_id] = index }
+            vertex_map = self.Na__Geometry__UnifiedVertexMap(profile_data)
+
+            records.each_with_object([]) do |record, runs|
+                next unless record.is_a?(Hash)
+                run_ids = Array(record['VertexIds']).map(&:to_s)
+                is_closed = record['IsClosed'] == true
+                next if run_ids.length < 3
+                slots = run_ids.map { |vertex_id| slot_of[vertex_id] }
+                next if slots.any?(&:nil?) || slots.uniq.length != slots.length
+
+                forward = slots.each_cons(2).all? { |a, b| (b - a) % count == 1 }
+                backward = slots.each_cons(2).all? { |a, b| (a - b) % count == 1 }
+                next unless forward || backward
+                next if is_closed && run_ids.length != count
+                next unless self.Na__Geometry__PointsOnOneCircle?(run_ids.map { |vertex_id| vertex_map[vertex_id] })
+
+                runs << (is_closed ? run_ids + [run_ids.first] : run_ids)
+            end
+        rescue
+            []
+        end
+
+        def self.Na__Geometry__PointsOnOneCircle?(points)
+            return false if points.length < 3 || points.any?(&:nil?)
+            mm = points.map { |point| [point.x.to_f * 25.4, point.y.to_f * 25.4] }
+            a = mm.first
+            b = mm[mm.length / 2]
+            c = mm.last == a ? mm[-2] : mm.last
+            d = 2.0 * ((a[0] * (b[1] - c[1])) + (b[0] * (c[1] - a[1])) + (c[0] * (a[1] - b[1])))
+            return false if d.abs < 1e-9
+            a2 = (a[0] ** 2) + (a[1] ** 2)
+            b2 = (b[0] ** 2) + (b[1] ** 2)
+            c2 = (c[0] ** 2) + (c[1] ** 2)
+            cx = ((a2 * (b[1] - c[1])) + (b2 * (c[1] - a[1])) + (c2 * (a[1] - b[1]))) / d
+            cy = ((a2 * (c[0] - b[0])) + (b2 * (a[0] - c[0])) + (c2 * (b[0] - a[0]))) / d
+            radius = Math.hypot(a[0] - cx, a[1] - cy)
+            mm.all? { |point| (Math.hypot(point[0] - cx, point[1] - cy) - radius).abs <= NA_CURVE_FIT_TOLERANCE_MM }
+        end
+
+        def self.Na__Geometry__FaceEdgeBetween(face, point_a, point_b)
+            return nil unless point_a && point_b
+            face.edges.find do |edge|
+                start_point = edge.start.position
+                end_point = edge.end.position
+                (start_point == point_a && end_point == point_b) || (start_point == point_b && end_point == point_a)
+            end
         end
 
         # Mirror toggles MUST be applied in local 2D profile space, before the path
@@ -1086,6 +1206,10 @@ module Na__ProfileTools__ProfilePathTracer
         NA_HELPERS_TAG_NAME    = '02__ProfilePathTracer_Helpers'.freeze
         NA_HELPERS_MATERIAL_ID = 'MTE201__LineColour__Red'.freeze
 
+        # The styling before v1.6.15, kept only as the fallback for a sweep the
+        # colour pass cannot trace (it never happens with a clean sweep): each
+        # edge takes the style of the profile edge nearest it in LENGTH, and
+        # the caps are left alone.
         def self.Na__Geometry__ApplyUnifiedEdgeStates(entities, model, profile_data, path_edge_ids, path_data)
             style_reference = self.Na__Geometry__BuildStyleReferenceRecords(profile_data)
             return 0 if style_reference.empty?
@@ -1107,18 +1231,26 @@ module Na__ProfileTools__ProfilePathTracer
             return 0 if run_edges.empty?
 
             styled_count = 0
+            keep_followme_soft = !self.Na__Geometry__ProfileCurveRuns(
+                profile_data, Array((self.Na__Geometry__UnifiedFaceRecords(profile_data).first || {})['OuterLoopVertices'])
+            ).empty?
+
             run_edges.each do |edge|
                 reference = self.Na__Geometry__FindClosestStyleReference(edge, style_reference)
-                style_payload = self.Na__Geometry__BuildPerEdgeStylePayload(edge, reference)
+                style_payload = self.Na__Geometry__BuildPerEdgeStylePayload(edge, reference, keep_followme_soft)
                 self.Na__Geometry__ApplyEdgeState(edge, model, style_payload)
                 styled_count += 1
             end
             styled_count
         end
 
-        def self.Na__Geometry__BuildPerEdgeStylePayload(edge, reference)
+        # keep_followme_soft is only true for a profile with welded curves: an
+        # edge Follow Me already softened (swept off a curve) stays soft even
+        # when its facets meet at more than the 20 deg rule allows. Every other
+        # profile is styled exactly as before.
+        def self.Na__Geometry__BuildPerEdgeStylePayload(edge, reference, keep_followme_soft = false)
             base_payload = (reference || {}).dup
-            should_soften = self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
+            should_soften = (keep_followme_soft && edge.soft?) || self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
             base_payload['IsSoft']   = should_soften
             base_payload['IsSmooth'] = should_soften
             base_payload
@@ -1237,6 +1369,267 @@ module Na__ProfileTools__ProfilePathTracer
             edge.material = material if material
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Failed applying edge state: #{error.message}")
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Edge colours by origin (v1.6.15)
+    # -------------------------------------------------------------------------
+
+        # Every edge Follow Me leaves is traced back to what it was swept from,
+        # and takes that colour:
+        #   RAIL     an edge along the path: the sweep of ONE profile vertex. It
+        #            takes the vertex's colour (Profile2D vertex SweepEdge*). A
+        #            vertex with none takes the colour of its two outline edges,
+        #            the darker where they differ, so a corner of a black outline
+        #            sweeps black.
+        #   SECTION  an edge joining two neighbouring profile vertices where the
+        #            section stands: the start and end caps, and the outline at
+        #            every mitre. It takes that profile edge's colour (Mesh3D).
+        # The walk starts on the cap, where each profile vertex was placed, and
+        # follows each vertex's rail one path segment at a time, so nothing is
+        # guessed from lengths, and positions are only compared with positions
+        # read in the same context (Coordinate Rule: no conversions at all).
+        # Before v1.6.15 every edge took the colour of the profile edge nearest
+        # it in LENGTH and the caps were skipped, so rails and mitre lines came
+        # out in near-random colours. Returns the number of edges styled, or nil
+        # when the cap cannot be found (the old styling then runs).
+        NA_SWEEP_MATCH_TOL_INCH = 0.02 / 25.4    # a cap vertex is where it was put
+        NA_SWEEP_PARALLEL_COS   = 0.99999        # a rail runs along its segment (0.26 deg)
+        NA_SWEEP_MAX_STEPS      = 200_000
+        NA_DEFAULT_PAINT_ID     = 'Default'.freeze   # SketchUp's own edge colour: no material
+
+        def self.Na__Geometry__ApplySweepEdgeColours(entities, model, profile_data, path_edge_ids, sweep_origin)
+            return nil unless sweep_origin.is_a?(Hash)
+            start_points = sweep_origin[:start_points]
+            outer_ids    = Array(sweep_origin[:outer_ids]).map(&:to_s)
+            return nil unless start_points.is_a?(Hash) && !start_points.empty? && outer_ids.length >= 3
+
+            path_ids = Array(path_edge_ids).compact
+            traced = self.Na__Geometry__TraceSweptEdges(entities, start_points, sweep_origin[:rail_points], path_ids)
+            return nil if traced[:rails].empty?
+
+            edge_styles   = self.Na__Geometry__ProfileEdgeStyles(profile_data)
+            vertex_styles = self.Na__Geometry__ProfileVertexStyles(profile_data, outer_ids, edge_styles)
+            fallback      = self.Na__Geometry__DominantStyle(edge_styles.values)
+            keep_followme_soft = !self.Na__Geometry__ProfileCurveRuns(profile_data, outer_ids).empty?
+
+            styled = 0
+            entities.grep(Sketchup::Edge).each do |edge|
+                next unless edge.valid?
+                next if path_ids.include?(edge.persistent_id) && !traced[:rails].key?(edge.entityID)
+                payload = self.Na__Geometry__SweptEdgePayload(edge, traced, vertex_styles, edge_styles, fallback, keep_followme_soft)
+                next unless payload
+                self.Na__Geometry__ApplyEdgeState(edge, model, payload)
+                styled += 1
+            end
+            styled
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Edge colours by origin skipped: #{error.message}")
+            nil
+        end
+
+        # The style for one swept edge: its rail vertex's, its section pair's,
+        # or (an edge the walk did not reach, between two faces) the profile's
+        # most used. nil leaves the edge as Follow Me made it.
+        def self.Na__Geometry__SweptEdgePayload(edge, traced, vertex_styles, edge_styles, fallback, keep_followme_soft)
+            vertex_id = traced[:rails][edge.entityID]
+            if vertex_id
+                soft = (keep_followme_soft && edge.soft?) || self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
+                style = vertex_styles[vertex_id] || fallback
+                return style.merge('IsSoft' => soft, 'IsSmooth' => soft, 'IsHidden' => false, 'CastsShadows' => true)
+            end
+
+            owner_a = traced[:owners][edge.start.entityID]
+            owner_b = traced[:owners][edge.end.entityID]
+            section = owner_a && owner_b && owner_a != owner_b ? edge_styles[[owner_a, owner_b].sort] : nil
+            if section
+                soft = self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
+                return section.merge('IsSoft' => soft, 'IsSmooth' => soft)
+            end
+
+            return nil unless self.Na__Geometry__ClassifyAsConnectorRunEdge?(edge)
+            soft = (keep_followme_soft && edge.soft?) || self.Na__Geometry__ShouldSoftenRunEdgeByAngle?(edge)
+            fallback.merge('IsSoft' => soft, 'IsSmooth' => soft, 'IsHidden' => false, 'CastsShadows' => true)
+        end
+
+        # { rails: { edge id => vertex_id }, owners: { vertex id => vertex_id } },
+        # keyed by entityID, never by the Ruby wrapper.
+        # Each profile vertex's rail is walked from where the vertex stands on
+        # the cap: along the first path segment, then onto the next at the
+        # mitre, to the far end (round to the seam on a closed loop). A rail
+        # cut into pieces along one segment is followed piece by piece.
+        def self.Na__Geometry__TraceSweptEdges(entities, start_points, rail_points, path_ids = [])
+            rails  = {}
+            owners = {}
+            directions = self.Na__Geometry__RailDirections(rail_points)
+            return { rails: rails, owners: owners } if directions.empty?
+
+            find_vertex = self.Na__Geometry__SweptVertexFinder(entities)
+            start_points.each do |vertex_id, point|
+                vertex = point ? find_vertex.call(point) : nil
+                next unless vertex
+                owner = vertex_id.to_s
+                owners[vertex.entityID] ||= owner
+                segment = 0
+                steps   = 0
+                while segment < directions.length && steps < NA_SWEEP_MAX_STEPS
+                    steps += 1
+                    rail = self.Na__Geometry__RailStep(vertex, directions[segment], rails, path_ids)
+                    if rail
+                        rails[rail.entityID] = owner
+                        vertex = rail.other_vertex(vertex)
+                        owners[vertex.entityID] ||= owner
+                    else
+                        segment += 1
+                    end
+                end
+            end
+            { rails: rails, owners: owners }
+        end
+
+        def self.Na__Geometry__RailDirections(rail_points)
+            Array(rail_points).each_cons(2).map do |point_a, point_b|
+                vector = point_b - point_a
+                vector.length > 0.0001 ? vector.normalize : nil
+            end.compact
+        end
+
+        # The edge leaving `vertex` forwards along `direction` not yet walked.
+        # A profile vertex standing on the path itself (a datum corner) sweeps
+        # along the path line: the swept edge is taken over the temporary path
+        # edge lying with it, which is erased after styling; the path edge
+        # only when Follow Me merged the two into one.
+        def self.Na__Geometry__RailStep(vertex, direction, walked, path_ids = [])
+            forward = vertex.edges.select do |edge|
+                next false if walked.key?(edge.entityID) || !edge.valid?
+                vector = edge.other_vertex(vertex).position - vertex.position
+                next false unless vector.length > 0.0
+                vector.normalize.dot(direction) >= NA_SWEEP_PARALLEL_COS
+            end
+            forward.find { |edge| !path_ids.include?(edge.persistent_id) } || forward.first
+        end
+
+        # point -> the swept vertex standing on it, through a spatial hash so a
+        # long sweep's vertices are not all scanned once per profile vertex.
+        def self.Na__Geometry__SweptVertexFinder(entities)
+            cell    = NA_SWEEP_MATCH_TOL_INCH * 4
+            buckets = {}
+            entities.grep(Sketchup::Edge).each do |edge|
+                next unless edge.valid?
+                [edge.start, edge.end].each do |vertex|
+                    (buckets[self.Na__Geometry__SweptCell(vertex.position, cell)] ||= []) << vertex
+                end
+            end
+            lambda do |point|
+                base = self.Na__Geometry__SweptCell(point, cell)
+                best = nil
+                best_distance = NA_SWEEP_MATCH_TOL_INCH
+                [-1, 0, 1].product([-1, 0, 1], [-1, 0, 1]).each do |dx, dy, dz|
+                    Array(buckets[[base[0] + dx, base[1] + dy, base[2] + dz]]).each do |vertex|
+                        distance = vertex.position.distance(point)
+                        next unless distance <= best_distance
+                        best = vertex
+                        best_distance = distance
+                    end
+                end
+                best
+            end
+        end
+
+        def self.Na__Geometry__SweptCell(point, cell)
+            [(point.x.to_f / cell).floor, (point.y.to_f / cell).floor, (point.z.to_f / cell).floor]
+        end
+
+        # { [vertex_id_a, vertex_id_b] (sorted) => style } from the Mesh3D edges.
+        def self.Na__Geometry__ProfileEdgeStyles(profile_data)
+            self.Na__Geometry__UnifiedMeshEdges(profile_data).each_with_object({}) do |mesh_edge, styles|
+                id_a = mesh_edge['StartVertex'].to_s
+                id_b = mesh_edge['EndVertex'].to_s
+                next if id_a.empty? || id_b.empty? || id_a == id_b
+                styles[[id_a, id_b].sort] = {
+                    'IsHidden'         => mesh_edge['IsHidden'] == true,
+                    'CastsShadows'     => mesh_edge['CastsShadows'] != false,
+                    'EdgeMaterialName' => mesh_edge['EdgeMaterialName'].to_s,
+                    'EdgeColourId'     => mesh_edge['EdgeColourId'].to_s,
+                    'EdgeColourHex'    => mesh_edge['EdgeColourHex'].to_s
+                }
+            end
+        end
+
+        # { vertex_id => style } for the outline's vertices: a vertex's own
+        # colour where it has one ('Default' = SketchUp's own, no material),
+        # else its two outline edges' colour, the darker where they differ.
+        def self.Na__Geometry__ProfileVertexStyles(profile_data, outer_ids, edge_styles)
+            records = self.Na__Geometry__ProfileVertexRecords(profile_data)
+            count   = outer_ids.length
+            outer_ids.each_with_index.each_with_object({}) do |(vertex_id, index), styles|
+                own = self.Na__Geometry__SweepStyleOf(records[vertex_id])
+                if own
+                    styles[vertex_id] = own
+                    next
+                end
+                before = edge_styles[[outer_ids[(index - 1) % count], vertex_id].sort]
+                after  = edge_styles[[vertex_id, outer_ids[(index + 1) % count]].sort]
+                derived = self.Na__Geometry__DarkerStyle(before, after)
+                styles[vertex_id] = derived if derived
+            end
+        end
+
+        def self.Na__Geometry__ProfileVertexRecords(profile_data)
+            profile_block = self.Na__Geometry__UnifiedProfileBlock(profile_data)
+            return {} unless profile_block
+            Array(profile_block['Na__Geometry__Vertices']).each_with_object({}) do |vertex, map|
+                next unless vertex.is_a?(Hash)
+                map[vertex['VertexId'].to_s] = vertex
+            end
+        end
+
+        def self.Na__Geometry__SweepStyleOf(record)
+            return nil unless record.is_a?(Hash)
+            colour_id = record['SweepEdgeColourId'].to_s
+            material  = record['SweepEdgeMaterialName'].to_s
+            hex       = record['SweepEdgeColourHex'].to_s
+            return nil if colour_id.empty? && material.empty? && hex.empty?
+            if colour_id == NA_DEFAULT_PAINT_ID
+                return { 'EdgeMaterialName' => '', 'EdgeColourId' => '', 'EdgeColourHex' => '' }
+            end
+            { 'EdgeMaterialName' => material, 'EdgeColourId' => colour_id, 'EdgeColourHex' => hex }
+        end
+
+        def self.Na__Geometry__DarkerStyle(style_a, style_b)
+            return style_a || style_b unless style_a && style_b
+            return style_a if self.Na__Geometry__StyleKey(style_a) == self.Na__Geometry__StyleKey(style_b)
+            self.Na__Geometry__StyleLuminance(style_b) < self.Na__Geometry__StyleLuminance(style_a) ? style_b : style_a
+        end
+
+        def self.Na__Geometry__StyleKey(style)
+            [style['EdgeColourId'].to_s, style['EdgeMaterialName'].to_s, style['EdgeColourHex'].to_s.upcase]
+        end
+
+        # 0 black .. 1 white. An edge with no colour reads as SketchUp's
+        # default, black; an id with no hex is looked up in the registry.
+        def self.Na__Geometry__StyleLuminance(style)
+            rgb = self.Na__Geometry__HexToRgb(style['EdgeColourHex'])
+            if !rgb && defined?(Na__EdgeColourManager)
+                id = style['EdgeColourId'].to_s.empty? ? style['EdgeMaterialName'].to_s : style['EdgeColourId'].to_s
+                entry = id.empty? ? nil : Na__EdgeColourManager.Na__EdgeColours__GetEntryByName(id)
+                rgb = self.Na__Geometry__HexToRgb(entry['HexValue']) if entry
+            end
+            return 0.0 unless rgb
+            ((0.2126 * rgb[0]) + (0.7152 * rgb[1]) + (0.0722 * rgb[2])) / 255.0
+        end
+
+        # The style most of the profile's edges carry; no colour when none do.
+        def self.Na__Geometry__DominantStyle(styles)
+            blank = { 'EdgeMaterialName' => '', 'EdgeColourId' => '', 'EdgeColourHex' => '' }
+            return blank if styles.empty?
+            tally = Hash.new(0)
+            styles.each { |style| tally[self.Na__Geometry__StyleKey(style)] += 1 }
+            winner = tally.max_by { |_, count| count }.first
+            found  = styles.find { |style| self.Na__Geometry__StyleKey(style) == winner }
+            found.reject { |key, _| key == 'IsHidden' || key == 'CastsShadows' }
         end
 
     # endregion ----------------------------------------------------------------

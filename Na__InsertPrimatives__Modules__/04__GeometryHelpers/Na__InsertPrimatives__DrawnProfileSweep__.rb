@@ -7,7 +7,7 @@
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Sweep any edge profile along an edge — the corner frame, the
 #              plan, the build and the corner mitres shared by every profile
-#              tool (Deep Ogee, Deep Fillet)
+#              tool (Deep Ogee, Deep Fillet, Deep Ovolo)
 # CREATED    : 2026
 #
 # DESCRIPTION:
@@ -35,7 +35,9 @@
 #   :convex, which side of the profile is air. A tool adds its own keys:
 #   :symmetric (a profile that reads the same from either face, which any
 #   mitre accepts) or :roll_on_a (which face an asymmetric profile starts
-#   from, which a mitre must find matching on both edges).
+#   from, which a mitre must find matching on both edges), and optionally
+#   :hard_seams (profile point indices where the profile turns a real corner,
+#   left hard instead of softened — Deep Ovolo's step shoulders).
 #
 # CONVEX AND CONCAVE CORNERS:
 # - On a convex edge the profile cuts material away, and air is on the
@@ -448,7 +450,9 @@ module Na__InsertPrimatives
     # bisector, exactly as a chamfer plane faces; on a concave corner it is
     # the bisector's side. The seams between facets are the curve's own
     # segmentation, not corners, so they are softened and smoothed; the two
-    # boundary edges onto face A and face B stay hard.
+    # boundary edges onto face A and face B stay hard. So does every seam the
+    # solve names in :hard_seams — a profile point where the profile turns a
+    # real corner, such as the shoulders of a stepped ovolo or cavetto.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__AddMoulding(entities, solve, dress, build_transform)
         near = solve[:profile0].map { |point| point.transform(build_transform) }
@@ -482,7 +486,23 @@ module Na__InsertPrimatives
             facets << facet
         end
 
-        facets.each_cons(2) do |left, right|
+        Na__InsertPrimatives.Na__ProfileSweep__SoftenSeams(facets, solve[:hard_seams])
+
+        facets
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Soften the Seams Between a Run of Facets, Except the Real Corners
+    # facets[i] spans profile points i and i + 1, so the seam it shares with
+    # facets[i + 1] sits on profile point i + 1 — the index :hard_seams uses.
+    # Shared by the moulding and the stop fan, which is laid the same way.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__SoftenSeams(facets, hard_seams)
+        hard = hard_seams || []
+
+        facets.each_cons(2).with_index do |(left, right), index|
+            next if hard.include?(index + 1)                                  # <-- A shoulder of the profile stays a crisp line
+
             left.edges.each do |seam|
                 next unless seam.used_by?(right)
 
@@ -490,8 +510,6 @@ module Na__InsertPrimatives
                 seam.smooth = true
             end
         end
-
-        facets
     end
     # ---------------------------------------------------------------
 
@@ -532,14 +550,7 @@ module Na__InsertPrimatives
                 fan << facet
             end
 
-            fan.each_cons(2) do |left, right|
-                left.edges.each do |seam|
-                    next unless seam.used_by?(right)
-
-                    seam.soft   = true
-                    seam.smooth = true
-                end
-            end
+            Na__InsertPrimatives.Na__ProfileSweep__SoftenSeams(fan, solve[:hard_seams])
 
             facets.concat(fan)
         end

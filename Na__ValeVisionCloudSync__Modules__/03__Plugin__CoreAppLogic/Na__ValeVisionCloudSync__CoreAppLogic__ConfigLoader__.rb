@@ -10,7 +10,8 @@
 # DESCRIPTION:
 # - Reads Na__ValeVisionCloudSync__CoreAppData__UiCommandRegistry__.json for
 #   dialog and command settings, and AppConfig__.json for sync operation
-#   settings (paths, image export params, Python orchestrator, CDN URLs).
+#   settings (paths, image export params, Python, the Project Library and
+#   the Vale Virtual Server Manager files the sync uses).
 # - Merges against hardcoded defaults so the plugin is safe even if JSON
 #   files are missing.
 #
@@ -59,16 +60,20 @@ module Na__ValeVisionCloudSync
                 'sketchup'          => '02__SketchUp',
                 'content_delivered' => '10__ContentDelivered__Local',
                 'glb_sync'          => '10__ContentDelivered__Local/ValeVision__GlbFileSync',
-                'glb_archives'      => '10__ContentDelivered__Local/ValeVision__GlbFileSync/00__ArchivedModels'
+                'glb_archives'      => '10__ContentDelivered__Local/ValeVision__GlbFileSync/00__Archive'
             },
             'edition_folder_prefix' => 'VisDpt__Whitecard__',
             'python'               => {
-                'orchestrator_script' => 'Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py',
-                'whitecardopedia_root' => 'D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia'
+                'python_executable' => ''
             },
-            'cdn'                  => {
-                'r2_base_url'     => 'https://cdn.noble-architecture.com/VaApps/Projects',
-                'github_base_url' => 'https://raw.githubusercontent.com/noble-architecture/noble-architecture.github.io/main/na-project-portal'
+            'library'              => {
+                'publisher_script' => '04__Plugin__SyncFeatures/08__LibraryPublisher/Na__ValeVisionCloudSync__LibraryPublisher__.py',
+                'manager_root'     => 'D:/10_CoreLib__ValeCodebase/WebApps/Vale__VirtualServerManager',
+                'engine_script'    => 'VirtualServerManager__SyncEngine__.py',
+                'sync_map'         => '01__AppData/VirtualServerManager__SyncMap__.json',
+                'mapping_id'       => 'projects',
+                'push_to_server'   => true,
+                'site_base_url'    => 'https://app.valegardenhouses.com'
             }
         }.freeze
 
@@ -179,8 +184,31 @@ module Na__ValeVisionCloudSync
             self.Na__ValeVisionCloudSync__AppConfig.fetch('python', NA_DEFAULT_APP_CONFIG['python'])
         end
 
-        def self.Na__ValeVisionCloudSync__CdnConfig
-            self.Na__ValeVisionCloudSync__AppConfig.fetch('cdn', NA_DEFAULT_APP_CONFIG['cdn'])
+        def self.Na__ValeVisionCloudSync__LibraryConfig
+            self.Na__ValeVisionCloudSync__AppConfig.fetch('library', NA_DEFAULT_APP_CONFIG['library'])
+        end
+
+        # FUNCTION | Absolute Paths of the Server Manager Files the Sync Uses
+        # ------------------------------------------------------------
+        # engine_script / sync_map may be absolute (e.g. a sandbox sync map for testing)
+        # or relative to manager_root; publisher_script is relative to the plugin modules.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__LibraryPaths
+            cfg          = self.Na__ValeVisionCloudSync__LibraryConfig
+            manager_root = cfg['manager_root'].to_s.tr('\\', '/')
+            in_manager   = lambda do |value|
+                path = value.to_s.tr('\\', '/')
+                path =~ %r{\A([A-Za-z]:)?/} ? path : File.join(manager_root, path)
+            end
+            {
+                publisher: File.join(Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot.to_s.tr('\\', '/'),
+                                     cfg['publisher_script'].to_s),
+                engine:    in_manager.call(cfg['engine_script']),
+                sync_map:  in_manager.call(cfg['sync_map']),
+                mapping:   cfg['mapping_id'].to_s.empty? ? 'projects' : cfg['mapping_id'].to_s,
+                push:      cfg['push_to_server'] != false,
+                site:      cfg['site_base_url'].to_s.sub(%r{/+\z}, '')
+            }
         end
 
         def self.Na__ValeVisionCloudSync__ScenePrefixRegex

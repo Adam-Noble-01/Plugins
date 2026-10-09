@@ -442,6 +442,12 @@ module Na__InsertPrimatives
             end
         end
 
+        dialog.add_action_callback("setOvoloMode") do |_action_context|
+            Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
+                tool_instance.Na__DrawnMode__SetOvoloMode()
+            end
+        end
+
         dialog.add_action_callback("togglePlaneFaces") do |_action_context|
             Na__InsertPrimatives.Na__RightClickPopup__RunAction(tool_instance) do
                 tool_instance.Na__PrimitiveMode__TogglePlaneFaces()

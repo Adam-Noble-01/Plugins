@@ -8,7 +8,8 @@
 //              Tab modules are resolved by a small lookup table so adding
 //              new tabs does not require editing this file.
 //
-// TABS       : gallery (default) | apply-profile | edit-profile | create-profile | settings
+// TABS       : gallery (default) | apply-profile | edit-profile | create-profile |
+//              draw-profile | settings
 //
 // =============================================================================
 
@@ -29,6 +30,7 @@
         'apply-profile'  : 'Na__ProfileTools__ApplyProfile__Tab',
         'edit-profile'   : 'Na__ProfileTools__EditProfile__Tab',
         'create-profile' : 'Na__ProfileTools__CreateNewProfile__Tab',
+        'draw-profile'   : 'Na__ProfileTools__DrawProfile__Tab',
         'settings'       : 'Na__ProfileTools__Settings__Tab'
     };
 

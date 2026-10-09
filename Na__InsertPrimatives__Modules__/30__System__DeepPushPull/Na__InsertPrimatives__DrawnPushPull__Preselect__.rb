@@ -1,21 +1,69 @@
 # Selected faces own the gesture, even when groups are selected beside them.
 # A batch uses each face's own normal/slope and the same signed measured size.
 # All faces are in the user's open context: no context switches or nested ops.
+#
+# A LARGE SELECTION ASKS FIRST (5.1.22): more than NA_LARGE_SELECTION_FACES
+# (10) selected faces and the user is asked before a single one is read or
+# previewed, because CTRL+A and the shortcut would otherwise push a whole
+# model, and preview every face of it on every mouse move. Yes pushes them
+# all; No leaves the selection alone and faces are picked one at a time;
+# Cancel leaves the tool. A batch that size reaching a commit unconfirmed is
+# asked about again there. See DrawnLargeSelection.
+#
+# Each face's preview geometry is cached between frames (keyed by the face,
+# checked by the same fingerprint the hover uses), so a confirmed batch does
+# not re-triangulate every face on every mouse move.
 require 'sketchup.rb'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnLargeSelection__'
 
 module Na__InsertPrimatives
     module DrawnPushPullPreselect
+        NA_PPS_TARGET_STATE = %i[@na_pp_target @na_pp_triangles @na_pp_loop @na_pp_area @na_pp_fingerprint
+                                 @na_pp_slope @na_pp_follow @na_pp_follow_lookup].freeze
+
         def activate
             super
-            na_pps__read_selection
+            na_pps__read_selection(true)
         end
 
-        def na_pps__read_selection
+        # ask is true only as the tool starts: re-reading after a push keeps
+        # the same faces, which were confirmed (or small) already.
+        def na_pps__read_selection(ask = false)
             model = Sketchup.active_model
             path = Na__InsertPrimatives.Na__DeepPick__ContextPath
-            @na_pps_targets = model.selection.grep(Sketchup::Face).select(&:valid?).map do |face|
+            faces = model.selection.grep(Sketchup::Face).select(&:valid?)
+            @na_pps_cache = {}
+            if ask && !na_pps__confirm_large(faces.length)
+                @na_pps_targets = []
+                return @na_pps_targets
+            end
+            @na_pps_targets = faces.map do |face|
                 Na__InsertPrimatives.Na__DeepPick__BuildTarget(face, path, nil)
             end
+        end
+
+        # true to take the selection on. No leaves it alone (hover a face as
+        # usual); Cancel does the same and leaves the tool a beat later, from a
+        # timer, because this runs inside activate.
+        def na_pps__confirm_large(count)
+            return true if count <= NA_LARGE_SELECTION_FACES
+            answer = Na__InsertPrimatives.Na__LargeSelection__Ask(:faces, count, na_drawn__tool_title, 'pushed', 'Push')
+            return true if answer == :yes
+            if answer == :cancel
+                na_drawn__schedule_exit_tool
+            else
+                na_revise__notice("The #{Na__InsertPrimatives.Na__LargeSelection__Count(count)} selected faces are left alone — hover a face to push it")
+            end
+            false
+        end
+
+        # The backstop before a commit. Never during a retype's rebuild: that
+        # batch was pushed once already, so it was confirmed.
+        def na_pps__commit_confirmed?
+            count = @na_pps_targets.length
+            return true if count <= NA_LARGE_SELECTION_FACES || na_revise__replaying?
+            return true if Na__InsertPrimatives.Na__LargeSelection__Confirmed?(:faces, count)
+            Na__InsertPrimatives.Na__LargeSelection__Ask(:faces, count, na_drawn__tool_title, 'pushed', 'Push') == :yes
         end
 
         def na_pps__active?
@@ -44,12 +92,18 @@ module Na__InsertPrimatives
         end
 
         # Cache switching is scoped so previewing another member cannot change
-        # the driver, its measurement, or the cached FOLLOW rails.
+        # the driver, its measurement, or the cached FOLLOW rails. Each member's
+        # own state is kept between frames: restored before the adopt, whose
+        # fingerprint check then reuses it unless the face has moved.
         def na_pps__with_target(target)
-            names = %i[@na_pp_target @na_pp_triangles @na_pp_loop @na_pp_area @na_pp_fingerprint
-                       @na_pp_slope @na_pp_follow @na_pp_follow_lookup]
+            names = NA_PPS_TARGET_STATE
             saved = names.map { |name| instance_variable_get(name) }
+            face  = target[:face]
+            key   = face && face.valid? ? face.entityID : nil
+            cache = (@na_pps_cache ||= {})
+            names.zip(cache[key]).each { |name, value| instance_variable_set(name, value) } if key && cache[key]
             na_drawn__adopt_target(target)
+            cache[key] = names.map { |name| instance_variable_get(name) } if key
             yield
         ensure
             names.zip(saved).each { |name, value| instance_variable_set(name, value) }
@@ -97,6 +151,7 @@ module Na__InsertPrimatives
             unless Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d)
                 raise ArgumentError, 'Drag further or type a nonzero distance'
             end
+            raise 'that many faces were not confirmed — nothing pushed' unless na_pps__commit_confirmed?
             # Prepare every recipe before any push can alter a neighbouring face.
             recipes = @na_pps_targets.map do |target|
                 raise 'A selected face is no longer available' unless target[:face].valid?

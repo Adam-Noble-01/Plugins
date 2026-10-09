@@ -3,6 +3,61 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.15 - 09-Oct-2026 - Image Viewer Perspective Guides
+
+- New **3 Guides** section in the Perspective Angle panel. Guides work like SketchUp's Tape Measure guides, but on the photo: each guide is an infinite 3D line drawn dashed across the photo in perspective. A red guide through one window head shows at a glance whether the other heads, sills or eaves on that wall line up.
+- **Making a guide.** Press **T** or click **Guide**. Click a point, then move along a direction and click again. Following SketchUp's inference, the guide snaps to the direction you are moving in and names it: Red axis, Green axis, Blue axis, "Parallel to Pitch 1" (any measured pitch), or a typed pitch such as "47.5° on Red wall". Moving in any other direction makes a free guide through both points. Before calibration, every guide is a free guide.
+- **Axis locks, as in SketchUp.** While the Guide tool is active, → locks red, ← green, ↑ blue and ↓ returns to auto; the Auto / Red / Green / Blue buttons do the same. With an axis locked, one click places a guide. Here the arrow keys lock axes instead of changing photo.
+- **Pitch guides.** Type a pitch into the Guides box (a bare number is degrees). Guides at that slope on the wall chosen in step 2 then join the inference, for checking a roof against a 45° or 50° line. Enter commits and hands the keys back to the photo. 0°, 90° and anything outside are refused with the fix named.
+- **Snapping.** While you place points, a SketchUp-like marker shows the snap: a green dot on an endpoint or guide point, an X on an intersection (guide with guide, or guide with a drawn line), a square on a guide, each with a pale tooltip. Snapping works in Guide, Pitch and Angle, and in the existing **Measure** and **Set Reference** tools, so dimensions can run between guide crossings. Calibration lines never snap: they must follow the photo's own edges.
+- **Guides follow the calibration.** A guide keeps its anchor point and its direction type, and re-reads its direction from the calibration every time it is drawn. Adding or moving lines re-aims every guide.
+- **Editing.** Drag a guide's anchor to move it. Click a guide to select it; Delete removes it. **Show guides** hides them (and their snapping), and the × clears this photo's guides. Undo and Redo cover guides with everything else. Guides are kept per photo for the session, and stay on the photo, without handles, when the panel is closed. **Clear all** now clears guides too. The old "Perspective guides" checkbox is now **Perspective grid**, so the two can't be confused.
+- **Files.** `…__PerspectiveSolver__.js` gains the guide geometry: vanishing points of any direction, slopes on a wall, the visible part of a guide (a guide stops at its vanishing point when that lies inside the photo), intersections and inference. `…__PerspectiveAngle__.js` gains the tool, drawing, snapping and panel. `…__UiBridge__.js` gains a shared snap service (`registerSnap`, `snap`, `setSnapMarker`) and draws the marker above every overlay. `…__Measurement__.js` snaps through it. HTML and CSS add the Guides section.
+- **Validation.**
+  - Guide geometry, `tests/perspective_guides.test.js` (node): 15 checks over 200 random synthetic photos. With the true camera, a red guide through one point passes through every other point at that height to 1e-12 px, and green and blue guides likewise. A red and a blue guide cross exactly where their 3D lines meet. A guide at the true pitch from the eaves runs through the apex, and its mirror image misses by over 300 px. Inference picks the axis being followed in over 97% of cases and nothing when moving away from every axis.
+  - Dialog, `tests/perspective_guides.ui.test.js` in headless Chromium: 37 checks on the synthetic house, clicking at fit zoom. A red guide through one window head passes the other heads within 1.6–1.8 px. A one-click blue guide stays within 3.1 px of plumb. The 47.5° guide from the eaves reaches the apex within 1.5 px. The guide tool and Measure both snap to the red/blue crossing. The suite also covers parallel and free guides, the arrow locks (the photo does not change), select, Delete, Show guides, Clear, Undo/Redo, per-photo guides and the closed panel.
+  - Existing suites unchanged: solver 79, Ruby 32, dialog 31.
+  - Native SketchUp testing remains with the user.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then close and reopen Image Viewer. The panel shows **3 Guides**.
+- [ ] On a calibrated photo, press T, click a first-floor window head corner, move along the wall and click. The red guide should touch every head on that wall.
+- [ ] Press ↑, then click a sill corner: a blue guide runs plumb through the head above. Press ↓ to unlock.
+- [ ] Click Measure and move near the crossing of a red and a blue guide: an X marker with "Intersection" appears, and the dimension starts exactly there.
+- [ ] Type 45 into the Guides box and press Enter, press T, click an eaves corner and move up the verge: the label reads "45.0° on Red wall".
+- [ ] Untick Show guides: the guides go and nothing snaps to them.
+
+## -----------------------------------------------------------------------------
+
+## Na Noble3d Modelling Tools | Version 0.9.14 - 09-Oct-2026 - Image Viewer Perspective Angle (True Roof Pitch)
+
+- New **Angle** button on the Image Viewer toolbar opens the Perspective Angle panel. It measures roof pitches and angles as they are on the building, corrected for the camera's tilt, turn and lens, instead of the 2D angle of lines drawn over the photo. On an oblique gable the 2D angle was off by 16° on average in testing; the corrected pitch by about 0.2°.
+- **1. Calibrate the photo.** Draw lines along edges you know, in SketchUp's axis colours: blue verticals (corners, chimney sides, window jambs, downpipes), red level lines on the wall you are measuring (brick courses, eaves, sills, window heads), and optionally green level lines on a wall at 90°. Three lines over two colours, with two in one colour, fix the camera. The status line says what is still missing.
+- **2. Measure.** Choose the plane (Red wall, Green wall or Ground) and the tool. **Pitch** is two clicks along a sloping edge and gives its angle above true level. **Angle** is arm end, corner, arm end. Each pitch is drawn as its triangle in perspective (level run, vertical rise and arc), as it lies on the wall, so it can be checked by eye.
+- **An honest ±.** Every reading carries a ± (about 95 %) from a Monte Carlo of the clicks and the lens. A point placed zoomed in counts as more precise. A wall seen nearly edge-on shows a wide red ±. Before calibration a reading shows as "2D". The ± covers clicking and camera error, not a building that is out of plumb.
+- **Lens.** Auto assumes a phone's main camera (24–26 mm) and lets the lines solve the lens when they can ("the lines solve the lens at 25.5 mm ±0.5"). Presets run from 13 to 120 mm. **Other…** takes a bare number as the 35 mm-equivalent focal length, and an impossible value is refused with the fix named. New `Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb` reads the lens from JPEG, PNG, WebP and TIFF EXIF. PNGs converted from iPhone photos, such as the Phillips site photos, carry none.
+- **Checks on the lines.** A line that disagrees with the others is dashed and named ("Red 2 is 4.1 px off the others. Redraw it on a true level edge, or delete it."). **Perspective guides** draw the chosen plane's two vanishing directions across the photo, to check against the brick courses and verticals.
+- **Editing.** Drag on the photo to pan and scroll to zoom without leaving a tool. A magnifier follows the pointer while placing or dragging a point. Drag any handle to refine it; where two points coincide, the selected item's handle wins. Click a line or a result to select it; Delete removes it and Esc steps back. Lines and angles are kept per photo for the session (not yet saved in the model). Closing the panel hides the lines and keeps the angles on the photo.
+- **Shared with Measure.** Undo and Redo (Ctrl+Z, Ctrl+Y) now live in the viewer core and step back through dimensions and angle lines in the order they were drawn. One tool owns the canvas at a time: starting Measure ends Pitch, and the other way round. Measure dimensions are now kept per photo path instead of per list position, so choosing another folder no longer shows one photo's dimensions on another.
+- **Files.** New in `10__PluginModules/14__SourceCode__ImageCarousel/`: `…__PerspectiveSolver__.js` (pure maths: Levenberg–Marquardt over the camera rotation and log focal length with the lens as a prior, plane back-projection, Monte Carlo), `…__PerspectiveAngle__.js` (panel, canvas, magnifier) and `…__PhotoInfo__.rb`. `…__UiBridge__.js` gains the image key, shared history, tool claim, pan and resize. `…__Measurement__.js` uses the shared history. `…__DialogManager__.rb` answers `request_photo_info` and now inlines scripts with the block form of `gsub`, so a backslash in a script can never be read as a replacement escape.
+- **Validation.**
+  - Solver, `tests/perspective_solver.test.js` (node): 79 checks over random synthetic photos (lens, tilt, turn and roll). Exact without noise. With 1 px click noise, the median error is 0.05–0.28° where the raw 2D angle is off by 2–16°, and the shown ± holds the true value in 94–99 % of cases.
+  - Ruby, `tests/photo_info.rb.test` in SketchUp's bundled Ruby: 32 checks. Every module file compiles; EXIF is read from each format and byte order; corrupt, truncated and missing files come back as no lens data; the 15 MB Phillips PNG is read in 2.5 ms; the dialog assembles byte for byte.
+  - Dialog, `tests/perspective.ui.test.js` in headless Chromium: 31 checks on a 47.5° gable that the photo shows at 60.5°. It reads 47.6° ±0.7°, the apex 85.1° ±1.4° (true 85°), and the lens solves at 25.5 mm (true 25.8 mm).
+  - Real photos: the chimney gable's right verge on two Phillips photos taken from different positions reads 49.7° ±0.4 and 49.8° ±0.5, where the photos show 50.2° and 49.2°. Following that verge's skyline from the side picked up the roof behind it and read 47.7°, so the Pitch hint now says to follow where the tiles meet the brickwork.
+  - Native SketchUp testing remains with the user.
+- Run the tests from the module folder: `node tests/perspective_solver.test.js`, `python tests/run_ruby_checks.py tests/photo_info.rb.test`, and `node tests/perspective.ui.test.js <playwright> <chrome.exe>` (paths as for the Vegetation Sketcher UI tests).
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then close and reopen Image Viewer so the dialog is rebuilt with the new scripts. An **Angle** button sits at the right of the toolbar.
+- [ ] On a Phillips photo, click Angle, then Verticals, and draw three or more verticals spread across the photo. Press Esc, choose Red level lines, and draw two or more on the gable or the main wall (eaves, a sill, a brick course). The status turns green: "Calibrated from N lines".
+- [ ] Choose Pitch and click the two ends of the chimney gable's verge where the tiles meet the brickwork. Expect about 50° with a small ±, and a different "photo shows" value. The dashed triangle sits on the wall.
+- [ ] Tick Perspective guides. The red fan runs with the brick courses and the blue fan with the verticals.
+- [ ] Ctrl+Z and Ctrl+Y step back through both Measure dimensions and angle lines. Clicking Measure while Pitch is active ends Pitch.
+- [ ] Choose Lens, then Other…, type 26 and press Enter: "26 mm set." Then type 500000: it is refused with the fix named.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.13 - 30-Sep-2026 - Component Library Tools for Agents and Safe Library Loading
 
 - Component Editor Tools 0.6.4. The full entry is in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.

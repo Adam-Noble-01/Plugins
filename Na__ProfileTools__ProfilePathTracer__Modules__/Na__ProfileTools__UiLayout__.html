@@ -5,10 +5,10 @@
      NA PROFILE TOOLS - PROFILE PATH TRACER - UI LAYOUT
      =============================================================================
      FILE       : Na__ProfileTools__UiLayout__.html
-     PURPOSE    : Main HtmlDialog layout — brand header, 5-tab strip,
+     PURPOSE    : Main HtmlDialog layout — brand header, 6-tab strip,
                   tab panels, and shared status bar.
      TABS       : Gallery (default) | Apply Profile | Edit Profile |
-                  Create Profile | Settings
+                  Create Profile | Draw Profile | Settings
      ============================================================================= -->
 
 <head>
@@ -84,6 +84,16 @@
                     data-na-tab-id="create-profile"
                     onclick="Na_TabRouter.na_activateTab('create-profile')">
                 Create Profile
+            </button>
+
+            <button id="na-tab-button-draw-profile"
+                    class="na-tab"
+                    role="tab"
+                    aria-controls="na-tab-draw-profile"
+                    aria-selected="false"
+                    data-na-tab-id="draw-profile"
+                    onclick="Na_TabRouter.na_activateTab('draw-profile')">
+                Draw Profile
             </button>
 
             <button id="na-tab-button-settings"
@@ -165,6 +175,20 @@
         <!-- endregion ============================================================ -->
 
         <!-- ======================================================================
+             REGION | Tab Panel - Draw Profile (2D profile editor)
+             ====================================================================== -->
+        <div id="na-tab-draw-profile"
+             class="na-tab-panel na-hidden"
+             role="tabpanel"
+             aria-labelledby="na-tab-button-draw-profile"
+             data-na-tab-id="draw-profile">
+
+            <div id="na-draw-profile-tab-body"></div>
+
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
              REGION | Tab Panel - Settings
              ====================================================================== -->
         <div id="na-tab-settings"
@@ -217,6 +241,9 @@
                                 MainUiLogic (exports Gallery__Tab)
       9. Edit Profile         — MainUiLogic (depends on Store + SvgGenerator),
                                 Bridge (ReceiveUpdateProfileMetaResult)
+      9b. Draw Profile        — Config, Geometry, Document, Loop, Snap,
+                                Viewport, Vcb, Ops, Editor, Tools (Draw, then
+                                Modify), Bridge, MainUiLogic - in that order
      10. TabRouter            — must load AFTER all tab modules so NA_TAB_TO_GLOBAL resolves
      11. AppContext           — must load AFTER TabRouter
 
@@ -258,6 +285,22 @@
 <!-- Edit Profile Mode — MainUiLogic then Bridge -->
 <script src="02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/32__System__EditProfileMode/Na__ProfileTools__EditProfile__UiSystem__Bridge__.js"></script>
+
+<!-- Draw Profile Mode — the 2D profile editor (order matters, see 9b) -->
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Config__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Geometry__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Document__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Loop__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Snap__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Viewport__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Vcb__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Ops__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Editor__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Tools__Draw__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Tools__Modify__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__Tools__Paint__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__UiSystem__Bridge__.js"></script>
+<script src="02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__UiSystem__MainUiLogic__.js"></script>
 
 <!-- TabRouter + AppContext (must load AFTER all tab modules) -->
 <script src="02__Src__AppModules/01__AppCore/Na__ProfileTools__AppCore__TabRouter__.js"></script>

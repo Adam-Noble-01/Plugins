@@ -27,10 +27,23 @@
 #   persists first_sync_complete in model dictionary for Update-button lock state.
 # - BuildPathDisplayData now includes first_sync_complete for HtmlDialog bridge.
 #
+# 06-Oct-2026 - Version 1.2.0
+# - Project Library: ResolveLibraryProject finds the folder this model publishes into
+#   (<library>/ValeProjects__<yyyy>/<id>/). The id is the SketchUp folder name without
+#   __Whitecard / __Blockout / __MaxModel, or the library_project_id override saved in
+#   the model dictionary. The library is read from the Server Manager's sync map.
+#
 # =============================================================================
+
+require 'json'
 
 module Na__ValeVisionCloudSync
     module Na__ProjectPathMapper
+
+        NA_LIBRARY_ID_KEY       = 'library_project_id'.freeze                                     # <-- Model dictionary key (override)
+        NA_LIBRARY_YEAR_PREFIX  = 'ValeProjects__'.freeze
+        NA_LIBRARY_ID_PATTERN   = /\A(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9_.-]*\z/                       # <-- Safe folder name: no glob characters, no '..'
+        NA_TYPE_SUFFIX_PATTERN  = /\A((?:[A-Z]{2}-)?\d+)__(.+?)__(Whitecard|Blockout|MaxModel)\z/  # <-- Same rule as the retired Gallery tools
 
 # -----------------------------------------------------------------------------
 # REGION | Public API
@@ -198,6 +211,102 @@ module Na__ValeVisionCloudSync
             )
             dict['na_first_sync_complete'] = true               # <-- Persisted with the .skp file
             { success: true, message: 'First sync state recorded.' }
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Project Library (where this model publishes, then pushes from)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Resolve This Model's Library Project
+        # ------------------------------------------------------------
+        # Returns { library_id:, source: 'override'|'derived', year:, rel:, library_root:,
+        #           library_path:, exists:, error: } - error is '' when usable.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__ResolveLibraryProject(model = nil)
+            result   = { library_id: '', source: '', year: '', rel: '', library_root: '', library_path: '',
+                         exists: false, error: '' }
+            model  ||= Sketchup.active_model
+            root     = model ? self.Na__ValeVisionCloudSync__ResolveProjectRoot(model).to_s : ''
+            if root.empty?
+                return result.merge(error: 'Project root not found: save the model in its project folder, or set the override.')
+            end
+
+            override             = na_read_library_override(model)
+            result[:library_id]  = override.empty? ? self.Na__ValeVisionCloudSync__DeriveLibraryId(root) : override
+            result[:source]      = override.empty? ? 'derived' : 'override'
+            year_match           = File.basename(File.dirname(root)).match(/#{NA_LIBRARY_YEAR_PREFIX}(\d{4})\z/)
+            result[:year]        = year_match ? year_match[1] : Time.now.year.to_s
+
+            unless result[:library_id].match?(NA_LIBRARY_ID_PATTERN)
+                return result.merge(error: "'#{result[:library_id]}' cannot be a library folder name: set the Library Project in Settings.")
+            end
+
+            library_root          = self.Na__ValeVisionCloudSync__LibraryRoot
+            result[:library_root] = library_root
+            matches = Dir.glob(File.join(library_root, "#{NA_LIBRARY_YEAR_PREFIX}*", result[:library_id]))
+                         .select { |path| File.directory?(path) }.sort
+            if matches.length > 1
+                years = matches.map { |path| File.basename(File.dirname(path)) }.join(', ')
+                return result.merge(error: "#{result[:library_id]} is in more than one year folder (#{years}): set the Library Project in Settings.")
+            end
+
+            folder                = matches.first || File.join(library_root, "#{NA_LIBRARY_YEAR_PREFIX}#{result[:year]}", result[:library_id])
+            result[:exists]       = !matches.empty?
+            result[:library_path] = folder
+            result[:rel]          = "#{File.basename(File.dirname(folder))}/#{result[:library_id]}"
+            result
+        rescue => error
+            result.merge(error: "Project Library unavailable: #{error.message}")
+        end
+
+        # FUNCTION | Library Id From a SketchUp Project Folder Name
+        # ------------------------------------------------------------
+        # 64135__Washington__Whitecard -> 64135__Washington (type suffix dropped)
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__DeriveLibraryId(project_root)
+            folder = File.basename(project_root.to_s.tr('\\', '/'))
+            match  = folder.match(NA_TYPE_SUFFIX_PATTERN)
+            match ? "#{match[1]}__#{match[2]}" : folder
+        end
+
+        # FUNCTION | The Library Folder the Server Manager Pushes From (its sync map)
+        # ------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__LibraryRoot
+            paths   = Na__ConfigLoader.Na__ValeVisionCloudSync__LibraryPaths
+            raise "Server Manager sync map not found at #{paths[:sync_map]}" unless File.exist?(paths[:sync_map])
+
+            cfg     = JSON.parse(File.read(paths[:sync_map], encoding: 'UTF-8'))
+            mapping = (cfg['Mappings'] || []).find { |m| m['Id'] == paths[:mapping] }
+            raise "mapping '#{paths[:mapping]}' is not in the Server Manager sync map" unless mapping
+
+            local = mapping['Local'].to_s.tr('\\', '/')
+            local =~ %r{\A([A-Za-z]:)?/} ? local : File.join(cfg['Local']['MirrorRoot'].to_s.tr('\\', '/'), local)
+        end
+
+        def self.Na__ValeVisionCloudSync__SaveLibraryOverride(model, library_id)
+            return { success: false, message: 'No active model.' } unless model
+
+            value = library_id.to_s.strip
+            unless value.match?(NA_LIBRARY_ID_PATTERN)
+                return { success: false, message: "'#{value}' is not a library folder name (e.g. 64135__Washington)." }
+            end
+            model.attribute_dictionary(Na__ConfigLoader.Na__ValeVisionCloudSync__ModelDictionaryName, true)[NA_LIBRARY_ID_KEY] = value
+            { success: true, message: "Library Project set to #{value}." }
+        end
+
+        def self.Na__ValeVisionCloudSync__ClearLibraryOverride(model)
+            return { success: false, message: 'No active model.' } unless model
+
+            dict = model.attribute_dictionary(Na__ConfigLoader.Na__ValeVisionCloudSync__ModelDictionaryName, false)
+            dict&.delete_key(NA_LIBRARY_ID_KEY)
+            { success: true, message: 'Library Project override cleared: the id comes from the project folder name.' }
+        end
+
+        def self.na_read_library_override(model)
+            dict = model && model.attribute_dictionary(Na__ConfigLoader.Na__ValeVisionCloudSync__ModelDictionaryName, false)
+            dict ? dict[NA_LIBRARY_ID_KEY].to_s.strip : ''
         end
 
 # endregion -------------------------------------------------------------------

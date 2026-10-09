@@ -9,7 +9,8 @@
 # CREATED    : 25-Jun-2026
 #
 # DESCRIPTION:
-# - Calls Na__GlbArchiver to zip existing GLBs before export.
+# - Calls Na__GlbArchiver before export: the previous GLBs are zipped into 00__Archive
+#   and removed, so the folder holds only what this export writes (no stale models).
 # - Calls TrueVision3D::GlbBuilderUtility.Na__PublicApi__PerformExport
 #   targeting the ValeVision__GlbFileSync folder. This plugin calls the GLB
 #   builder — it NEVER reimplements or copies its logic.
@@ -42,6 +43,10 @@
 # - Documented MAT000E__ always-on exempt path (builder MaterialHandling
 #   v3.1.0). Whitecard :no_materials syncs now carry exempt textures;
 #   report message notes the exempt exception for both project types.
+#
+# 07-Oct-2026 - Version 1.2.1
+# - The archiver (1.0.1) now clears the folder after zipping the previous set
+#   into 00__Archive; the report message carries its note.
 #
 # =============================================================================
 
@@ -172,11 +177,12 @@ module Na__ValeVisionCloudSync
                 'SSOT indexed materials (MaxModel) + MAT000E__ exempt' :
                 'whitecard + MAT000E__ exempt'
 
+            archive_note = archive_result[:archived_count].to_i > 0 ? " #{archive_result[:message]}" : ''
             {
                 success:        success,
                 message:        success ?
-                    "GLB export complete — #{fresh_glb_count} GLB file(s) written/updated (#{material_note})." :
-                    "GLB export may have failed — no GLB files written. Check the export log.",
+                    "GLB export complete — #{fresh_glb_count} GLB file(s) written (#{material_note}).#{archive_note}" :
+                    "GLB export may have failed — no GLB files written. Check the export log.#{archive_note}",
                 glb_count:      fresh_glb_count,
                 archived_count: archive_result[:archived_count],
                 log_path:       log_path

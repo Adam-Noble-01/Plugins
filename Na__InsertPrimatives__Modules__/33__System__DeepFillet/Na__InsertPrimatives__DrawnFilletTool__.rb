@@ -11,8 +11,9 @@
 # CREATED    : 2026
 #
 # DESCRIPTION:
-# - Hover an edge, click to grab it, drag into the corner — the arc follows
-#   the cursor — then click (or press Enter, or type a radius) to cut it.
+# - Hover an edge, click to grab it — the preview opens at 25% of the largest
+#   radius the faces allow — drag up for more and down for less, then click
+#   (or press Enter, or type a radius) to cut it.
 #   SHIFT+click banks edges and one drag rounds them all; where two banked
 #   edges meet at a square corner the fillets mitre like a picture frame.
 # - Everything but the curve is shared: the chamfer tool supplies the deep
@@ -96,7 +97,8 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__activation_hints
             [
-                'Hover an edge, click to grab it, drag into the corner (the arc follows the cursor), click to cut',
+                'Hover an edge, click to grab it — the preview opens at 25% of the largest radius the faces allow',
+                'Drag UP for a bigger radius, DOWN for a smaller one, then click to cut',
                 'SHIFT+click banks edges, then one drag rounds them all — square corners mitre',
                 'Reaches edges inside groups and components without opening them',
                 "Radius snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
@@ -105,6 +107,8 @@ module Na__InsertPrimatives
                 'TAB swaps round-over and cove — mid-drag, or straight after a cut to re-cut it',
                 'After cutting, keep typing: 60 re-cuts at R60, 24s re-cuts it with 24 sides',
                 'Double-click an edge to round it at the last radius placed (remembered in the model)',
+                'Type C chamfer, R radius, O ogee, V ovolo on their own to swap the profile, keeping the edges',
+                'For a quarter round or cove with a step, use Deep Ovolo (V): 40,5 is R40 with a 5 mm step',
                 'The edge must border exactly two faces'
             ]
         end
@@ -148,12 +152,12 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Read the Drag as a Radius, With the Arc Under the Cursor
-        # The chamfer reads the drag so its chord passes under the cursor. For
-        # a round the arc's nearest point to the corner sits r(1/sin(half) - 1)
-        # along the bisector, so that is what the travel is divided by; a
-        # cove's deepest point is its radius from the edge, so the travel IS
-        # the radius.
+        # FUNCTION | Read a CTRL Vertex Snap as a Radius, the Arc Through the Vertex
+        # The plain drag is the scrub (DrawnChamferScrub); this reads CTRL's
+        # absolute vertex snap. For a round the arc's nearest point to the
+        # corner sits r(1/sin(half) - 1) along the bisector, so that is what
+        # the travel is divided by; a cove's deepest point is its radius from
+        # the edge, so the travel IS the radius.
         # ------------------------------------------------------------
         def na_drawn__size_from_travel(travel)
             return travel.to_f if na_drawn__fillet_kind == :cove
@@ -334,7 +338,7 @@ module Na__InsertPrimatives
                 text = na_drawn__locked?(:d) ? "[R#{size}]" : "R#{size}"
                 sides = na_drawn__sides_text(@na_size_d)
                 return "Fillet #{text} · #{sides} — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
-                return "Fillet #{text}#{na_lm__range_note(@na_size_d, @na_ch_max_size)} · #{sides}#{na_drawn__stop_note} — release or click to cut"
+                return "Fillet #{text}#{na_lm__range_note(@na_size_d, @na_ch_max_size)} · #{sides}#{na_drawn__stop_note} — drag up for more, down for less, release or click to cut"
             end
 
             return na_ps__status_detail if na_ps__active?                        # <-- Preselected edges, from the chamfer

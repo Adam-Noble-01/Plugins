@@ -161,7 +161,12 @@ module Na__ProfileTools__ProfilePathTracer
 
             payload      = Na__DataSerializer.Na__DataSerializer__ReadParentPayload(primary) || {}
             profile_key  = payload['ProfileKey'].to_s
+            is_local     = payload['ProfileSource'] == 'local'
             display_name = self.Na__SwapEngine__ProfileDisplayName(profile_key)
+            if is_local
+                local_name   = payload['LocalProfileName'].to_s.strip
+                display_name = "#{local_name.empty? ? display_name : local_name} (local to this trace)"
+            end
             typed_offsets = self.Na__SwapEngine__TypedPathOffsets(payload)
 
             {
@@ -172,6 +177,7 @@ module Na__ProfileTools__ProfilePathTracer
                 'primaryProfileKey'  => profile_key,
                 'primaryProfileName' => display_name,
                 'primaryGroupName'   => primary.name.to_s,
+                'primaryIsLocal'     => is_local,
                 'placement'          => {
                     'rotationStep'     => payload['RotationStep'].to_i,
                     'toggleStates'     => payload['ToggleStates'].is_a?(Hash) ? payload['ToggleStates'] : {},
@@ -291,6 +297,9 @@ module Na__ProfileTools__ProfilePathTracer
             previous_key  = previous_payload['ProfileKey'].to_s
             previous_name = parent_group.name.to_s
             next_key      = requested_key.empty? ? previous_key : requested_key
+            # A library profile picked for the trace replaces any local one
+            # (v1.6.14). Regenerate (no key) keeps it.
+            previous_local = Na__DataSerializer.Na__DataSerializer__ReadLocalProfileRaw(parent_group)
 
             updates = overrides.dup
             updates['ProfileKey'] = next_key
@@ -312,19 +321,20 @@ module Na__ProfileTools__ProfilePathTracer
 
             model.start_operation('Na__ProfilePathTracer__SwapProfile', true)
             Na__DataSerializer.Na__DataSerializer__UpdateParentPlacement(parent_group, updates)
+            Na__DataSerializer.Na__DataSerializer__ClearLocalProfile(parent_group) unless requested_key.empty?
             self.Na__SwapEngine__RenameForProfile(parent_group, next_key, previous_key)
             model.commit_operation
 
             return { isSwapped: true, reason: nil } if Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(parent_group)
 
-            self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name)
+            self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local)
             { isSwapped: false, reason: 'rebuild failed — the previous profile has been restored' }
         rescue => error
             model.abort_operation rescue nil
             { isSwapped: false, reason: error.message }
         end
 
-        def self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name)
+        def self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local = nil)
             return unless Na__DataSerializer.Na__DataSerializer__GroupValid?(parent_group)
 
             model.start_operation('Na__ProfilePathTracer__SwapProfileRevert', true, false, true)
@@ -337,6 +347,9 @@ module Na__ProfileTools__ProfilePathTracer
                 'StartOffset'  => previous_payload['StartOffset'],
                 'EndOffset'    => previous_payload['EndOffset']
             )
+            if previous_local
+                Na__DataSerializer.Na__DataSerializer__WriteLocalProfileJson(parent_group, previous_local['json'], previous_local['name'])
+            end
             parent_group.name = previous_name unless previous_name.empty?
             model.commit_operation
         rescue => error

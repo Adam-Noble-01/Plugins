@@ -61,6 +61,7 @@ module Na__InsertPrimatives
         '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__Watch__.rb',
         '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__Animate__.rb',
         '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnRevise__.rb',
+        '06__Tools__DrawnShared/Na__InsertPrimatives__DrawnLargeSelection__.rb',
         '10__System__PlaceCube/Na__InsertPrimatives__PrimitiveCubeTool__.rb',
         '20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnPlaneTool__.rb',
         '20__System__DrawnPrimitives/Na__InsertPrimatives__DrawnVolume__Subtract__.rb',
@@ -95,6 +96,7 @@ module Na__InsertPrimatives
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Revise__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Preselect__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Limit__.rb',
+        '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Scrub__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__HotSwap__.rb',
         '31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamferTool__.rb',
         '04__GeometryHelpers/Na__InsertPrimatives__DrawnProfileSweep__.rb',
@@ -104,7 +106,10 @@ module Na__InsertPrimatives
         '32__System__DeepOgee/Na__InsertPrimatives__DrawnOgeeTool__.rb',
         '33__System__DeepFillet/Na__InsertPrimatives__DrawnFillet__Geometry__.rb',
         '33__System__DeepFillet/Na__InsertPrimatives__DrawnFillet__Revise__.rb',
-        '33__System__DeepFillet/Na__InsertPrimatives__DrawnFilletTool__.rb'
+        '33__System__DeepFillet/Na__InsertPrimatives__DrawnFilletTool__.rb',
+        '34__System__DeepOvolo/Na__InsertPrimatives__DrawnOvolo__Geometry__.rb',
+        '34__System__DeepOvolo/Na__InsertPrimatives__DrawnOvolo__Revise__.rb',
+        '34__System__DeepOvolo/Na__InsertPrimatives__DrawnOvoloTool__.rb'
     ].freeze
 
     # endregion -------------------------------------------------------------------

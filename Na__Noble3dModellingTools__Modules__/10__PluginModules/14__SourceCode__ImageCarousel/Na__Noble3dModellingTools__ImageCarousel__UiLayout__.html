@@ -41,6 +41,9 @@
       <button id="naImageViewer_btnUndo"           class="naImageViewer__Btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
       <button id="naImageViewer_btnRedo"           class="naImageViewer__Btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
       <button id="naImageViewer_btnClearDims"      class="naImageViewer__Btn" title="Clear all dimensions on this image">Clear Dims</button>
+
+      <span class="naImageViewer__ToolbarDivider"></span>
+      <button id="naImageViewer_btnPerspective"    class="naImageViewer__Btn" title="Perspective angle: true roof pitches and angles, corrected for the camera">Angle</button>
     </div>
 
     <!-- Main: thumbnails + canvas viewer -->
@@ -86,6 +89,117 @@
         </div>
       </div>
 
+      <!-- Perspective Angle: calibrate the photo, then measure true pitches and angles -->
+      <aside class="naImageViewer__PerspPanel" id="naImageViewer_perspPanel" aria-label="Perspective angle">
+        <div class="naImageViewer__PerspHeader">
+          <span class="naImageViewer__PerspTitle">Perspective Angle</span>
+          <button id="naImageViewer_perspClose" class="naImageViewer__PerspIconBtn" title="Close (lines and angles are kept)">&#215;</button>
+        </div>
+
+        <div class="naImageViewer__PerspBody">
+
+          <section class="naImageViewer__PerspSection">
+            <div class="naImageViewer__PerspStep"><span class="naImageViewer__PerspStepNo">1</span>Calibrate the photo</div>
+
+            <div class="naImageViewer__PerspGroup">
+              <button id="naImageViewer_perspDrawZ" class="naImageViewer__PerspGroupBtn" title="Draw lines along vertical edges">
+                <span class="naImageViewer__PerspSwatch naImageViewer__PerspSwatch--z"></span>Verticals
+              </button>
+              <span class="naImageViewer__PerspCount" id="naImageViewer_perspCountZ">none yet</span>
+              <button id="naImageViewer_perspClearZ" class="naImageViewer__PerspIconBtn" title="Remove all verticals" disabled>&#215;</button>
+            </div>
+            <div class="naImageViewer__PerspGroupHint">Wall corners, chimney sides, window jambs, downpipes. Spread them across the photo.</div>
+
+            <div class="naImageViewer__PerspGroup">
+              <button id="naImageViewer_perspDrawX" class="naImageViewer__PerspGroupBtn" title="Draw lines along level edges on the wall you are measuring">
+                <span class="naImageViewer__PerspSwatch naImageViewer__PerspSwatch--x"></span>Red level lines
+              </button>
+              <span class="naImageViewer__PerspCount" id="naImageViewer_perspCountX">none yet</span>
+              <button id="naImageViewer_perspClearX" class="naImageViewer__PerspIconBtn" title="Remove all red level lines" disabled>&#215;</button>
+            </div>
+            <div class="naImageViewer__PerspGroupHint">Brick courses, eaves, sills and window heads on the wall you are measuring. One high, one low.</div>
+
+            <div class="naImageViewer__PerspGroup">
+              <button id="naImageViewer_perspDrawY" class="naImageViewer__PerspGroupBtn" title="Draw lines along level edges on a wall at 90 degrees to the red one">
+                <span class="naImageViewer__PerspSwatch naImageViewer__PerspSwatch--y"></span>Green level lines
+              </button>
+              <span class="naImageViewer__PerspCount" id="naImageViewer_perspCountY">optional</span>
+              <button id="naImageViewer_perspClearY" class="naImageViewer__PerspIconBtn" title="Remove all green level lines" disabled>&#215;</button>
+            </div>
+            <div class="naImageViewer__PerspGroupHint">Level edges on a wall at 90&deg; to the red one, if you can see one. Helps solve the lens.</div>
+
+            <div class="naImageViewer__PerspLensRow">
+              <label for="naImageViewer_perspLens" class="naImageViewer__PerspLabel">Lens</label>
+              <select id="naImageViewer_perspLens" class="naImageViewer__PerspSelect" title="Focal length, 35 mm equivalent">
+                <option value="auto">Auto (phone main camera)</option>
+                <option value="exif" disabled>From the photo</option>
+                <option value="13">13 mm (0.5&times;)</option>
+                <option value="24">24 mm (Pro 1&times;)</option>
+                <option value="26">26 mm (1&times;)</option>
+                <option value="48">48 mm (2&times;)</option>
+                <option value="52">52 mm (2&times;)</option>
+                <option value="77">77 mm (3&times;)</option>
+                <option value="120">120 mm (5&times;)</option>
+                <option value="custom">Other&hellip;</option>
+              </select>
+              <input id="naImageViewer_perspLensMm" class="naImageViewer__PerspInput" type="text" placeholder="mm" autocomplete="off" title="35 mm-equivalent focal length in mm. Press Enter." style="display:none" />
+            </div>
+            <div class="naImageViewer__PerspNote" id="naImageViewer_perspLensInfo"></div>
+            <div class="naImageViewer__PerspStatus" id="naImageViewer_perspStatus"></div>
+          </section>
+
+          <section class="naImageViewer__PerspSection">
+            <div class="naImageViewer__PerspStep"><span class="naImageViewer__PerspStepNo">2</span>Measure on the</div>
+            <div class="naImageViewer__PerspSegmented">
+              <button data-plane="xz" class="naImageViewer__PerspSegBtn" title="The wall your red level lines are on">Red wall</button>
+              <button data-plane="yz" class="naImageViewer__PerspSegBtn" title="The wall at 90&deg; to it (green level lines)">Green wall</button>
+              <button data-plane="xy" class="naImageViewer__PerspSegBtn" title="A level plane: angles on plan">Ground</button>
+            </div>
+            <div class="naImageViewer__PerspToolRow">
+              <button id="naImageViewer_perspPitch" class="naImageViewer__Btn" title="Click both ends of a straight sloping edge: a verge (where the tiles meet the brickwork), rafter or tile roll">Pitch</button>
+              <button id="naImageViewer_perspAngle" class="naImageViewer__Btn" title="Click an arm end, the corner, then the other arm end">Angle</button>
+            </div>
+            <div class="naImageViewer__PerspNote" id="naImageViewer_perspToolHint"></div>
+          </section>
+
+          <section class="naImageViewer__PerspSection">
+            <div class="naImageViewer__PerspStep"><span class="naImageViewer__PerspStepNo">3</span>Guides</div>
+            <div class="naImageViewer__PerspToolRow">
+              <button id="naImageViewer_perspGuide" class="naImageViewer__Btn naImageViewer__PerspGuideBtn" title="Guide (T): click a point, move along a direction, click again. Like SketchUp's Tape Measure guides.">Guide</button>
+              <div class="naImageViewer__PerspSegmented naImageViewer__PerspSegmented--grow">
+                <button data-guide-axis="auto" class="naImageViewer__PerspSegBtn" title="Follow the direction you move in (&#8595;)">Auto</button>
+                <button data-guide-axis="x" class="naImageViewer__PerspSegBtn naImageViewer__PerspSegBtn--x" title="Lock to the red axis: one click per guide (&#8594;)">Red</button>
+                <button data-guide-axis="y" class="naImageViewer__PerspSegBtn naImageViewer__PerspSegBtn--y" title="Lock to the green axis: one click per guide (&#8592;)">Green</button>
+                <button data-guide-axis="z" class="naImageViewer__PerspSegBtn naImageViewer__PerspSegBtn--z" title="Lock to the blue axis: one click per guide (&#8593;)">Blue</button>
+              </div>
+            </div>
+            <div class="naImageViewer__PerspGuideRow">
+              <label for="naImageViewer_perspGuideAngle" class="naImageViewer__PerspLabel">Pitch</label>
+              <input id="naImageViewer_perspGuideAngle" class="naImageViewer__PerspInput" type="text" placeholder="e.g. 45" autocomplete="off" title="Also offer guides at this pitch on the wall chosen in step 2. Press Enter; leave empty for none." />
+              <span class="naImageViewer__PerspInlineNote">&deg; guides on the wall chosen in step 2</span>
+            </div>
+            <div class="naImageViewer__PerspNote" id="naImageViewer_perspGuideHint"></div>
+            <div class="naImageViewer__PerspGuideFooter">
+              <label class="naImageViewer__PerspCheck"><input type="checkbox" id="naImageViewer_perspShowGuides" checked /> Show guides</label>
+              <span class="naImageViewer__PerspCount" id="naImageViewer_perspGuideCount">none yet</span>
+              <button id="naImageViewer_perspClearGuides" class="naImageViewer__PerspIconBtn" title="Remove all guides on this photo" disabled>&#215;</button>
+            </div>
+          </section>
+
+          <section class="naImageViewer__PerspSection">
+            <div class="naImageViewer__PerspStep">Results</div>
+            <div class="naImageViewer__PerspResults" id="naImageViewer_perspResults"></div>
+            <div class="naImageViewer__PerspNote">&plusmn; covers about 95% of clicking and camera error, not a building that is out of plumb.</div>
+          </section>
+
+          <section class="naImageViewer__PerspSection naImageViewer__PerspFooter">
+            <label class="naImageViewer__PerspCheck" title="Faint lines toward the chosen plane's vanishing points, to check the calibration against the brick courses"><input type="checkbox" id="naImageViewer_perspGrid" /> Perspective grid</label>
+            <button id="naImageViewer_perspClearAll" class="naImageViewer__Btn" title="Remove every line, angle and guide on this photo">Clear all</button>
+          </section>
+
+        </div>
+      </aside>
+
     </div><!-- /.naImageViewer__Main -->
 
   </div><!-- /.naImageViewer__App -->
@@ -110,6 +224,14 @@
 
   <script>
     {{MEASUREMENT_SCRIPT}}
+  </script>
+
+  <script>
+    {{PERSPECTIVE_SOLVER_SCRIPT}}
+  </script>
+
+  <script>
+    {{PERSPECTIVE_ANGLE_SCRIPT}}
   </script>
 
 </body>

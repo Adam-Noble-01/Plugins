@@ -335,6 +335,16 @@ begin
     ogee_cmd.menu_text       = "Deep Ogee"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Deep Ovolo Tool (Ovolo or Cavetto, With a Step)
+    # ------------------------------------------------------------
+    ovolo_cmd = UI::Command.new('NA_DeepOvolo') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepOvolo)
+    }
+    ovolo_cmd.tooltip         = "Deep Ovolo"
+    ovolo_cmd.status_bar_text = "Run an ovolo or a cavetto (a quarter circle with a step) along any edge, at any nesting depth"
+    ovolo_cmd.menu_text       = "Deep Ovolo"
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Hot Reload All Plugin Modules
     # ------------------------------------------------------------
     reload_cmd = UI::Command.new('NA_InsertPrimitivesReloadPluginData') {
@@ -429,6 +439,7 @@ begin
     Na__InsertPrimatives__AddMenuEntry('chamfer')         { |m| m.add_item(chamfer_cmd) }
     Na__InsertPrimatives__AddMenuEntry('fillet')          { |m| m.add_item(fillet_cmd) }
     Na__InsertPrimatives__AddMenuEntry('ogee')            { |m| m.add_item(ogee_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('ovolo')           { |m| m.add_item(ovolo_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_mod')   { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('reload')              { |m| m.add_item(reload_cmd) }

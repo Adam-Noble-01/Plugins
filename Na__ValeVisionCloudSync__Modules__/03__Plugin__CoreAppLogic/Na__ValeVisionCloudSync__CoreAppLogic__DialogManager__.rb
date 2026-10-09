@@ -23,6 +23,10 @@
 # - Marks first_sync_complete on successful sync; re-pushes path status so Update
 #   cards unlock immediately after the first successful full sync.
 #
+# 06-Oct-2026 - Version 1.2.0
+# - Path status carries the Project Library project (id, folder, new / existing, push on
+#   or off); Settings can set or clear the Library Project override.
+#
 # =============================================================================
 
 require 'json'
@@ -121,7 +125,23 @@ module Na__ValeVisionCloudSync
             na_setup_sync_action_callback(dialog)
             na_setup_save_path_override_callback(dialog)
             na_setup_clear_path_override_callback(dialog)
+            na_setup_library_override_callbacks(dialog)
             na_setup_dialog_ready_callback(dialog)
+        end
+
+        # HELPER FUNCTION | na_vvcs_save_library_id / na_vvcs_clear_library_id
+        # ---------------------------------------------------------------
+        def self.na_setup_library_override_callbacks(dialog)
+            dialog.add_action_callback('na_vvcs_save_library_id') do |_ctx, library_id|
+                result = Na__ProjectPathMapper.Na__ValeVisionCloudSync__SaveLibraryOverride(Sketchup.active_model, library_id.to_s)
+                na_push_project_path_status(dialog)
+                na_update_status_element(dialog, result[:message], result[:success] ? 'success' : 'error')
+            end
+            dialog.add_action_callback('na_vvcs_clear_library_id') do |_ctx|
+                result = Na__ProjectPathMapper.Na__ValeVisionCloudSync__ClearLibraryOverride(Sketchup.active_model)
+                na_push_project_path_status(dialog)
+                na_update_status_element(dialog, result[:message], result[:success] ? 'info' : 'error')
+            end
         end
 
         # HELPER FUNCTION | run_command — routes standard commands (reload etc.)
@@ -360,8 +380,27 @@ module Na__ValeVisionCloudSync
                 active_path:         active_path,
                 has_override:        has_override,
                 img_scene_count:     img_count,
-                first_sync_complete: first_sync_complete
+                first_sync_complete: first_sync_complete,
+                library:             na_build_library_display_data(model)
             }
+        end
+
+        # HELPER FUNCTION | Project Library Line for the Export and Settings Tabs
+        # ---------------------------------------------------------------
+        def self.na_build_library_display_data(model)
+            library = Na__ProjectPathMapper.Na__ValeVisionCloudSync__ResolveLibraryProject(model)
+            push    = Na__ConfigLoader.Na__ValeVisionCloudSync__LibraryPaths[:push]
+            {
+                library_id:   library[:library_id],
+                source:       library[:source],
+                rel:          library[:rel],
+                library_path: library[:library_path],
+                exists:       library[:exists],
+                error:        library[:error],
+                push:         push
+            }
+        rescue => error
+            { library_id: '', error: "#{error.class}: #{error.message}", push: false }
         end
 
         def self.na_count_img_scenes(model)

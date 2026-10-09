@@ -1,0 +1,1057 @@
+/* =============================================================================
+   NA PROFILE TOOLS - DRAW PROFILE STYLES
+   =============================================================================
+   FILE       : Na__ProfileTools__UiFeature__Styles__DrawProfile__.css
+   PURPOSE    : The Draw Profile tab: top bar, tool palette, drawing stage and
+                measurements box, inspector, bound-trace strip, save panel.
+                The canvas draws itself; these style the page around it.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Fill */
+/* ----------------------------------------------------------------- */
+
+#na-tab-draw-profile {
+    overflow            : hidden;
+}
+
+#na-draw-profile-tab-body {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+}
+
+.na-dp {
+    position            : relative;
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 380px;
+    background          : var(--na-bg);
+}
+
+.na-dp-icon {
+    width               : 18px;
+    height              : 18px;
+    flex                : none;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Buttons + Selects */
+/* ----------------------------------------------------------------- */
+
+.na-dp-btn {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 5px;
+    height              : 28px;
+    padding             : 0 9px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : var(--na-panel);
+    color               : var(--na-text);
+    font-family         : inherit;
+    font-size           : 12px;
+    cursor              : pointer;
+    white-space         : nowrap;
+    transition          : background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.na-dp-btn:hover {
+    background          : #f1f3f4;
+}
+
+.na-dp-btn[disabled] {
+    opacity             : 0.5;
+    cursor              : default;
+}
+
+.na-dp-btn--icon {
+    width               : 28px;
+    padding             : 0;
+    justify-content     : center;
+}
+
+.na-dp-btn--small {
+    height              : 26px;
+    font-size           : 11.5px;
+    padding             : 0 8px;
+}
+
+.na-dp-btn--small .na-dp-icon {
+    width               : 15px;
+    height              : 15px;
+}
+
+.na-dp-btn--primary {
+    background          : #008f5a;
+    border-color        : #008f5a;
+    color               : #ffffff;
+    font-weight         : 600;
+}
+
+.na-dp-btn--primary:hover {
+    background          : #00734a;
+    border-color        : #00734a;
+}
+
+.na-dp-btn--danger {
+    background          : #b3261e;
+    border-color        : #b3261e;
+    color               : #ffffff;
+    font-weight         : 600;
+}
+
+.na-dp-btn--danger:hover {
+    background          : #8f1d17;
+}
+
+.na-dp-toggle--on {
+    background          : #e8f0fe;
+    border-color        : var(--na-accent);
+    color               : var(--na-accent);
+}
+
+.na-dp-toggle--on:hover {
+    background          : #d2e3fc;
+}
+
+.na-dp-select {
+    height              : 28px;
+    max-width           : 220px;
+    min-width           : 120px;
+    padding             : 0 6px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : var(--na-panel);
+    font-family         : inherit;
+    font-size           : 12px;
+    color               : var(--na-text);
+}
+
+.na-dp-select--small {
+    height              : 26px;
+    min-width           : 0;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Top Bar */
+/* ----------------------------------------------------------------- */
+
+.na-dp-topbar {
+    display             : flex;
+    flex-wrap           : wrap;
+    align-items         : center;
+    gap                 : 6px 10px;
+    padding             : 6px 8px;
+    background          : var(--na-panel);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-dp-topbar__group {
+    display             : flex;
+    align-items         : center;
+    gap                 : 4px;
+}
+
+.na-dp-topbar__spacer {
+    flex                : 1;
+    min-width           : 40px;
+}
+
+.na-dp-docname {
+    display             : block;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : var(--na-subtle);
+    padding             : 0 4px;
+}
+
+.na-dp-check {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 6px;
+    height              : 28px;
+    padding             : 0 10px;
+    border-radius       : 14px;
+    border              : 1px solid var(--na-border);
+    background          : #f1f3f4;
+    color               : var(--na-subtle);
+    font-family         : inherit;
+    font-size           : 12px;
+    cursor              : pointer;
+    white-space         : nowrap;
+}
+
+.na-dp-check .na-dp-icon {
+    width               : 15px;
+    height              : 15px;
+}
+
+.na-dp-check--ok {
+    background          : #e6f4ea;
+    border-color        : #ceead6;
+    color               : #137333;
+}
+
+.na-dp-check--bad {
+    background          : #fce8e6;
+    border-color        : #f6c7c2;
+    color               : #b3261e;
+}
+
+.na-dp-check__dot {
+    width               : 8px;
+    height              : 8px;
+    border-radius       : 50%;
+    background          : currentColor;
+    flex                : none;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Strips (bound trace, confirm) */
+/* ----------------------------------------------------------------- */
+
+.na-dp-bound {
+    display             : flex;
+    align-items         : center;
+    flex-wrap           : wrap;
+    gap                 : 8px;
+    padding             : 6px 10px;
+    background          : #e8f0fe;
+    border-bottom       : 1px solid #c6dafc;
+    flex-shrink         : 0;
+}
+
+.na-dp-bound__body {
+    display             : flex;
+    align-items         : baseline;
+    gap                 : 8px;
+    flex                : 1;
+    min-width           : 0;
+    overflow            : hidden;
+}
+
+.na-dp-bound__label {
+    font-size           : 10.5px;
+    font-weight         : 700;
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+    color               : var(--na-accent);
+}
+
+.na-dp-bound__name {
+    font-weight         : 700;
+    font-size           : 12.5px;
+}
+
+.na-dp-bound__note {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+/* Live sync state, beside the trace name */
+.na-dp-bound__live {
+    font-size           : 11.5px;
+    font-weight         : 600;
+    white-space         : nowrap;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+}
+
+.na-dp-bound__live--synced  { color : #137333; }
+.na-dp-bound__live--syncing { color : var(--na-accent); }
+.na-dp-bound__live--paused  { color : #b06000; }
+.na-dp-bound__live--failed  { color : #b3261e; }
+
+/* Live toggle (Element Assembly Studio Pro's Live Mode): a dot that is grey
+   while off, and green and breathing while every change reaches the model. */
+.na-dp-live-toggle {
+    font-weight         : 600;
+}
+
+.na-dp-live-dot {
+    width               : 9px;
+    height              : 9px;
+    border-radius       : 50%;
+    background          : #9aa0a6;
+    flex                : none;
+}
+
+.na-dp-live-toggle--on {
+    background          : #e6f4ea;
+    border-color        : #34a853;
+    color               : #137333;
+}
+
+.na-dp-live-toggle--on:hover {
+    background          : #d4edda;
+}
+
+.na-dp-live-toggle--on .na-dp-live-dot {
+    background          : #34a853;
+    animation           : na-dp-live-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes na-dp-live-breathe {
+    0%, 100% { box-shadow : 0 0 0 0 rgba(52, 168, 83, 0.55); }
+    50%      { box-shadow : 0 0 0 4px rgba(52, 168, 83, 0); }
+}
+
+.na-dp-confirm {
+    display             : flex;
+    align-items         : center;
+    flex-wrap           : wrap;
+    gap                 : 8px;
+    padding             : 8px 10px;
+    background          : #fef7e0;
+    border-bottom       : 1px solid #f9e1a8;
+    font-size           : 12px;
+    flex-shrink         : 0;
+}
+
+.na-dp-confirm__text {
+    flex                : 1;
+    min-width           : 180px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Main Area: Palette + Stage */
+/* ----------------------------------------------------------------- */
+
+.na-dp-main {
+    position            : relative;
+    display             : flex;
+    flex                : 1;
+    min-height          : 0;
+}
+
+/* Two columns: nineteen tools in one column would run off the bottom of the
+   dialog at its default height. */
+.na-dp-palette {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 2px;
+    width               : 80px;
+    flex                : none;
+    padding             : 6px 4px;
+    background          : var(--na-panel);
+    border-right        : 1px solid var(--na-border);
+    overflow-y          : auto;
+}
+
+.na-dp-palette__group {
+    display             : grid;
+    grid-template-columns : 35px 35px;
+    gap                 : 2px;
+    padding-bottom      : 5px;
+    margin-bottom       : 3px;
+    border-bottom       : 1px solid #eceef1;
+}
+
+.na-dp-palette__group:last-child {
+    border-bottom       : none;
+}
+
+.na-dp-palette__btn {
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+    width               : 35px;
+    height              : 31px;
+    border              : none;
+    border-radius       : 6px;
+    background          : transparent;
+    color               : #374151;
+    cursor              : pointer;
+}
+
+.na-dp-palette__btn:hover {
+    background          : #f1f3f4;
+}
+
+.na-dp-palette__btn--active,
+.na-dp-palette__btn--active:hover {
+    background          : var(--na-accent);
+    color               : #ffffff;
+}
+
+.na-dp-stage {
+    position            : relative;
+    flex                : 1;
+    min-width           : 0;
+    background          : #ffffff;
+    outline             : none;
+    overflow            : hidden;
+}
+
+.na-dp-stage:focus-visible {
+    box-shadow          : inset 0 0 0 2px rgba(26, 115, 232, 0.35);
+}
+
+.na-dp-canvas {
+    position            : absolute;
+    left                : 0;
+    top                 : 0;
+    width               : 100%;
+    height              : 100%;
+    display             : block;
+    touch-action        : none;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Measurements Box (TV Measurements: bottom right, greyed idle) */
+/* ----------------------------------------------------------------- */
+
+.na-dp-vcb {
+    position            : absolute;
+    right               : 10px;
+    bottom              : 10px;
+    min-width           : 200px;
+    max-width           : calc(100% - 20px);
+    background          : #ffffff;
+    border              : 1px solid #c9ced6;
+    border-radius       : 6px;
+    box-shadow          : 0 2px 8px rgba(15, 23, 42, 0.12);
+    padding             : 5px 8px;
+    font-size           : 12px;
+    transition          : opacity 0.15s;
+}
+
+.na-dp-vcb--idle {
+    opacity             : 0.65;
+}
+
+.na-dp-vcb--typing {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.18), 0 2px 8px rgba(15, 23, 42, 0.12);
+    opacity             : 1;
+}
+
+.na-dp-vcb__row {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+}
+
+.na-dp-vcb__label {
+    font-size           : 10.5px;
+    font-weight         : 600;
+    text-transform      : uppercase;
+    letter-spacing      : 0.05em;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+}
+
+.na-dp-vcb__input {
+    flex                : 1;
+    min-width           : 70px;
+    border              : none;
+    outline             : none;
+    background          : transparent;
+    font-family         : Consolas, "Cascadia Mono", monospace;
+    font-size           : 13px;
+    text-align          : right;
+    color               : var(--na-text);
+}
+
+.na-dp-vcb__input::placeholder {
+    color               : #8a929c;
+}
+
+.na-dp-vcb__hint {
+    position            : absolute;
+    right               : 0;
+    bottom              : calc(100% + 6px);
+    max-width           : 420px;
+    width               : max-content;
+    padding             : 5px 9px;
+    border-radius       : 4px;
+    background          : #1f2937;
+    color               : #ffffff;
+    font-size           : 11.5px;
+    line-height         : 1.4;
+    opacity             : 0;
+    pointer-events      : none;
+    transition          : opacity 0.15s;
+}
+
+.na-dp-vcb__hint--shown {
+    opacity             : 1;
+}
+
+.na-dp-vcb__hint--error {
+    background          : #b3261e;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Inspector */
+/* ----------------------------------------------------------------- */
+
+.na-dp-side {
+    display             : flex;
+    flex-direction      : column;
+    width               : 262px;
+    flex                : none;
+    background          : var(--na-panel);
+    border-left         : 1px solid var(--na-border);
+    min-height          : 0;
+}
+
+.na-dp-side--closed {
+    display             : none;
+}
+
+.na-dp-side__tabs {
+    display             : flex;
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-dp-side__tab {
+    flex                : 1;
+    padding             : 8px 2px;
+    border              : none;
+    border-bottom       : 2px solid transparent;
+    background          : none;
+    font-family         : inherit;
+    font-size           : 11px;
+    white-space         : nowrap;
+    font-weight         : 600;
+    color               : var(--na-subtle);
+    cursor              : pointer;
+}
+
+.na-dp-side__tab--active {
+    color               : var(--na-accent);
+    border-bottom-color : var(--na-accent);
+}
+
+.na-dp-side__body {
+    flex                : 1;
+    overflow-y          : auto;
+    padding             : 4px 12px 12px;
+}
+
+.na-dp-side__title {
+    margin              : 12px 0 7px;
+    font-size           : 11px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-dp-side__sub {
+    margin              : 6px 0 3px;
+    font-size           : 11px;
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.na-dp-side__note {
+    margin              : 6px 0;
+    font-size           : 11.5px;
+    line-height         : 1.45;
+    color               : var(--na-subtle);
+}
+
+.na-dp-side__actions {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 6px;
+    margin              : 10px 0;
+}
+
+.na-dp-tag {
+    display             : inline-block;
+    margin-left         : 4px;
+    padding             : 1px 6px;
+    border-radius       : 8px;
+    background          : #eceff1;
+    color               : var(--na-subtle);
+    font-size           : 10px;
+    font-weight         : 600;
+    text-transform      : none;
+    letter-spacing      : 0;
+}
+
+.na-dp-field {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 3px;
+    margin-bottom       : 8px;
+    min-width           : 0;
+}
+
+.na-dp-field__label {
+    font-size           : 11px;
+    color               : var(--na-subtle);
+}
+
+.na-dp-field__box {
+    display             : flex;
+    align-items         : center;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #ffffff;
+}
+
+.na-dp-field__box:focus-within {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.15);
+}
+
+.na-dp-field__input {
+    flex                : 1;
+    min-width           : 0;
+    width               : 100%;
+    padding             : 5px 7px;
+    border              : none;
+    outline             : none;
+    background          : transparent;
+    font-family         : inherit;
+    font-size           : 12.5px;
+    color               : var(--na-text);
+}
+
+.na-dp-field > .na-dp-field__input {
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #ffffff;
+}
+
+.na-dp-field > .na-dp-field__input:focus {
+    border-color        : var(--na-accent);
+}
+
+.na-dp-field__unit {
+    padding             : 0 7px;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+}
+
+.na-dp-field--ro {
+    flex-direction      : row;
+    justify-content     : space-between;
+    gap                 : 10px;
+    font-size           : 12px;
+}
+
+.na-dp-field__value {
+    font-size           : 12px;
+    color               : var(--na-text);
+    text-align          : right;
+}
+
+.na-dp-field-row {
+    display             : grid;
+    grid-template-columns : 1fr 1fr;
+    gap                 : 8px;
+}
+
+.na-dp-check-row {
+    display             : flex;
+    align-items         : center;
+    gap                 : 7px;
+    margin              : 5px 0;
+    font-size           : 12px;
+    cursor              : pointer;
+}
+
+.na-dp-check-grid {
+    display             : grid;
+    grid-template-columns : 1fr 1fr;
+    gap                 : 0 8px;
+    margin-left         : 18px;
+}
+
+.na-dp-verdict {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    margin              : 6px 0 10px;
+    padding             : 8px 10px;
+    border-radius       : 6px;
+    font-size           : 12px;
+    line-height         : 1.4;
+}
+
+.na-dp-verdict .na-dp-icon {
+    width               : 16px;
+    height              : 16px;
+}
+
+.na-dp-verdict--ok {
+    background          : #e6f4ea;
+    color               : #137333;
+}
+
+.na-dp-verdict--bad {
+    background          : #fce8e6;
+    color               : #b3261e;
+}
+
+.na-dp-issues {
+    list-style          : none;
+    margin              : 6px 0;
+    padding             : 0;
+}
+
+.na-dp-issue {
+    display             : flex;
+    align-items         : flex-start;
+    gap                 : 8px;
+    padding             : 6px 8px;
+    border-radius       : 5px;
+    font-size           : 12px;
+    line-height         : 1.4;
+}
+
+.na-dp-issue[data-na-dp-issue] {
+    cursor              : pointer;
+}
+
+.na-dp-issue[data-na-dp-issue]:hover {
+    background          : #f8f9fa;
+}
+
+.na-dp-issue--focus {
+    background          : #fef7e0;
+}
+
+.na-dp-issue__dot {
+    width               : 8px;
+    height              : 8px;
+    margin-top          : 4px;
+    border-radius       : 50%;
+    background          : #9aa0a6;
+    flex                : none;
+}
+
+.na-dp-issue--error .na-dp-issue__dot { background : #dc2626; }
+.na-dp-issue--warn  .na-dp-issue__dot { background : #ea580c; }
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Edge Paint (v1.6.15) */
+/* ----------------------------------------------------------------- */
+
+.na-dp-paint-current {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    margin              : 8px 0 4px;
+    padding             : 7px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : var(--na-bg);
+}
+
+.na-dp-paint-current__name {
+    flex                : 1;
+    min-width           : 0;
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-dp-swatch {
+    display             : inline-block;
+    flex                : none;
+    width               : 18px;
+    height              : 18px;
+    border              : 1px solid rgba(15, 23, 42, 0.35);
+    border-radius       : 4px;
+    box-sizing          : border-box;
+}
+
+/* SketchUp's own edge colour: dark, struck through in white */
+.na-dp-swatch--default {
+    background          : #1a1a1a linear-gradient(135deg, transparent 44%, rgba(255, 255, 255, 0.6) 45%, rgba(255, 255, 255, 0.6) 55%, transparent 56%);
+}
+
+/* Unpainted: white, struck through in red */
+.na-dp-swatch--clear {
+    background          : #ffffff linear-gradient(135deg, transparent 44%, #d93025 45%, #d93025 55%, transparent 56%);
+}
+
+.na-dp-swatch--none {
+    background          : repeating-linear-gradient(45deg, #eceff1 0 3px, #ffffff 3px 6px);
+}
+
+.na-dp-paint-source {
+    margin-left         : 4px;
+    font-size           : 10.5px;
+    font-weight         : 500;
+    color               : var(--na-subtle);
+}
+
+.na-dp-paint-source--failed {
+    color               : #c0392b;
+}
+
+.na-dp-paint-series {
+    margin              : 8px 0 4px;
+    font-size           : 10.5px;
+    color               : var(--na-subtle);
+}
+
+.na-dp-swatches {
+    display             : grid;
+    grid-template-columns : repeat(6, 1fr);
+    gap                 : 5px;
+}
+
+.na-dp-swatch-btn {
+    height              : 24px;
+    padding             : 0;
+    border              : 1px solid rgba(15, 23, 42, 0.3);
+    border-radius       : 5px;
+    cursor              : pointer;
+}
+
+.na-dp-swatch-btn:hover {
+    box-shadow          : 0 2px 6px rgba(15, 23, 42, 0.3);
+}
+
+.na-dp-swatch-btn--on {
+    outline             : 2px solid var(--na-accent);
+    outline-offset      : 2px;
+}
+
+.na-dp-paint-specials {
+    display             : flex;
+    gap                 : 6px;
+    margin              : 8px 0 4px;
+}
+
+.na-dp-paint-special {
+    flex                : 1;
+    display             : flex;
+    align-items         : center;
+    gap                 : 6px;
+    min-width           : 0;
+    padding             : 5px 7px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : var(--na-panel);
+    font-family         : inherit;
+    font-size           : 11px;
+    color               : var(--na-text);
+    white-space         : nowrap;
+    cursor              : pointer;
+}
+
+.na-dp-paint-special--on {
+    border-color        : var(--na-accent);
+    box-shadow          : inset 0 0 0 1px var(--na-accent);
+}
+
+.na-dp-paint-used {
+    margin              : 0;
+    padding             : 0;
+    list-style          : none;
+}
+
+.na-dp-paint-row {
+    display             : flex;
+    align-items         : center;
+    gap                 : 7px;
+    width               : 100%;
+    padding             : 4px 3px;
+    border              : none;
+    border-radius       : 4px;
+    background          : none;
+    font-family         : inherit;
+    text-align          : left;
+    cursor              : pointer;
+}
+
+.na-dp-paint-row:hover {
+    background          : var(--na-bg);
+}
+
+.na-dp-paint-row__name {
+    flex                : 1;
+    min-width           : 0;
+    font-size           : 11.5px;
+    color               : var(--na-text);
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-dp-paint-row__count {
+    flex                : none;
+    font-size           : 10.5px;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Footer */
+/* ----------------------------------------------------------------- */
+
+.na-dp-footer {
+    display             : flex;
+    align-items         : center;
+    gap                 : 12px;
+    padding             : 4px 10px;
+    min-height          : 24px;
+    background          : #fafbfc;
+    border-top          : 1px solid var(--na-border);
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    flex-shrink         : 0;
+}
+
+.na-dp-footer__prompt {
+    flex                : 1;
+    min-width           : 0;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-dp-footer__cursor {
+    font-family         : Consolas, "Cascadia Mono", monospace;
+    white-space         : nowrap;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Save / Update Panel */
+/* ----------------------------------------------------------------- */
+
+.na-dp-modal {
+    position            : absolute;
+    inset               : 0;
+    z-index             : 20;
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+    background          : rgba(15, 23, 42, 0.35);
+}
+
+.na-dp-modal__panel {
+    width               : min(540px, 94%);
+    max-height          : 92%;
+    overflow-y          : auto;
+    padding             : 16px 18px;
+    border-radius       : 8px;
+    background          : var(--na-panel);
+    box-shadow          : 0 10px 30px rgba(15, 23, 42, 0.25);
+}
+
+.na-dp-modal__title {
+    margin              : 0 0 10px;
+    font-size           : 15px;
+}
+
+.na-dp-modal__sep {
+    margin              : 12px 0;
+    border-top          : 1px solid var(--na-border);
+}
+
+.na-dp-modal__message {
+    margin-top          : 10px;
+    color               : #b3261e;
+    font-size           : 12px;
+}
+
+.na-dp-modal__actions {
+    display             : flex;
+    justify-content     : flex-end;
+    gap                 : 8px;
+    margin-top          : 14px;
+}
+
+.na-dp-radio-group {
+    margin              : 6px 0 10px;
+}
+
+.na-dp-radio {
+    display             : flex;
+    align-items         : flex-start;
+    gap                 : 8px;
+    margin              : 6px 0;
+    font-size           : 12.5px;
+    line-height         : 1.4;
+    cursor              : pointer;
+}
+
+.na-dp-radio input {
+    margin-top          : 2px;
+}
+
+.na-dp-form {
+    margin              : 8px 0;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Narrow Dialog */
+/* ----------------------------------------------------------------- */
+
+/* The dialog is often docked narrow beside the model. The inspector then
+   floats over the stage instead of squeezing it. */
+@media (max-width: 760px) {
+    .na-dp-side {
+        position        : absolute;
+        top             : 0;
+        right           : 0;
+        bottom          : 0;
+        z-index         : 6;
+        width           : min(272px, 86%);
+        box-shadow      : -6px 0 18px rgba(15, 23, 42, 0.15);
+    }
+
+    .na-dp-select {
+        max-width       : 150px;
+    }
+
+    .na-dp-btn span {
+        display         : none;
+    }
+
+    .na-dp-btn {
+        padding         : 0 7px;
+    }
+
+    .na-dp-bound .na-dp-btn span,
+    .na-dp-modal .na-dp-btn span,
+    .na-dp-side .na-dp-btn span,
+    .na-dp-confirm .na-dp-btn span {
+        display         : inline;
+    }
+}
+
+/* endregion ----------------------------------------------------------------- */

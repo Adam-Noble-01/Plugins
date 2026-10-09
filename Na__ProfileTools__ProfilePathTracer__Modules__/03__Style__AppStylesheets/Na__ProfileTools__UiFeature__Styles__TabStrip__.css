@@ -17,15 +17,20 @@
     flex-shrink         : 0;
 }
 
+/* Six tabs no longer fit a dialog docked narrow beside the model, so the
+   strip scrolls sideways (wheel or drag) rather than clipping the last tab. */
 .na-tab-bar {
     display             : flex;
     align-items         : stretch;
     flex                : 1;
     gap                 : 0;
+    overflow-x          : auto;
+    scrollbar-width     : thin;
 }
 
 .na-tab {
-    padding             : 10px 18px;
+    padding             : 10px 14px;
+    flex-shrink         : 0;
     background          : transparent;
     border              : none;
     border-bottom       : 3px solid transparent;

@@ -654,6 +654,7 @@ module Na__InsertPrimatives
             # sweep border steps back to a thin edge.
             cutting = na_drawn__loop_cut_mode?
             border  = cutting ? NA_PP_QUAD_BORDER : NA_PP2D_SWEEP_BORDER
+            border  = NA_DRAWN_CUTTER_BORDER_COLOR if !cutting && na_drawn__push_inward?(offset)   # <-- Into the wall: the cutter red
 
             na_drawn__draw_sweep_quad(view, offset)
 
@@ -764,13 +765,20 @@ module Na__InsertPrimatives
 
             near_a = @na_pp2d_edge_world[0]
             near_b = @na_pp2d_edge_world[1]
+            quad   = [near_a, near_b, na_drawn__move_world_point(near_b, offset), na_drawn__move_world_point(near_a, offset)]
 
-            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(
-                view,
-                [near_a, near_b, na_drawn__move_world_point(near_b, offset), na_drawn__move_world_point(near_a, offset)],
-                NA_PP2D_SWEEP_FILL,
-                NA_PP2D_SWEEP_BORDER
-            )
+            # Pulled into the wall, the strip is the material removed: red, and
+            # drawn through the wall's own face, as the 3D tool does (5.1.22).
+            if !na_drawn__loop_cut_mode? && na_drawn__push_inward?(offset)
+                return if Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuadOnTop(
+                    view, quad, NA_DRAWN_CUTTER_XRAY_FILL, NA_DRAWN_CUTTER_BORDER_COLOR
+                )
+
+                Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(view, quad, NA_DRAWN_CUTTER_FILL_COLOR, NA_DRAWN_CUTTER_BORDER_COLOR)
+                return
+            end
+
+            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(view, quad, NA_PP2D_SWEEP_FILL, NA_PP2D_SWEEP_BORDER)
         end
         # ---------------------------------------------------------------
 

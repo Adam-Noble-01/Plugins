@@ -451,6 +451,10 @@ module Na__ProfileTools__ProfilePathTracer
                       'statusMessage' => "Delete failed: #{error.message}" }
                 )
             end
+
+            # Draw Profile tab (v1.6.14). Its callbacks live with the tab.
+            # @delegate: ../34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__DialogHandlers__
+            Na__DrawProfile__DialogHandlers.Na__DrawProfile__BindCallbacks(dialog) if defined?(Na__DrawProfile__DialogHandlers)
         end
 
     # endregion ----------------------------------------------------------------

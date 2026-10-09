@@ -1,5 +1,230 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.5.1 — 07-Oct-2026 — GLB Syncs Purge the Previous Set (Archived), on the PC and on the Server
+
+### Overview
+**Asked by Adam:** resyncing GLB models did not purge the previous ones. Duplicates kept being
+added, and a tag removed in SketchUp left its old model in the folder. After every GLB sync the
+GLB folder must hold only that sync's GLBs. The previous set is zipped into `00__Archive` as
+`ProjectName__ArchivedGlbFiles__DD-MMM-YYYY__.zip`, and the older archive zip is deleted.
+
+**Why stale models appeared (two causes):**
+1. **SketchUp export folder.** The GLB builder overwrites in place and never removes a file.
+   The archiver zipped the old GLBs but left them in `ValeVision__GlbFileSync`, so the
+   publisher picked up every GLB there, old ones included, and listed them all in the record.
+   Live example: `64135__Holt` had 42 models published on 07-Oct, its own 21 plus 21 stale
+   `Washington__…` copies from before the model was renamed.
+2. **Server.** The push never deletes content (by design), so every GLB ever pushed stayed in
+   the server's GLB folder.
+
+### Changed
+- **Each sync, in each GLB folder:**
+  1. make `00__Archive`;
+  2. zip the previous GLBs into it and read the zip back (every entry, every CRC);
+  3. delete the older archive zip;
+  4. write the new GLBs, with no older GLB left in the folder.
+
+  It is applied at all three places the models live:
+
+  | Where | Who | Archive name |
+  |---|---|---|
+  | SketchUp project: `10__ContentDelivered__Local/ValeVision__GlbFileSync/` | `Na__GlbArchiver` 1.0.1, before the builder exports | `<SketchUp project folder>__ArchivedGlbFiles__DD-MMM-YYYY__.zip` |
+  | Project Library on the PC: `<id>/ValeVision3D/Content__3dModel__GlbFiles/` | `LibraryPublisher` 1.0.1, new step "Archive Previous GLBs" | `<library id>__ArchivedGlbFiles__DD-MMM-YYYY__.zip` |
+  | Server: the same folder under `/srv/vale/…` | the push, with the engine's new `--prune` (Server Manager 0.6.2) | the PC's zip, pushed |
+
+- **Server:**
+  - every GLB sync (Sync Project, Update GLB Models) runs
+    `push projects --scope <year>/<id> --prune <year>/<id>/ValeVision3D/Content__3dModel__GlbFiles`;
+  - the server's GLB folder ends up an exact copy of the PC's: superseded GLBs and the older
+    archive zip are deleted there;
+  - each deleted file is backed up in `/srv/vale-sync/backups/<stamp>/` first, so
+    `engine undo projects` puts them back;
+  - the Push step reports "n superseded file(s) removed from the server's GLB folder";
+  - nothing outside that one folder can be deleted.
+- **Unchanged set:** if a sync's GLBs are byte-identical to the last set, the archive is kept
+  (SKIP). Re-zipping the same set would throw away the real previous one.
+- **Same day:** a second sync on the same day replaces that day's zip.
+- **Empty export** (e.g. a failed export): the publisher stops at Check Exported Files, as
+  before, and the engine refuses to prune a folder that is empty on the PC. A bad export can
+  never empty the server's GLB folder.
+- **Verify Library** also fails on a GLB in the bucket that the record does not list.
+- **The local zip writer is fixed.** Every `00__ArchivedModels` zip written since 25-Jun-2026
+  is unreadable: the local file header was 2 bytes short (a field missing from the `pack`
+  format) and the data was zlib-wrapped. Python and Windows could not open them. The data is
+  still there (488 of the 521 models in the 50 zips checked on 07-Oct), so a repair script
+  could recover them. The new writer uses raw deflate, a full 30-byte header and UTF-8 names,
+  and reads each zip back before any GLB is deleted.
+- **Old folders:** the old `00__ArchivedModels` folders are left as they are. The new archive
+  is `00__Archive`, and the AppConfig `glb_archives` path follows.
+
+### Needs
+- Vale Virtual Server Manager **0.6.2** or later (`--prune`). An older engine stops the push
+  with "the engine is older than 0.6.2 (no --prune)"; the library is still published.
+
+### Tested (sandbox; no real server, library or SketchUp folder touched)
+- **The real publisher and engine end to end:** a fake ssh runs the server agent against a
+  folder, with an isolated gateway state, ledger and sync map. 38 checks pass:
+  - **Run 1** (A changed, B the same, C new; stale W on both sides, S1 on the server only, an
+    older archive):
+    - the PC and the server each hold exactly A, B and C, plus one byte-identical zip of the
+      previous A (old bytes), B and W;
+    - W, S1, the old zip and the replaced A are in the server backup;
+    - the record lists A, B and C, with `_rev` and other keys kept;
+    - another project's server-only GLB and the user data are untouched.
+  - **Run 2** (no change): the archive step is SKIP, the zip is unchanged, nothing is removed.
+  - **Run 3** (C's tag deleted): C is gone from the server, and today's zip is replaced with A,
+    B and C.
+  - **Undo:** `undo projects` brings C back.
+  - **Refused, with no session opened:** `--prune` without `--scope`, the whole scope, a shared
+    or user-data folder, a folder outside the scope, `..`, and an empty PC folder.
+  - **Empty export:** stops before anything moves.
+- **The server agent alone** refuses crafted plans that prune a record, another project's GLB
+  or a user-data file.
+- **The Ruby archiver, in SketchUp's own Ruby 3.2.2 (bundled DLL, no SketchUp):**
+  - all 19 plugin `.rb` files compile;
+  - 17 archiver checks pass: archive and clear, the older zip removed, the log kept, an empty
+    folder keeps its archive, a same-day replacement, a corrupt zip caught by the read-back, a
+    failed read-back deleting nothing and leaving no temp file;
+  - its zips open with Python `zipfile` (`testzip` clean) and with Windows `Expand-Archive`,
+    including a non-ASCII name.
+- **Not run:** a sync inside SketchUp and a push to the live server. That is Adam's first
+  Update GLB Models.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/04__GlbArchiver/Na__ValeVisionCloudSync__GlbArchiver__.rb` (1.0.1)
+- `04__Plugin__SyncFeatures/03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__.rb` (1.2.1)
+- `04__Plugin__SyncFeatures/08__LibraryPublisher/Na__ValeVisionCloudSync__LibraryPublisher__.py` (1.0.1)
+- `02__Plugin__CoreAppData/Na__ValeVisionCloudSync__CoreAppData__AppConfig__.json`,
+  `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__ConfigLoader__.rb` (`glb_archives` path)
+- Companion: Vale Virtual Server Manager 0.6.2 (`VirtualServerManager__SyncEngine__.py`: `--prune`).
+
+# =============================================================================
+
+
+## Version 0.5.0 — 06-Oct-2026 — Publish to the Project Library, Push This Project to app.valegardenhouses.com (R2 Retired)
+
+### Overview
+Cloudflare R2, the Cloudflare Workers and GitHub Pages are gone: every Vale web app now
+runs on one server (app.valegardenhouses.com), which is an exact copy of
+`WebApps/Vale__VirtualServer` on Adam's PC. The last step of every sync button no
+longer runs the retired Gallery-folder script (`Whitecardopedia/Tools__DevUtils/
+AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py`). It now:
+1. collects the exports into the **Vale Projects Master Library** on this PC
+   (`Vale__Projects__MasterLibrary/ValeProjects__<yyyy>/<id>/`) and checks them;
+2. runs the **Vale Virtual Server Manager's sync engine for this one project folder**
+   (`push projects --scope ValeProjects__<yyyy>/<id>`), the same SSH sync Adam's app
+   uses, with its lock, backups, journal and undo.
+
+The SketchUp exports themselves (images, cameras, GLBs, archives) are unchanged and still
+land in the SketchUp project folder (`C:/01__ValeProjects/...`).
+
+### Added
+- **`08__LibraryPublisher/Na__ValeVisionCloudSync__LibraryPublisher__.py`** (1.0.0): the
+  new last step, one launch per button, all-or-nothing on the library side:
+  - **Resolve:** finds `ValeProjects__<yyyy>/<id>` in the library, which it reads from the
+    engine's own sync map, so it publishes exactly where the push reads from.
+  - **Check Exported Files:** before anything moves. PNGs complete (signature, IHDR, IEND),
+    GLBs complete (glTF 2 header, declared length = file size, JSON chunk), camera data
+    present, no two GLBs colliding after the rename. A bad export stops the sync with
+    nothing published and no server session.
+  - **Fetch Server Copy:** `collect projects --scope <project>` first, so web edits to the
+    record (Dev menus, Gallery editor) are merged into, never overwritten. If the server
+    cannot be reached, **nothing** is published.
+  - **Publish:**
+    - full PNGs go to `ValeVisionGallery/Content__GalleryImages__FullQuality__VariantImages`;
+    - 524p WebP goes to `…Thumbnail__VariantImages` and
+      `ValeVision3D/Content__AnimationScenes__Thumbnails`;
+    - 524p JPG goes to `…524p__VariantImages`;
+    - GLBs go to `ValeVision3D/Content__3dModel__GlbFiles`.
+
+    Identical files are left alone, so nothing is pushed needlessly. Only this pipeline's
+    old files are removed from the buckets: other images (e.g. hand-added photomatch
+    renders) are never touched.
+  - **Update Project Record:** only the sync's own keys in `ProjectData__<id>__.json`:
+    - `images` / `allImages` / `displayImages` (hand-added images kept);
+    - `thumbnailImage`;
+    - `valeVision_ModelUrls` (bare, sorted file names);
+    - `ValeVison3D__SketchUpCameraData`;
+    - the Views-bar `PresentationMode__Scene__ThumbnailUrl` re-point.
+
+    Every other key, `_rev` included, is unchanged. The file keeps the library style
+    (4-space JSON, own newline state), and its time is always set later than the server
+    copy it was merged into, so a server clock that runs ahead cannot block the push.
+  - **Verify Library:** every name the record lists must be in its bucket.
+  - **Push To Server:** this project folder only. Files newer on the server are left alone
+    and reported.
+  - **New projects:** the library folder and a fresh record are created (code, name,
+    ProjectType from the folder suffix, MaxEngine block for MaxModel, designer / concept
+    artist from the local `Project__MetaData`).
+- **Library Project** (`ProjectPathMapper` 1.2.0): the id is the SketchUp folder name
+  without `__Whitecard` / `__Blockout` / `__MaxModel` (the old Gallery rule), or the
+  `library_project_id` override saved in the model (Settings tab).
+  - A model whose library project does not exist yet asks before the sync creates it: the
+    id is permanent once it is on the server.
+  - An id found in two year folders stops with a message.
+- **Dialog:**
+  - The Export tab shows the Library Project (existing / NEW / problem) and the Server mode.
+  - Settings has a Project Library group: the folder, Save Library Project, Use Folder Name.
+  - Skipped steps show SKIP.
+
+### Changed
+- **`SyncOrchestrator` 2.0.0:**
+  - every button's last step runs the publisher;
+  - the library project is resolved before the slow exports;
+  - a failed export step means nothing is published or pushed;
+  - the final message carries the publisher's own result ("Synced 64135__Holt to
+    app.valegardenhouses.com." / "Published to the Project Library (not pushed).").
+- **AppConfig:** the `python` block keeps only `python_executable`. The `cdn` block (R2 and
+  GitHub URLs) is gone. A new `library` block holds:
+  - `publisher_script`;
+  - the Server Manager's `manager_root`, `engine_script` and `sync_map` (absolute paths are
+    allowed, e.g. a sandbox sync map);
+  - `mapping_id`;
+  - `push_to_server` (false = publish locally only);
+  - `site_base_url`.
+- **Wording:** every R2 / Cloudflare / retired Gallery name is gone from the dialog,
+  tooltips and run logs.
+
+### Needs
+- The Vale Virtual Server Manager **0.6.0** or later (the engine's `--scope` and
+  `--report-file`).
+- Pillow in the Python the plugin finds (thumbnails). The run stops with the pip command if
+  it is missing.
+- A key in the Windows ssh-agent, as for any Manager push.
+
+### Tested (sandbox; no real server, library or SketchUp folder touched)
+- A copy of `64135__Holt` and `64135__Holt__MaxModel`, a fake server folder, and the real
+  engine over a fake ssh. All 30 checks pass:
+  - a web edit and `_rev` on the server survive the sync;
+  - a new IMG09 appears in all four buckets with a 524 px thumbnail;
+  - only the changed GLB is pushed (6 files, 2.9 MB);
+  - another project's unpushed PC change is **not** pushed;
+  - a second run has nothing to push;
+  - a truncated GLB stops the sync with nothing moved;
+  - a server refusal (cooldown) publishes nothing;
+  - local-only opens no session;
+  - a new project is refused without the user's OK, then created and pushed;
+  - all of the above also hold with the server clock 120 s ahead.
+- The record rules against the retired script's own functions on all 11 library records
+  with Views-bar scenes (same edition, newer edition, a dropped slot): 33 cases, identical.
+- The dialog HTML and JS were checked in a browser (both tabs, NEW / existing / SKIP).
+- **The Ruby was not run.** There is no Ruby on the PC outside SketchUp, so the first run
+  in SketchUp is the Ruby test (Reload Plugin, then Settings, then one sync).
+
+### Files Changed
+- `04__Plugin__SyncFeatures/08__LibraryPublisher/Na__ValeVisionCloudSync__LibraryPublisher__.py` (new)
+- `04__Plugin__SyncFeatures/07__SyncOrchestrator/Na__ValeVisionCloudSync__SyncOrchestrator__.rb`
+- `04__Plugin__SyncFeatures/05__ProjectPathMapper/Na__ValeVisionCloudSync__ProjectPathMapper__.rb`
+- `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__ConfigLoader__.rb`
+- `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__DialogManager__.rb`
+- `02__Plugin__CoreAppData/Na__ValeVisionCloudSync__CoreAppData__AppConfig__.json`
+- `02__Plugin__CoreAppData/Na__ValeVisionCloudSync__CoreAppData__UiCommandRegistry__.json`
+- `05__Plugin__UserInterface/` (UiLayout, UiBridge 1.2.0, Styles)
+- Companion: Vale Virtual Server Manager 0.6.0 (`VirtualServerManager__SyncEngine__.py`).
+
+# =============================================================================
+
+
 ## Version 0.4.1 — 16-Jul-2026 — MAT000E__ Exempt Materials Always Export (Whitecard)
 
 ### Overview

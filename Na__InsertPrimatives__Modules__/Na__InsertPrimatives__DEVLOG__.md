@@ -3,6 +3,253 @@
 
 # =============================================================================
 
+## Version 5.1.22 - 06-Oct-2026 - Ovolo and Cavetto, a Drag That Opens at 25%, C R O V, and a Guarded Push/Pull
+
+### Asked For
+Five changes, mostly to the edge tools:
+1. *"make it so you can type into the VCB C = Chamfer, R = Radius, O or G = Ogee, V = Ovolo
+   … TYPING THESE IN ISOLATION CHANGES THE MODE i.e. typed with no value"*
+2. *"if the user pressed control + a and selected 100s or 1000s of faces and pressed the hotkey
+   to crash or destroy a model … over say 10 faces selected the plugin forces a modal before
+   commiting"* (about the multi-face Push/Pull preselect added 05-Oct, which had no devlog
+   entry of its own)
+3. *"there is no visual feedback for inward offsets add a overlay like the subtract tool
+   preview … orange outwards faces, red inwards"*
+4. *"drag is the wrong way round … mouse down = less chamfer Mouse drag up = more chamfer,
+   always being the preview showing a 25% chamfer of the availiuble chamferable width"*, for
+   chamfer, fillet and ogee
+5. *"Add a calvetto /cove and its invese to tab like the others"*: a cavetto (concave quarter
+   circle) and an ovolo (convex), each with a step, *"typing 40,5 would give a 40mm radius or
+   typing 40r then 5 would do the same"*. References: the college's *Student Cavetto Joint
+   Template*, a CMT cove bit with fillets, and an OVOLO section drawing.
+
+### 1. C R O G V Swap the Profile
+In Deep Chamfer, Fillet, Ogee or Ovolo, a letter on its own swaps the profile and keeps the
+edges and the drag, exactly as the right-click menu does (5.1.20):
+
+| Letter | Profile |
+|---|---|
+| C | Deep Chamfer |
+| R | Deep Fillet (radius) |
+| O or G | Deep Ogee |
+| V | Deep Ovolo (TAB in there gives the cavetto) |
+
+- **On its own is the whole rule.** Once a number is being typed the letter belongs to the
+  entry, so `40r` and `48s` still work.
+- **Taken on the key.** C, R, O and G are SketchUp's own Circle, Rectangle, Orbit and Make
+  Component shortcuts, which would run before the measurements box saw the letter.
+  `onKeyDown` returns `true` (the API's "do not process this further"), so the shortcut is
+  held off only while an edge tool runs and nothing has been typed.
+- **The Enter after it.** Typed the measurements-box way, `R` is followed by Enter. That Enter
+  (within 1.5 s) finishes the switch instead of cutting the fillet just swapped in. The status
+  line says *press Enter again, or click, to cut*.
+- **Left to SketchUp:** CTRL, SHIFT and ALT combinations (Ctrl+C copies, Alt+V opens the View
+  menu). ALT is tracked from its own key events, not the key flags: on Windows the flags carry
+  the scan code, whose bits can look like a modifier mask.
+- A letter that does reach the box (typed after clearing an entry) switches on its Enter.
+- The status line ends `CTRL vertex  C R O V profile`.
+
+### 2. A Large Preselection Asks First
+**Deep Push/Pull.** With more than **10** faces selected, a Yes / No / Cancel question appears
+as the tool starts, before any face is read or previewed:
+- **Yes** pushes the whole selection.
+- **No** leaves the selection alone; faces are then picked one at a time.
+- **Cancel** leaves the tool.
+
+The question names the count (`2,500 faces are selected`) and why it matters. Each face is
+previewed on every mouse move, so a selection that size can stop SketchUp responding before
+anything is pushed.
+
+**Not asked twice.** A Yes holds for that count in that model for 10 minutes, which covers the
+2D/3D hand-over, a retype and a restart of the tool. A No holds for 30 seconds, just long
+enough for the hand-over.
+
+**Before committing.** As a backstop, a batch that size reaching the commit unconfirmed is
+asked about there. This never happens during a retype's rebuild.
+
+**Cheaper previews.** Each selected face's preview geometry is now cached between frames,
+keyed by the face and checked by the hover's fingerprint. A confirmed batch therefore no
+longer re-triangulates every face on every mouse move.
+
+**The edge tools too** (not asked for, flagged here): CTRL+A then a Chamfer, Fillet, Ogee or
+Ovolo shortcut would bank every loose edge in the model. Above **48** edges the same question
+appears, before any edge is solved. The thresholds are `NA_LARGE_SELECTION_FACES` and
+`NA_LARGE_SELECTION_EDGES`.
+
+### 3. Pushed In, the Preview Is the Volume Removed
+**Why there was no feedback.** The orange push preview is depth-tested. That is right for a
+push out, where the new slab stands in front of the model. Pushed in, every line of it sits
+inside the solid, and the face being pushed hides it.
+
+**The fix.** A face on a solid, pushed against its normal, now draws the volume it will
+remove: the far face (from the face's own triangulation, so holes and concave faces fill
+correctly), the side walls and every edge. It draws in the cutter red, in screen space, so it
+shows through the face, exactly as Drawn Volume's subtract cutter does (5.1.6).
+- **A lone face pushed backwards** adds a volume behind it rather than removing one, so it
+  stays orange. "On a solid" means every edge of the face borders another face.
+- **The card** reads *Push 80 mm in*.
+- **The 2D tool:** a strip pulled into its wall is red and drawn through the wall too.
+- **Behind the camera:** if any corner sits behind a perspective camera, the depth-tested draw
+  runs instead, still red.
+
+Orange out, red in.
+
+### 4. The Drag: Opens at 25%, Up for More, Down for Less
+**Why it felt inverted.** The size used to follow the cursor along the corner bisector, into
+the material. On a top edge seen from above, that meant pulling the mouse *down* to make the
+cut bigger.
+
+**The new drag** is a vertical scrub (`DrawnChamferScrub`), the same on every edge in every
+view:
+- **Grab:** the preview opens at **25%** of the largest cut the faces allow (5.1.18's
+  measured limit), on the grid, already drawn.
+- **Up the screen:** more. **Down:** less.
+- **The curve:** linear to 75%, then easing onto 100%, which it never passes. Over 320 logical
+  pixels: 80 px down closes the cut, 160 px up reaches 75%, and the last quarter takes 160 px
+  more.
+- **Pixels, not model units,** so the feel is the same zoomed in on a 5 mm arris or out on a
+  plinth. High-DPI screens are scaled.
+- **A grid coarser than the corner** is ignored, so a 10 mm corner on a 25 mm grid still
+  scrubs smoothly. A quarter that rounds to nothing opens at one grid step.
+- **CTRL vertex snapping** is unchanged and absolute.
+- **A profile swapped in** (menu or letter) rebases the scrub, so it carries on from the
+  carried size without a jump.
+- **Preselected edges:** a press beside the edge no longer needs the old press offset.
+
+The tanh ease (`na_lm__ease`) and the corner-plane drag are gone.
+
+### 5. Deep Ovolo and Cavetto: a Quarter Circle With a Step
+A new profile tool, `34__System__DeepOvolo`, built the same way as Ogee and Fillet. It is a
+`DrawnChamferTool` subclass on the shared profile sweep, so it gets the deep pick, SHIFT bank,
+preselected edges, mitres, retype, double-click repeat and hot swap.
+
+**The two profiles,** for radius r and step s, laid along the two faces:
+
+| Kind | Profile | Setback on each face |
+|---|---|---|
+| **Ovolo** (convex quarter round) | step square off the face, the round bulging toward the corner, step | r + s |
+| **Cavetto** (concave quarter hollow) | a riser *and* a tread, the hollow cut into the material, tread and riser | r + 2s |
+
+- **Why the cavetto's step is two segments.** Its arc arrives square to each face, so a lone
+  riser would just carry the arc's own line on to the face. Its step is the notch in the
+  college template. The ovolo's arc arrives parallel to the face, so one riser makes the step.
+- **With s = 0** the two are Deep Fillet's round-over and cove.
+- **Crisp shoulders.** The step corners are listed in `:hard_seams`, a new profile-sweep key,
+  so only the arc's facets are softened and the shoulders stay crisp lines. The stop fan
+  honours it too.
+- **The arc** takes a quarter of Circle Sides (24 gives 6 facets). `48s` smooths it.
+
+**Typed entries:**
+
+| Entry | Mid-drag | After a cut |
+|---|---|---|
+| `40,5` | radius and step, cuts | re-cuts at both |
+| `40` | radius at the step in hand, cuts | re-cuts the radius |
+| `40r` | pins the radius and waits; the next bare number is the step (`40r` then `5` cuts) | the radius |
+| `,5` | sets the step; cuts if the radius is pinned, otherwise re-solves the preview | re-cuts the step |
+| `+5` / `-5` | the radius, relative | the radius, relative |
+
+At idle, `,5` sets the step for the next moulding. The step is remembered between sessions
+(5 mm until one is typed). The drag sets the radius.
+
+**TAB** swaps ovolo and cavetto: mid-drag on the preview, straight after a cut by re-cutting
+it, otherwise for the next one. **V** always gives the ovolo. The tool's title follows the
+kind (*Deep Ovolo* / *Deep Cavetto*).
+
+**The limit.** The faces' reach is measured as a setback, and the largest radius is that less
+one step (ovolo) or two (cavetto) and a **1 mm land**. A step at the full thickness would lie
+on the far face and cut into it, and the far face is not rebuilt, so a stepped profile always
+leaves a 1 mm land. With no step the full thickness is allowed, as Deep Fillet allows it.
+- **Too wide a step** is refused naming the widest that fits.
+- **A pinned radius over the limit** is refused at once.
+- **A retype** is judged against the setback recorded at the cut, before anything is undone.
+
+**The retype ghost** scales by the whole setback, so the step does not swell with the radius.
+
+**Where to find it:** right-click → *Deep Ovolo / Cavetto*, Extensions → *Deep Ovolo*
+(shortcut-assignable), or V from any edge tool.
+
+### Reload Notes
+- Reload Plugin Data picks up the new files and the new menu item. The menu item lands at the
+  bottom of the submenu until the next restart, because keyed menu entries are only ever
+  appended.
+- Deleted methods: `na_lm__ease` and `na_drawn__corner_plane_point`. Nothing calls them any
+  more, so the stale copies a reload keeps are harmless.
+
+### Files
+- **New** `34__System__DeepOvolo/Na__InsertPrimatives__DrawnOvolo__Geometry__.rb`: the
+  profiles, the solve, the limits and the radius,step reader (`Na__DrawnOvolo__*`).
+- **New** `34__System__DeepOvolo/Na__InsertPrimatives__DrawnOvolo__Revise__.rb`: memory key,
+  wording, the radius part of a retype.
+- **New** `34__System__DeepOvolo/Na__InsertPrimatives__DrawnOvoloTool__.rb`: `DrawnOvoloTool`
+  (two values, TAB, V, the limit, the preview, the status line and measurements box).
+- **New** `31__System__DeepChamfer/Na__InsertPrimatives__DrawnChamfer__Scrub__.rb`:
+  `DrawnChamferScrub`.
+- **New** `06__Tools__DrawnShared/Na__InsertPrimatives__DrawnLargeSelection__.rb`: the
+  question, the thresholds and the memo (`Na__LargeSelection__*`).
+- `31__System__DeepChamfer/..DrawnChamferTool__.rb`:
+  - the scrub in the cursor update and the grab;
+  - the Enter after a letter;
+  - the hints and the status line.
+- `31__System__DeepChamfer/..DrawnChamfer__HotSwap__.rb`:
+  - the letters (`onKeyDown`, `onKeyUp`, `onUserText`);
+  - Deep Ovolo from the menu;
+  - the scrub carried across;
+  - `Na__HotSwap__MarkLetter` / `TakeLetterEnter`.
+- `31__System__DeepChamfer/..DrawnChamfer__Preselect__.rb`: the 48-edge question; the press
+  offset gone.
+- `31__System__DeepChamfer/..DrawnChamfer__Limit__.rb`: the ease removed.
+- `30__System__DeepPushPull/..DrawnPushPull__Preselect__.rb`: the 10-face question, the commit
+  backstop, the per-face cache.
+- `30__System__DeepPushPull/..DrawnPushPullTool__.rb`: the inward preview (`push_inward?`,
+  `draw_inward_preview`, `draw_sides`) and *Push 80 mm in*.
+- `30__System__DeepPushPull/..DrawnPushPull2dTool__.rb`: the red strip.
+- `05__PreviewGraphics/..DrawnPreviewGraphics__.rb`: `DrawPrismOnTop`, `DrawFilledQuadOnTop`.
+- `04__GeometryHelpers/..DrawnProfileSweep__.rb`: `:hard_seams` and `SoftenSeams`.
+- `06__Tools__DrawnShared/..DrawnProfileSweepTool__.rb`: the `na_revise__ghost_scale` hook.
+- `02__AppData/..DrawnSettings__.rb`, `04__GeometryHelpers/..DrawnGridSnap__.rb`: the ovolo
+  kind and step settings. `02__AppData/..ToolMemory__.rb`: the ovolo memory key.
+- `32__System__DeepOgee`, `33__System__DeepFillet`: hints and status for the new drag.
+- `01__AppCore` (ModeSwitch, LoadManifest, Main), `40__UserInterface` (popup button and
+  callback), the root Loader (the *Deep Ovolo* command): wiring.
+
+### Offline
+All 76 files compile under SketchUp's Ruby 3.2. 10 suites against doubles, 298 checks, each
+suite run in its own process:
+
+| Suite | Checks | Covers |
+|---|---|---|
+| ovolo profiles and solve | 56 | profiles, setbacks, limits, CTRL read-back, entries, the hard-seam indexing |
+| **real** Deep Chamfer and Deep Ovolo classes | 33 | grab opens at 25 of a 100 limit; 160 px up is 75; past it holds at 100; ovolo limit 94; `40r` then `3` cuts R40 with a 3 step; `,8` re-limits to 91 without cutting; TAB gives the cavetto at 89; a 60 step refused naming 49.5; `95r` refused naming R89; retype `60,2` / `+5` / `97` |
+| **real** Push/Pull 3D and 2D classes | 15 | inward on a box top, not a lone face; 10 faces pass; 11 ask; No, Yes, Cancel; the hand-over; the commit backstop; never during a retype |
+| scrub | 27 | the curve and its inverse, the 25% opening, grid, coarse grid, no room, no limit, rebase, DPI |
+| hot swap with letters | 36 | the 5.1.20 hand-over plus every letter rule |
+| large selection | 20 | |
+| prism and quad draw-through | 7 | |
+| the 5.1.16 – 5.1.18 suites, updated | 104 | |
+
+### Testing Notes
+- [ ] Deep Chamfer on a box edge: the preview appears at 25% the moment the edge is grabbed.
+      Drag up: bigger; down: smaller, to nothing. Far up stops at 100%.
+- [ ] Same in Fillet and Ogee, and from a side edge and a bottom edge (up is always more).
+- [ ] Mid-drag type `R`: becomes a fillet on the same edges. Then Enter: nothing is cut, and
+      the status says press Enter again. Enter again cuts.
+- [ ] `O`, `G`, `V`, `C` likewise. With the ovolo running, TAB gives a cavetto; `V` gives the
+      ovolo back.
+- [ ] Type `40r` in Deep Ovolo: R40 pinned, the card asks for the step. Type `5`: it cuts.
+- [ ] `40,5` cuts directly; `,3` mid-drag changes the step without cutting.
+- [ ] After a cut, `60,2` re-cuts; Ctrl+Z once undoes it.
+- [ ] The step shoulders are crisp lines and the arc is smooth. Cut the four top edges of a
+      box: the corners mitre.
+- [ ] Ctrl+C / Ctrl+V still copy and paste in an edge tool. Alt+V still opens the View menu.
+- [ ] Ctrl+A on a model, Deep Push/Pull: the question appears. No: hover pushes one face.
+      Cancel: the tool closes. Yes: all of them preview and push.
+- [ ] 6 faces selected: no question, as before.
+- [ ] Push a box top down 80: a red volume shows through the face. Pull up: orange, as before.
+- [ ] 2D (parallel) view: pull a wall edge inward, and the strip is red.
+
+# =============================================================================
+
 ## Version 5.1.21 - 30-Sep-2026 - SHIFT+ALT Follow: Every Corner Along Its Own Edge
 
 ### Asked For

@@ -34,7 +34,7 @@
         {
             "command_id"     : "sync_project",
             "command_name"   : "ValeVision Cloud Sync - Sync Full Project",
-            "tooltip"        : "Export images, camera data and GLBs then sync to R2 and Whitecardopedia",
+            "tooltip"        : "Export images, camera data and GLBs, publish to the Project Library and push this project to the server",
             "status_bar_text": "Sync full project to ValeVision 3D",
             "menu_text"      : "Sync Project To ValeVision 3D",
             "handler_key"    : "sync_project",
@@ -43,7 +43,7 @@
         {
             "command_id"     : "update_images",
             "command_name"   : "ValeVision Cloud Sync - Update Images",
-            "tooltip"        : "Re-export whitecard scene images and sync thumbnails to R2",
+            "tooltip"        : "Re-export whitecard scene images, make thumbnails, publish and push",
             "status_bar_text": "Update images for ValeVision 3D",
             "menu_text"      : "Update Images For ValeVision 3D",
             "handler_key"    : "update_images",
@@ -52,7 +52,7 @@
         {
             "command_id"     : "update_glb_models",
             "command_name"   : "ValeVision Cloud Sync - Update GLB Models",
-            "tooltip"        : "Archive existing GLBs and export fresh GLB models via TrueVision3D",
+            "tooltip"        : "Archive existing GLBs, export fresh GLB models via TrueVision3D, publish and push",
             "status_bar_text": "Update GLB models for ValeVision 3D",
             "menu_text"      : "Update GLB Models For ValeVision 3D",
             "handler_key"    : "update_glb_models",
@@ -61,7 +61,7 @@
         {
             "command_id"     : "update_camera_data",
             "command_name"   : "ValeVision Cloud Sync - Update Camera Data",
-            "tooltip"        : "Capture IMG## scene cameras and merge into project.json",
+            "tooltip"        : "Capture IMG## scene cameras into the project record, publish and push",
             "status_bar_text": "Update camera data for ValeVision 3D",
             "menu_text"      : "Update Camera Data For ValeVision 3D",
             "handler_key"    : "update_camera_data",

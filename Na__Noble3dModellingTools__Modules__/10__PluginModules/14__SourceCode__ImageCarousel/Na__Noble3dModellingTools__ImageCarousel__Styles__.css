@@ -392,6 +392,427 @@ body {
 
 /* endregion ------------------------------------------------------------------- */
 
+
+/* -----------------------------------------------------------------------------
+ * REGION | Perspective Angle Panel
+ * ----------------------------------------------------------------------------- */
+
+.naImageViewer__PerspPanel {
+    display                             : none;
+    flex-direction                      : column;
+    width                               : 290px;
+    max-width                           : 40%;
+    flex-shrink                         : 0;
+    border-left                         : 1px solid var(--naImageViewer__Border);
+    background                          : var(--naImageViewer__PanelBg);
+    min-height                          : 0;
+}
+
+.naImageViewer__PerspPanel--open {
+    display                             : flex;
+}
+
+.naImageViewer__PerspHeader {
+    display                             : flex;
+    align-items                         : center;
+    justify-content                     : space-between;
+    padding                             : 8px 10px;
+    border-bottom                       : 1px solid var(--naImageViewer__Border);
+    flex-shrink                         : 0;
+}
+
+.naImageViewer__PerspTitle {
+    font-weight                         : 600;
+    font-size                           : 13px;
+}
+
+.naImageViewer__PerspBody {
+    flex                                : 1;
+    min-height                          : 0;
+    overflow-y                          : auto;
+    padding                             : 2px 0 8px;
+}
+
+.naImageViewer__PerspSection {
+    padding                             : 10px 12px;
+    border-bottom                       : 1px solid #eef0f3;
+}
+
+.naImageViewer__PerspStep {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 7px;
+    font-weight                         : 600;
+    font-size                           : 12px;
+    margin-bottom                       : 8px;
+}
+
+.naImageViewer__PerspStepNo {
+    display                             : inline-flex;
+    align-items                         : center;
+    justify-content                     : center;
+    width                               : 18px;
+    height                              : 18px;
+    border-radius                       : 50%;
+    background                          : var(--naImageViewer__Accent);
+    color                               : #ffffff;
+    font-size                           : 11px;
+}
+
+.naImageViewer__PerspGroup {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 6px;
+    margin-top                          : 6px;
+}
+
+.naImageViewer__PerspGroupBtn {
+    appearance                          : none;
+    flex                                : 1;
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 7px;
+    min-width                           : 0;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    background                          : #fdfdfd;
+    color                               : var(--naImageViewer__Text);
+    padding                             : 5px 8px;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    text-align                          : left;
+    cursor                              : pointer;
+}
+
+.naImageViewer__PerspGroupBtn:hover {
+    border-color                        : var(--naImageViewer__Accent);
+    background                          : #f0f5ff;
+}
+
+.naImageViewer__PerspGroupBtn--active,
+.naImageViewer__PerspGroupBtn--active:hover {
+    border-color                        : var(--naImageViewer__Accent);
+    background                          : #e5eeff;
+    box-shadow                          : inset 0 0 0 1px var(--naImageViewer__Accent);
+}
+
+.naImageViewer__PerspSwatch {
+    width                               : 14px;
+    height                              : 3px;
+    border-radius                       : 2px;
+    flex-shrink                         : 0;
+}
+
+.naImageViewer__PerspSwatch--z { background : #1a5fd0; }
+.naImageViewer__PerspSwatch--x { background : #d4291c; }
+.naImageViewer__PerspSwatch--y { background : #178a3a; }
+
+.naImageViewer__PerspCount {
+    font-size                           : 11px;
+    color                               : var(--naImageViewer__MutedText);
+    white-space                         : nowrap;
+    min-width                           : 50px;
+    text-align                          : right;
+}
+
+.naImageViewer__PerspCount--done {
+    color                               : #1f7a3d;
+    font-weight                         : 600;
+}
+
+.naImageViewer__PerspGroupHint {
+    margin                              : 3px 0 2px 2px;
+    font-size                           : 11px;
+    line-height                         : 1.35;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__PerspIconBtn {
+    appearance                          : none;
+    width                               : 22px;
+    height                              : 22px;
+    flex-shrink                         : 0;
+    border                              : 1px solid transparent;
+    border-radius                       : 4px;
+    background                          : transparent;
+    color                               : var(--naImageViewer__MutedText);
+    font-size                           : 15px;
+    line-height                         : 1;
+    cursor                              : pointer;
+    padding                             : 0;
+}
+
+.naImageViewer__PerspIconBtn:hover {
+    border-color                        : var(--naImageViewer__Border);
+    color                               : var(--naImageViewer__Text);
+    background                          : #f4f6f8;
+}
+
+.naImageViewer__PerspIconBtn[disabled] {
+    opacity                             : 0.35;
+    cursor                              : default;
+    background                          : transparent;
+    border-color                        : transparent;
+}
+
+.naImageViewer__PerspLensRow {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 6px;
+    margin-top                          : 12px;
+}
+
+.naImageViewer__PerspLabel {
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__Text);
+    min-width                           : 34px;
+}
+
+.naImageViewer__PerspSelect,
+.naImageViewer__PerspInput {
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    background                          : #ffffff;
+    color                               : var(--naImageViewer__Text);
+    padding                             : 4px 6px;
+    min-width                           : 0;
+}
+
+.naImageViewer__PerspSelect {
+    flex                                : 1;
+}
+
+.naImageViewer__PerspInput {
+    width                               : 58px;
+}
+
+.naImageViewer__PerspSelect:focus,
+.naImageViewer__PerspInput:focus {
+    outline                             : none;
+    border-color                        : var(--naImageViewer__Accent);
+    box-shadow                          : 0 0 0 2px rgba(47, 119, 213, 0.18);
+}
+
+.naImageViewer__PerspInput--error {
+    border-color                        : #e23b2e;
+}
+
+.naImageViewer__PerspNote {
+    margin-top                          : 6px;
+    font-size                           : 11px;
+    line-height                         : 1.4;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__PerspNote:empty {
+    display                             : none;
+}
+
+.naImageViewer__PerspNote--warn {
+    color                               : #9a4a00;
+}
+
+.naImageViewer__PerspStatus {
+    margin-top                          : 10px;
+    padding                             : 7px 9px;
+    border-radius                       : 4px;
+    background                          : #f4f6f8;
+    font-size                           : 12px;
+    line-height                         : 1.4;
+    color                               : var(--naImageViewer__Text);
+}
+
+.naImageViewer__PerspStatus--ok {
+    background                          : #eaf6ee;
+    color                               : #1c5e33;
+}
+
+.naImageViewer__PerspStatus--warn {
+    background                          : #fff4e5;
+    color                               : #8a4b00;
+}
+
+.naImageViewer__PerspSegmented {
+    display                             : flex;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    overflow                            : hidden;
+}
+
+.naImageViewer__PerspSegBtn {
+    appearance                          : none;
+    flex                                : 1;
+    border                              : 0;
+    border-left                         : 1px solid var(--naImageViewer__Border);
+    background                          : #fdfdfd;
+    color                               : var(--naImageViewer__Text);
+    padding                             : 5px 4px;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    cursor                              : pointer;
+    white-space                         : nowrap;
+}
+
+.naImageViewer__PerspSegBtn:first-child {
+    border-left                         : 0;
+}
+
+.naImageViewer__PerspSegBtn:hover {
+    background                          : #f0f5ff;
+}
+
+.naImageViewer__PerspSegBtn--active,
+.naImageViewer__PerspSegBtn--active:hover {
+    background                          : var(--naImageViewer__Accent);
+    color                               : #ffffff;
+}
+
+.naImageViewer__PerspToolRow {
+    display                             : flex;
+    gap                                 : 6px;
+    margin-top                          : 8px;
+}
+
+.naImageViewer__PerspToolRow .naImageViewer__Btn {
+    flex                                : 1;
+}
+
+.naImageViewer__PerspResults {
+    display                             : flex;
+    flex-direction                      : column;
+    gap                                 : 6px;
+}
+
+.naImageViewer__PerspEmpty {
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__PerspResult {
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 5px;
+    padding                             : 6px 6px 6px 9px;
+    cursor                              : pointer;
+}
+
+.naImageViewer__PerspResult:hover {
+    border-color                        : #8e24aa;
+}
+
+.naImageViewer__PerspResult--selected {
+    border-color                        : #f5a623;
+    box-shadow                          : inset 0 0 0 1px #f5a623;
+}
+
+.naImageViewer__PerspResultTop {
+    display                             : flex;
+    align-items                         : baseline;
+    gap                                 : 7px;
+}
+
+.naImageViewer__PerspResultName {
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__MutedText);
+    min-width                           : 46px;
+}
+
+.naImageViewer__PerspResultValue {
+    font-size                           : 17px;
+    font-weight                         : 600;
+    color                               : #6a1b7a;
+}
+
+.naImageViewer__PerspPm {
+    flex                                : 1;
+    font-size                           : 12px;
+    font-weight                         : 600;
+}
+
+.naImageViewer__PerspPm--good    { color : #1f7a3d; }
+.naImageViewer__PerspPm--fair    { color : #9a6700; }
+.naImageViewer__PerspPm--weak    { color : #c62828; }
+.naImageViewer__PerspPm--pending { color : var(--naImageViewer__MutedText); }
+.naImageViewer__PerspPm--raw     { color : #9a6700; }
+
+.naImageViewer__PerspResultSub {
+    margin-top                          : 2px;
+    font-size                           : 11px;
+    line-height                         : 1.35;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__PerspFooter {
+    display                             : flex;
+    align-items                         : center;
+    justify-content                     : space-between;
+    border-bottom                       : 0;
+}
+
+.naImageViewer__PerspCheck {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 6px;
+    font-size                           : 12px;
+    cursor                              : pointer;
+}
+
+/* Guides: the tool button beside the axis lock */
+.naImageViewer__PerspToolRow .naImageViewer__PerspGuideBtn {
+    flex                                : 0 0 auto;
+}
+
+.naImageViewer__PerspSegmented--grow {
+    flex                                : 1;
+    min-width                           : 0;
+}
+
+.naImageViewer__PerspSegmented--grow .naImageViewer__PerspSegBtn {
+    padding                             : 5px 2px;
+    font-size                           : 11px;
+}
+
+.naImageViewer__PerspSegBtn--x { color : #c0261a; }
+.naImageViewer__PerspSegBtn--y { color : #157a34; }
+.naImageViewer__PerspSegBtn--z { color : #1a56bd; }
+
+.naImageViewer__PerspSegBtn--x.naImageViewer__PerspSegBtn--active,
+.naImageViewer__PerspSegBtn--y.naImageViewer__PerspSegBtn--active,
+.naImageViewer__PerspSegBtn--z.naImageViewer__PerspSegBtn--active {
+    color                               : #ffffff;
+}
+
+.naImageViewer__PerspGuideRow {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 6px;
+    margin-top                          : 8px;
+}
+
+.naImageViewer__PerspGuideRow .naImageViewer__PerspInput {
+    width                               : 54px;
+}
+
+.naImageViewer__PerspInlineNote {
+    font-size                           : 11px;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__PerspGuideFooter {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 8px;
+    margin-top                          : 8px;
+}
+
+.naImageViewer__PerspGuideFooter .naImageViewer__PerspCount {
+    flex                                : 1;
+    text-align                          : right;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
 /* ============================================================================= */
 /* END OF FILE                                                                   */
 /* ============================================================================= */

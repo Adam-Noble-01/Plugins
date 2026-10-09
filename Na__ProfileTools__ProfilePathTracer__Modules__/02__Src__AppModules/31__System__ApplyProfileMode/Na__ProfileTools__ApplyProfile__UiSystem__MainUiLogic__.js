@@ -597,6 +597,16 @@
             }
             Na__Ui__SetStatus('Open path bridge is not available.');
         },
+        // Edit Profile: the Draw Profile tab reads the model selection and,
+        // for a trace, opens its profile bound to it.
+        Na__Events__OnOpenDrawEditor: function() {
+            var drawTab = window.Na__ProfileTools__DrawProfile__Tab;
+            if (drawTab && typeof drawTab.na_open_from_model === 'function') {
+                drawTab.na_open_from_model();
+                return;
+            }
+            Na__Ui__SetStatus('The Draw Profile editor is not loaded. Reload the plugin, then reopen the dialog.');
+        },
         Na__Events__OnUnbindTrace: function() {
             var swap = Na__Ui__SwapController();
             if (swap) swap.Na__Swap__Unbind();

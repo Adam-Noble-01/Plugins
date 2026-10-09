@@ -15,19 +15,23 @@
         "sketchup"         : "02__SketchUp",
         "content_delivered": "10__ContentDelivered__Local",
         "glb_sync"         : "10__ContentDelivered__Local/ValeVision__GlbFileSync",
-        "glb_archives"     : "10__ContentDelivered__Local/ValeVision__GlbFileSync/00__ArchivedModels"
+        "glb_archives"     : "10__ContentDelivered__Local/ValeVision__GlbFileSync/00__Archive"
     },
 
     "edition_folder_prefix": "VisDpt__Whitecard__",
 
     "python": {
-        "orchestrator_script": "Tools__DevUtils/AutomationUtil__SyncSingleProject__ToCloudAndWeb__Main__.py",
-        "whitecardopedia_root": "D:/10_CoreLib__ValeCodebase/WebApps/Whitecardopedia",
         "python_executable": ""
     },
 
-    "cdn": {
-        "r2_base_url"       : "https://cdn.noble-architecture.com/VaApps/Projects",
-        "github_base_url"   : "https://raw.githubusercontent.com/noble-architecture/noble-architecture.github.io/main/na-project-portal"
+    "library": {
+        "_About"           : "Exports are published into the Vale Projects Master Library on this PC, then this one project folder is pushed to app.valegardenhouses.com by the Vale Virtual Server Manager's sync engine. The library folder comes from the engine's own sync map, so the plugin publishes exactly where the push reads from.",
+        "publisher_script" : "04__Plugin__SyncFeatures/08__LibraryPublisher/Na__ValeVisionCloudSync__LibraryPublisher__.py",
+        "manager_root"     : "D:/10_CoreLib__ValeCodebase/WebApps/Vale__VirtualServerManager",
+        "engine_script"    : "VirtualServerManager__SyncEngine__.py",
+        "sync_map"         : "01__AppData/VirtualServerManager__SyncMap__.json",
+        "mapping_id"       : "projects",
+        "push_to_server"   : true,
+        "site_base_url"    : "https://app.valegardenhouses.com"
     }
 }

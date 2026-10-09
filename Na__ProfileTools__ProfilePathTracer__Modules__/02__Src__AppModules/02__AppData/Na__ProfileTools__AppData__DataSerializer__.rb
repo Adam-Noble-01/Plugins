@@ -43,6 +43,14 @@
 #                                   undo/redo keeps stored + actual in sync.
 #     SchemaVersion        String   "1.2.0"
 #     CreatedAt            String   ISO-8601 timestamp
+#     ProfileSource        String   "library" | "local" (v1.6.14; absent = library)
+#     LocalProfile         String   JSON of the trace's OWN profile asset data
+#                                   (Profile2D + Mesh3D), drawn in the Draw
+#                                   Profile tab and kept on this trace only.
+#                                   While ProfileSource is "local" the rebuild
+#                                   sweeps this instead of the library key;
+#                                   ProfileKey stays the key it was drawn from.
+#     LocalProfileName     String   what the local profile is called on screen
 #
 #   Helpers sub-group      -> Na__ProfilePathTracer__HelpersInfo
 #     ProfileTraceId       String   Back-reference to the parent assembly id
@@ -97,6 +105,9 @@ module Na__ProfileTools__ProfilePathTracer
         NA_ID_REGEX            = /^NPT\d{4}$/.freeze
         NA_HELPERS_GROUP_NAME  = 'Na__ProfileTrace__Helpers'.freeze
         NA_SOLID_GROUP_NAME    = 'Na__ProfileTrace__SweptSolid'.freeze
+        NA_LOCAL_PROFILE_KEY      = 'LocalProfile'.freeze
+        NA_LOCAL_PROFILE_NAME_KEY = 'LocalProfileName'.freeze
+        NA_PROFILE_SOURCE_KEY     = 'ProfileSource'.freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -264,11 +275,112 @@ module Na__ProfileTools__ProfilePathTracer
                 'EndOffset'          => self.Na__DataSerializer__DeserialiseOffsetMm(dict['EndOffset']),
                 'OffsetEndsSwapped'  => dict['OffsetEndsSwapped'] == 'true',
                 'DynamicRegenEnabled'=> dict['DynamicRegenEnabled'] == 'true',
-                'SchemaVersion'      => dict['SchemaVersion'].to_s
+                'SchemaVersion'      => dict['SchemaVersion'].to_s,
+                # The local profile itself is only parsed where it is swept
+                # (Na__DataSerializer__LocalProfileRecord): every reader of
+                # this payload would otherwise pay for the JSON.
+                'ProfileSource'      => self.Na__DataSerializer__LocalSource?(dict) ? 'local' : 'library',
+                'LocalProfileName'   => dict[NA_LOCAL_PROFILE_NAME_KEY].to_s
             }
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: ReadParentPayload failed: #{error.message}")
             nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Local Profiles (v1.6.14)
+    # -------------------------------------------------------------------------
+
+        # A local profile belongs to ONE trace: the Draw Profile tab's "Update
+        # This Trace" and its Live mode write it, so a trace can be changed
+        # without touching the library file every other trace shares. A copy
+        # of the trace copies the dictionary, so the copy keeps the same shape
+        # and goes its own way from there.
+        def self.Na__DataSerializer__WriteLocalProfile(parent_group, asset_data, display_name)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            return false unless asset_data.is_a?(Hash)
+            self.Na__DataSerializer__WriteLocalProfileJson(parent_group, JSON.generate(asset_data), display_name)
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WriteLocalProfile failed: #{error.message}")
+            false
+        end
+
+        def self.Na__DataSerializer__WriteLocalProfileJson(parent_group, json_text, display_name)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            return false unless json_text.is_a?(String) && !json_text.empty?
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            dict[NA_LOCAL_PROFILE_KEY]      = json_text
+            dict[NA_LOCAL_PROFILE_NAME_KEY] = display_name.to_s
+            dict[NA_PROFILE_SOURCE_KEY]     = 'local'
+            true
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WriteLocalProfileJson failed: #{error.message}")
+            false
+        end
+
+        # Back to the library key. Returns true if there was a local profile.
+        def self.Na__DataSerializer__ClearLocalProfile(parent_group)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return false unless dict
+            had_local = self.Na__DataSerializer__LocalSource?(dict)
+            dict.delete_key(NA_LOCAL_PROFILE_KEY) unless dict[NA_LOCAL_PROFILE_KEY].nil?
+            dict.delete_key(NA_LOCAL_PROFILE_NAME_KEY) unless dict[NA_LOCAL_PROFILE_NAME_KEY].nil?
+            dict[NA_PROFILE_SOURCE_KEY] = 'library' unless dict[NA_PROFILE_SOURCE_KEY].nil?
+            had_local
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: ClearLocalProfile failed: #{error.message}")
+            false
+        end
+
+        # { 'json' => raw text, 'name' => ... } or nil: what a rollback needs
+        # to put the local profile back exactly as it was.
+        def self.Na__DataSerializer__ReadLocalProfileRaw(parent_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return nil unless dict && self.Na__DataSerializer__LocalSource?(dict)
+            { 'json' => dict[NA_LOCAL_PROFILE_KEY], 'name' => dict[NA_LOCAL_PROFILE_NAME_KEY].to_s }
+        rescue
+            nil
+        end
+
+        # The local profile as a unified profile record (the shape the library
+        # hands out), or nil when the trace has none or it does not parse.
+        def self.Na__DataSerializer__LocalProfileRecord(parent_group)
+            raw = self.Na__DataSerializer__ReadLocalProfileRaw(parent_group)
+            return nil unless raw
+            asset_data = JSON.parse(raw['json'])
+            return nil unless asset_data.is_a?(Hash)
+            trace_id = self.Na__DataSerializer__ReadTraceId(parent_group)
+            name = raw['name'].to_s.strip
+            name = "Local profile of #{trace_id}" if name.empty?
+            {
+                'profileKey'     => "LOCAL__#{trace_id}",
+                'displayName'    => name,
+                'shortName'      => '',
+                'category'       => 'Local',
+                'isEnabled'      => true,
+                'isLocal'        => true,
+                'baseProfileKey' => parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)['ProfileKey'].to_s,
+                'sourceFile'     => '',
+                'profileData'    => {
+                    'type'           => 'na_unified_asset',
+                    'schemaContract' => 'meta + Na__Asset__Metadata + Na__Asset__Profile2D + Na__Asset__Mesh3D',
+                    'assetData'      => asset_data,
+                    'units'          => 'mm'
+                }
+            }
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: local profile unreadable: #{error.message}")
+            nil
+        end
+
+        def self.Na__DataSerializer__LocalSource?(dict)
+            dict[NA_PROFILE_SOURCE_KEY] == 'local' && dict[NA_LOCAL_PROFILE_KEY].is_a?(String) && !dict[NA_LOCAL_PROFILE_KEY].empty?
+        rescue
+            false
         end
 
     # endregion ----------------------------------------------------------------

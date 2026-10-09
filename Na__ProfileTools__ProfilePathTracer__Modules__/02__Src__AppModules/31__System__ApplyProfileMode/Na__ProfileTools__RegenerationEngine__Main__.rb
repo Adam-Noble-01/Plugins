@@ -99,7 +99,7 @@ module Na__ProfileTools__ProfilePathTracer
                 return false
             end
 
-            profile_data = self.Na__RegenEngine__ResolveProfileData(payload)
+            profile_data = self.Na__RegenEngine__ResolveProfileData(payload, parent_group)
             unless profile_data
                 self.Na__RegenEngine__ReportFailure("profile '#{payload['ProfileKey']}' not found in the library.")
                 return false
@@ -212,7 +212,16 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Private - Profile Resolution
     # -------------------------------------------------------------------------
 
-        def self.Na__RegenEngine__ResolveProfileData(payload)
+        # A trace carrying its own profile (ProfileSource 'local', written by the
+        # Draw Profile tab, v1.6.14) sweeps that; one whose local profile no
+        # longer parses falls back to the library key it was drawn from.
+        def self.Na__RegenEngine__ResolveProfileData(payload, parent_group = nil)
+            if parent_group && payload['ProfileSource'] == 'local'
+                local_record = Na__DataSerializer.Na__DataSerializer__LocalProfileRecord(parent_group)
+                return local_record if local_record && Na__ProfilePlacementEngine.Na__Engine__UnifiedProfileRecord?(local_record)
+                Na__DebugTools.Na__Debug__Warn("RegenEngine: local profile unreadable on #{payload['ProfileTraceId']}; using '#{payload['ProfileKey']}'.")
+            end
+
             profile_key = payload['ProfileKey'].to_s
             return nil if profile_key.empty?
             profile_data = Na__ProfileLibrary.Na__ProfileLibrary__FindByKey(profile_key)

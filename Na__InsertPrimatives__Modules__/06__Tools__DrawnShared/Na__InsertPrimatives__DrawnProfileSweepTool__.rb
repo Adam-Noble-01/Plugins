@@ -5,7 +5,7 @@
 # FILE       : Na__InsertPrimatives__DrawnProfileSweepTool__.rb
 # NAMESPACE  : Na__InsertPrimatives::DrawnProfileSweepTool
 # AUTHOR     : Noble Architecture
-# PURPOSE    : What Deep Ogee, Deep Fillet and any later profile tool have in
+# PURPOSE    : What Deep Ogee, Deep Fillet, Deep Ovolo and any later profile tool have in
 #              common on top of Deep Chamfer — the cut hooks, the preview and
 #              the retype ghost
 # CREATED    : 2026
@@ -292,13 +292,23 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | How Far the Recorded Profile Is Scaled to Show a Size
+        # A profile that grows in proportion to its size scales by the ratio of
+        # the two sizes. A tool whose profile carries a fixed part (Deep
+        # Ovolo's step) answers with the ratio of its whole setbacks instead.
+        # ------------------------------------------------------------
+        def na_revise__ghost_scale(ghost, value)
+            value.to_f.abs / ghost[:from_setback].to_f
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Draw Every Recorded Profile at an Interpolated Size
         # ------------------------------------------------------------
         def na_revise__draw_ghost(view, ghost, value, from_value, to_value)
             from_setback = ghost[:from_setback].to_f
             return false unless from_setback > 0.0
 
-            scale        = value.to_f.abs / from_setback
+            scale        = na_revise__ghost_scale(ghost, value)
             label_anchor = nil
 
             (ghost[:solves] || []).each do |solve|
@@ -330,7 +340,7 @@ module Na__InsertPrimatives
             from_setback = ghost[:from_setback].to_f
             return [] unless from_setback > 0.0
 
-            scale  = value.to_f.abs / from_setback
+            scale  = na_revise__ghost_scale(ghost, value)
             points = []
 
             (ghost[:solves] || []).each do |solve|

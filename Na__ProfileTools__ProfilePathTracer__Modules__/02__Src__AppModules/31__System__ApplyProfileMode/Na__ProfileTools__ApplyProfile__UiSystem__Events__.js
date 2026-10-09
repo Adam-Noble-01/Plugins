@@ -218,6 +218,13 @@
             });
         }
 
+        var btnOpenDrawEditor = document.getElementById('naBtnOpenDrawEditor');
+        if (btnOpenDrawEditor && typeof handlers.Na__Events__OnOpenDrawEditor === 'function') {
+            btnOpenDrawEditor.addEventListener('click', function() {
+                handlers.Na__Events__OnOpenDrawEditor();
+            });
+        }
+
         if (btnRegenerateTrace) {
             btnRegenerateTrace.addEventListener('click', function() {
                 handlers.Na__Events__OnRegenerateTrace();
