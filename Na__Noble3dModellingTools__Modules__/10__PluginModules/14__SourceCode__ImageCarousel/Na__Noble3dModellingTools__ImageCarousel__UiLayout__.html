@@ -43,6 +43,7 @@
       <button id="naImageViewer_btnClearDims"      class="naImageViewer__Btn" title="Clear all dimensions on this image">Clear Dims</button>
 
       <span class="naImageViewer__ToolbarDivider"></span>
+      <button id="naImageViewer_btnCount"          class="naImageViewer__Btn" title="Count (C): drag along a row of brick courses, bricks or tiles, then move back along it to divide it">Count</button>
       <button id="naImageViewer_btnPerspective"    class="naImageViewer__Btn" title="Perspective angle: true roof pitches and angles, corrected for the camera">Angle</button>
     </div>
 
@@ -60,6 +61,21 @@
 
           <!-- Quiet note when the model's remembered folder cannot be found -->
           <div class="naImageViewer__RestoreNote" id="naImageViewer_restoreNote"></div>
+
+          <!-- Count tool bar: the count, how its parts are spaced, the next step -->
+          <div class="naImageViewer__CountBar" id="naImageViewer_countBar" aria-label="Count">
+            <div class="naImageViewer__CountRow">
+              <span class="naImageViewer__CountTitle">Count</span>
+              <button id="naImageViewer_countMinus" class="naImageViewer__CountStep" title="One fewer (Down arrow)">&#8722;</button>
+              <input id="naImageViewer_countInput" class="naImageViewer__CountInput" type="text" inputmode="numeric" autocomplete="off" title="How many: type a number and press Enter" />
+              <button id="naImageViewer_countPlus" class="naImageViewer__CountStep" title="One more (Up arrow)">+</button>
+              <span class="naImageViewer__CountSpacing" id="naImageViewer_countSpacing"></span>
+              <span class="naImageViewer__CountDims" id="naImageViewer_countDims"></span>
+              <button id="naImageViewer_countReset" class="naImageViewer__CountLink" title="Space the parts by the photo's perspective again" style="display:none">Reset spacing</button>
+              <button id="naImageViewer_countClear" class="naImageViewer__CountLink" title="Remove every count on this photo">Clear counts</button>
+            </div>
+            <div class="naImageViewer__CountHint" id="naImageViewer_countHint"></div>
+          </div>
 
           <!-- Reference length input overlay -->
           <div class="naImageViewer__RefOverlay" id="naImageViewer_refOverlay">
@@ -232,6 +248,10 @@
 
   <script>
     {{PERSPECTIVE_ANGLE_SCRIPT}}
+  </script>
+
+  <script>
+    {{COUNT_TOOL_SCRIPT}}
   </script>
 
 </body>

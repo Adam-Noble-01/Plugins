@@ -97,8 +97,8 @@ require_relative '../34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__
 # -------------------------------------------------------------------------
 
 require_relative 'Na__ProfileTools__AppCore__RegenSweep__'
-require_relative 'Na__ProfileTools__AppCore__HelpersEntitiesObserver__'
 require_relative 'Na__ProfileTools__AppCore__EditPathNavigator__'
+require_relative 'Na__ProfileTools__AppCore__LegacyHelperLinework__'
 require_relative 'Na__ProfileTools__AppCore__Observers__'
 require_relative 'Na__ProfileTools__AppCore__PluginReloader__'
 require_relative 'Na__ProfileTools__AppCore__DialogManager__'

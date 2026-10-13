@@ -813,6 +813,153 @@ body {
 
 /* endregion ------------------------------------------------------------------- */
 
+
+/* -----------------------------------------------------------------------------
+ * REGION | Count Tool
+ * ----------------------------------------------------------------------------- */
+
+/* Floating bar over the photo while the Count tool is active */
+.naImageViewer__CountBar {
+    position                            : absolute;
+    left                                : 50%;
+    bottom                              : 12px;
+    transform                           : translateX(-50%);
+    display                             : none;
+    flex-direction                      : column;
+    gap                                 : 4px;
+    width                               : max-content;
+    max-width                           : calc(100% - 24px);
+    padding                             : 7px 10px 6px;
+    background                          : rgba(255, 255, 255, 0.97);
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 6px;
+    box-shadow                          : 0 4px 14px rgba(27, 31, 36, 0.18);
+    z-index                             : 6;
+}
+
+.naImageViewer__CountBar--open {
+    display                             : flex;
+}
+
+.naImageViewer__CountRow {
+    display                             : flex;
+    flex-wrap                           : wrap;
+    align-items                         : center;
+    gap                                 : 4px 6px;
+    white-space                         : nowrap;
+}
+
+.naImageViewer__CountTitle {
+    margin-right                        : 2px;
+    font-size                           : 12px;
+    font-weight                         : 600;
+    color                               : #00838f;
+}
+
+.naImageViewer__CountStep {
+    appearance                          : none;
+    width                               : 26px;
+    height                              : 26px;
+    padding                             : 0;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    background                          : #fdfdfd;
+    color                               : var(--naImageViewer__Text);
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 15px;
+    line-height                         : 1;
+    cursor                              : pointer;
+}
+
+.naImageViewer__CountStep:hover {
+    border-color                        : #00838f;
+    background                          : #eef8f9;
+}
+
+.naImageViewer__CountStep[disabled] {
+    opacity                             : 0.4;
+    cursor                              : not-allowed;
+}
+
+.naImageViewer__CountInput {
+    width                               : 58px;
+    height                              : 26px;
+    padding                             : 0 6px;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 4px;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 15px;
+    font-weight                         : 700;
+    text-align                          : center;
+    color                               : #00838f;
+}
+
+.naImageViewer__CountInput:focus {
+    outline                             : none;
+    border-color                        : #00838f;
+    box-shadow                          : 0 0 0 2px rgba(0, 131, 143, 0.18);
+}
+
+.naImageViewer__CountInput[disabled] {
+    background                          : #f4f6f8;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__CountInput--error,
+.naImageViewer__CountInput--error:focus {
+    border-color                        : #d4291c;
+    box-shadow                          : 0 0 0 2px rgba(212, 41, 28, 0.18);
+}
+
+.naImageViewer__CountSpacing {
+    margin-left                         : 6px;
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__CountDims {
+    margin-left                         : 6px;
+    font-size                           : 12px;
+    font-weight                         : 600;
+    color                               : #c62f22;
+}
+
+.naImageViewer__CountLink {
+    appearance                          : none;
+    padding                             : 2px 4px;
+    border                              : none;
+    background                          : none;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__Accent);
+    cursor                              : pointer;
+}
+
+.naImageViewer__CountLink:hover {
+    text-decoration                     : underline;
+}
+
+.naImageViewer__CountLink[disabled] {
+    color                               : var(--naImageViewer__MutedText);
+    opacity                             : 0.5;
+    cursor                              : not-allowed;
+    text-decoration                     : none;
+}
+
+.naImageViewer__CountHint {
+    max-width                           : 620px;
+    font-size                           : 11.5px;
+    line-height                         : 1.35;
+    color                               : var(--naImageViewer__MutedText);
+    white-space                         : normal;
+}
+
+.naImageViewer__CountHint--error {
+    color                               : #b3261e;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
 /* ============================================================================= */
 /* END OF FILE                                                                   */
 /* ============================================================================= */

@@ -9,15 +9,18 @@
 # OBSERVERS INSTALLED
 #   Na__AppObserver          (Sketchup)          model switch / open / new
 #   Na__DefinitionsObserver  (model.definitions) scene-profile registry hygiene
-#   Na__ModelObserver        (model)             Dynamic Regeneration triggers:
-#       onActivePathChanged   -> full RegenSweep (user closed a group edit —
-#                                THE moment moved/stretched path edges become
-#                                detectable, since onElementModified never
-#                                fires for those)
-#       onTransactionUndo/Redo-> full RegenSweep (re-attach + fingerprint;
-#                                redo fires no entity events at all)
-#       onTransactionCommit   -> light RegenSweep (deep edits made by other
-#                                tools without opening the group)
+#   Na__ModelObserver        (model)             Edit Path triggers (Na__RegenSweep):
+#       onActivePathChanged   -> full sweep (the user left the trace: THE
+#                                moment an edited red line is read, since
+#                                onElementModified never fires for a moved edge)
+#       onTransactionUndo/Redo-> full, passive sweep (looks, never changes:
+#                                redo fires no entity events at all, and a change
+#                                made now would wipe the redo stack)
+#       onTransactionCommit   -> light sweep (only red lines already watched)
+#
+#   No observer is attached to any trace (v1.6.16). Until v1.6.15 each trace's
+#   Helpers linework carried an EntitiesObserver; a reload detaches any still
+#   attached from the session that ran the older code.
 #
 # RELOAD SAFETY
 #   All module ivars are `unless defined?` guarded: the Settings tab hot-reload
@@ -54,11 +57,10 @@ module Na__ProfileTools__ProfilePathTracer
             if active_model
                 self.Na__Observers__AttachDefinitionsObserver(active_model)
                 self.Na__Observers__AttachModelObserver(active_model)
-                self.Na__Observers__AttachToAllStampedHelpers(active_model)
             end
 
-            # Re-arm the sweep (undoes the Detach-All kill switch) and run a
-            # deferred pass so legacy assemblies adopt fingerprint baselines.
+            # Re-arm the sweep and run a deferred, passive pass so a red line
+            # saved in the model (a path edit left open) is watched again.
             if defined?(Na__RegenSweep)
                 Na__RegenSweep.Na__RegenSweep__Resume!
                 Na__RegenSweep.Na__RegenSweep__ScheduleSweep('install', full: true)
@@ -77,6 +79,8 @@ module Na__ProfileTools__ProfilePathTracer
 
             self.Na__Observers__DetachDefinitionsObserver
             self.Na__Observers__DetachModelObserver
+            # The Helpers EntitiesObservers v1.6.15 attached, if this session
+            # loaded that code before a Reload Plugin Data.
             Na__ObserverRegistry.Na__ObserverRegistry__DetachAll if defined?(Na__ObserverRegistry)
         end
 
@@ -130,27 +134,6 @@ module Na__ProfileTools__ProfilePathTracer
             end
             @na_model_observer = nil
             @na_observed_model = nil
-        end
-
-    # endregion ----------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # REGION | Dynamic Regen — Stamped Helpers Walker
-    # -------------------------------------------------------------------------
-
-        def self.Na__Observers__AttachToAllStampedHelpers(model)
-            return unless model
-            return unless defined?(Na__DataSerializer) && defined?(Na__ObserverRegistry)
-
-            parent_groups = Na__DataSerializer.Na__DataSerializer__FindAllParentGroups(model)
-            parent_groups.each do |parent_group|
-                next unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
-                helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-                next unless helpers_group
-                Na__ObserverRegistry.Na__ObserverRegistry__AttachIfMissing(helpers_group)
-            end
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("Observers: AttachToAllStampedHelpers failed: #{error.message}")
         end
 
     # endregion ----------------------------------------------------------------
@@ -218,12 +201,9 @@ module Na__ProfileTools__ProfilePathTracer
         private
 
         def Na__Observers__HandleModelChange(model)
-            Na__ProfileTools__ProfilePathTracer::Na__ObserverRegistry.Na__ObserverRegistry__DetachAll \
-                if defined?(Na__ProfileTools__ProfilePathTracer::Na__ObserverRegistry)
             Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__AttachDefinitionsObserver(model)
             Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__AttachModelObserver(model)
             Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__ClearSceneRegistryAndNotify
-            Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__AttachToAllStampedHelpers(model)
             Na__ProfileTools__ProfilePathTracer::Na__RegenSweep.Na__RegenSweep__ScheduleSweep('model-changed', full: true) \
                 if defined?(Na__ProfileTools__ProfilePathTracer::Na__RegenSweep)
         end
@@ -238,9 +218,9 @@ module Na__ProfileTools__ProfilePathTracer
         end
     end
 
-    # Dynamic Regeneration triggers. Callbacks only ever SCHEDULE the deferred
-    # sweep — never touch the model directly — because model edits inside
-    # observer callbacks are the documented SketchUp crash vector.
+    # Edit Path triggers. Callbacks only ever SCHEDULE the deferred sweep —
+    # never touch the model directly — because model edits inside observer
+    # callbacks are the documented SketchUp crash vector.
     class Na__ModelObserver < Sketchup::ModelObserver
         def onActivePathChanged(_model)
             Na__ProfileTools__ProfilePathTracer::Na__RegenSweep.Na__RegenSweep__ScheduleSweep('active-path-changed', full: true)
@@ -271,10 +251,9 @@ end
 # =============================================================================
 # REGION | Auto-install at load
 # =============================================================================
-# Dynamic Regeneration must work in every session — including ones where the
-# dialog is never opened (previously the stored ON flag lied in the context
-# menu because observers only attached on dialog open). Guarded so the hot
-# reload `load` does not stack duplicates; the reload path re-installs
+# Edit Path must finish in every session — including ones where the dialog is
+# never opened (the right-click Edit Path works without it). Guarded so the
+# hot reload `load` does not stack duplicates; the reload path re-installs
 # explicitly via Na__Observers__InstallOnce.
 
 unless Na__ProfileTools__ProfilePathTracer::Na__Observers.Na__Observers__Installed?

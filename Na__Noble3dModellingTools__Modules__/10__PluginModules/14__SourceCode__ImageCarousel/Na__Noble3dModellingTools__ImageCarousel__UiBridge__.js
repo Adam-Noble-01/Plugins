@@ -50,7 +50,8 @@
     var NA_HISTORY_LIMIT    = 50;
 
     // Snapping shared by the drawing tools: providers (the Perspective Angle
-    // guides) offer a point near the pointer; the Core draws one marker.
+    // guides, the Count tool's ticks) offer a point near the pointer; the
+    // Core picks one and draws its marker.
     var na_snapProviders    = [];     // fn(cx, cy) -> { img, screen, kind, label } | null
     var na_snapMarker       = null;
 
@@ -566,20 +567,26 @@
         }
     }
 
-    // The first provider with a point near (cx, cy), in canvas pixels.
+    // The best point any provider offers near (cx, cy), in canvas pixels: an
+    // endpoint, tick or intersection before a point that is merely on a
+    // guide, then the nearest.
     function Na__ImageViewer__Snap(cx, cy) {
+        var best = null, bestRank = Infinity, bestD = Infinity;
         for (var i = 0; i < na_snapProviders.length; i++) {
             try {
                 var hit = na_snapProviders[i](cx, cy);
-                if (hit) return hit;
+                if (!hit || !hit.screen) continue;
+                var rank = hit.kind === 'guide' ? 1 : 0;
+                var d    = Math.sqrt((hit.screen.x - cx) * (hit.screen.x - cx) + (hit.screen.y - cy) * (hit.screen.y - cy));
+                if (rank < bestRank || (rank === bestRank && d < bestD)) { best = hit; bestRank = rank; bestD = d; }
             } catch (e) { /* a snap provider must never break drawing */ }
         }
-        return null;
+        return best;
     }
 
     // SketchUp-like inference marker, drawn above every overlay: a green dot
-    // on an endpoint, an X on an intersection, a square on a guide, with a
-    // pale tooltip naming it.
+    // on an endpoint, a teal dot on a count's tick, an X on an intersection,
+    // a square on a guide, with a pale tooltip naming it.
     function Na__ImageViewer__DrawSnapMarker() {
         var hit = na_snapMarker;
         if (!hit || !hit.screen || !na_ctx) return;
@@ -587,10 +594,10 @@
         var x = hit.screen.x, y = hit.screen.y;
         ctx.save();
         ctx.lineCap = 'round';
-        if (hit.kind === 'endpoint') {
+        if (hit.kind === 'endpoint' || hit.kind === 'division') {
             ctx.beginPath();
             ctx.arc(x, y, 5 * k, 0, Math.PI * 2);
-            ctx.fillStyle = '#21a336'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 * k;
+            ctx.fillStyle = hit.kind === 'division' ? '#00838f' : '#21a336'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 * k;
             ctx.fill(); ctx.stroke();
         } else if (hit.kind === 'intersection') {
             [['#ffffff', 4], ['#1b1f24', 1.8]].forEach(function(pen) {

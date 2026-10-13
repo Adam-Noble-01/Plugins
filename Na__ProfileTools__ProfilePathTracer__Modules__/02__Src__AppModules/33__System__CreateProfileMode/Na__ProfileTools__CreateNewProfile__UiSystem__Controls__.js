@@ -421,18 +421,18 @@
             '\u25f2 Edit Profile',
             '  </button>',
 
-            // The helper rail hugs a corner of the swept solid, so double-clicking
-            // into it by hand is close to impossible. That is why the right-click
-            // item exists; this is the same item, reachable without first finding
-            // a right-clickable spot on the assembly. Deliberately NOT gated on
-            // isBound: it acts on the MODEL selection, which is a different thing
-            // from a bound trace, so Ruby resolves it and reports the outcome.
+            // A trace keeps its path as data (v1.6.16), so the path exists as a
+            // line only while it is edited: this draws it in red inside the
+            // trace and opens it, as the right-click Edit Path does. Deliberately
+            // NOT gated on isBound: it acts on the MODEL selection, which is a
+            // different thing from a bound trace, so Ruby resolves it and reports
+            // the outcome.
             '  <button class="naButton naButtonSecondary" id="naBtnOpenPathEditor"' + (isSwapBusy || isPreviewLive ? ' disabled' : '') + '',
             '          title="' + (isSwapBusy
                 ? 'Unavailable while a trace is rebuilding.'
                 : isPreviewLive
                     ? 'Unavailable while previewing \u2014 commit or cancel the preview first.'
-                    : 'Select a placed Profile Trace in the model, then click this to open its helper path linework with the edges pre-selected. Close the group when done and the profile rebuilds.') + '">',
+                    : 'Select a placed Profile Trace in the model, then click this: its path appears as a red line, open for editing with every edge selected. Edit it with any tool, then click outside the trace and it rebuilds; the line is removed.') + '">',
             '\u270e Edit Path',
             '  </button>',
 

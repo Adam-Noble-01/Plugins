@@ -5,19 +5,26 @@
 # FILE       : Na__ProfileTools__RegenerationEngine__Main__.rb
 # NAMESPACE  : Na__ProfileTools__ProfilePathTracer::Na__RegenEngine
 # PURPOSE    : Rebuilds the swept-solid sub-group of a Profile Trace assembly
-#              from the current edge geometry in its Helpers sub-group.
-#              Called by the EntitiesObserver when path edges are modified.
+#              along the path the trace stores (PathRuns), or along the red
+#              line of an Edit Path in progress.
+#
+# WHERE THE PATH COMES FROM (v1.6.16)
+#   1. An Edit Path group in the trace (Na__ProfileTrace__EditPath): its edges
+#      ARE the edit, so a rebuild while one is open or pending sweeps them,
+#      stores them as the new path and erases the group.
+#   2. PathRuns, stamped on the assembly by the build and every rebuild.
+#   3. LEGACY: a pre-v1.6.16 trace's Helpers linework. The rebuild stores it as
+#      PathRuns and erases the Helpers group (Na__DataSerializer__RetireLegacyHelpers).
+#   4. LEGACY: PathPoints, for an old trace whose Helpers group is gone.
 #
 # MULTI-RUN BEHAVIOUR
-#   The Helpers linework is an editable proxy, so the user is expected to keep
-#   drawing into it. Na__Path__BuildChains splits whatever is in the group into
-#   maximal non-branching chains plus closed loops, and every chain is swept —
-#   a new disconnected run or a spur off an existing one extends the moulding
-#   instead of failing the rebuild.
+#   An edit can leave several runs (a second stroke, a spur off the first).
+#   Na__Path__BuildChains splits the edges into maximal non-branching chains
+#   plus closed loops, and every chain is swept.
 #
-#   1 chain  -> geometry sits directly in Na__ProfileTrace__SweptSolid.
-#   N chains -> one Na__ProfileTrace__Run__NN sub-group per chain, so the
-#               per-run seam cleanup cannot erase a neighbouring run's faces.
+#   1 run  -> geometry sits directly in Na__ProfileTrace__SweptSolid.
+#   N runs -> one Na__ProfileTrace__Run__NN sub-group per run, so the per-run
+#             seam cleanup cannot erase a neighbouring run's faces.
 #
 #   Chain direction is anchored to the assembly's stored StartPoint, so adding
 #   segments at either end will not flip the profile around.
@@ -30,25 +37,33 @@
 #   it would bury one moulding inside its neighbour.
 #
 # COORDINATE SPACE (v1.6.12)
-#   A rebuild reads the Helpers edges and writes the new solid in PARENT space,
-#   the assembly's own axes, which is what the API reports only while the
-#   assembly is closed. Regenerate Now or a profile swap run from inside it
-#   (Edit Path) therefore steps out first, as clicking outside would.
+#   A rebuild reads its path and writes the new solid in PARENT space, the
+#   assembly's own axes, which is what the API reports only while the assembly
+#   is closed. A rebuild run from inside the trace (Regenerate Now while in
+#   Edit Path, a swap) therefore steps out first, as clicking outside would.
+#   Stored points go into the sweep as they are, with no transformation, so
+#   rebuilding again and again cannot move a trace by even a rounding error.
+#
+# UNDO (v1.6.16)
+#   The rebuild is a transparent operation: it joins the operation before it
+#   (the last path edit, a swap's dictionary write), so one undo takes both
+#   back. A transparent operation must never be aborted (that would abort the
+#   operation it joins), so the new solid is swept first, and the old one is
+#   erased only once the new one stands. A rebuild that sweeps nothing erases
+#   its empty group, commits, and leaves the trace exactly as it was.
 #
 # PUBLIC API
-#   Na__RegenEngine__RegenerateFromHelpers(parent_group) -> Boolean
-#       Deletes the SweptSolid sub-group and rebuilds it using the Helpers
-#       edges as the path source. Returns true if at least one run swept.
-#       Steps out of the assembly first when the user is editing inside it.
-#
+#   Na__RegenEngine__RegenerateTrace(parent_group) -> Boolean
+#   Na__RegenEngine__RegenerateFromHelpers(parent_group) -> Boolean  (old name)
+#   Na__RegenEngine__StoredPathRuns(parent_group, payload) -> Hash
+#   Na__RegenEngine__RunsFromEdges(edges, transform, anchor_point) -> Hash
 #   Na__RegenEngine__InProgress? -> Boolean
-#       Re-entrancy guard — true while a regeneration operation is running.
+#   Na__RegenEngine__LastFailure -> String
 #
 # DEPENDENCIES
-#   Na__DataSerializer  - reads parent payload, finds sub-groups
-#   Na__PathAnalysis    - splits helpers edges into ordered chains
+#   Na__DataSerializer  - reads the payload and path, finds sub-groups
+#   Na__PathAnalysis    - splits edges into ordered chains
 #   Na__ProfileLibrary  - resolves profile_data from stored ProfileKey
-#   Na__TagApplier      - repaints newly drawn helper edges
 #   Na__GeometryBuilders::Na__Geometry__SweepProfileIntoGroup
 #       (shared sweep helper, extracted from BuildProfileAlongPath)
 #
@@ -65,9 +80,16 @@ module Na__ProfileTools__ProfilePathTracer
         NA_RUN_GROUP_PREFIX      = 'Na__ProfileTrace__Run__'.freeze
 
         @na_in_progress = false
+        @na_last_failure = ''
 
         def self.Na__RegenEngine__InProgress?
             @na_in_progress == true
+        end
+
+        # The reason the last rebuild did not happen, for callers that word
+        # their own message (an Edit Path that could not be swept).
+        def self.Na__RegenEngine__LastFailure
+            @na_last_failure.to_s
         end
 
     # endregion ----------------------------------------------------------------
@@ -76,24 +98,20 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Public Entry Point
     # -------------------------------------------------------------------------
 
-        def self.Na__RegenEngine__RegenerateFromHelpers(parent_group)
+        def self.Na__RegenEngine__RegenerateTrace(parent_group)
             return false unless Na__DataSerializer.Na__DataSerializer__GroupValid?(parent_group)
             return false if @na_in_progress
+            @na_last_failure = ''
 
             payload = Na__DataSerializer.Na__DataSerializer__ReadParentPayload(parent_group)
             return false unless payload
-
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            return false unless helpers_group
 
             unless self.Na__RegenEngine__LeaveAssemblyContext(parent_group)
                 self.Na__RegenEngine__ReportFailure('the trace is open for editing and could not be closed — click outside it, then regenerate.')
                 return false
             end
 
-            # The remembered start point anchors chain direction, so extending the
-            # linework at either end does not flip the profile round.
-            path_result = self.Na__RegenEngine__BuildPathFromHelpers(helpers_group, payload['StartPoint'])
+            path_result = self.Na__RegenEngine__ResolveRebuildPath(parent_group, payload)
             unless path_result[:isValid]
                 self.Na__RegenEngine__ReportFailure("path rebuild failed — #{path_result[:reason]}")
                 return false
@@ -112,8 +130,9 @@ module Na__ProfileTools__ProfilePathTracer
                 model:        model,
                 parent_group: parent_group,
                 profile_data: profile_data,
-                path_result:  path_result,
-                payload:      payload
+                runs:         path_result[:runs],
+                payload:      payload,
+                source:       path_result[:source]
             )
         rescue => error
             self.Na__RegenEngine__ReportFailure("unexpected error — #{error.message}")
@@ -121,9 +140,16 @@ module Na__ProfileTools__ProfilePathTracer
             false
         end
 
+        # The name every caller used before the path became data. Kept so a
+        # caller that still uses it (or a stale reload) rebuilds the same way.
+        def self.Na__RegenEngine__RegenerateFromHelpers(parent_group)
+            self.Na__RegenEngine__RegenerateTrace(parent_group)
+        end
+
         # Regeneration is triggered by an observer, so a silent `false` looks
         # identical to "the feature is broken". Always surface the reason.
         def self.Na__RegenEngine__ReportFailure(reason)
+            @na_last_failure = reason.to_s
             Na__DebugTools.Na__Debug__Warn("RegenEngine: #{reason}")
             Sketchup.status_text = "Profile Path Tracer regen skipped: #{reason}"
         rescue
@@ -136,19 +162,17 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Private - Edit Context
     # -------------------------------------------------------------------------
 
-        # A rebuild reads the Helpers edges through the Helpers transformation
-        # and sweeps into a fresh sub-group: parent space in, parent space out.
-        # That holds only while the assembly is CLOSED. Opened (Regenerate Now
-        # or a swap run from inside Edit Path), everything in it reports world
-        # space: "in the active drawing context and all its parent coordinate
-        # systems all coordinates are global". World points were read as parent
-        # space, so the solid landed displaced by however far the assembly had
-        # moved since it was built, and the rebuild could erase the very
-        # SweptSolid group the user was standing in. The Dynamic Regeneration
-        # sweep already waits for the user to step out
-        # (Na__RegenSweep__InsideEditContext?); a manual rebuild steps out itself,
-        # to the context the assembly sits in, as clicking outside it would.
-        # A no-op whenever the assembly is not open.
+        # A rebuild reads its path and sweeps into a fresh sub-group: parent
+        # space in, parent space out. That holds only while the assembly is
+        # CLOSED. Opened (Regenerate Now or a swap run from inside Edit Path),
+        # everything in it reports world space: "in the active drawing context
+        # and all its parent coordinate systems all coordinates are global".
+        # The Edit Path line would be read as parent space while it reported
+        # world, and the rebuild could erase the SweptSolid group the user was
+        # standing in. The change sweep already waits for the user to step out
+        # (Na__RegenSweep__InsideEditContext?); a manual rebuild steps out
+        # itself, to the context the assembly sits in, as clicking outside it
+        # would. A no-op whenever the assembly is not open.
         #
         # Runs before the rebuild opens its operation. SketchUp wraps a path
         # change in transparent operations of its own, since entities cannot be
@@ -171,32 +195,75 @@ module Na__ProfileTools__ProfilePathTracer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Private - Path Extraction from Helpers
+    # REGION | Private - The Path to Rebuild Along
     # -------------------------------------------------------------------------
 
-        def self.Na__RegenEngine__BuildPathFromHelpers(helpers_group, anchor_point = nil)
-            edges = helpers_group.entities.grep(Sketchup::Edge).select(&:valid?)
-            if edges.empty?
-                return { isValid: false, reason: 'Helpers sub-group contains no edges.', chains: [] }
+        # An Edit Path line in the trace is the user's edit, open or pending
+        # (an undo can bring one back), so a rebuild takes it along rather than
+        # rebuilding past it. An emptied line is no path: the stored one is
+        # used, and the rebuild erases the empty group.
+        def self.Na__RegenEngine__ResolveRebuildPath(parent_group, payload)
+            edit_group = Na__DataSerializer.Na__DataSerializer__FindEditPathGroup(parent_group)
+            if edit_group
+                edges = edit_group.entities.grep(Sketchup::Edge).select(&:valid?)
+                unless edges.empty?
+                    result = self.Na__RegenEngine__RunsFromEdges(edges, edit_group.transformation, payload['StartPoint'])
+                    return result.merge(source: :edit)
+                end
+            end
+            self.Na__RegenEngine__StoredPathRuns(parent_group, payload)
+        end
+
+        # The path the trace carries: PathRuns, else (legacy) its Helpers
+        # linework, else (legacy, Helpers gone) its primary PathPoints run.
+        # { isValid:, runs:, source:, reason: }
+        def self.Na__RegenEngine__StoredPathRuns(parent_group, payload = nil)
+            payload ||= Na__DataSerializer.Na__DataSerializer__ReadParentPayload(parent_group) || {}
+
+            stored = Na__DataSerializer.Na__DataSerializer__ReadPathRuns(parent_group)
+            if stored
+                runs = self.Na__RegenEngine__BuildSweepableRuns(stored)
+                return { isValid: true, runs: runs, source: :stored, reason: nil } unless runs.empty?
             end
 
-            # Edge positions are local to the Helpers group. The group normally
-            # carries an identity transform, but if the user has moved or scaled
-            # the Helpers instance itself, that transform must be baked into the
-            # path or the rebuild lands at the pre-move position. The stored
-            # anchor lives in parent space, so it maps into local space first.
-            # Both readings need the assembly closed, which
-            # Na__RegenEngine__LeaveAssemblyContext has made sure of.
-            transform    = helpers_group.transformation
+            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
+            if helpers_group
+                edges = helpers_group.entities.grep(Sketchup::Edge).select(&:valid?)
+                unless edges.empty?
+                    result = self.Na__RegenEngine__RunsFromEdges(edges, helpers_group.transformation, payload['StartPoint'])
+                    return result.merge(source: :legacy) if result[:isValid]
+                end
+            end
+
+            primary = self.Na__RegenEngine__BuildSweepableRuns(
+                [{ ordered_points: Array(payload['PathPoints']), is_closed_loop: payload['IsClosedLoop'] == true }]
+            )
+            return { isValid: true, runs: primary, source: :primary, reason: nil } unless primary.empty?
+
+            { isValid: false, runs: [], source: nil, reason: 'the trace carries no path.' }
+        rescue => error
+            { isValid: false, runs: [], source: nil, reason: "its path could not be read: #{error.message}" }
+        end
+
+        # Edges in one group -> sweepable runs in PARENT space. Positions are
+        # local to the group (closed, which every caller guarantees); the
+        # group's own transformation carries them into the assembly's space, so
+        # an edit group or Helpers group moved as a whole still lands right.
+        # The anchor lives in parent space, so it maps into local space first.
+        # With the identity (the usual case) both mappings are exact.
+        def self.Na__RegenEngine__RunsFromEdges(edges, transform, anchor_point = nil)
             local_anchor = self.Na__RegenEngine__MapAnchorToLocal(anchor_point, transform)
+            path_result  = Na__PathAnalysis.Na__Path__BuildChains(edges, local_anchor)
+            return { isValid: false, runs: [], reason: path_result[:reason] } unless path_result[:isValid]
 
-            path_result = Na__PathAnalysis.Na__Path__BuildChains(edges, local_anchor)
-            return path_result unless path_result[:isValid]
-
-            path_result[:chains].each do |chain|
-                chain[:ordered_points] = chain[:ordered_points].map { |point| point.transform(transform) }
+            chains = path_result[:chains].map do |chain|
+                { ordered_points: chain[:ordered_points].map { |point| point.transform(transform) }, is_closed_loop: chain[:is_closed_loop] }
             end
-            path_result
+            runs = self.Na__RegenEngine__BuildSweepableRuns(chains)
+            return { isValid: false, runs: [], reason: 'no run has two or more distinct points.' } if runs.empty?
+            { isValid: true, runs: runs, reason: nil }
+        rescue => error
+            { isValid: false, runs: [], reason: "path scan failed: #{error.message}" }
         end
 
         def self.Na__RegenEngine__MapAnchorToLocal(anchor_point, transform)
@@ -238,7 +305,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Private - Rebuild Operation
     # -------------------------------------------------------------------------
 
-        def self.Na__RegenEngine__ExecuteRebuild(model:, parent_group:, profile_data:, path_result:, payload:)
+        def self.Na__RegenEngine__ExecuteRebuild(model:, parent_group:, profile_data:, runs:, payload:, source: :stored)
             @na_in_progress = true
 
             rotation_step = payload['RotationStep'].to_i
@@ -257,9 +324,9 @@ module Na__ProfileTools__ProfilePathTracer
             # in the model, so the stored schema picks the frame.
             legacy_frame = self.Na__RegenEngine__LegacyFrameSchema?(payload)
 
-            runs = self.Na__RegenEngine__BuildSweepableRuns(path_result[:chains])
+            runs = Array(runs)
             if runs.empty?
-                self.Na__RegenEngine__ReportFailure('helpers linework has no run with two or more distinct points.')
+                self.Na__RegenEngine__ReportFailure('the path has no run with two or more distinct points.')
                 @na_in_progress = false
                 return false
             end
@@ -267,10 +334,18 @@ module Na__ProfileTools__ProfilePathTracer
             path_offsets   = { 'start' => payload['StartOffset'].to_f, 'end' => payload['EndOffset'].to_f }
             free_end_flags = self.Na__RegenEngine__FreeEndFlags(runs)
 
+            new_solid_group = nil
+            old_erased      = false
             model.start_operation('Na__ProfilePathTracer__Regenerate', true, false, true)
 
-            old_solid = Na__DataSerializer.Na__DataSerializer__FindSolidSubGroup(parent_group)
-            parent_group.entities.erase_entities([old_solid]) if old_solid && old_solid.valid?
+            # A copy of a trace shares its definition until something makes it
+            # unique; rebuilding a shared one would rebuild every copy, only one
+            # of which carries the new settings.
+            self.Na__RegenEngine__EnsureUniqueAssembly(parent_group)
+
+            old_solids = parent_group.entities.grep(Sketchup::Group).select do |child|
+                child.valid? && child.name == Na__DataSerializer::NA_SOLID_GROUP_NAME
+            end
 
             new_solid_group = parent_group.entities.add_group
             new_solid_group.name = Na__DataSerializer::NA_SOLID_GROUP_NAME
@@ -309,26 +384,55 @@ module Na__ProfileTools__ProfilePathTracer
             end
 
             if swept_run_count.zero?
-                model.abort_operation
+                # Never abort: this operation is transparent, and aborting it
+                # would abort the operation it joins. The old solid was never
+                # touched, so taking the empty group away leaves the trace as
+                # it was.
+                parent_group.entities.erase_entities([new_solid_group]) if new_solid_group.valid?
+                model.commit_operation
                 self.Na__RegenEngine__ReportFailure("no run could be swept — #{first_failure}")
                 @na_in_progress = false
                 return false
             end
 
-            self.Na__RegenEngine__RestyleHelperEdges(model, parent_group)
-            Na__DataSerializer.Na__DataSerializer__WritePathPoints(parent_group, runs.first[:ordered_points])
-            self.Na__RegenEngine__StampCurrentFingerprint(parent_group)
+            parent_group.entities.erase_entities(old_solids.select(&:valid?)) unless old_solids.empty?
+            old_erased = true
+
+            # The path the new solid follows becomes the trace's path, and with
+            # it gone anything that held the path as geometry: an Edit Path line
+            # (now applied) and, on a pre-v1.6.16 trace, the Helpers linework.
+            Na__DataSerializer.Na__DataSerializer__WritePathRuns(parent_group, runs)
+            edit_groups = Na__DataSerializer.Na__DataSerializer__FindEditPathGroups(parent_group)
+            parent_group.entities.erase_entities(edit_groups) unless edit_groups.empty?
+            Na__DataSerializer.Na__DataSerializer__RetireLegacyHelpers(parent_group)
 
             model.commit_operation
             @na_in_progress = false
-            self.Na__RegenEngine__ReattachHelpersObserver(parent_group)
-            self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure)
+            self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure, source)
             true
         rescue => error
-            model.abort_operation rescue nil
+            # The operation is transparent, so it is committed, not aborted. A
+            # half-built solid goes, unless the old one is already gone: then
+            # the new solid is the only one the trace has.
+            begin
+                if new_solid_group && new_solid_group.valid? && !old_erased
+                    parent_group.entities.erase_entities([new_solid_group])
+                end
+            rescue
+                nil
+            end
+            model.commit_operation rescue nil
             self.Na__RegenEngine__ReportFailure("rebuild operation failed — #{error.message}")
             @na_in_progress = false
             false
+        end
+
+        def self.Na__RegenEngine__EnsureUniqueAssembly(parent_group)
+            return unless parent_group.respond_to?(:make_unique) && parent_group.respond_to?(:definition)
+            return unless parent_group.definition.instances.length > 1
+            parent_group.make_unique
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("RegenEngine: make unique skipped: #{error.message}")
         end
 
         NA_WYSIWYG_FRAME_SCHEMA = '1.2.0'.freeze
@@ -405,8 +509,8 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__RegenEngine__SweepRun(target_entities:, model:, profile_data:, run:,
                                             rotation_step:, toggle_states:, origin_offset:,
                                             legacy_frame: false, path_offsets: nil)
-            # Same order as the first build: the run as drawn stays the Helpers
-            # linework, the sweep follows the run with its ends offset.
+            # Same order as the first build: the run as drawn stays the stored
+            # path, the sweep follows the run with its ends offset.
             offset_result = Na__GeometryBuilders.Na__Geometry__ApplyPathOffsets(
                 run[:ordered_points], run[:is_closed_loop], path_offsets
             )
@@ -442,64 +546,11 @@ module Na__ProfileTools__ProfilePathTracer
             { 'isSwept' => false, 'reason' => error.message }
         end
 
-        # Freshly drawn helper edges carry the default style, so re-apply the
-        # helpers material and keep the proxy reading as one piece of linework.
-        #
-        # Only the edges that are actually wrong get painted. Writing to an edge
-        # already carrying the right material would still fire onElementModified
-        # on the Helpers observer, and any callback delivered after the operation
-        # commits would schedule another regen — a rebuild loop that never settles.
-        def self.Na__RegenEngine__RestyleHelperEdges(model, parent_group)
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            return unless helpers_group
-
-            material = Na__TagApplier.Na__TagApplier__ResolveMteMaterial(
-                model, Na__GeometryBuilders::NA_HELPERS_MATERIAL_ID
-            )
-            return unless material
-
-            unpainted_edges = helpers_group.entities.grep(Sketchup::Edge).select do |edge|
-                edge.valid? && edge.material != material
-            end
-            return if unpainted_edges.empty?
-
-            Na__TagApplier.Na__TagApplier__PaintEdgesWithMteMaterial(
-                model, unpainted_edges, Na__GeometryBuilders::NA_HELPERS_MATERIAL_ID
-            )
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("RegenEngine: helper edge restyle skipped: #{error.message}")
-        end
-
-        # Written inside the rebuild operation so an undo reverts the stored
-        # fingerprint together with the geometry it describes — the RegenSweep
-        # comparison then still holds and cannot fire a phantom rebuild.
-        def self.Na__RegenEngine__StampCurrentFingerprint(parent_group)
-            return unless defined?(Na__RegenSweep)
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            return unless helpers_group
-            fingerprint = Na__RegenSweep.Na__RegenSweep__ComputeFingerprint(helpers_group)
-            Na__DataSerializer.Na__DataSerializer__WriteHelpersFingerprint(parent_group, fingerprint) if fingerprint
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("RegenEngine: fingerprint stamp skipped: #{error.message}")
-        end
-
-        # A user edit can silently make a copied assembly unique, swapping the
-        # Helpers definition (and Entities collection) underneath the attached
-        # observer. Re-resolve and re-attach after every rebuild.
-        def self.Na__RegenEngine__ReattachHelpersObserver(parent_group)
-            return unless defined?(Na__ObserverRegistry)
-            return unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            return unless helpers_group
-            Na__ObserverRegistry.Na__ObserverRegistry__AttachIfMissing(helpers_group)
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("RegenEngine: observer reattach skipped: #{error.message}")
-        end
-
-        def self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure)
+        def self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure, source = :stored)
             point_total = runs.sum { |run| run[:ordered_points].length }
-            message = "Profile Path Tracer: rebuilt #{parent_group.name} — " \
-                      "#{swept_run_count} of #{runs.length} run(s), #{point_total} helper points."
+            along = source == :edit ? 'along its edited path' : 'along its path'
+            message = "Profile Path Tracer: rebuilt #{parent_group.name} #{along} — " \
+                      "#{swept_run_count} of #{runs.length} run(s), #{point_total} path points."
             message += " Some runs were skipped: #{first_failure}" if swept_run_count < runs.length
             Sketchup.status_text = message
             Na__DebugTools.Na__Debug__Info(message)

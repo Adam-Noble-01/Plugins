@@ -34,6 +34,9 @@
 //                direction (an axis, a measured slope, a typed pitch). Their
 //                image is the line from the direction's vanishing point out
 //                through the point, clipped to the photo.
+//              - Counting divides a straight line into equal parts on the
+//                building. From the vanishing point of the line's direction
+//                the parts shrink toward the far end, as they do on the photo.
 // =============================================================================
 
 (function(root) {
@@ -54,6 +57,8 @@
     var NA_MC_TRIALS          = 160;
     var NA_MC_SEED            = 20261009;
     var NA_DEG                = 180 / Math.PI;
+    var NA_COUNT_REF_DEG      = 8;        // a reference this near a count's direction...
+    var NA_COUNT_REF_NEAR     = 0.35;     // ...and this near it (share of its length) is read along it
 
     // endregion ---------------------------------------------------------------
 
@@ -945,6 +950,125 @@
 
 
     // -------------------------------------------------------------------------
+    // REGION | Counting
+    // -------------------------------------------------------------------------
+    // A row of equal things (brick courses, tiles) along a straight 3D line,
+    // seen from A to B on the photo. With k the depth of B over the depth of
+    // A (distance along the camera's view), the point a fraction t of the way
+    // along the real line is seen a fraction s = t k / ((1 - t) + t k) of the
+    // way from A to B. k comes from the vanishing point of the line's
+    // direction; k = 1 is even spacing, a line square on to the camera.
+
+    // How far p's foot on the line a-b is from a, as a fraction of a-b.
+    function Na__ImageViewerPerspSolver__LineFraction(a, b, p) {
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var l2 = dx * dx + dy * dy;
+        return l2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2 : 0;
+    }
+
+    // Depth ratio k of the line a-b running toward the homogeneous vanishing
+    // point vp, read where vp's foot falls on the line. null when that foot
+    // lies between a and b: no straight line in front of the camera looks so.
+    function Na__ImageViewerPerspSolver__CountDepthRatio(a, b, vp) {
+        if (!a || !b || !vp) return null;
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 1e-9) return null;
+        var p = ((vp.x - vp.w * a.x) * dx + (vp.y - vp.w * a.y) * dy) / len;
+        var q = p - vp.w * len;
+        if (Math.abs(q) < 1e-12 * (Math.abs(p) + 1)) return null;
+        var k = p / q;
+        return isFinite(k) && k > 0 ? k : null;
+    }
+
+    // Photo fraction s of the real fraction t along the line, and back. A
+    // photo point past the vanishing point is no real point: Infinity.
+    function Na__ImageViewerPerspSolver__CountPosition(k, t) {
+        return t * k / ((1 - t) + t * k);
+    }
+
+    function Na__ImageViewerPerspSolver__CountParameter(k, s) {
+        var d = k - s * (k - 1);
+        if (!(d > 1e-12)) return s > 0 ? Infinity : -Infinity;
+        return s / d;
+    }
+
+    // The n + 1 ticks of the line a-b divided into n equal real parts.
+    function Na__ImageViewerPerspSolver__CountTicks(a, b, n, k) {
+        var out = [];
+        var dx = b.x - a.x, dy = b.y - a.y;
+        for (var j = 0; j <= n; j++) {
+            var s = j === 0 ? 0 : j === n ? 1 : Na__ImageViewerPerspSolver__CountPosition(k, j / n);
+            out.push({ x: a.x + dx * s, y: a.y + dy * s });
+        }
+        return out;
+    }
+
+    // The depth ratio that puts tick j of n at photo fraction s.
+    function Na__ImageViewerPerspSolver__CountTaper(n, j, s) {
+        if (!(j > 0 && j < n) || !(s > 0 && s < 1)) return null;
+        var t = j / n;
+        return s * (1 - t) / (t * (1 - s));
+    }
+
+    // The vanishing point on the line a-b that gives depth ratio k, so that
+    // spacing set by hand holds when an end is moved: k b - a, weight k - 1.
+    function Na__ImageViewerPerspSolver__CountVanishingPoint(a, b, k) {
+        return { x: k * b.x - a.x, y: k * b.y - a.y, w: k - 1 };
+    }
+
+    // The real length of the count a-b (depth ratio k) from a reference line
+    // ra-rb of refMm drawn along it: the share of the count the reference
+    // covers on the building, read straight across onto the count. So a
+    // reference course at one end of a foreshortened row still gives the
+    // right length. Exact when the reference is on the count's own line
+    // (two of its ticks); beside it, the reference is taken to be as far
+    // from the camera as the count. null when the reference does not run
+    // along the count, sits too far from it, or covers no real length.
+    function Na__ImageViewerPerspSolver__CountReferenceLength(a, b, k, ra, rb, refMm) {
+        if (!a || !b || !ra || !rb || !(refMm > 0) || !(k > 0)) return null;
+        var dx = b.x - a.x, dy = b.y - a.y, L = Math.sqrt(dx * dx + dy * dy);
+        var rx = rb.x - ra.x, ry = rb.y - ra.y, R = Math.sqrt(rx * rx + ry * ry);
+        if (!(L > 0) || !(R > 0)) return null;
+        if (Math.abs(rx * dx + ry * dy) / (R * L) < Math.cos(NA_COUNT_REF_DEG / NA_DEG)) return null;
+        var mx = (ra.x + rb.x) / 2 - a.x, my = (ra.y + rb.y) / 2 - a.y;
+        if (Math.abs(mx * dy - my * dx) / L > NA_COUNT_REF_NEAR * L) return null;
+        var s1 = Na__ImageViewerPerspSolver__LineFraction(a, b, ra), s2 = Na__ImageViewerPerspSolver__LineFraction(a, b, rb);
+        if (Math.min(s1, s2) < -0.25 || Math.max(s1, s2) > 1.25) return null;
+        var t1 = Na__ImageViewerPerspSolver__CountParameter(k, s1), t2 = Na__ImageViewerPerspSolver__CountParameter(k, s2);
+        if (!isFinite(t1) || !isFinite(t2) || Math.abs(t2 - t1) < 1e-6) return null;
+        return refMm / Math.abs(t2 - t1);
+    }
+
+    // The vanishing point of one colour of calibration lines on its own, for
+    // a photo that is not fully calibrated yet: two verticals are enough to
+    // space a vertical count. null for fewer than two lines, or two drawn
+    // along the same edge.
+    function Na__ImageViewerPerspSolver__AxisVanishingPoint(lines, axis, size) {
+        var group = Na__ImageViewerPerspSolver__PrepareLines(lines).filter(function(l) { return l.axis === axis; });
+        if (group.length < 2) return null;
+        var w = (size && size.w) || 4032, h = (size && size.h) || 3024;
+        var s = Math.sqrt(w * w + h * h) / 2;
+        var M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+        group.forEach(function(line) {
+            var n   = Na__ImageViewerPerspSolver__InterpretationNormal(line, s);
+            var len = Na__ImageViewerPerspSolver__LineLength(line);
+            var wt  = (len * len) / (line.sigma * line.sigma);
+            for (var i = 0; i < 3; i++) {
+                for (var j = 0; j < 3; j++) M[i][j] += wt * n[i] * n[j];
+            }
+        });
+        var eig = Na__ImageViewerPerspSolver__SymEig(M);
+        var order = [0, 1, 2].sort(function(p, q) { return eig.values[p] - eig.values[q]; });
+        if (!(eig.values[order[1]] > 1e-6 * eig.values[order[2]])) return null;
+        var d = na_vec.unit(eig.vectors[order[0]]);
+        return { x: s * d[0], y: s * d[1], w: d[2] };
+    }
+
+    // endregion ---------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
     // REGION | Public Surface
     // -------------------------------------------------------------------------
 
@@ -971,6 +1095,16 @@
         segmentIntersection     : Na__ImageViewerPerspSolver__SegmentIntersection,
         closestOnSegment        : Na__ImageViewerPerspSolver__ClosestOnSegment,
         inferGuide              : Na__ImageViewerPerspSolver__InferGuide,
+        // counting
+        lineFraction            : Na__ImageViewerPerspSolver__LineFraction,
+        countDepthRatio         : Na__ImageViewerPerspSolver__CountDepthRatio,
+        countPosition           : Na__ImageViewerPerspSolver__CountPosition,
+        countParameter          : Na__ImageViewerPerspSolver__CountParameter,
+        countTicks              : Na__ImageViewerPerspSolver__CountTicks,
+        countTaper              : Na__ImageViewerPerspSolver__CountTaper,
+        countVanishingPoint     : Na__ImageViewerPerspSolver__CountVanishingPoint,
+        countReferenceLength    : Na__ImageViewerPerspSolver__CountReferenceLength,
+        axisVanishingPoint      : Na__ImageViewerPerspSolver__AxisVanishingPoint,
         // exposed for the tests
         _symEig        : Na__ImageViewerPerspSolver__SymEig,
         _rotExp        : Na__ImageViewerPerspSolver__RotExp

@@ -1984,8 +1984,31 @@
         Na__ImageViewerPerspective__RefreshPanel();
     }
 
-    // Read-only view of the current photo's guides, for the browser tests.
+    // Read-only views of the current photo: its guides, for the browser
+    // tests, and the directions the Count tool can space a row along.
     window.Na__ImageViewer__Perspective = {
+        // Each direction with its vanishing point: the axes, measured pitches
+        // and typed-pitch slopes once calibrated. Before that, a colour drawn
+        // with two or more lines still fixes its own vanishing point.
+        directions: function() {
+            var key = Na__ImageViewerPerspective__Key();
+            var st  = key ? na_stateByKey[key] : null;
+            if (!st) return [];
+            var an  = na_analysisByKey[key] || null;
+            if (an && an.cal && an.cal.ok) {
+                return Na__ImageViewerPerspective__GuideCandidates(an, st).map(function(c) {
+                    return { label: c.label, vp: { x: c.vp.x, y: c.vp.y, w: c.vp.w }, source: 'calibration' };
+                });
+            }
+            var names = { z: 'Blue verticals', x: 'Red level lines', y: 'Green level lines' };
+            var size  = na_core.getImageSize();
+            var out   = [];
+            NA_AXES.forEach(function(axis) {
+                var vp = na_solver.axisVanishingPoint(st.lines, axis, size);
+                if (vp) out.push({ label: names[axis], vp: vp, source: 'lines' });
+            });
+            return out;
+        },
         inspect: function() {
             var key = Na__ImageViewerPerspective__Key();
             var st  = key ? na_stateByKey[key] : null;

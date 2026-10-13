@@ -22,11 +22,17 @@
 #                                   world space as built, inside a group or not.
 #     ReverseDirection     String   "true" | "false"
 #     OriginOffset         String   JSON-encoded [y_mm, z_mm] datum shift
+#     PathRuns             String   THE PATH (v1.6.16). JSON-encoded
+#                                   [{"Points": [[x,y,z], ...], "IsClosedLoop": b}, ...]
+#                                   in inches, in parent space like StartPoint:
+#                                   every run the trace sweeps, in traversal
+#                                   order, a loop's closing edge implied. Every
+#                                   rebuild sweeps these. Edit Path draws them as
+#                                   a red line for the edit and reads them back.
 #     PathPoints           String   JSON-encoded [[x,y,z], ...] in inches, in
-#                                   parent space like StartPoint.
-#                                   Informational cache of the PRIMARY run only —
-#                                   regeneration always re-derives the real path
-#                                   from the Helpers edges, which may hold several.
+#                                   parent space like StartPoint: the PRIMARY
+#                                   run only, kept for older readers and as the
+#                                   last fallback for a trace with no PathRuns.
 #     StartOffset          String   mm (signed) the sweep overshoots (+) or trims
 #                                   (-) at the TRAVERSAL start of an open run —
 #                                   the end nearest StartPoint. "0" on loops.
@@ -36,11 +42,11 @@
 #                                   canonical direction rule reversed). Geometry
 #                                   never reads it; the swap engine does, so a
 #                                   bound trace shows and takes offsets as typed.
-#     DynamicRegenEnabled  String   "true" | "false"
-#     HelpersFingerprint   String   SHA1 of the helpers linework (see
-#                                   Na__RegenSweep). Written inside the same
-#                                   operation as the geometry it describes, so
-#                                   undo/redo keeps stored + actual in sync.
+#     DynamicRegenEnabled  String   LEGACY (to v1.6.15): "false" switched a
+#                                   trace's Helpers linework off from rebuilding.
+#     HelpersFingerprint   String   LEGACY (to v1.6.15): SHA1 of the Helpers
+#                                   linework the solid was built from. Both are
+#                                   deleted when a trace's Helpers are retired.
 #     SchemaVersion        String   "1.2.0"
 #     CreatedAt            String   ISO-8601 timestamp
 #     ProfileSource        String   "library" | "local" (v1.6.14; absent = library)
@@ -52,9 +58,25 @@
 #                                   ProfileKey stays the key it was drawn from.
 #     LocalProfileName     String   what the local profile is called on screen
 #
-#   Helpers sub-group      -> Na__ProfilePathTracer__HelpersInfo
+#   Edit Path group        -> Na__ProfilePathTracer__EditPathInfo (v1.6.16)
+#     ProfileTraceId       String   Back-reference to the parent assembly id
+#     BaselineFingerprint  String   SHA1 of the red line as it was drawn, so an
+#                                   edit that changed nothing closes without a
+#                                   rebuild
+#     ForceRebuild         String   "true" when the path came from Helpers
+#                                   linework that had been edited without a
+#                                   rebuild: the solid must follow it even if
+#                                   the red line is left as it is
+#     SchemaVersion        String   "1.2.0"
+#   The group (Na__ProfileTrace__EditPath) exists only while the path is being
+#   edited. It is untagged, its edges painted red (MTE201).
+#
+#   Helpers sub-group      -> Na__ProfilePathTracer__HelpersInfo (LEGACY, to v1.6.15)
 #     ProfileTraceId       String   Back-reference to the parent assembly id
 #     SchemaVersion        String   "1.2.0"
+#   Traces built before v1.6.16 carry their path as edges in this group, on the
+#   02__ProfilePathTracer_Helpers tag. The first rebuild or Edit Path moves the
+#   path into PathRuns and erases the group (Na__DataSerializer__RetireLegacyHelpers).
 #
 # SCHEMA COMPATIBILITY
 #   1.0.0 assemblies (no ReverseDirection / OriginOffset / PathPoints) still
@@ -62,7 +84,9 @@
 #   trace regenerates exactly as it did before. StartOffset / EndOffset /
 #   OffsetEndsSwapped (v1.6.11) are optional in the same way: absent reads as
 #   0 / 0 / false, which is exactly how every earlier trace was swept, so they
-#   did not need a schema bump.
+#   did not need a schema bump. PathRuns (v1.6.16) needs none either: a trace
+#   without it is a legacy trace, read from its Helpers linework (or, with
+#   none left, from PathPoints) until its first rebuild writes PathRuns.
 #   1.2.0 marks assemblies built with the WYSIWYG (mirrored) path frame that
 #   matches the 2D dialog preview. Traces stamped 1.1.0 or earlier were swept
 #   with the legacy right-handed frame; the RegenerationEngine reads this
@@ -74,14 +98,20 @@
 #   Na__DataSerializer__StampHelpers(helpers_group, profile_trace_id)
 #   Na__DataSerializer__ReadParentPayload(group) -> Hash or nil
 #   Na__DataSerializer__UpdateParentPlacement(parent_group, updates) -> Boolean
-#   Na__DataSerializer__WritePathPoints(parent_group, points) -> Boolean
+#   Na__DataSerializer__WritePathRuns(parent_group, runs) -> Boolean
+#   Na__DataSerializer__ReadPathRuns(parent_group) -> [run, ...] or nil
 #   Na__DataSerializer__IsProfileTraceParent?(group) -> Boolean
-#   Na__DataSerializer__IsHelpersSubGroup?(group) -> Boolean
-#   Na__DataSerializer__FindHelpersSubGroup(parent_group) -> group or nil
-#   Na__DataSerializer__FindParentFromHelpers(helpers_group) -> group or nil
-#   Na__DataSerializer__SetDynamicRegen(parent_group, enabled_bool)
-#   Na__DataSerializer__DynamicRegenEnabled?(parent_group) -> Boolean
+#   Na__DataSerializer__IsEditPathGroup?(group) -> Boolean
+#   Na__DataSerializer__FindEditPathGroup(parent_group) -> group or nil
+#   Na__DataSerializer__FindParentFromEditGroup(edit_group) -> group or nil
+#   Na__DataSerializer__StampEditPathGroup(edit_group, trace_id, baseline, force)
+#   Na__DataSerializer__IsHelpersSubGroup?(group) -> Boolean            (legacy)
+#   Na__DataSerializer__FindHelpersSubGroup(parent_group) -> group or nil (legacy)
+#   Na__DataSerializer__RetireLegacyHelpers(parent_group) -> Integer    (legacy)
 #   Na__DataSerializer__GenerateNextProfileTraceId(model) -> String
+#
+#   A run is { ordered_points: [Geom::Point3d, ...], is_closed_loop: Boolean },
+#   the shape Na__PathAnalysis builds and the regeneration engine sweeps.
 #
 # =============================================================================
 
@@ -105,6 +135,12 @@ module Na__ProfileTools__ProfilePathTracer
         NA_ID_REGEX            = /^NPT\d{4}$/.freeze
         NA_HELPERS_GROUP_NAME  = 'Na__ProfileTrace__Helpers'.freeze
         NA_SOLID_GROUP_NAME    = 'Na__ProfileTrace__SweptSolid'.freeze
+        NA_EDIT_PATH_DICT       = 'Na__ProfilePathTracer__EditPathInfo'.freeze
+        NA_EDIT_PATH_GROUP_NAME = 'Na__ProfileTrace__EditPath'.freeze
+        NA_PATH_RUNS_KEY        = 'PathRuns'.freeze
+        # Legacy only: what v1.6.15 and older appended to a trace's name.
+        NA_LEGACY_DYNREGEN_SUFFIX = ' [DynRegen]'.freeze
+        NA_LEGACY_KEYS            = %w[HelpersFingerprint DynamicRegenEnabled].freeze
         NA_LOCAL_PROFILE_KEY      = 'LocalProfile'.freeze
         NA_LOCAL_PROFILE_NAME_KEY = 'LocalProfileName'.freeze
         NA_PROFILE_SOURCE_KEY     = 'ProfileSource'.freeze
@@ -128,19 +164,20 @@ module Na__ProfileTools__ProfilePathTracer
             dict['ReverseDirection']    = (payload_hash['ReverseDirection'] == true).to_s
             dict['OriginOffset']        = self.Na__DataSerializer__SerialiseOriginOffset(payload_hash['OriginOffset'])
             dict['PathPoints']          = self.Na__DataSerializer__SerialisePointList(payload_hash['PathPoints'])
+            dict[NA_PATH_RUNS_KEY]      = self.Na__DataSerializer__SerialisePathRuns(
+                payload_hash['PathRuns'] ||
+                [{ ordered_points: Array(payload_hash['PathPoints']), is_closed_loop: payload_hash['IsClosedLoop'] == true }]
+            )
             path_offsets                = payload_hash['PathOffsets'].is_a?(Hash) ? payload_hash['PathOffsets'] : {}
             dict['StartOffset']         = self.Na__DataSerializer__SerialiseOffsetMm(path_offsets['start'])
             dict['EndOffset']           = self.Na__DataSerializer__SerialiseOffsetMm(path_offsets['end'])
             dict['OffsetEndsSwapped']   = (payload_hash['OffsetEndsSwapped'] == true).to_s
-            dict['DynamicRegenEnabled'] = 'true'
             dict['SchemaVersion']       = NA_SCHEMA_VERSION
             dict['CreatedAt']           = Time.now.utc.iso8601
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: StampParent failed: #{error.message}")
         end
 
-        # Refreshes only the cached path after a regeneration so the stored
-        # payload always mirrors the current Helpers linework.
         def self.Na__DataSerializer__WritePathPoints(parent_group, points)
             return false unless self.Na__DataSerializer__GroupValid?(parent_group)
             dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
@@ -150,6 +187,38 @@ module Na__ProfileTools__ProfilePathTracer
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WritePathPoints failed: #{error.message}")
             false
+        end
+
+        # The path every rebuild sweeps: written by the build and by every
+        # rebuild, inside the same operation as the geometry, so undo and redo
+        # keep the stored path and the solid together. PathPoints follows the
+        # primary run for older readers. Points go in exactly as given (parent
+        # space, inches): JSON keeps a Float to the last bit, so a path read
+        # back and written again without an edit is unchanged, however often.
+        def self.Na__DataSerializer__WritePathRuns(parent_group, runs)
+            return false unless self.Na__DataSerializer__GroupValid?(parent_group)
+            list = Array(runs).select { |run| run.is_a?(Hash) && Array(run[:ordered_points]).length >= 2 }
+            return false if list.empty?
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
+            return false unless dict
+            dict[NA_PATH_RUNS_KEY] = self.Na__DataSerializer__SerialisePathRuns(list)
+            dict['PathPoints']     = self.Na__DataSerializer__SerialisePointList(list.first[:ordered_points])
+            true
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: WritePathRuns failed: #{error.message}")
+            false
+        end
+
+        # The stored runs, or nil when the trace has none (a legacy trace).
+        def self.Na__DataSerializer__ReadPathRuns(parent_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(parent_group)
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            return nil unless dict
+            runs = self.Na__DataSerializer__DeserialisePathRuns(dict[NA_PATH_RUNS_KEY])
+            runs.empty? ? nil : runs
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: ReadPathRuns failed: #{error.message}")
+            nil
         end
 
         # Patches ONLY the placement values a profile hot-swap is allowed to
@@ -234,6 +303,11 @@ module Na__ProfileTools__ProfilePathTracer
 
             helpers_group = self.Na__DataSerializer__FindHelpersSubGroup(parent_group)
             self.Na__DataSerializer__StampHelpers(helpers_group, new_trace_id) if helpers_group
+            edit_group = self.Na__DataSerializer__FindEditPathGroup(parent_group)
+            if edit_group
+                edit_dict = edit_group.attribute_dictionary(NA_EDIT_PATH_DICT, true)
+                edit_dict['ProfileTraceId'] = new_trace_id
+            end
             true
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: RestampTraceId failed: #{error.message}")
@@ -248,6 +322,26 @@ module Na__ProfileTools__ProfilePathTracer
             dict['SchemaVersion']  = NA_SCHEMA_VERSION
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: StampHelpers failed: #{error.message}")
+        end
+
+        def self.Na__DataSerializer__StampEditPathGroup(edit_group, profile_trace_id, baseline_fingerprint, force_rebuild)
+            return unless edit_group
+            dict = edit_group.attribute_dictionary(NA_EDIT_PATH_DICT, true)
+            dict['ProfileTraceId']      = profile_trace_id.to_s
+            dict['BaselineFingerprint'] = baseline_fingerprint.to_s
+            dict['ForceRebuild']        = (force_rebuild == true).to_s
+            dict['SchemaVersion']       = NA_SCHEMA_VERSION
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: StampEditPathGroup failed: #{error.message}")
+        end
+
+        # { 'baseline' => String, 'forceRebuild' => Boolean } for an Edit Path group.
+        def self.Na__DataSerializer__EditPathGroupInfo(edit_group)
+            dict = edit_group && edit_group.respond_to?(:attribute_dictionary) ? edit_group.attribute_dictionary(NA_EDIT_PATH_DICT) : nil
+            return { 'baseline' => '', 'forceRebuild' => false } unless dict
+            { 'baseline' => dict['BaselineFingerprint'].to_s, 'forceRebuild' => dict['ForceRebuild'] == 'true' }
+        rescue
+            { 'baseline' => '', 'forceRebuild' => false }
         end
 
     # endregion ----------------------------------------------------------------
@@ -274,7 +368,6 @@ module Na__ProfileTools__ProfilePathTracer
                 'StartOffset'        => self.Na__DataSerializer__DeserialiseOffsetMm(dict['StartOffset']),
                 'EndOffset'          => self.Na__DataSerializer__DeserialiseOffsetMm(dict['EndOffset']),
                 'OffsetEndsSwapped'  => dict['OffsetEndsSwapped'] == 'true',
-                'DynamicRegenEnabled'=> dict['DynamicRegenEnabled'] == 'true',
                 'SchemaVersion'      => dict['SchemaVersion'].to_s,
                 # The local profile itself is only parsed where it is swept
                 # (Na__DataSerializer__LocalProfileRecord): every reader of
@@ -409,6 +502,14 @@ module Na__ProfileTools__ProfilePathTracer
             false
         end
 
+        def self.Na__DataSerializer__IsEditPathGroup?(group)
+            return false unless self.Na__DataSerializer__GroupValid?(group)
+            return false unless group.is_a?(Sketchup::Group)
+            !group.attribute_dictionary(NA_EDIT_PATH_DICT).nil?
+        rescue
+            false
+        end
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -431,6 +532,57 @@ module Na__ProfileTools__ProfilePathTracer
             end
         rescue
             nil
+        end
+
+        # The red line Edit Path spawns (v1.6.16). It exists only while the
+        # path is being edited, or after an undo has brought it back.
+        def self.Na__DataSerializer__FindEditPathGroup(parent_group)
+            self.Na__DataSerializer__FindEditPathGroups(parent_group).first
+        end
+
+        def self.Na__DataSerializer__FindEditPathGroups(parent_group)
+            return [] unless self.Na__DataSerializer__GroupValid?(parent_group)
+            parent_group.entities.grep(Sketchup::Group).select do |child|
+                self.Na__DataSerializer__IsEditPathGroup?(child)
+            end
+        rescue
+            []
+        end
+
+        def self.Na__DataSerializer__FindParentFromEditGroup(edit_group)
+            return nil unless self.Na__DataSerializer__GroupValid?(edit_group)
+            direct_parent = self.Na__DataSerializer__ContainingInstance(edit_group)
+            return direct_parent if direct_parent && self.Na__DataSerializer__IsProfileTraceParent?(direct_parent)
+            nil
+        rescue
+            nil
+        end
+
+        # LEGACY. Moves a pre-v1.6.16 trace off its Helpers linework: erases the
+        # Helpers group (and with it the trace's only use of the
+        # 02__ProfilePathTracer_Helpers tag), deletes the fingerprint and
+        # Dynamic Regeneration keys, and drops the " [DynRegen]" name suffix.
+        # The caller has written PathRuns first and holds the open operation.
+        # Returns the number of Helpers groups erased.
+        def self.Na__DataSerializer__RetireLegacyHelpers(parent_group)
+            return 0 unless self.Na__DataSerializer__GroupValid?(parent_group)
+
+            helpers_groups = parent_group.entities.grep(Sketchup::Group).select do |child|
+                child.valid? && (child.name == NA_HELPERS_GROUP_NAME || self.Na__DataSerializer__IsHelpersSubGroup?(child))
+            end
+            parent_group.entities.erase_entities(helpers_groups) unless helpers_groups.empty?
+
+            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
+            if dict
+                NA_LEGACY_KEYS.each { |key| dict.delete_key(key) unless dict[key].nil? }
+            end
+
+            name = parent_group.name.to_s
+            parent_group.name = name.delete_suffix(NA_LEGACY_DYNREGEN_SUFFIX) if name.end_with?(NA_LEGACY_DYNREGEN_SUFFIX)
+            helpers_groups.length
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: RetireLegacyHelpers failed: #{error.message}")
+            0
         end
 
         def self.Na__DataSerializer__FindParentFromHelpers(helpers_group)
@@ -486,22 +638,18 @@ module Na__ProfileTools__ProfilePathTracer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Toggle Operations
+    # REGION | Legacy Dynamic Regeneration Switch
     # -------------------------------------------------------------------------
 
-        def self.Na__DataSerializer__SetDynamicRegen(parent_group, enabled_bool)
-            return unless self.Na__DataSerializer__GroupValid?(parent_group)
-            dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT, true)
-            dict['DynamicRegenEnabled'] = (enabled_bool == true).to_s
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("Na__DataSerializer: SetDynamicRegen failed: #{error.message}")
-        end
-
-        def self.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
+        # Up to v1.6.15 a trace's Helpers linework could be switched off from
+        # rebuilding it. Such a trace keeps its linework as drawn until it is
+        # rebuilt on purpose (Regenerate Now, Edit Path, a swap). There is no
+        # switch any more: a trace always follows its path.
+        def self.Na__DataSerializer__LegacyRegenSwitchedOff?(parent_group)
             return false unless self.Na__DataSerializer__GroupValid?(parent_group)
             dict = parent_group.attribute_dictionary(NA_PROFILE_TRACE_DICT)
             return false unless dict
-            dict['DynamicRegenEnabled'] == 'true'
+            dict['DynamicRegenEnabled'] == 'false'
         rescue
             false
         end
@@ -590,6 +738,38 @@ module Na__ProfileTools__ProfilePathTracer
             parsed.map do |coords|
                 next nil unless coords.is_a?(Array) && coords.length == 3
                 Geom::Point3d.new(coords[0].to_f, coords[1].to_f, coords[2].to_f)
+            end.compact
+        rescue
+            []
+        end
+
+        def self.Na__DataSerializer__SerialisePathRuns(runs)
+            list = Array(runs).map do |run|
+                next nil unless run.is_a?(Hash)
+                points = Array(run[:ordered_points]).compact.select { |point| point.respond_to?(:x) }
+                next nil if points.length < 2
+                {
+                    'Points'       => points.map { |point| [point.x.to_f, point.y.to_f, point.z.to_f] },
+                    'IsClosedLoop' => run[:is_closed_loop] == true
+                }
+            end.compact
+            JSON.generate(list)
+        rescue
+            '[]'
+        end
+
+        def self.Na__DataSerializer__DeserialisePathRuns(json_string)
+            return [] unless json_string.is_a?(String) && !json_string.empty?
+            parsed = JSON.parse(json_string)
+            return [] unless parsed.is_a?(Array)
+            parsed.map do |record|
+                next nil unless record.is_a?(Hash)
+                points = Array(record['Points']).map do |coords|
+                    next nil unless coords.is_a?(Array) && coords.length == 3
+                    Geom::Point3d.new(coords[0].to_f, coords[1].to_f, coords[2].to_f)
+                end.compact
+                next nil if points.length < 2
+                { ordered_points: points, is_closed_loop: record['IsClosedLoop'] == true }
             end.compact
         rescue
             []

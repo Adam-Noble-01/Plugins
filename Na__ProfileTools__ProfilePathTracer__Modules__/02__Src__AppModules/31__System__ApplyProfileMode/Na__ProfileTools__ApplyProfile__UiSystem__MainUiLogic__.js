@@ -588,7 +588,7 @@
         // Straight through to Ruby. There is nothing to validate here: the
         // navigator works from the model selection, which this side cannot see,
         // and it already returns a specific message for every way it can fail
-        // ("select a trace first", "no Helpers sub-group", "locked context").
+        // ("select a trace first", "no path to edit", "locked context").
         // A guess made here would only be able to say something vaguer.
         Na__Events__OnOpenPathEditor: function() {
             if (window.Na__ProfilePathTracer__Bridge__OpenPathEditor) {

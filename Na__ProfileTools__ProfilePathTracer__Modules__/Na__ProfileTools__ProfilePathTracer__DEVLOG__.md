@@ -4,6 +4,185 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.16 - 13-Oct-2026 - The Path Is Data: No Helper Linework, No Helper Tag
+
+### Summary
+A trace no longer carries its path as red helper linework. There is no Helpers group, no
+`02__ProfilePathTracer_Helpers` tag, and nothing to hide in scenes: a trace is its swept solid
+and nothing else. **The path is stored on the trace itself (`PathRuns`), and only Edit Path draws
+it, as a red line inside the trace, while it is being edited.** Edit it with any SketchUp tool and
+click outside the trace: it rebuilds along the line, the line becomes the stored path, and the
+line is erased. Left unchanged, the line is simply erased and nothing is rebuilt.
+
+### What changes in use
+| Before | Now |
+|---|---|
+| Every trace held a red short-dash Helpers line on its own tag, shown in every scene | Only the solid. No tag is created |
+| Edit Path opened the Helpers group | Edit Path draws a red line from the stored path, opens it and selects every edge |
+| Dynamic Regeneration on/off per trace; Enable All, Disable All, Detach All Observers; names ending ` [DynRegen]` | Gone. A trace always follows its path, so there is nothing to switch |
+| Right-click: Open Path for Editing, Disable/Enable Dynamic Regeneration, Regenerate Now | Right-click: **Edit Path**, **Regenerate Now**. While a red line is open (or waiting after an undo): **Finish Path Edit**, **Discard Path Edit** |
+| Settings: Dynamic Regeneration | Settings: **Path Editing** (Edit Path, **Remove Helper Linework**, and a count of traces still carrying the old linework) |
+
+### How it works
+- **The data.** `PathRuns` on `Na__ProfilePathTracer__Info`: every run the trace sweeps, in
+  traversal order, in parent space (inches), a loop's closing edge implied. The build writes it,
+  and so does every rebuild, inside the same operation as the geometry, so undo and redo keep the
+  path and the solid together. `PathPoints` still follows the primary run for older readers.
+  JSON keeps a Float to its last bit, so a path read back and written again is unchanged.
+- **Drawing the line** (`Na__EditPathNavigator`). A trace the user is standing in is stepped out
+  of first. One operation then makes `Na__ProfileTrace__EditPath` inside the trace, adds the
+  stored points as edges, paints them red, and stamps a baseline fingerprint. The red is MTE201,
+  made by value (229, 57, 53) when the edge colour library is not loaded. The group is untagged.
+  `active_path=` then opens it, outside the operation, and SketchUp joins its own transparent
+  steps to the one that drew the line.
+- **Finishing it** (`Na__RegenSweep`). When the user leaves the trace (`onActivePathChanged`),
+  the line's edges are fingerprinted in parent space and compared with the baseline:
+
+  | The line | Result |
+  |---|---|
+  | unchanged | erased; no rebuild, and no undo step of its own (it joins the step that drew it) |
+  | changed | `Na__RegenEngine__RegenerateTrace` sweeps it (several runs if it now holds several), stores it as `PathRuns` and erases it, in one undo step with the last edit |
+  | erased | the empty group goes; the trace keeps its path |
+  | will not sweep | the line stays, the status bar says why, Edit Path reopens it, Ctrl+Z steps back. The same failing line is not retried until it changes |
+  | still being edited (in the line, or in the trace around it) | waits |
+
+- **Undo.** A sweep whose window held an undo or a redo, or a model just opened, only looks. A
+  change made then would wipe the redo stack. And an undo can bring back a line whose rebuild it
+  has just taken away; finishing it at once would redo the edit just undone. The line waits, and
+  the next change the user makes finishes it, joined to that change.
+- **Any rebuild takes a waiting line along**: Regenerate Now, Finish Path Edit, a swap, Draw
+  Profile's Update This Trace and Live all sweep the red line if there is one, and erase it.
+
+### The Coordinate Rule
+The stored path is in the trace's own space. The line is drawn with the trace **closed**: its new
+group's entities are local and it starts at the identity, so the stored points go in exactly as
+they are. It is read back the same way, only after the user has left the trace. There is no
+`edit_transform`, no `inverse` and no conversion in or out. Opening and closing a path without an
+edit gives back the same bytes, however many times it is done. (Measured: ten round trips in each
+test context, byte-identical.)
+
+### The Reverse flip is where it was
+A reversed trace is mirrored about the top of its bounds. Those bounds used to include the
+Helpers linework, whose only contribution is the drawn run's points. The flip now takes the
+solid's bounds plus those points (`Na__Geometry__ApplyReverseFlip`), which is the same box, so a
+reversed trace lands exactly where v1.6.15 put it. The red line shows through the flip, where the
+old Helpers line used to show.
+
+### Traces built before v1.6.16
+They still work. A legacy trace's path is read from its Helpers linework (or, if that group was
+deleted, from `PathPoints`). Its first rebuild or Edit Path stores the path as `PathRuns` and
+erases the Helpers group. It also deletes the `HelpersFingerprint` and `DynamicRegenEnabled` keys
+and drops ` [DynRegen]` from the name. Edit Path does this in the same step as it draws the red
+line, so the path never shows twice. Two cases are handled explicitly:
+- **Helpers edited by hand but never rebuilt** (the fingerprint differs): Edit Path marks the
+  line `ForceRebuild`, so the solid follows the linework even if the line is left alone.
+- **Helpers double-clicked into and edited** (the old way): leaving the trace rebuilds it along
+  them and retires them. A trace whose regeneration had been switched off is left alone.
+
+**Settings > Remove Helper Linework** does a whole model at once. Every legacy trace is moved onto
+stored data; the solid is not touched unless the linework had been edited, in which case it is
+rebuilt along it first. Then the `02__ProfilePathTracer_Helpers` tag is removed, unless something
+else in the model is still on it or it is the current tag. One undo step.
+
+### Also fixed
+- **A failed rebuild aborted the step before it.** The rebuild is a transparent operation, and
+  aborting one aborts the operation it joins: the user's last edit, or a swap's dictionary write.
+  The rebuild now sweeps the new solid first and erases the old one only once the new one stands.
+  A rebuild that sweeps nothing erases its empty group and commits.
+- **A copy sharing its definition was rebuilt in the shared definition**, so both copies changed
+  while only one carried the new settings. The rebuild (and Edit Path) now make the trace unique
+  first.
+- **A loop rebuilt on the other side of its path.** An anticlockwise loop handed straight to the
+  builder (the UI always winds loops clockwise first) flipped to the other side on its first
+  rebuild. The rebuild re-read the Helpers edges and re-normalised their winding. The stored path
+  is now swept as built.
+
+### Verified offline (SketchUp's bundled Ruby 3.2.2, Coordinate Rule doubles)
+- **Parity with v1.6.15:** 18 traces, built by the v1.6.15 snapshot and by this code, at the
+  root, three groups deep (moved, rotated, tilted) and in a 2 / 1.5 / 0.5 scaled group. Six cases
+  each: L run; reversed; offsets +150 / -100; rolled; clockwise loop; reversed loop. Every
+  section vertex agrees within 0.001 mm and the assembly placement is identical, before and after
+  a rebuild with the context closed. v1.6.15 creates the helper tag; this code does not.
+- **`edit_path.rb.test`, 69/69**, in all three contexts:
+  - the build: only the solid, no tag, the path stored as drawn, no retired keys;
+  - Edit Path: the line on the path in the world, open, every edge selected, red, untagged, one
+    undo step;
+  - unchanged, ten times over: no rebuild, the same solid, byte-identical path;
+  - a moved corner plus an extension: the solid matches a fresh trace on that path;
+  - an undo window never finishes, the next change does; stepping into the trace waits;
+  - an erased line; a failed rebuild (kept, reported, not retried, reopened, then applied);
+  - Finish and Discard; a second stroke becoming a second run;
+  - loops (closing edge drawn, stays a loop); Reverse; the context menu items;
+  - swap and Regenerate Now along the stored path;
+  - **the trace, and separately a group round it, moved and turned after building**;
+  - legacy: Regenerate Now, Edit Path, hand-edited never rebuilt, hand-edited and left,
+    switched off;
+  - Remove Helper Linework, with the tag removed or kept; strays watched by a passive sweep;
+    locked and two-trace selections refused; the PathPoints fallback; a rebuild that sweeps
+    nothing (committed, not aborted; the old solid untouched).
+- **Mutations, each caught:**
+
+  | Mutation | Scenarios failing |
+  |---|---|
+  | double conversion when the line is drawn (pushed through the trace's placement) | 7 |
+  | finishing during an undo or redo window | 4 |
+  | rebuilding even when the line is unchanged | 15 |
+  | reading the line while the trace around it is still open | 3 |
+  | aborting the transparent rebuild when nothing sweeps | 1 |
+
+  The double conversion first slipped through: a freshly built trace is pinned to the world
+  identity, so a wrong push through its placement does nothing. The scenarios that move the
+  trace, and a group round it, after building were added for it.
+- **The dialog, headless** (`settings_smoke.ui.js`, 12 checks): Settings shows Path Editing with
+  its two buttons and the stats line, and no Dynamic Regeneration control or callback is left.
+  Remove Helper Linework asks first, then calls Ruby. The Apply tab's Edit Path button carries
+  the new tooltip and calls Ruby. No page errors.
+- The earlier suites still pass on this code, whose traces now have no Helpers: origin helper
+  9/9, Draw Profile 14/14, Edge Paint 9/9. 43/43 Ruby files compile; `node --check` on the five
+  touched JS files.
+
+### To verify in SketchUp
+Reload Plugin Data, then **close and reopen** the dialog (Settings and the Apply tab changed).
+A SketchUp restart is not needed: the old Helpers observers are detached on reload. The red shows
+with edges coloured **By material** (as the old line did); in an *All same* style it shows in the
+style's edge colour.
+
+1. Trace a new profile at the root. The Outliner shows only `Na__ProfileTrace__SweptSolid`
+   inside it. No `02__ProfilePathTracer_Helpers` tag appears and no red line shows.
+2. Right-click it > **Edit Path**: a red line appears on the path, every edge selected. Move a
+   corner and draw an extra segment off one end, then click outside the trace. It rebuilds along
+   the edit and the line disappears.
+3. **Edit Path** again and click outside without touching it: the line goes and nothing rebuilds
+   (no Regenerate step in Edit > Undo).
+4. **Undo**: after step 2, Ctrl+Z once. Please report what SketchUp does here: does it reopen
+   the red line's group, or leave the line showing beside the old solid? Either way, the next
+   thing you do (or Edit Path) should finish the line. Ctrl+Y should redo the edit.
+5. While a line is open, right-click it: **Finish Path Edit** applies it at once; **Discard Path
+   Edit** drops it and the trace keeps its old path.
+6. Steps 2 and 3 three groups deep (moved and rotated), and in a non-uniformly scaled group.
+7. Step 2 on a **Reverse** trace: the line shows where the old helper line used to.
+8. An old model: Settings > **Remove Helper Linework**. Every trace stays exactly where it is,
+   the helper lines and the tag go, and one Ctrl+Z brings them back. On another old model, just
+   right-click > Edit Path on one trace: its Helpers line is replaced by the red line.
+
+### Files touched
+| File | Change |
+|---|---|
+| `Na__ProfileTools__AppData__DataSerializer__.rb` | `PathRuns` stamp / read / write; Edit Path group marker; `RetireLegacyHelpers`; schema notes; Dynamic Regeneration switch retired |
+| `Na__ProfileTools__GeometryHelpers__UnifiedOverrides__.rb` | No Helpers group or tag; `PathRuns` stamped; the Reverse flip takes the solid plus the path points |
+| `Na__ProfileTools__RegenerationEngine__Main__.rb` | Rebuilds along the Edit Path line, else `PathRuns`, else (legacy) the Helpers, else `PathPoints`; sweeps before erasing; never aborts; makes a shared copy unique; retires legacy Helpers |
+| `Na__ProfileTools__AppCore__RegenSweep__.rb` | Rewritten: finishes Edit Path on leaving the trace; passive sweeps for undo, redo and model open; legacy Helpers check; copy repair kept |
+| `Na__ProfileTools__AppCore__EditPathNavigator__.rb` | Rewritten: draws the red line from the stored path, opens it; Finish and Discard |
+| `Na__ProfileTools__AppCore__LegacyHelperLinework__.rb` (new) | Settings stats; Remove Helper Linework; tag removal |
+| `Na__ProfileTools__AppCore__HelpersEntitiesObserver__.rb` | **Deleted** (nothing left to observe) |
+| `Na__ProfileTools__AppCore__ContextMenuHandlers__.rb` | Edit Path / Regenerate Now, or Finish / Discard; the toggle removed |
+| `Na__ProfileTools__AppCore__Observers__.rb` | No observer per trace; old ones detached on reload |
+| `Na__ProfileTools__AppCore__DialogManager__.rb`, `..._Main__.rb` | Path stats and Remove Helper Linework callbacks replace the Dynamic Regeneration ones; requires |
+| `Na__ProfileTools__ProfileSwapEngine__Main__.rb`, `Na__ProfileTools__DrawProfile__TraceBridge__.rb` | Rebuild along the stored path (`CheckPathReady`, `RegenerateTrace`) |
+| Settings `UiLogic` / `Bridge` `.js`, Apply tab `Controls` / `MainUiLogic` `.js`, Edit Profile `MainUiLogic` `.js` | Path Editing section; Edit Path tooltip; wording |
+
+# =======================================================================================
+
 ## Profile Path Tracer - v1.6.15 - 08-Oct-2026 - Edge Paint: Every Swept Line Takes Its Own Colour
 
 ### Summary

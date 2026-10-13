@@ -22,6 +22,8 @@
 #   read as a replacement escape.
 # - request_photo_info answers the Perspective Angle tool with the photo's
 #   lens data (PhotoInfo). Only files with an image extension are read.
+# - The Count tool (CountTool.js) is inlined last: it reads the Perspective
+#   Angle tool's directions and the solver's counting maths.
 #
 # =============================================================================
 
@@ -101,6 +103,7 @@ module Na__Noble3dModellingTools
             measurement_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Measurement__.js')
             solver_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveSolver__.js')
             perspective_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveAngle__.js')
+            count_path       = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__CountTool__.js')
 
             template = File.read(layout_path)
             template
@@ -109,6 +112,7 @@ module Na__Noble3dModellingTools
                 .gsub('{{MEASUREMENT_SCRIPT}}')        { File.read(measurement_path) }
                 .gsub('{{PERSPECTIVE_SOLVER_SCRIPT}}') { File.read(solver_path) }
                 .gsub('{{PERSPECTIVE_ANGLE_SCRIPT}}')  { File.read(perspective_path) }
+                .gsub('{{COUNT_TOOL_SCRIPT}}')         { File.read(count_path) }
         end
 
 # endregion -------------------------------------------------------------------

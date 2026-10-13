@@ -212,7 +212,7 @@ module Na__ProfileTools__ProfilePathTracer
                 model.start_operation('Na__ProfilePathTracer__RevertLocalProfile', true)
                 Na__DataSerializer.Na__DataSerializer__ClearLocalProfile(group)
                 model.commit_operation
-                if Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(group)
+                if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group)
                     reverted += 1
                 else
                     model.start_operation('Na__ProfilePathTracer__RevertLocalProfileUndo', true, false, true)
@@ -258,7 +258,7 @@ module Na__ProfileTools__ProfilePathTracer
         def self.Na__TraceBridge__ApplyLocalToOne(model, trace_id, asset_data, display_name)
             group = Na__SwapEngine.Na__SwapEngine__ResolveTraceById(trace_id)
             return { ok: false, reason: "#{trace_id} is no longer in the model" } unless group
-            readiness = Na__SwapEngine.Na__SwapEngine__CheckHelpersReady(group)
+            readiness = Na__SwapEngine.Na__SwapEngine__CheckPathReady(group)
             return { ok: false, reason: "#{trace_id}: #{readiness[:reason]}" } unless readiness[:isReady]
 
             previous_local = Na__DataSerializer.Na__DataSerializer__ReadLocalProfileRaw(group)
@@ -266,7 +266,7 @@ module Na__ProfileTools__ProfilePathTracer
             Na__DataSerializer.Na__DataSerializer__WriteLocalProfile(group, asset_data, display_name)
             model.commit_operation
 
-            return { ok: true } if Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(group)
+            return { ok: true } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group)
 
             model.start_operation('Na__ProfilePathTracer__LocalProfileEditUndo', true, false, true)
             if previous_local
@@ -515,7 +515,7 @@ module Na__ProfileTools__ProfilePathTracer
             self.Na__TraceBridge__TracesUsing(model, profile_key).each do |group|
                 next if exclude_ids.include?(Na__DataSerializer.Na__DataSerializer__ReadTraceId(group))
                 # @delegate: ../31__System__ApplyProfileMode/Na__ProfileTools__RegenerationEngine__Main__
-                if Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(group)
+                if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group)
                     rebuilt += 1
                 else
                     failed += 1

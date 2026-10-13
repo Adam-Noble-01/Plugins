@@ -27,7 +27,8 @@ var html = part('UiLayout__.html')
     .replace('{{UI_BRIDGE_SCRIPT}}',          function() { return part('UiBridge__.js'); })
     .replace('{{MEASUREMENT_SCRIPT}}',        function() { return part('Measurement__.js'); })
     .replace('{{PERSPECTIVE_SOLVER_SCRIPT}}', function() { return part('PerspectiveSolver__.js'); })
-    .replace('{{PERSPECTIVE_ANGLE_SCRIPT}}',  function() { return part('PerspectiveAngle__.js'); });
+    .replace('{{PERSPECTIVE_ANGLE_SCRIPT}}',  function() { return part('PerspectiveAngle__.js'); })
+    .replace('{{COUNT_TOOL_SCRIPT}}',         function() { return part('CountTool__.js'); });
 fs.writeFileSync(path.join(OUT, 'dialog.html'), html);
 
 var house = scene.house();

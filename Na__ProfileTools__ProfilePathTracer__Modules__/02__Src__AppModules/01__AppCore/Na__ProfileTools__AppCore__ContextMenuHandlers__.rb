@@ -8,20 +8,21 @@
 #              Registered once on plugin load via UI.add_context_menu_handler.
 #
 # MENU ITEMS (shown when the selection is a stamped assembly OR any part of
-# one — the SweptSolid or Helpers child resolves up to its parent)
-#   "Swap Profile..."                           binds the selection and opens
-#                                               the dialog Gallery to pick a
-#                                               replacement profile. This is the
-#                                               ONE item that accepts a
-#                                               multi-selection: every distinct
-#                                               trace touched is swapped at once
-#   "Open Path for Editing"                     drills into the Helpers group
-#   "Disable/Enable Dynamic Regeneration"       toggles the stored flag
-#   "Regenerate Now"                            manual rebuild
+# one — the SweptSolid, or the red Edit Path line's edges, resolve up to it)
+#   "Swap Profile..."      binds the selection and opens the dialog Gallery to
+#                          pick a replacement profile. This is the ONE item that
+#                          accepts a multi-selection: every distinct trace
+#                          touched is swapped at once
+#   "Edit Path"            draws the path as a red line and opens it (v1.6.16)
+#   "Regenerate Now"       manual rebuild
+#   While a red line is open, or waiting after an undo, those two give way to:
+#   "Finish Path Edit"     rebuild along the line now
+#   "Discard Path Edit"    drop the line; the trace keeps its path
 #
-# The three per-assembly items below Swap stay single-selection: each acts on
-# one specific assembly's observer or edit context, and silently fanning them
-# out over a multi-selection would be a different (and surprising) action.
+# The items below Swap stay single-selection: each acts on one assembly's
+# path, and silently fanning them out over a multi-selection would be a
+# different (and surprising) action. There is no Dynamic Regeneration switch
+# any more (v1.6.16): a trace always follows its path.
 #
 # NOTE: UI.add_context_menu_handler has NO remove counterpart, so registration
 # is guarded against the hot-reload `load` — an unguarded call would stack a
@@ -36,6 +37,8 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Constants + State
     # -------------------------------------------------------------------------
 
+        # Legacy: the suffix v1.6.15 and older appended to a trace's name. The
+        # swap engine still keeps it on a rename; a trace's first rebuild drops it.
         NA_DYNREGEN_SUFFIX      = ' [DynRegen]'.freeze
         NA_MENU_TITLE_SEPARATOR = 'Profile Path Tracer'.freeze
 
@@ -86,14 +89,14 @@ module Na__ProfileTools__ProfilePathTracer
             return unless parent_groups.length == 1
             parent_group = parent_groups.first
 
-            # Self-heal on inspection: right-clicking an assembly is a cheap
-            # moment to re-attach a drifted observer, so the ON/OFF label below
-            # is telling the truth by the time the user reads it.
-            self.Na__ContextMenu__ReconcileObserver(parent_group)
-
-            self.Na__ContextMenu__AddOpenPathItem(menu)
-            self.Na__ContextMenu__AddToggleItem(menu, parent_group)
-            self.Na__ContextMenu__AddRegenNowItem(menu, parent_group)
+            # While a red line is open (or waiting) a rebuild would take it along
+            # anyway, so the menu offers to finish or drop the edit instead.
+            if Na__DataSerializer.Na__DataSerializer__FindEditPathGroup(parent_group)
+                self.Na__ContextMenu__AddFinishEditItems(menu, parent_group)
+            else
+                self.Na__ContextMenu__AddOpenPathItem(menu)
+                self.Na__ContextMenu__AddRegenNowItem(menu, parent_group)
+            end
         rescue => error
             Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: menu build failed: #{error.message}")
         end
@@ -121,16 +124,6 @@ module Na__ProfileTools__ProfilePathTracer
             []
         end
 
-        def self.Na__ContextMenu__ReconcileObserver(parent_group)
-            return unless defined?(Na__ObserverRegistry)
-            return unless Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            return unless helpers_group
-            Na__ObserverRegistry.Na__ObserverRegistry__AttachIfMissing(helpers_group)
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: reconcile skipped: #{error.message}")
-        end
-
         # Hands off to the dialog rather than opening a picker of its own: the
         # Gallery is already the place where a profile is chosen, thumbnails and
         # search included, so the swap reuses it instead of duplicating it in a
@@ -150,7 +143,7 @@ module Na__ProfileTools__ProfilePathTracer
         end
 
         def self.Na__ContextMenu__AddOpenPathItem(menu)
-            menu.add_item('Open Path for Editing') do
+            menu.add_item('Edit Path') do
                 if defined?(Na__EditPathNavigator)
                     Na__EditPathNavigator.Na__EditPath__OpenForCurrentSelection
                 else
@@ -159,66 +152,21 @@ module Na__ProfileTools__ProfilePathTracer
             end
         end
 
-        def self.Na__ContextMenu__AddToggleItem(menu, parent_group)
-            currently_on = Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
-            label = currently_on ?
-                'Disable Dynamic Regeneration (currently ON)' :
-                'Enable Dynamic Regeneration (currently OFF)'
-
-            menu.add_item(label) do
-                self.Na__ContextMenu__ExecuteToggle(parent_group)
+        # A red line is open, or waiting after an undo or a failed rebuild:
+        # finish it here without hunting for empty space to click into, or drop it.
+        def self.Na__ContextMenu__AddFinishEditItems(menu, parent_group)
+            menu.add_item('Finish Path Edit') do
+                Na__EditPathNavigator.Na__EditPath__FinishNow(parent_group)
+            end
+            menu.add_item('Discard Path Edit') do
+                Na__EditPathNavigator.Na__EditPath__Discard(parent_group)
             end
         end
 
         def self.Na__ContextMenu__AddRegenNowItem(menu, parent_group)
             menu.add_item('Regenerate Now') do
-                Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(parent_group)
+                Na__RegenEngine.Na__RegenEngine__RegenerateTrace(parent_group)
             end
-        end
-
-    # endregion ----------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # REGION | Private - Toggle Execution
-    # -------------------------------------------------------------------------
-
-        def self.Na__ContextMenu__ExecuteToggle(parent_group)
-            return unless Na__DataSerializer.Na__DataSerializer__GroupValid?(parent_group)
-
-            currently_on = Na__DataSerializer.Na__DataSerializer__DynamicRegenEnabled?(parent_group)
-            new_state    = !currently_on
-
-            model = Sketchup.active_model
-            model.start_operation('Na__ProfilePathTracer__ToggleDynamicRegen', true)
-            Na__DataSerializer.Na__DataSerializer__SetDynamicRegen(parent_group, new_state)
-            self.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, new_state)
-            model.commit_operation
-
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            if helpers_group
-                if new_state
-                    Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
-                    if defined?(Na__RegenSweep)
-                        Na__RegenSweep.Na__RegenSweep__Resume!
-                        Na__RegenSweep.Na__RegenSweep__ScheduleSweep('toggle-on', full: true)
-                    end
-                else
-                    Na__ObserverRegistry.Na__ObserverRegistry__DetachFromHelpers(helpers_group)
-                end
-            end
-
-            Na__DebugTools.Na__Debug__Info(
-                "DynamicRegen #{new_state ? 'enabled' : 'disabled'} on #{parent_group.name}."
-            )
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: toggle failed: #{error.message}")
-        end
-
-        def self.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, enabled)
-            base_name = parent_group.name.to_s.delete_suffix(NA_DYNREGEN_SUFFIX)
-            parent_group.name = enabled ? "#{base_name}#{NA_DYNREGEN_SUFFIX}" : base_name
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("ContextMenuHandlers: name update failed: #{error.message}")
         end
 
     # endregion ----------------------------------------------------------------

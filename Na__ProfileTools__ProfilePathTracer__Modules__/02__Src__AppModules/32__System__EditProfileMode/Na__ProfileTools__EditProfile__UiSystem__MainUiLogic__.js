@@ -189,12 +189,12 @@
               'mm — click Save Changes to write it into the file.'
             : 'Insertion point: as stored in the data file.';
 
-        // Editing a library asset moves every future use of it, and Dynamic
-        // Regeneration re-reads that file — so runs already placed from this
-        // profile will shift the next time they rebuild. Shown only while a
-        // pick is pending, which is the one moment it is actionable.
+        // Editing a library asset moves every future use of it, and every
+        // rebuild re-reads that file — so runs already placed from this profile
+        // will shift the next time they rebuild. Shown only while a pick is
+        // pending, which is the one moment it is actionable.
         var warnHtml = hasPendingDatum
-            ? '<span class="naInsertPointBar__warn">Placed runs of this profile that have Dynamic Regeneration on ' +
+            ? '<span class="naInsertPointBar__warn">Placed runs of this profile ' +
               'will move to match the next time they rebuild.</span>'
             : '';
 

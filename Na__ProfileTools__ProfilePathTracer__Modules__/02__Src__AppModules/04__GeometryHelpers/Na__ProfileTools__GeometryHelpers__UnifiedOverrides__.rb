@@ -27,6 +27,14 @@
 #   rail along the path takes its profile VERTEX's colour, a cap or mitre edge
 #   takes its profile EDGE's colour (Na__Geometry__ApplySweepEdgeColours).
 #
+# THE PATH IS DATA (v1.6.16):
+#   A trace holds its swept solid and nothing else. The path is stamped on the
+#   assembly as PathRuns (parent space); there is no Helpers sub-group and no
+#   02__ProfilePathTracer_Helpers tag. Edit Path draws the path as a red line
+#   only for the edit (Na__EditPathNavigator). The Reverse flip still takes
+#   its bounds from the solid plus the path's points, which is exactly the box
+#   the Helpers linework used to add, so a reversed trace lands where it did.
+#
 # =============================================================================
 
 module Na__ProfileTools__ProfilePathTracer
@@ -281,8 +289,8 @@ module Na__ProfileTools__ProfilePathTracer
         # A gutter runs past the verge; a moulding stops short of a return. The
         # start and end offsets move the two ends of an OPEN run along its own
         # end segments: positive overshoots, negative trims back. They act on
-        # the sweep only. The Helpers linework keeps the run exactly as it was
-        # drawn or selected, so Edit Path still edits the true line and every
+        # the sweep only. The stored path (PathRuns) keeps the run exactly as it
+        # was drawn or selected, so Edit Path still edits the true line and every
         # regeneration re-applies the same overshoot to wherever the ends now
         # sit. Closed loops have no ends and pass through untouched.
         #
@@ -452,10 +460,10 @@ module Na__ProfileTools__ProfilePathTracer
             unflipped = { profile_polyline: profile_polyline, sweep_segments: sweep_segments, sweep_points: sweep_points, reason: nil }
             return unflipped unless reverse_direction
 
-            # Na__Geometry__BuildProfileAlongPath flips the finished assembly, whose
-            # bounds span the swept solid (the OFFSET run) plus the Helpers
-            # linework (the DRAWN run). Rebuild that same bounding box here so the
-            # preview lands in the same place.
+            # Na__Geometry__BuildProfileAlongPath flips the finished assembly
+            # about a box spanning the swept solid (the OFFSET run) plus the
+            # DRAWN run's points (Na__Geometry__ApplyReverseFlip). Rebuild that
+            # same bounding box here so the preview lands in the same place.
             preview_bounds = Geom::BoundingBox.new
             sweep_segments.each { |point| preview_bounds.add(point) }
             profile_polyline.each { |point| preview_bounds.add(point) }
@@ -615,9 +623,9 @@ module Na__ProfileTools__ProfilePathTracer
         # An instance's transformation in the open context is read as world, so
         # the identity puts the assembly's axes on the world's and world points
         # go in unchanged. Parent space is then world space AS BUILT: the stamped
-        # StartPoint and PathPoints, the Helpers linework and the swept solid all
-        # share it, and the regeneration engine, which rebuilds in parent space
-        # with parent Z as up, reproduces the build exactly however the enclosing
+        # StartPoint, PathRuns and PathPoints and the swept solid all share it,
+        # and the regeneration engine, which rebuilds in parent space with
+        # parent Z as up, reproduces the build exactly however the enclosing
         # groups move later. At the model root this is a no-op.
         def self.Na__Geometry__PinGroupToWorld(group)
             group.transformation = Geom::Transformation.new
@@ -632,11 +640,17 @@ module Na__ProfileTools__ProfilePathTracer
         #     world space;
         #   - the assembly sits at the world identity, so the flip IS its world
         #     transformation, set exactly as the pin was.
-        # The flip moves the instance, not its contents, so the Helpers edges keep
-        # their un-flipped coordinates, which is what lets the regeneration
-        # engine rebuild in un-flipped parent space.
-        def self.Na__Geometry__ApplyReverseFlip(parent_group)
-            flip_transform = self.Na__Geometry__BuildReverseFlipTransform(parent_group.definition.bounds)
+        # The box is the solid plus the drawn run's points (parent space too):
+        # until v1.6.16 the Helpers linework sat in the definition and added
+        # exactly those points, so the flip, and where a reversed trace lands,
+        # is unchanged. The flip moves the instance, not its contents, so the
+        # stored path keeps its un-flipped coordinates, which is what lets the
+        # regeneration engine rebuild in un-flipped parent space.
+        def self.Na__Geometry__ApplyReverseFlip(parent_group, path_points = [])
+            bounds = Geom::BoundingBox.new
+            bounds.add(parent_group.definition.bounds)
+            Array(path_points).each { |point| bounds.add(point) }
+            flip_transform = self.Na__Geometry__BuildReverseFlipTransform(bounds)
             parent_group.transformation = flip_transform
         end
 
@@ -647,7 +661,7 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         # path_offsets (traversal order) moves the ends of an open run for the
-        # sweep; the run itself becomes the Helpers linework unchanged.
+        # sweep; the run itself is stamped unchanged as the trace's path.
         # offset_ends_swapped is stamped, not applied: it records that the user's
         # "Start" was the traversal END (an Interactive run the canonical
         # direction rule reversed), so a bound trace shows the offsets the way
@@ -696,9 +710,6 @@ module Na__ProfileTools__ProfilePathTracer
             parent_group.name = "Na__ProfileTrace__#{profile_key}"
             self.Na__Geometry__PinGroupToWorld(parent_group)
 
-            helpers_group = parent_group.entities.add_group
-            helpers_group.name = 'Na__ProfileTrace__Helpers'
-
             solid_group = parent_group.entities.add_group
             solid_group.name = 'Na__ProfileTrace__SweptSolid'
             solid_entities = solid_group.entities
@@ -723,13 +734,11 @@ module Na__ProfileTools__ProfilePathTracer
             end
             styled_edge_count = swept['styledEdgeCount']
 
-            self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
-
-            self.Na__Geometry__ApplyReverseFlip(parent_group) if reverse_direction
+            self.Na__Geometry__ApplyReverseFlip(parent_group, ordered_points) if reverse_direction
 
             # @delegate: ../02__AppData/Na__ProfileTools__AppData__DataSerializer__
             self.Na__Geometry__StampAssemblyDictionaries(
-                model, parent_group, helpers_group,
+                model, parent_group,
                 profile_key: profile_key,
                 rotation_step: rotation_step,
                 toggle_states: toggle_states,
@@ -746,36 +755,10 @@ module Na__ProfileTools__ProfilePathTracer
 
             model.commit_operation
 
-            self.Na__Geometry__AutoEnableDynamicRegen(parent_group, helpers_group)
-
             { 'isBuilt' => true, 'groupName' => parent_group.name, 'styledEdgeCount' => styled_edge_count }
         rescue => error
             self.Na__Geometry__AbortOperationSafely(model)
             { 'isBuilt' => false, 'reason' => error.message }
-        end
-
-        def self.Na__Geometry__AutoEnableDynamicRegen(parent_group, helpers_group)
-            return unless parent_group && helpers_group
-            return unless helpers_group.respond_to?(:valid?) && helpers_group.valid?
-            return unless defined?(Na__ObserverRegistry)
-
-            Na__ObserverRegistry.Na__ObserverRegistry__AttachToHelpers(helpers_group)
-
-            # Runs after the build's commit_operation, so the rename needs its own
-            # transparent operation or it lands on the undo stack unattached.
-            if defined?(Na__ContextMenuHandlers) &&
-               Na__ContextMenuHandlers.respond_to?(:Na__ContextMenu__UpdateGroupNameSuffix)
-                model = Sketchup.active_model
-                model.start_operation('Na__ProfilePathTracer__TagDynRegen', true, false, true) if model
-                Na__ContextMenuHandlers.Na__ContextMenu__UpdateGroupNameSuffix(parent_group, true)
-                model.commit_operation if model
-            end
-
-            Na__DebugTools.Na__Debug__Info(
-                "DynamicRegen auto-enabled on #{parent_group.name} (observer attached)."
-            )
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("AutoEnableDynamicRegen failed: #{error.message}")
         end
 
         def self.Na__Geometry__SweepProfileIntoGroup(target_entities:, model:, profile_data:,
@@ -935,29 +918,10 @@ module Na__ProfileTools__ProfilePathTracer
             Na__DebugTools.Na__Debug__Warn("Abort operation warning: #{error.message}")
         end
 
-        def self.Na__Geometry__BuildHelpersSubGroup(model, helpers_group, ordered_points, is_closed_loop)
-            entities = helpers_group.entities
-            helper_edges = []
-
-            (0...(ordered_points.length - 1)).each do |index|
-                edge = entities.add_line(ordered_points[index], ordered_points[index + 1])
-                helper_edges << edge if edge && edge.valid?
-            end
-
-            if is_closed_loop
-                closing_edge = entities.add_line(ordered_points[-1], ordered_points[0])
-                helper_edges << closing_edge if closing_edge && closing_edge.valid?
-            end
-
-            # @delegate: ../03__AppUtils/Na__ProfileTools__AppUtils__TagApplier__
-            helpers_tag = Na__TagApplier.Na__TagApplier__EnsureTagFromDataLib(model, NA_HELPERS_TAG_NAME)
-            Na__TagApplier.Na__TagApplier__ApplyTagToEntity(helpers_group, helpers_tag)
-            Na__TagApplier.Na__TagApplier__PaintEdgesWithMteMaterial(model, helper_edges, NA_HELPERS_MATERIAL_ID)
-        rescue => error
-            Na__DebugTools.Na__Debug__Warn("Helpers sub-group build warning: #{error.message}")
-        end
-
-        def self.Na__Geometry__StampAssemblyDictionaries(model, parent_group, helpers_group,
+        # The run is stamped as drawn (PathRuns, plus PathPoints for older
+        # readers), in parent space: what every rebuild sweeps and Edit Path
+        # draws. No Helpers linework, no tag, no fingerprint (v1.6.16).
+        def self.Na__Geometry__StampAssemblyDictionaries(model, parent_group,
                                                           profile_key:, rotation_step:, toggle_states:,
                                                           is_closed_loop:, start_point:,
                                                           reverse_direction: false, origin_offset: nil,
@@ -976,18 +940,10 @@ module Na__ProfileTools__ProfilePathTracer
                 'ReverseDirection'  => reverse_direction,
                 'OriginOffset'      => origin_offset,
                 'PathPoints'        => path_points,
+                'PathRuns'          => [{ ordered_points: path_points, is_closed_loop: is_closed_loop }],
                 'PathOffsets'       => path_offsets,
                 'OffsetEndsSwapped' => offset_ends_swapped
             })
-            Na__DataSerializer.Na__DataSerializer__StampHelpers(helpers_group, trace_id)
-
-            # Baseline for the RegenSweep change detector — stamped inside the
-            # build operation so the fingerprint always travels with the
-            # geometry through undo/redo.
-            if defined?(Na__RegenSweep)
-                fingerprint = Na__RegenSweep.Na__RegenSweep__ComputeFingerprint(helpers_group)
-                Na__DataSerializer.Na__DataSerializer__WriteHelpersFingerprint(parent_group, fingerprint) if fingerprint
-            end
         rescue => error
             Na__DebugTools.Na__Debug__Warn("Assembly dictionary stamp warning: #{error.message}")
         end
@@ -1203,7 +1159,10 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
 
         NA_RUN_EDGE_SOFTEN_ANGLE_RADIANS = 20.0 * Math::PI / 180.0
+        # LEGACY (to v1.6.15): the tag the Helpers linework sat on. Nothing is
+        # put on it any more; Remove Helper Linework takes it out of a model.
         NA_HELPERS_TAG_NAME    = '02__ProfilePathTracer_Helpers'.freeze
+        # The red the path is drawn in while it is edited (Edit Path).
         NA_HELPERS_MATERIAL_ID = 'MTE201__LineColour__Red'.freeze
 
         # The styling before v1.6.15, kept only as the fallback for a sweep the

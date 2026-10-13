@@ -51,32 +51,20 @@
             ]
         },
         {
-            heading: 'Dynamic Regeneration',
-            description: 'Profile traces rebuild their swept solid from the helper path linework. Changes are detected by a stored fingerprint of the path: edit the linework (move, stretch, draw, erase), then close the group — the solid rebuilds automatically. Undo, redo and copies are also detected. Use the right-click context menu on any Profile Trace for per-assembly controls, including Swap Profile — which rebuilds the trace along the same path with a different profile picked from the Gallery.',
+            heading: 'Path Editing',
+            description: 'Each Profile Trace stores its path on itself: there is no helper linework in the model and no helper tag. Edit Path draws the path as a red line inside the trace and opens it with every edge selected. Edit it with any SketchUp tool (move, stretch, draw, erase), then click outside the trace: it rebuilds along the line and the line is removed. Leave it unchanged and it is simply removed. Use the right-click context menu on any Profile Trace for Edit Path, Regenerate Now and Swap Profile.',
             buttons: [
                 {
-                    id: 'na-btn-settings-dynregen-open-path',
-                    label: 'Open Path for Editing',
-                    helper: 'Select a Profile Trace assembly in the model (or any part of one), then click this: it drills straight into the hard-to-click Helpers linework with the path edges pre-selected. Close the group when done and the profile rebuilds.',
+                    id: 'na-btn-settings-open-path',
+                    label: 'Edit Path',
+                    helper: 'Select a Profile Trace in the model (or any part of one), then click this: its path appears as a red line, open for editing with every edge selected.',
                     onclick: 'na_profiletools_settingsOpenPathEditor'
                 },
                 {
-                    id: 'na-btn-settings-dynregen-enable-all',
-                    label: 'Enable All',
-                    helper: 'Enables Dynamic Regeneration on every Profile Trace assembly in the current model, attaches observers, and re-arms the change sweep.',
-                    onclick: 'na_profiletools_settingsDynRegenEnableAll'
-                },
-                {
-                    id: 'na-btn-settings-dynregen-disable-all',
-                    label: 'Disable All',
-                    helper: 'Disables Dynamic Regeneration on every Profile Trace assembly and detaches all observers.',
-                    onclick: 'na_profiletools_settingsDynRegenDisableAll'
-                },
-                {
-                    id: 'na-btn-settings-dynregen-detach',
-                    label: 'Detach All Observers',
-                    helper: 'Emergency kill-switch: detaches all EntitiesObservers and suspends the automatic change sweep until Enable All (or a plugin reload) re-arms it. The stored enabled flags are not changed.',
-                    onclick: 'na_profiletools_settingsDynRegenDetachAll'
+                    id: 'na-btn-settings-remove-helper-linework',
+                    label: 'Remove Helper Linework',
+                    helper: 'For models made before v1.6.16: moves the path of every trace off its helper linework and onto the trace, erases the linework, and removes the 02__ProfilePathTracer_Helpers tag if nothing else is on it. A trace whose linework was edited without a rebuild is rebuilt along it first. One undo step. Each old trace also moves over by itself the first time it is edited or rebuilt.',
+                    onclick: 'na_profiletools_settingsRemoveHelperLinework'
                 }
             ]
         }
@@ -151,30 +139,32 @@
         return section;
     }
 
-    var NA_DYNREGEN_STATS_ID = 'na-dynregen-stats-line';
+    var NA_PATH_STATS_ID = 'na-path-stats-line';
 
-    function na_build_dynregen_stats_block() {
+    function na_build_path_stats_block() {
         var p = document.createElement('p');
-        p.id        = NA_DYNREGEN_STATS_ID;
+        p.id        = NA_PATH_STATS_ID;
         p.className = 'na-settings-info-line';
-        p.textContent = 'Profile traces in model: — / — with Dynamic Regen ON';
+        p.textContent = 'Profile traces in model: —';
         return p;
     }
 
-    function na_update_dynregen_stats(payload) {
-        var el = document.getElementById(NA_DYNREGEN_STATS_ID);
+    function na_update_path_stats(payload) {
+        var el = document.getElementById(NA_PATH_STATS_ID);
         if (!el || typeof payload !== 'object' || payload === null) return;
         var total   = payload.total   !== undefined ? payload.total   : '?';
-        var enabled = payload.enabled !== undefined ? payload.enabled : '?';
-        var active  = payload.active  !== undefined ? payload.active  : '?';
-        el.textContent = 'Profile traces in model: ' + total +
-            ' — Dynamic Regen ON: ' + enabled +
-            ' — Active observers: ' + active;
+        var legacy  = payload.legacy  !== undefined ? payload.legacy  : '?';
+        var editing = payload.editing !== undefined ? payload.editing : 0;
+        var text = 'Profile traces in model: ' + total +
+            ' — still carrying helper linework: ' + legacy;
+        if (editing > 0) text += ' — path open for editing: ' + editing;
+        if (payload.helperTag === true) text += ' — helper tag present';
+        el.textContent = text;
     }
 
-    function na_request_dynregen_stats() {
-        if (window.sketchup && typeof window.sketchup.na_profilepathtracer_dynregen_stats === 'function') {
-            window.sketchup.na_profilepathtracer_dynregen_stats();
+    function na_request_path_stats() {
+        if (window.sketchup && typeof window.sketchup.na_profilepathtracer_path_stats === 'function') {
+            window.sketchup.na_profilepathtracer_path_stats();
         }
     }
 
@@ -183,7 +173,7 @@
         if (!body) return;
         body.innerHTML = '';
         NA_SETTINGS_SECTIONS.forEach(function (s) { body.appendChild(na_build_section(s)); });
-        body.appendChild(na_build_dynregen_stats_block());
+        body.appendChild(na_build_path_stats_block());
         body.appendChild(na_build_about_block());
     }
 
@@ -195,11 +185,11 @@
 
     Na__ProfileTools__Settings__Tab.na_mount = function () {
         na_render_body();
-        na_request_dynregen_stats();
+        na_request_path_stats();
     };
 
-    window.Na__ProfilePathTracer__ReceiveDynRegenStats = function (payload) {
-        na_update_dynregen_stats(payload);
+    window.Na__ProfilePathTracer__ReceivePathStats = function (payload) {
+        na_update_path_stats(payload);
     };
 
     Na__ProfileTools__Settings__Tab.na_unmount = function () {

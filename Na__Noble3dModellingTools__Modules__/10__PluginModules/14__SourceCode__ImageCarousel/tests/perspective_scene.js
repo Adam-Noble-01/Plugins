@@ -196,7 +196,7 @@ function house() {
         lowEaves : P(W, 0, 1.6), lowVerge : P(W / 2 + 0.8, 0, 1.6 + (W / 2 - 0.8) * Math.tan(pitch * Math.PI / 180)),
         sky    : P(W + 5, -1, 8.5)
     };
-    return { w: 4032, h: 3024, pitch: pitch, f: 3000, polys: polys, lines: lines, key: key, points: points };
+    return { w: 4032, h: 3024, pitch: pitch, f: 3000, polys: polys, lines: lines, key: key, points: points, cam: cam };
 }
 
 module.exports = {

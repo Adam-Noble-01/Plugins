@@ -5,24 +5,24 @@
 # FILE       : Na__ProfileTools__ProfileSwapEngine__Main__.rb
 # NAMESPACE  : Na__ProfileTools__ProfilePathTracer::Na__SwapEngine
 # PURPOSE    : Hot-swaps the profile of an ALREADY PLACED Profile Trace
-#              assembly. The helper linework, the stored start point and the
-#              trace id all stay exactly as they are — only the ProfileKey (and
+#              assembly. The stored path, the stored start point and the trace
+#              id all stay exactly as they are — only the ProfileKey (and
 #              optionally the placement settings that ride with it) change, and
 #              the existing regeneration engine rebuilds the swept solid.
 #
 # WHY THIS IS THIN
-#   Everything hard was already solved by Dynamic Regeneration: the Helpers
-#   sub-group is the authoritative path, and Na__RegenEngine already rebuilds
-#   the SweptSolid from it using whatever ProfileKey the parent dictionary
-#   carries. A swap is therefore "rewrite one dictionary value, then regenerate"
-#   — no new geometry code, and every existing guarantee (legacy path frame,
-#   multi-run chains, fingerprint stamping, observer re-attach) comes along.
+#   The trace stores its own path (PathRuns), and Na__RegenEngine rebuilds the
+#   SweptSolid along it using whatever ProfileKey the parent dictionary carries.
+#   A swap is therefore "rewrite one dictionary value, then regenerate" — no new
+#   geometry code, and every existing guarantee (legacy path frame, multi-run
+#   chains, an Edit Path waiting to be finished) comes along.
 #
 # PUBLIC API
 #   Na__SwapEngine__ResolveSelectedTraces(model)  -> [Sketchup::Group, ...]
 #       Every distinct Profile Trace assembly touched by the current selection.
-#       Any descendant (SweptSolid, Helpers, a face inside them) resolves up to
-#       its parent, so the user does not have to select precisely.
+#       Any descendant (the SweptSolid, a face inside it, the red Edit Path
+#       line) resolves up to its parent, so the user does not have to select
+#       precisely.
 #
 #   Na__SwapEngine__BuildBindPayload(model)       -> Hash
 #       Dialog-facing descriptor of that selection: trace ids, the primary
@@ -291,7 +291,7 @@ module Na__ProfileTools__ProfilePathTracer
             previous_payload = Na__DataSerializer.Na__DataSerializer__ReadParentPayload(parent_group)
             return { isSwapped: false, reason: 'trace carries no Profile Path Tracer dictionary' } unless previous_payload
 
-            readiness = self.Na__SwapEngine__CheckHelpersReady(parent_group)
+            readiness = self.Na__SwapEngine__CheckPathReady(parent_group)
             return { isSwapped: false, reason: readiness[:reason] } unless readiness[:isReady]
 
             previous_key  = previous_payload['ProfileKey'].to_s
@@ -325,7 +325,7 @@ module Na__ProfileTools__ProfilePathTracer
             self.Na__SwapEngine__RenameForProfile(parent_group, next_key, previous_key)
             model.commit_operation
 
-            return { isSwapped: true, reason: nil } if Na__RegenEngine.Na__RegenEngine__RegenerateFromHelpers(parent_group)
+            return { isSwapped: true, reason: nil } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(parent_group)
 
             self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local)
             { isSwapped: false, reason: 'rebuild failed — the previous profile has been restored' }
@@ -357,18 +357,20 @@ module Na__ProfileTools__ProfilePathTracer
             Na__DebugTools.Na__Debug__Warn("SwapEngine: rollback skipped: #{error.message}")
         end
 
-        # Cheap pre-flight so the obvious failure (an assembly whose linework has
-        # been emptied) is reported without writing to the dictionary at all.
-        def self.Na__SwapEngine__CheckHelpersReady(parent_group)
-            helpers_group = Na__DataSerializer.Na__DataSerializer__FindHelpersSubGroup(parent_group)
-            return { isReady: false, reason: 'no Helpers sub-group to rebuild from' } unless helpers_group
-
-            edge_count = helpers_group.entities.grep(Sketchup::Edge).count(&:valid?)
-            return { isReady: false, reason: 'Helpers linework is empty' } if edge_count.zero?
+        # Cheap pre-flight so the obvious failure (a trace with no path left to
+        # rebuild along) is reported without writing to the dictionary at all.
+        def self.Na__SwapEngine__CheckPathReady(parent_group)
+            path = Na__RegenEngine.Na__RegenEngine__StoredPathRuns(parent_group)
+            return { isReady: false, reason: "no path to rebuild along: #{path[:reason]}" } unless path[:isValid]
 
             { isReady: true, reason: nil }
         rescue => error
             { isReady: false, reason: error.message }
+        end
+
+        # The name callers used while the path was Helpers linework.
+        def self.Na__SwapEngine__CheckHelpersReady(parent_group)
+            self.Na__SwapEngine__CheckPathReady(parent_group)
         end
 
     # endregion ----------------------------------------------------------------

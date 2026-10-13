@@ -3,6 +3,32 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.16 - 13-Oct-2026 - Image Viewer Count Tool
+
+- New **Count** tool (toolbar button beside Angle, or **C**) for counting repeated things on a photo: brick courses, bricks in a course, tiles, balusters. It works like SketchUp's Divide crossed with a dimension.
+- **Counting.** Drag from where the first one starts to where the last one ends (or click both ends). Then move back along the line toward its start: the first part follows the pointer and the line fills with parts of that size, marked live. Dial it in while watching the ticks against the joints: the **wheel** (while dividing) and **↑ / ↓** add or remove one, and **typing a number** sets it, as in SketchUp's Measurements box. Click or Enter sets the count.
+- **Numbers.** Each part gets a bubble beside the line, 01, 02, 03… (three digits past 99). Where they would overlap, every 2nd, 5th or 10th is shown, always with the last. A solid badge at the end of the line gives the total.
+- **Perspective.** The parts are equal on the building, not on the photo. Once the photo is calibrated in Angle, a count that follows the blue, red or green axis (or a measured or typed pitch) shrinks its parts toward the far end, so every tick stays on its joint; two blue verticals alone are enough for a vertical count. Without calibration the parts are even on the photo, and dragging any tick onto its joint sets the perspective by hand (**Reset spacing** undoes it). The bar names the spacing in use.
+- **Dimensions.** Once Set Reference has given the photo a scale, every part and the whole count are dimensioned in its units: each part's length on the side away from the numbers (once, "each", when they would crowd), the overall after the total, and "75 mm each · 975 mm overall" in the bar. The parts are equal, so each is the whole divided by the count: the gauge comes from all 13 courses rather than from one. A reference drawn along the count is read on the count's own perspective, exactly when it is clicked on two of the count's ticks (Set Reference snaps to them). Anywhere else the photo is read flat, as Measure reads it, and the bar says how to do better.
+- **Editing.** Click a count to select it. Drag an end to move it (ends snap to guides, intersections and other counts). Delete removes it, **Clear counts** removes them all, and Undo / Redo cover every change. Counts are kept per photo for the session and stay on the photo under the other tools. Measure and Set Reference snap to count ends and ticks.
+- **Bar.** While the tool is active a bar over the photo holds the count (− / number / +), the spacing, the dimensions and the next step. Typed counts are forgiving (14, x14, 14x); anything that cannot be a count (0, 14.5, 1000) is refused with the fix named. Right-drag pans and the wheel zooms without leaving the tool, except while dividing, when the wheel is the dial. Esc steps back: the unfinished line, then the selection, then the tool.
+- **Files.** New `…__CountTool__.js` (the tool, its drawing and bar). `…__PerspectiveSolver__.js` gains the counting maths: a line's depth ratio from its vanishing point, ticks at equal real spacing, the perspective a dragged tick implies, a reference read along a count, and the vanishing point of one colour of lines on its own. `…__PerspectiveAngle__.js` offers the photo's directions to the Count tool. `…__Measurement__.js` keeps the reference line with its scale and offers both. `…__UiBridge__.js`: snapping now takes the best point any tool offers (endpoints, ticks and intersections before a point on a guide) and draws a teal tick marker. HTML, CSS and the DialogManager add the button, the bar and the script.
+- **Validation.**
+  - Counting maths, `tests/count_tool.test.js` (node): 28 checks. Over 626 random lines in 200 synthetic photos the perspective ticks land on the equally spaced 3D points to 1e-12 px, where even spacing misses by up to 2 whole parts. Two drawn verticals alone place the ticks within 0.35 px. A reference on the count's own line gives its length exactly; read flat, the same reference is up to 5% out on the test house.
+  - Dialog, `tests/count_tool.ui.test.js` in headless Chromium: 63 checks on the synthetic house (courses every 300 mm), clicking at fit zoom. Up the corner, even spacing misses the courses by up to 13 px; after calibrating, the same count's ticks are within 3.3 px, and one tick dragged onto its course by hand does as well. On the calibrated photo the pointer on the first course reads exactly 15. A 1200 mm reference on four of a count's ticks gives 300.0 mm each and 4500.0 mm overall. Also covers the wheel dial (no zoom while dividing), Up / Down, typing and refusals, undo / redo, Measure snapping to ticks, select, Delete, Clear counts, per-photo counts, tool hand-off and Esc.
+  - Existing suites unchanged: solver 79, guides 15, Ruby 32 (no template placeholder left), dialog 31, guides dialog 37.
+  - Native SketchUp testing remains with the user.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then close and reopen Image Viewer. The toolbar shows **Count** beside Angle.
+- [ ] Press C and drag up a chimney from the bottom bed joint to the top one, then move back down: the count grows as the first part shrinks toward one course. Scroll, or press ↑ / ↓, until every tick sits on a joint, then click. The parts read 01, 02, 03… and the total sits at the end.
+- [ ] With the count selected, type 13 and press Enter: it becomes 13. Type 0: refused, with the fix named.
+- [ ] Set Reference on one course (e.g. 75), then select the count with the Count tool: each part reads about 75 mm, the overall sits after the total, and the bar reads "75 mm each · … overall".
+- [ ] On an uncalibrated photo taken from below, drag a middle tick onto its joint: the other ticks follow onto theirs. Reset spacing puts them back.
+- [ ] Calibrate the photo in Angle (two blue verticals will do): a vertical count's spacing reads "In perspective: Blue verticals", or "Blue axis" once fully calibrated.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.15 - 09-Oct-2026 - Image Viewer Perspective Guides
 
 - New **3 Guides** section in the Perspective Angle panel. Guides work like SketchUp's Tape Measure guides, but on the photo: each guide is an infinite 3D line drawn dashed across the photo in perspective. A red guide through one window head shows at a glance whether the other heads, sills or eaves on that wall line up.

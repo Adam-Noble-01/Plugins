@@ -12,6 +12,9 @@
 //              state, parsing, drawing, and interaction live here. Undo/redo
 //              and the active tool are shared through the Core, so Ctrl+Z
 //              also steps back through the Perspective Angle tool's lines.
+//              The reference scale, with the line it was set from, is
+//              readable through window.Na__ImageViewer__Measure, so the
+//              Count tool can dimension its parts in the same units.
 // =============================================================================
 
 (function() {
@@ -32,7 +35,7 @@
     // -------------------------------------------------------------------------
 
     var na_dimsByKey     = {};    // image key -> [ { a:{x,y}, b:{x,y} } ] image space
-    var na_scaleByKey    = {};    // image key -> { pxPerMm:Number, unit:'mm'|'cm'|'m' }
+    var na_scaleByKey    = {};    // image key -> { pxPerMm:Number, unit:'mm'|'cm'|'m', ref:{ a, b, mm } }
     var na_measureMode   = false;
     var na_refMode       = false;
     var na_selectMode    = false;
@@ -114,19 +117,28 @@
         return { a: { x: dim.a.x, y: dim.a.y }, b: { x: dim.b.x, y: dim.b.y } };
     }
 
+    // The scale keeps the reference line it was set from (ref), as well as
+    // the pixels per millimetre it gives.
+    function Na__ImageViewerMeasure__CloneScale(scale) {
+        if (!scale) return null;
+        var c = { pxPerMm: scale.pxPerMm, unit: scale.unit };
+        if (scale.ref) c.ref = { a: { x: scale.ref.a.x, y: scale.ref.a.y }, b: { x: scale.ref.b.x, y: scale.ref.b.y }, mm: scale.ref.mm };
+        return c;
+    }
+
     function Na__ImageViewerMeasure__Snapshot(key) {
         var dims  = na_dimsByKey[key] || [];
         var scale = na_scaleByKey[key];
         return {
             dims  : dims.map(Na__ImageViewerMeasure__CloneDim),
-            scale : scale ? { pxPerMm: scale.pxPerMm, unit: scale.unit } : null
+            scale : Na__ImageViewerMeasure__CloneScale(scale)
         };
     }
 
     function Na__ImageViewerMeasure__RestoreSnapshot(key, snap) {
         if (!snap) { delete na_dimsByKey[key]; delete na_scaleByKey[key]; return; }
         na_dimsByKey[key] = snap.dims.map(Na__ImageViewerMeasure__CloneDim);
-        if (snap.scale) na_scaleByKey[key] = { pxPerMm: snap.scale.pxPerMm, unit: snap.scale.unit };
+        if (snap.scale) na_scaleByKey[key] = Na__ImageViewerMeasure__CloneScale(snap.scale);
         else            delete na_scaleByKey[key];
     }
 
@@ -497,7 +509,12 @@
 
         var key = na_core.getImageKey();
         Na__ImageViewerMeasure__PushUndo();
-        na_scaleByKey[key] = { pxPerMm: px / parsed.mm, unit: parsed.unit };
+        na_scaleByKey[key] = {
+            pxPerMm : px / parsed.mm,
+            unit    : parsed.unit,
+            ref     : Na__ImageViewerMeasure__CloneDim(na_refPendingDim)
+        };
+        na_scaleByKey[key].ref.mm = parsed.mm;
         Na__ImageViewerMeasure__Dims(key).push(na_refPendingDim);
         na_refPendingDim = null;
 
@@ -735,6 +752,14 @@
 
         Na__ImageViewerMeasure__RefreshUi();
     }
+
+    // Read-only view for the other overlay features: the current photo's
+    // reference scale, or null until Set Reference has given it one.
+    window.Na__ImageViewer__Measure = {
+        getScale: function() {
+            return Na__ImageViewerMeasure__CloneScale(Na__ImageViewerMeasure__Scale(na_core.getImageKey()));
+        }
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', Na__ImageViewerMeasure__Init);
