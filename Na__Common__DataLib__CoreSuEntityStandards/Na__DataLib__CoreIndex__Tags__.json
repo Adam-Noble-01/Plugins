@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout), SitePlan__ (site plan drawing export).",
-        "version"           : "2.11.0",
-        "lastUpdated"       : "29-Sep-2026",
+        "version"           : "2.12.0",
+        "lastUpdated"       : "19-Oct-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -87,6 +87,14 @@
                 "Glb__FullyExcluded"           : false,
                 "Glb__ExportFileNameStem"      : "01__OrbitHelperCube",
                 "EdgePainting__AdvancedSwapOff": true
+            },
+            "01__Survey__DatumBenchmark": {
+                "Tag__SketchUpName"            : "01__Survey__DatumBenchmark",
+                "Tag__Description"             : "Survey datum benchmark: the one shared 3D point (the zero that datum heights are measured from) that ties point cloud images to the model. Place the standard datum benchmark component on this tag with its axes at the benchmark point. Never written to any GLB (the GlbBuilder also matches the tag by pattern, so it can never land in 01__OrbitHelperCube); the point cloud export records its position with every point cloud scene, so TrueVision can show a datum marker and check that the point cloud images and the linework share the same point.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true,
+                "EdgePainting__AdvancedSwapOff": true,
+                "Layout__EdgeColourRGB"        : [200, 30, 30]
             },
             "02__Linetype__DoorSwings": {
                 "Tag__SketchUpName"            : "02__Linetype__DoorSwings",
@@ -1681,6 +1689,7 @@
             "Na__Door__Open",
             "01__ModelFlag__ElementsForRemoval",
             "00__OriginPoint",
+            "01__Survey__DatumBenchmark",
             "71__SitePlan__BaseMap__OsMapping__General",
             "71__SitePlan__BaseMap__OsMapping__MainRoads",
             "71__SitePlan__BaseMap__OsMapping__MinorStreets",
@@ -1740,6 +1749,7 @@
             "01__ModelFlag__OverheadObjects__IndicatorLines",
             "00__OriginPoint",
             "01__OrbitHelperCube",
+            "01__Survey__DatumBenchmark",
             "02__ClearanceLines__IndicatorLines",
             "02__ClearanceLines",
             "02__DoorHelpers__RotationPivots",

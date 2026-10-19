@@ -8,6 +8,58 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.11.0 - 19-Oct-2026
+#### The Point Cloud Tab: Point Cloud Scenes Rendered Into the Project for TrueVision
+
+**What Adam asked for**
+- A "Point Cloud" tab with a master **Export Point Clouds** switch, off by default: off, the main
+  export routine never touches point clouds, but every setting is kept.
+- The point cloud scenes listed with sync on or off per scene, plus their type and scale.
+- On, a conditional "render point clouds" button on the main tab, so point clouds render alone or
+  as part of the main routine.
+- Rendered images (WebP, tiled when large) in a new folder in the project schema's style, one
+  subfolder per scene, pushed to Cloudflare R2 with the existing system.
+
+**Built**
+- `Na__TrueVision__GlbBuilder__PointCloudExport__.rb`: settings in the model dictionary
+  `Na__TrueVision__GlbBuilder__PointClouds` (enabled, deselected scene ids), each change one named
+  operation.
+  - Export status per scene: up to date, changed, not exported.
+  - The datum benchmark search, by tag `01__Survey__DatumBenchmark`.
+  - The export job, which runs in the CloudJob fiber so SketchUp stays responsive. It plans each
+    selected scene through the Point Cloud Viewer's public API (scenes API 1) and skips a scene
+    whose revision is already complete. It renders PNG tiles into `00__Staging`, converts them to
+    WebP, then writes each revision manifest and renames the revision into
+    `PointCloudScene__<id>/Rev__<key>/`. It then merges the store manifest (other models' scenes
+    untouched; scenes of this model that are gone are marked retired) and clears staging.
+- `Na__TrueVision__GlbBuilder__PointCloud__WebpTiles__.py`: PNG to WebP (quality 90, lossless
+  alpha), each file reopened to check its size. It also makes a reduced preview with
+  premultiplied alpha; a one-tile picture is its own preview.
+- `Na__TrueVision__GlbBuilder__UserInterface__PointCloudActions__.rb` and
+  `05__Plugin__UserInterface/Na__TrueVision__GlbBuilder__PointCloud__UiBridge__.js`: the tab.
+  - Master switch, readiness rows, scene list with type, scale or width and dot size.
+  - Enable All and Disable All.
+  - Render, and Render and Sync.
+  - The Export tab's Render Point Clouds Only card, and the report.
+- The main export (`...ProjectActions__.rb`) hands over to the point cloud job after the models
+  when the switch is on, then syncs; off, it is exactly what it was.
+- `SURVEY_DATUM_TAG_PATTERN` keeps the datum tag out of every GLB. The Tags SSOT 2.12.0 adds the
+  tag (fully excluded, red layout edge).
+- The Project tab's structure tree lists the store as an aside ("not a design phase"), and phase
+  discovery skips it.
+
+**19-Oct-2026**
+- The Point Cloud Viewer's lists now include the **Site Plan** scene type and the **1:2500** scale
+  (with 1:1250). This tab reads both from the viewer, so they appear here with no change.
+
+**Tested**
+- `tvpc_scenario.rb`: 33 checks, end to end through a scratch project (ZZ99). They cover the
+  settings record, the job, staging and rename, skip when unchanged, the store manifest merge and
+  retirement, the datum, and the report.
+- The ProjectVision build and sync checks: 15, offline.
+- TrueVision drew the result in a real browser session (TrueVision v2.173.0).
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.10.6 - 23-Sep-2026
 #### A Linked Model Finds Its Project On Whichever Computer Opens It
 

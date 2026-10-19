@@ -57,6 +57,12 @@ module Na__PointCloudViewer
             'clean_preview_now'       => :na_clean_preview_now,
             'clean_export'            => :na_clean_export,
             'clean_retry_load'        => :na_clean_retry_load,
+            'scenes_add'              => :na_scenes_add,
+            'scenes_update'           => :na_scenes_update,
+            'scenes_remove'           => :na_scenes_remove,
+            'scenes_relink'           => :na_scenes_relink,
+            'scenes_recall'           => :na_scenes_recall,
+            'scenes_set_export'       => :na_scenes_set_export,
             'open_backups_folder'     => :na_open_backups_folder,
             'cache_clear'             => :na_cache_clear,
             'job_cancel'              => :na_job_cancel,
@@ -354,6 +360,41 @@ module Na__PointCloudViewer
             return unless session
             problem = Na__CleanExport.Na__CleanExport__RetryLoad(session)
             Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Scenes Tab
+    # @delegate: 02__Src__AppModules/90__System__Scenes/
+    # -------------------------------------------------------------------------
+
+        def self.na_scenes_add(payload)
+            view = Sketchup.active_model.active_view
+            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Add(session, payload['pid'], view) }
+        end
+
+        def self.na_scenes_update(payload)
+            view = Sketchup.active_model.active_view
+            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Update(session, payload['id'], view) }
+        end
+
+        def self.na_scenes_remove(payload)
+            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Remove(session, payload['id']) }
+        end
+
+        def self.na_scenes_relink(payload)
+            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Relink(session, payload['id'], payload['pid']) }
+        end
+
+        def self.na_scenes_recall(payload)
+            view = Sketchup.active_model.active_view
+            self.na_clip_change { |session| Na__SceneRecall.Na__Scenes__Recall(session, payload['id'], view) }
+        end
+
+        def self.na_scenes_set_export(payload)
+            values = payload['values'].is_a?(Hash) ? payload['values'] : {}
+            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__SetExport(session, payload['id'], values) }
         end
 
     # endregion ----------------------------------------------------------------

@@ -20,6 +20,11 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - Version 2.11.0
+# - Export To Project hands over to the point cloud job after the models
+#   when Export Point Clouds is on, and that job syncs when it is done; with
+#   it off, the export is exactly what it was.
+#
 # 23-Sep-2026 - Version 2.10.6
 # - Export To Project and the site plan export refuse, and say why, when the
 #   linked project is not on this computer, instead of building its path.
@@ -397,6 +402,13 @@ module TrueVision3D
                 success: true,
                 message: "#{link[:project_code]} - #{link[:project_name]} → #{target_folder}"
             )
+
+            # Export Point Clouds on (Point Cloud tab): the scenes render next, then
+            # the sync, as one job. Off, this answers false and nothing changes.
+            if report[:success] && self.respond_to?(:Na__PointCloud__RunAfterModelExport) &&
+               self.Na__PointCloud__RunAfterModelExport(dialog, link.dup, report, sync)
+                return
+            end
 
             if sync && report[:success]
                 self.Na__UserInterface__PushReport(dialog, report.merge(running: true))

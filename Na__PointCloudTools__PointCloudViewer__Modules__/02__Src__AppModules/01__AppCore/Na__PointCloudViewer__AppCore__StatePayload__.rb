@@ -33,6 +33,7 @@ module Na__PointCloudViewer
                 'transform'    => Na__Placement.Na__Placement__Payload(session, model),
                 'link'         => Na__ModelLink.Na__Link__Payload(session, model),
                 'clean'        => Na__CleanPreview.Na__Clean__Payload(session, model),
+                'scenes'       => self.na_scenes_payload(session, model),
                 'job'          => { 'isRunning' => Na__AsyncJobs.Na__Jobs__Busy?, 'title' => Na__AsyncJobs.Na__Jobs__ActiveTitle },
                 'paths'        => {
                     'cacheFolder'    => Na__AssetResolver.Na__Paths__CacheFolder,
@@ -82,6 +83,14 @@ module Na__PointCloudViewer
                 'budgetPresets' => Na__ConfigLoader.Na__Config__GetOr([], 'render', 'budgetPresets'),
                 'fault'         => session ? session.fault : nil
             }
+        end
+
+        # A fault here must never stop the rest of the dialog from painting.
+        def self.na_scenes_payload(session, model)
+            Na__SceneRecall.Na__Scenes__Payload(session, model, model.active_view)
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Error('The Scenes tab could not be built.', error)
+            { 'isAvailable' => false, 'problem' => "The point cloud scenes could not be shown (#{error.message})." }
         end
 
         # Status only: never loads the DLL just to report on it.

@@ -47,7 +47,8 @@ module Na__PointCloudViewer
         NA_KEY            = 'json'.freeze
         NA_SCHEMA         = 'Na__PointCloudViewer__ModelLink'.freeze
         NA_SCHEMA_VERSION = 1
-        NA_ALL_DICTS      = [NA_DICT, 'Na__PointCloudViewer__Placement', 'Na__PointCloudViewer__ClipState'].freeze
+        NA_ALL_DICTS      = [NA_DICT, 'Na__PointCloudViewer__Placement', 'Na__PointCloudViewer__ClipState',
+                             'Na__PointCloudViewer__Scenes'].freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -186,6 +187,7 @@ module Na__PointCloudViewer
                 model.set_attribute(NA_DICT, NA_KEY, JSON.generate(backup['link']))
                 model.set_attribute(Na__Placement::NA_DICT, 'json', JSON.generate(backup['placement'])) if backup['placement']
                 model.set_attribute(Na__ClipBox::NA_DICT, 'json', JSON.generate(backup['clip'])) if backup['clip']
+                model.set_attribute(Na__LocalBackup::NA_SCENES_DICT, 'json', JSON.generate(backup['scenes'])) if backup['scenes']
             end
             Na__ModelRegistry.Na__Registry__ReloadModelState(model)
             nil

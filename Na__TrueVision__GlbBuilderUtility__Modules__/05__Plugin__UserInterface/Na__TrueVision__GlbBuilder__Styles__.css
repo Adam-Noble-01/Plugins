@@ -1511,5 +1511,229 @@ body {
 
 
 /* ============================================================================= */
+/* REGION | Point Cloud Tab                                                      */
+/* The master switch, readiness rows, scene rows and the Export tab's point      */
+/* cloud row and note. Everything else reuses the existing classes.             */
+/* ============================================================================= */
+
+.naTvgb__TabButton--pcOn::after {
+    content                 : '';
+    display                 : inline-block;
+    width                   : 7px;
+    height                  : 7px;
+    margin-left             : 6px;
+    border-radius           : 50%;
+    background              : var(--naTvgb_Success);
+    vertical-align          : middle;
+}
+
+.naTvgb__PcMaster {
+    display                 : flex;
+    align-items             : flex-start;
+    gap                     : 12px;
+    padding                 : 12px 14px;
+    margin-bottom           : 12px;
+    background              : var(--naTvgb_PanelBg);
+    border                  : 1px solid var(--naTvgb_Border);
+    border-left             : 4px solid var(--naTvgb_Border);
+    border-radius           : 6px;
+}
+
+.naTvgb__PcMaster--on {
+    border-left-color       : var(--naTvgb_Success);
+}
+
+.naTvgb__PcMaster__Body {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 3px;
+}
+
+.naTvgb__PcMaster__Title {
+    font-size               : 13px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__PcMaster__Desc {
+    font-size               : 11.5px;
+    line-height             : 1.4;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__PcSwitch {
+    position                : relative;
+    flex-shrink             : 0;
+    width                   : 38px;
+    height                  : 22px;
+    margin-top              : 1px;
+    cursor                  : pointer;
+}
+
+.naTvgb__PcSwitch input {
+    position                : absolute;
+    opacity                 : 0;
+    width                   : 100%;
+    height                  : 100%;
+    margin                  : 0;
+    cursor                  : pointer;
+}
+
+.naTvgb__PcSwitch__Track {
+    position                : absolute;
+    inset                   : 0;
+    border-radius           : 11px;
+    background              : #c3cad2;
+    transition              : background 0.15s ease;
+    pointer-events          : none;
+}
+
+.naTvgb__PcSwitch__Track::after {
+    content                 : '';
+    position                : absolute;
+    top                     : 3px;
+    left                    : 3px;
+    width                   : 16px;
+    height                  : 16px;
+    border-radius           : 50%;
+    background              : #ffffff;
+    box-shadow              : 0 1px 2px rgba(0, 0, 0, 0.25);
+    transition              : transform 0.15s ease;
+}
+
+.naTvgb__PcSwitch input:checked + .naTvgb__PcSwitch__Track {
+    background              : var(--naTvgb_Success);
+}
+
+.naTvgb__PcSwitch input:checked + .naTvgb__PcSwitch__Track::after {
+    transform               : translateX(16px);
+}
+
+.naTvgb__PcSwitch input:disabled + .naTvgb__PcSwitch__Track {
+    opacity                 : 0.5;
+}
+
+.naTvgb__PcScene {
+    padding                 : 8px 0 9px 0;
+    border-bottom           : 1px solid #eef0f2;
+}
+
+.naTvgb__PcScene:last-child {
+    border-bottom           : none;
+}
+
+.naTvgb__PcScene__Head {
+    display                 : flex;
+    align-items             : center;
+    gap                     : 8px;
+    flex-wrap               : wrap;
+}
+
+.naTvgb__PcScene__Name {
+    font-size               : 12.5px;
+    font-weight             : 600;
+    color                   : var(--naTvgb_Text);
+}
+
+.naTvgb__PcScene__Type {
+    font-size               : 11px;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__PcScene--off .naTvgb__PcScene__Name {
+    color                   : #a3abb4;
+    text-decoration         : line-through;
+}
+
+.naTvgb__PcScene--problem .naTvgb__PcScene__Name {
+    color                   : var(--naTvgb_Error);
+}
+
+.naTvgb__PcScene__Fields {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 8px;
+    margin                  : 6px 0 0 21px;
+}
+
+.naTvgb__PcField {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 2px;
+}
+
+.naTvgb__PcField__Label {
+    font-size               : 10px;
+    letter-spacing          : 0.04em;
+    text-transform          : uppercase;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__Select.naTvgb__PcSelect {
+    min-width               : 92px;
+    padding                 : 3px 6px;
+    font-size               : 11.5px;
+}
+
+.naTvgb__PcScene__Warn {
+    margin                  : 6px 0 0 21px;
+    padding                 : 4px 8px;
+    font-size               : 11px;
+    line-height             : 1.35;
+    color                   : var(--naTvgb_Warning);
+    background              : #fff7e8;
+    border-radius           : 4px;
+}
+
+.naTvgb__PcTag {
+    font-size               : 10.5px;
+    padding                 : 1px 7px;
+    border-radius           : 9px;
+    border                  : 1px solid var(--naTvgb_Border);
+    color                   : var(--naTvgb_MutedText);
+    background              : var(--naTvgb_Bg);
+    white-space             : nowrap;
+}
+
+.naTvgb__PcTag--upToDate {
+    color                   : var(--naTvgb_Success);
+    border-color            : #9fd0b2;
+    background              : #eef8f2;
+}
+
+.naTvgb__PcTag--changed,
+.naTvgb__PcTag--warn {
+    color                   : var(--naTvgb_Warning);
+    border-color            : #e3c27f;
+    background              : #fff7e8;
+}
+
+.naTvgb__PcTag--error {
+    color                   : var(--naTvgb_Error);
+    border-color            : #e3a6a6;
+    background              : #fbefef;
+    font-weight             : 600;
+}
+
+.naTvgb__PcSummary {
+    color                   : var(--naTvgb_Success);
+    font-weight             : 600;
+}
+
+.naTvgb__PcExportNote {
+    margin                  : 2px 0 8px 0;
+    padding                 : 6px 10px;
+    font-size               : 11.5px;
+    line-height             : 1.4;
+    color                   : var(--naTvgb_InfoText);
+    background              : #eef4f8;
+    border-left             : 3px solid var(--naTvgb_Success);
+    border-radius           : 4px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
 /* END OF FILE                                                                   */
 /* ============================================================================= */

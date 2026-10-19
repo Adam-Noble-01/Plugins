@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na Point Cloud Viewer",
-        "version" : "0.8.0"
+        "version" : "0.9.0"
     },
 
     "dialog" : {
@@ -137,6 +137,42 @@
                     { "key" : "feature_factor", "label" : "Detail factor", "unit" : "x",  "min" : 1, "max" : 6,   "step" : 0.1, "hint" : "Corners, edges, steps and small objects keep patches this many times finer." }
                 ]
             }
+        }
+    },
+
+    "scenes" : {
+        "_comment" : "Scenes tab (v0.9.0). A point cloud scene binds the viewer's settings (point budget, size, opacity, colour, show, clip box) to a SketchUp scene, found by Page#persistent_id. viewTypes tell TrueVision which kind of viewport the scene feeds: a Plan or a Site Plan lays over a plan or site plan viewport (both look straight down, drawn in world X and Z), an Elevation or Section over an elevation looking the same way, and a 3D View is listed for later. A parallel-projection scene exports to scale: pxPerPaperMm pixels per millimetre of paper (12 = TrueVision's Tier03 Detail, about 305 dpi), and the scale preset's pointSizePx is the dot size baked into the image (about 10 to 15 mm in the model, never under 1 px). A custom scale uses round(customPointSizeFactor / denominator), clamped. A perspective scene has no scale: its image width sets the detail.",
+        "viewTypes" : [
+            { "id" : "plan",      "label" : "Plan" },
+            { "id" : "siteplan",  "label" : "Site Plan" },
+            { "id" : "elevation", "label" : "Elevation" },
+            { "id" : "section",   "label" : "Section" },
+            { "id" : "view3d",    "label" : "3D View" }
+        ],
+        "scalePresets" : [
+            { "denominator" : 10,   "pointSizePx" : 10 },
+            { "denominator" : 20,   "pointSizePx" : 6 },
+            { "denominator" : 50,   "pointSizePx" : 3 },
+            { "denominator" : 100,  "pointSizePx" : 2 },
+            { "denominator" : 200,  "pointSizePx" : 1 },
+            { "denominator" : 500,  "pointSizePx" : 1 },
+            { "denominator" : 1250, "pointSizePx" : 1 },
+            { "denominator" : 2500, "pointSizePx" : 1 }
+        ],
+        "defaultScale"          : 50,
+        "customScaleMin"        : 1,
+        "customScaleMax"        : 5000,
+        "customPointSizeFactor" : 150,
+        "imageWidthPresets"     : [2000, 3000, 4000, 6000, 8000],
+        "defaultImageWidthPx"   : 4000,
+        "perspectivePointSizePx": 2,
+        "exportPointSizeMaxPx"  : 32,
+        "export" : {
+            "_comment"      : "Off-screen render of a scene for TrueVision. Tiles of tileSizePx (the engine renders at most 16384 px a side). An image over maxMegapixels is rendered at a lower pixel density instead, and the report says so.",
+            "pxPerPaperMm"  : 12,
+            "tileSizePx"    : 2048,
+            "maxMegapixels" : 160,
+            "framePaddingPx": 4
         }
     },
 

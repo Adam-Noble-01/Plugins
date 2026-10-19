@@ -4,6 +4,54 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.9.0 - 19-Oct-2026 - Scenes Tab: Point Cloud Scenes for TrueVision
+
+### Summary
+Adam asked for the viewer's settings to be bound to SketchUp scenes, recalled by pressing the
+scene, and exported as images that TrueVision lays over its drawings for survey work. The Scenes
+tab binds the clip box, point budget, point size, opacity, colour and visibility to a SketchUp
+scene, found by `Page#persistent_id` and kept in the viewer's OWN model dictionary. A scene also
+carries what it is for TrueVision (Plan, Site Plan, Elevation, Section, 3D View) and the scale it
+will be printed at, which sets the dot size baked into its picture. TrueVision Sync (GLB Builder
+2.11) renders the pictures through the public API and pushes them to R2. ARCHITECTURE section 23
+is the full description.
+
+### Built
+- **Store** (`90__System__Scenes/...Scenes__Store__.rb`): dictionary `Na__PointCloudViewer__Scenes`,
+  key `json`, schema 1. Found by persistent id, with the scene's name kept only as a hint. Read
+  only when the record is corrupt or from a newer version, and unknown keys survive a save. Every
+  change is one named operation, then the local backup. Nothing is ever written to a SketchUp
+  scene (Page): no attribute, no update, no observer.
+- **Recall** (`...Scenes__Recall__.rb`): moves SketchUp to the scene, then applies the saved
+  settings, visibility and clip box in one operation. A missing scene changes nothing and says
+  so, and Relink is the user's choice (a scene with the same name is suggested, never adopted).
+- **Image export** (`...Scenes__ImageExport__.rb`): renders off screen from the scene's own camera
+  (it never selects a scene, so no transition can be caught halfway). It works at 12 px per paper
+  mm, in 2048 px tiles, under a 160 MP ceiling. Every dot is centred on its point within half a
+  pixel. The frame record places the picture exactly in TrueVision's world. The revision key
+  changes when anything that changes the picture changes.
+- **Public API** (`...Scenes__PublicApi__.rb`, scenes API 1) for TrueVision Sync: scene list,
+  export settings, plan, render, frame record, pixel of a model point.
+- **UI** (`...Scenes__UiSystem__MainUiLogic__.js`, `...UiFeature__Styles__Scenes__.css`): the Scenes
+  tab. Cards with recall, tags, warnings and relink, plus Type, Scale (presets or custom) or Image
+  Width, Dot Size, Go To Scene, Update and Remove.
+- Model link, local backup and restore carry the scenes record (`NA_RECORD_KEYS`).
+
+### 19-Oct-2026: Site Plan scenes, and the scale list Adam meant
+- Adam: "I put 1:2000. What I meant to put was 1:1250 and 1:2500 ... there will be site plan point
+  clouds as well." The scale presets now end 1:500, 1:1250, 1:2500 (1 px dots), and a **Site Plan**
+  scene type sits after Plan. It looks straight down like a plan, and TrueVision lays it on a site
+  plan viewport (or a plan). The tilt warning names it: "A site plan should look straight down."
+
+### Tested
+- `pcv_scenario_scenes.rb`: 83 checks, all passing. They cover the record, read-only and
+  unknown-key cases, recall, relink and remove, and the public list (Site Plan, 1:1250 and 1:2500).
+  They also cover the export: frame, tiles, dot centring for 1 to 4 px, perspective, horizontal
+  fov, size limit and revision keys. Tripwires prove no SketchUp scene was ever written, updated,
+  added or erased.
+- Not yet tried in SketchUp itself: the scale presets' dot sizes (1:50 and 1:100 especially) want
+  Adam's eye on a real scan.
+
 ## Point Cloud Viewer - v0.8.0 - 12-Oct-2026 - Clean Tab, Clean & Export to a New LAS
 
 ### Summary

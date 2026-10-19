@@ -13,7 +13,7 @@
 #   3. Native    - NativeEngine bridge (Fiddle; DLL loaded on first use)
 #   4. Viewport  - RenderTypes, RenderSettings, ImageRenderer, RenderController, CloudOverlay
 #   5. AppCore   - ModelRegistry, AsyncJobs
-#   6. Systems   - LAS import, clip box, transform, persistence, clean
+#   6. Systems   - LAS import, clip box, transform, persistence, clean, scenes
 #   7. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager
 #
 # HOT RELOAD:
@@ -101,6 +101,10 @@ require_relative '../70__System__Persistence/Na__PointCloudViewer__Persistence__
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Settings__'
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Preview__'
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Export__'
+require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Store__'
+require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Recall__'
+require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__ImageExport__'
+require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__PublicApi__'
 
 # -----------------------------------------------------------------------------
 # REGION | AppCore - Dialog (must load last - depends on all systems above)

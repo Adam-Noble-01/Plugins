@@ -1,0 +1,243 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - UI FEATURE STYLES - SCENES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__Scenes__.css
+   PURPOSE    : Scenes tab: one card per point cloud scene (name button, tags,
+                summary, warnings, export settings, actions) and the add row.
+                Prefixed na-pcs- so nothing collides with the Clipping tab's
+                clip scenes (na-scene-).
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | List + Card */
+/* ----------------------------------------------------------------- */
+
+.na-pcs-list {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 8px;
+}
+
+.na-pcs-card {
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : #fff;
+    padding             : 8px 10px;
+}
+
+.na-pcs-card--active {
+    background          : #eef3fb;
+    box-shadow          : inset 3px 0 0 var(--na-accent);
+}
+
+.na-pcs-card--missing {
+    background          : #fdf4f3;
+    box-shadow          : inset 3px 0 0 var(--na-danger);
+}
+
+.na-pcs-card__header {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    flex-wrap           : wrap;
+}
+
+.na-pcs-card__name {
+    flex                : 1 1 auto;
+    min-width           : 0;
+    border              : none;
+    background          : transparent;
+    padding             : 2px 0;
+    text-align          : left;
+    font-family         : inherit;
+    font-size           : 13.5px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    cursor              : pointer;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-pcs-card__name:hover:not(:disabled) {
+    color               : var(--na-accent);
+}
+
+.na-pcs-card__name:disabled {
+    cursor              : default;
+    color               : var(--na-subtle);
+}
+
+.na-pcs-card__tags {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 4px;
+}
+
+.na-pcs-tag {
+    font-size           : 10.5px;
+    line-height         : 1.5;
+    padding             : 0 6px;
+    border-radius       : 9px;
+    background          : var(--na-bg);
+    color               : var(--na-subtle);
+    border              : 1px solid var(--na-border);
+    white-space         : nowrap;
+}
+
+.na-pcs-tag--type {
+    color               : var(--na-text);
+    font-weight         : 600;
+}
+
+.na-pcs-tag--active {
+    color               : var(--na-accent);
+    border-color        : var(--na-accent);
+    font-weight         : 600;
+}
+
+.na-pcs-tag--warn {
+    color               : var(--na-warn);
+    border-color        : #e7c38f;
+    background          : #fff7ea;
+}
+
+.na-pcs-tag--danger {
+    color               : var(--na-danger);
+    border-color        : #eab4ae;
+    background          : #fdf0ee;
+    font-weight         : 600;
+}
+
+.na-pcs-card__summary {
+    margin              : 6px 0 0 0;
+    font-size           : 12px;
+    color               : var(--na-text);
+}
+
+.na-pcs-card__warning {
+    margin              : 6px 0 0 0;
+    padding             : 5px 8px;
+    font-size           : 11.5px;
+    color               : var(--na-warn);
+    background          : #fff7ea;
+    border-radius       : 4px;
+}
+
+.na-pcs-card__note {
+    margin-top          : 4px;
+}
+
+.na-pcs-card__time {
+    margin              : 6px 0 0 0;
+    font-size           : 10.5px;
+    color               : var(--na-subtle);
+    text-align          : right;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Export Settings + Relink */
+/* ----------------------------------------------------------------- */
+
+.na-pcs-export,
+.na-pcs-relink {
+    display             : flex;
+    flex-wrap           : wrap;
+    align-items         : flex-end;
+    gap                 : 8px;
+    margin-top          : 8px;
+}
+
+.na-pcs-relink .na-hint {
+    flex-basis          : 100%;
+    margin              : 0;
+}
+
+.na-pcs-scale {
+    display             : flex;
+    align-items         : flex-end;
+    gap                 : 6px;
+}
+
+.na-pcs-field {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 2px;
+}
+
+.na-pcs-field__label {
+    font-size           : 10.5px;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.04em;
+}
+
+.naInput.na-pcs-select {
+    padding             : 3px 6px;
+    font-size           : 12px;
+    min-width           : 96px;
+}
+
+.naInput.na-pcs-custom-scale {
+    width               : 80px;
+    padding             : 3px 6px;
+    font-size           : 12px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Actions + Add Row */
+/* ----------------------------------------------------------------- */
+
+.na-pcs-card__actions {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 6px;
+    margin-top          : 8px;
+}
+
+.na-pcs-action {
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+    border-radius       : 4px;
+    padding             : 4px 10px;
+    font-family         : inherit;
+    font-size           : 12px;
+    color               : var(--na-text);
+    cursor              : pointer;
+}
+
+.na-pcs-action:hover {
+    background          : var(--na-bg);
+}
+
+.na-pcs-action--primary {
+    border-color        : var(--na-accent);
+    color               : var(--na-accent);
+    font-weight         : 600;
+}
+
+.na-pcs-action--danger {
+    color               : var(--na-danger);
+    margin-left         : auto;
+}
+
+.na-pcs-add {
+    display             : flex;
+    gap                 : 8px;
+    margin-top          : 8px;
+}
+
+.naInput.na-pcs-add__select {
+    flex                : 1;
+    min-width           : 0;
+}
+
+.na-pcs-add .naButton {
+    flex-shrink         : 0;
+}
+
+/* endregion ----------------------------------------------------------------- */

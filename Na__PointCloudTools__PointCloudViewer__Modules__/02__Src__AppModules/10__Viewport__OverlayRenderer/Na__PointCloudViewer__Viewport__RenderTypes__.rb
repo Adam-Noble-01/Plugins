@@ -80,10 +80,17 @@ module Na__PointCloudViewer
         # extents      : cached BoundingBox for Overlay#getExtents
         # clean_state  : the Clean tab's preview context and results
         #                (Na__CleanState, 80__System__Clean)
+        # scenes       : point cloud scenes bound to SketchUp scenes (90__System__Scenes),
+        #                read from the model on first use; scenes_meta holds the
+        #                store id and revision; scenes_readonly when the record is
+        #                unreadable or from a newer version (scenes_problem says why)
+        # scene_active_id : the point cloud scene last recalled, added or updated
+        #                (this session only; the Update button follows it)
         attr_accessor :model, :settings, :cloud, :fault, :image_state,
                       :clip, :clip_scenes, :clip_active_scene, :clip_loaded, :clip_editing,
                       :clip_hover, :clip_drag_face, :placement, :placement_note, :transform_tool, :extents,
-                      :persist_snapshot, :clean_state
+                      :persist_snapshot, :clean_state,
+                      :scenes, :scenes_loaded, :scenes_meta, :scenes_problem, :scenes_readonly, :scene_active_id
         attr_reader   :empty_bounds
 
         def initialize
@@ -96,6 +103,9 @@ module Na__PointCloudViewer
             @clip_editing = false
             @empty_bounds = Geom::BoundingBox.new
             @extents      = nil
+            @scenes       = []
+            @scenes_loaded = false
+            @scenes_meta  = { 'storeId' => nil, 'revision' => 0, 'extra' => {} }
         end
 
     end

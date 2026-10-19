@@ -7,7 +7,7 @@
      FILE       : Na__PointCloudViewer__UiLayout__.html
      PURPOSE    : HtmlDialog layout: brand header, tab strip, tab panels,
                   shared status bar and the full-dialog loading overlay.
-     TABS       : View (default) | Clipping | Transform | Clean | Settings
+     TABS       : View (default) | Clipping | Transform | Clean | Scenes | Settings
      DATA       : None in the markup. Ruby pushes state as JSON through
                   window.Na__PointCloudViewer__Receive; the tab scripts render it.
      ============================================================================= -->
@@ -47,6 +47,7 @@
             <button id="na-tab-button-clipping" class="na-tab" role="tab" data-na-tab-id="clipping" onclick="Na_TabRouter.na_activateTab('clipping')">Clipping</button>
             <button id="na-tab-button-transform" class="na-tab" role="tab" data-na-tab-id="transform" onclick="Na_TabRouter.na_activateTab('transform')">Transform</button>
             <button id="na-tab-button-clean" class="na-tab" role="tab" data-na-tab-id="clean" onclick="Na_TabRouter.na_activateTab('clean')">Clean</button>
+            <button id="na-tab-button-scenes" class="na-tab" role="tab" data-na-tab-id="scenes" onclick="Na_TabRouter.na_activateTab('scenes')">Scenes</button>
             <button id="na-tab-button-settings" class="na-tab" role="tab" data-na-tab-id="settings" onclick="Na_TabRouter.na_activateTab('settings')">Settings</button>
         </nav>
     </div>
@@ -370,6 +371,43 @@
         <!-- endregion ============================================================ -->
 
         <!-- ======================================================================
+             REGION | Tab Panel - Scenes
+             Point cloud settings saved for SketchUp scenes. Rendered by
+             90__System__Scenes/...Scenes__UiSystem__MainUiLogic__.js
+             ====================================================================== -->
+        <div id="na-tab-scenes" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="scenes">
+            <div class="na-panel-body">
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Point Cloud Scenes</h3>
+                        <span class="na-card__value" id="na-pcs-count"></span>
+                    </div>
+                    <p class="na-note na-hidden" id="na-pcs-problem"></p>
+                    <div class="na-pcs-list" id="na-pcs-list"></div>
+                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene and the cloud takes back its point budget, size, opacity, colour and clip box.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Add A SketchUp Scene</h3>
+                    <p class="na-hint na-hint--top">Go to the SketchUp scene, set the cloud up for it (clip box, budget, size, opacity), then pick the scene here and press Save Settings For Scene.</p>
+                    <div class="na-pcs-add">
+                        <select class="naInput na-pcs-add__select" id="na-pcs-add-select"></select>
+                        <button type="button" class="naButton" id="na-pcs-add-go">Save Settings For Scene</button>
+                    </div>
+                    <p class="na-hint" id="na-pcs-add-hint"></p>
+                </section>
+
+                <section class="na-card na-card--quiet">
+                    <h3 class="na-card__title">How Scenes Are Kept Safe</h3>
+                    <p class="na-hint na-hint--top">These settings live in the viewer's own record in this model. SketchUp's scenes are never changed: the viewer finds each one by the permanent id SketchUp gives it, so renaming, reordering or updating a scene never breaks anything. If a scene is deleted, its settings show as Missing until you relink or remove them.</p>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
              REGION | Tab Panel - Settings
              ====================================================================== -->
         <div id="na-tab-settings" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="settings">
@@ -392,7 +430,7 @@
 
                 <section class="na-settings-section">
                     <h3 class="na-settings-heading">Saved With This Model</h3>
-                    <p class="na-settings-description">The model keeps three small text records: which LAS it uses, where the cloud sits (position, rotation, gimbal point, lock) and the clip box with its scenes. They never load anything by themselves and never stop a model from opening; use Reload Point Cloud on the View tab. A copy of the same records is kept on this computer, so a day's alignment survives SketchUp closing without saving.</p>
+                    <p class="na-settings-description">The model keeps four small text records: which LAS it uses, where the cloud sits (position, rotation, gimbal point, lock), the clip box with its clip scenes, and the point cloud settings saved for SketchUp scenes. They never load anything by themselves and never stop a model from opening; use Reload Point Cloud on the View tab. A copy of the same records is kept on this computer, so a day's alignment survives SketchUp closing without saving.</p>
                     <div class="na-button-row">
                         <button type="button" class="naButtonSecondary" id="na-settings-open-backups">Open Backups Folder</button>
                         <button type="button" class="naButtonSecondary" id="na-settings-remove-link">Remove Point Cloud Data From Model</button>
@@ -479,6 +517,7 @@
 <script src="02__Src__AppModules/60__System__Transform/Na__PointCloudViewer__Transform__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/70__System__Persistence/Na__PointCloudViewer__Persistence__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/80__System__Clean/Na__PointCloudViewer__Clean__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/90__System__Scenes/Na__PointCloudViewer__Scenes__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/35__System__SettingsMode/Na__PointCloudViewer__SettingsTab__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__TabRouter__.js"></script>
 <!-- endregion ============================================================== -->

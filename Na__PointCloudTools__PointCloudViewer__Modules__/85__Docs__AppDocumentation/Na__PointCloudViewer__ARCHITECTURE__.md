@@ -1,11 +1,12 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.8.0: native image renderer (binned raster, screen crop, orbit budget), LAS import
+Status: **v0.9.0: native image renderer (binned raster, screen crop, orbit budget), LAS import
 with the `.napc` point cache (v2, named by the LAS content key), the clip box with clip scenes,
-the Transform tab, model persistence (LAS link + local backup, explicit Reload) and the Clean tab
+the Transform tab, model persistence (LAS link + local backup, explicit Reload), the Clean tab
 (Remove Noise, Refine Surfaces, Reduce Density; live preview in the clip box; Clean & Export LAS
-to a NEW file, section 22) are built; everything marked _Designed_ is not yet code.** Written
-03-Oct-2026, cleaning added 12-Oct-2026. Keep this file true: when a design decision changes,
+to a NEW file, section 22) and the Scenes tab (point cloud scenes for TrueVision, section 23)
+are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026, cleaning added
+12-Oct-2026, scenes 19-Oct-2026. Keep this file true: when a design decision changes,
 change it here and say why in the DEVLOG.
 
 **The decisive finding (M1):** SketchUp's View API costs ~2.3 us per drawn point (100k points =
@@ -1046,3 +1047,71 @@ met at such spots.
 5 x 5 x 5 coarse cells alone add 450 mm to it); fewer EM rounds; a cheaper first pass over the
 outer ring of the margin. The noise stage (kNN for every gathered point) is now the second largest
 stage.
+
+
+## 23. Scenes: Point Cloud Scenes for TrueVision (BUILT in v0.9.0)
+
+Ruby: `90__System__Scenes/` (`...Scenes__Store__.rb`, `...Scenes__Recall__.rb`,
+`...Scenes__ImageExport__.rb`, `...Scenes__PublicApi__.rb`, the Scenes tab JS); style
+`...UiFeature__Styles__Scenes__.css`; config `scenes`.
+
+### 23.1 What a point cloud scene is
+
+A SketchUp scene (`Sketchup::Page`; SketchUp's "layers" are tags, not scenes) with the viewer's
+settings saved against it: point budget, point size, opacity, colour mode, visibility and the clip
+box, plus what TrueVision is to do with it. Each also carries a view type (Plan, Site Plan,
+Elevation, Section, 3D View), a scale (presets 1:10 to 1:2500, or custom) or an image width for a
+perspective scene, and a dot size (Auto or 1 to 16 px).
+
+### 23.2 Where it is kept, and why nothing touches the scene
+
+One JSON record in the MODEL's dictionary `Na__PointCloudViewer__Scenes` (key `json`, schema 1),
+never on the Page:
+- Attributes on Pages have a reported crash path in SketchUp (reproduced in the SketchUp developer
+  community), and SketchUp staff have described scene data that left files unopenable. The bug
+  Adam remembered from Undet (renaming a scene made models unopenable) is of that family.
+  So the viewer writes nothing to a Page: no attribute, no `update`, no observer. The test
+  scenario has tripwires on every Page and Pages writer.
+- The scene is found by `Page#persistent_id` (stable within a model since SketchUp 2018). Its name
+  is stored only as a hint for relinking. `entityID` and names are never keys.
+- A record from a newer viewer, or one that does not parse, is shown read only and never rewritten.
+  Keys this version does not know are carried through every save.
+- Every change is one named, undoable operation, followed by the local backup (section 13); the
+  model link and Restore carry the record with the placement and the clip box.
+
+### 23.3 Recall, missing scenes, relink
+
+Pressing a scene's name selects the SketchUp scene, then applies the saved settings, visibility and
+clip box in ONE operation, and writes the clip only if it differs. A scene whose Page has gone
+changes nothing and says so. Relink offers a Page with the same name, but only the user adopts it.
+The tab refreshes when it is shown and when the dialog regains focus; there are no observers.
+
+### 23.4 Export to scale
+
+- Off screen, from `page.camera` (checked with `use_camera?`), never by selecting the scene:
+  `Pages#selected_page=` animates, and a capture taken mid transition is wrong. The overlay is never
+  in it, because nothing is captured from the screen.
+- Parallel scenes: 12 px per paper mm (TrueVision's Detail tier, about 305 dpi), so a pixel is
+  denominator / 12 mm in the model. Tiles of 2048 px; over 160 MP the density drops and the plan
+  says by how much. The frame snaps to whole pixels with padding of half a dot plus 4 px.
+- Dot size: the scale preset's (1:10 10 px, 1:20 6, 1:50 3, 1:100 2, 1:200 to 1:2500 1), else
+  round(150 / denominator), clamped 1 to 32; a perspective scene uses 2 px. Even sizes are shifted
+  half a pixel, so every dot is centred on its point within 0.5 px (tested for 1 to 4 px).
+- The frame record gives OriginM (the top left corner of the top left pixel on the camera's target
+  plane), RightM, DownM, NormalM (into the scene) and PixelSizeM in TrueVision's world: SketchUp
+  inches (x, y, z) become (x, z, -y) x 0.0254 m with no offset, as the GLB Builder's models do.
+  The SketchUp block repeats it in inches.
+- The revision key is a hash of everything that changes the picture: camera, frame, dots, clip,
+  budget, colour and cloud.
+
+### 23.5 Public API (scenes API 1)
+
+`Na__PublicApi__SceneList`, `SetSceneExport`, `PlanSceneExport`, `RenderSceneTiles`,
+`SceneFrameRecord`, `ScenePixelFor`, `ReloadPointCloud`: what TrueVision Sync (GLB Builder 2.11)
+calls to list the scenes, render them into its project store and record the datum's pixel.
+
+### 23.6 Tests
+
+`pcv_scenario_scenes.rb`: 83 checks (the record and its refusals, recall, relink, remove, the
+public list with the Site Plan type and the 1:1250 and 1:2500 presets, export geometry, dot
+centring, perspective, limits, revision keys), with the Page tripwires quiet throughout.

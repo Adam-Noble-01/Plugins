@@ -39,6 +39,10 @@ module Na__PointCloudViewer
         NA_SCHEMA_VERSION = 1
         NA_FOLDER_NAME    = 'Na__PointCloudViewer__ModelBackups'.freeze
         NA_ARCHIVES_KEPT  = 5
+        # The scenes record (v0.9.0) rides in the same file; a backup written
+        # before it simply has no 'scenes' key, which reads as "none saved".
+        NA_SCENES_DICT    = 'Na__PointCloudViewer__Scenes'.freeze
+        NA_RECORD_KEYS    = %w[placement clip scenes].freeze
 
     # endregion ----------------------------------------------------------------
 
@@ -69,7 +73,8 @@ module Na__PointCloudViewer
                 'modelTitle'    => model.title.to_s,
                 'link'          => link,
                 'placement'     => self.na_raw_record(model, Na__Placement::NA_DICT),
-                'clip'          => self.na_raw_record(model, Na__ClipBox::NA_DICT)
+                'clip'          => self.na_raw_record(model, Na__ClipBox::NA_DICT),
+                'scenes'        => self.na_raw_record(model, NA_SCENES_DICT)
             }
             path = self.Na__Backup__Path(link['linkId'])
             self.na_archive_if_newer(path, data)
@@ -127,9 +132,10 @@ module Na__PointCloudViewer
         def self.Na__Backup__Compare(model, backup)
             return { 'differs' => false, 'newer' => false } unless backup
             model_records  = { 'placement' => self.na_raw_record(model, Na__Placement::NA_DICT),
-                               'clip'      => self.na_raw_record(model, Na__ClipBox::NA_DICT) }
-            differs = %w[placement clip].any? { |key| self.na_strip(model_records[key]) != self.na_strip(backup[key]) }
-            model_epoch  = %w[placement clip].map { |key| self.na_epoch(model_records[key]) }.max
+                               'clip'      => self.na_raw_record(model, Na__ClipBox::NA_DICT),
+                               'scenes'    => self.na_raw_record(model, NA_SCENES_DICT) }
+            differs = NA_RECORD_KEYS.any? { |key| self.na_strip(model_records[key]) != self.na_strip(backup[key]) }
+            model_epoch  = NA_RECORD_KEYS.map { |key| self.na_epoch(model_records[key]) }.max
             backup_epoch = self.na_latest_epoch(backup)
             {
                 'differs'         => differs,
@@ -145,13 +151,13 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         def self.na_raw_strings(model)
-            [Na__ModelLink::NA_DICT, Na__Placement::NA_DICT, Na__ClipBox::NA_DICT].map { |dict| model.get_attribute(dict, 'json') }
+            [Na__ModelLink::NA_DICT, Na__Placement::NA_DICT, Na__ClipBox::NA_DICT, NA_SCENES_DICT].map { |dict| model.get_attribute(dict, 'json') }
         end
 
         def self.na_archive_if_newer(path, data)
             existing = self.na_read(path)
             return unless existing
-            differs = %w[placement clip].any? { |key| self.na_strip(existing[key]) != self.na_strip(data[key]) }
+            differs = NA_RECORD_KEYS.any? { |key| self.na_strip(existing[key]) != self.na_strip(data[key]) }
             return unless differs && self.na_latest_epoch(existing) > self.na_latest_epoch(data)
             stamp = Time.now.strftime('%Y%m%d-%H%M%S')
             FileUtils.cp(path, path.sub(/\.json\z/, "__superseded__#{stamp}.json"))
@@ -186,7 +192,7 @@ module Na__PointCloudViewer
         end
 
         def self.na_latest_epoch(backup)
-            %w[placement clip].map { |key| self.na_epoch(backup[key]) }.max
+            NA_RECORD_KEYS.map { |key| self.na_epoch(backup[key]) }.max
         end
 
     # endregion ----------------------------------------------------------------

@@ -27,6 +27,7 @@
         "ContentFolderName"  : "30__TrueVision__AppContent",
         "ProjectDataFileName": "TrueVision__ProjectData__.json",
         "SitePlanFolderName" : "SitePlan__DrawingData",
+        "PointCloudFolderName": "PointCloud__ViewportData",
         "ArchiveFolderName"  : "00__Archive",
         "SkipFolderPrefixes" : [".", "00__"]
     },

@@ -137,6 +137,7 @@ module Na__PointCloudViewer
             return unless overlay && overlay.respond_to?(:na_session)
             session = overlay.na_session
             Na__ClipBox.Na__Clip__Load(session)
+            Na__SceneStore.Na__Scenes__Load(session) if defined?(Na__SceneStore)
             Na__Placement.Na__Placement__Reload(session)
             Na__LocalBackup.Na__Backup__AfterReload(model, session)
             Na__RenderController.Na__Render__RefreshExtents(session)

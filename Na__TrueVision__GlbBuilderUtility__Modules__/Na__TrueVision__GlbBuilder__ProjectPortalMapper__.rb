@@ -26,6 +26,11 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - Version 2.11.0
+# - The point cloud store (PointCloudFolderName, PointCloud__ViewportData by
+#   default) is never a design phase: phase discovery skips it, and the
+#   structure tree shows it as an aside with its scene count.
+#
 # 23-Sep-2026 - Version 2.10.6
 # - A portal inside a full repo clone beats a bare {NN}-Projects tree, and no
 #   folder is created under a project that is not on this computer.
@@ -109,6 +114,17 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__PortalMapper__ContentFolderName
             self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ContentFolderName') || '30__TrueVision__AppContent'
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Read The Point Cloud Store Folder Name
+        # ---------------------------------------------------------------
+        # Rendered point cloud scenes (WebP tiles + manifests). Like the site plan
+        # stores it sits beside the design phases and is never one of them.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__PointCloudFolderName
+            name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'PointCloudFolderName').to_s
+            name.empty? ? 'PointCloud__ViewportData' : name
         end
         # ---------------------------------------------------------------
 
@@ -433,6 +449,7 @@ module TrueVision3D
 
             skip_prefixes = Array(self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SkipFolderPrefixes'))
             siteplan_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SitePlanFolderName').to_s
+            pointcloud_name = self.Na__PortalMapper__PointCloudFolderName
 
             folders = []
             Dir.entries(content_path).sort.each do |entry|
@@ -440,6 +457,7 @@ module TrueVision3D
                 # By PREFIX, as the build does: an exact match let SitePlan__DrawingData__Existing
                 # through as a "scheme", which SuggestTargetFolder could then pick as the export target
                 next if !siteplan_name.empty? && entry.start_with?(siteplan_name)
+                next if entry.start_with?(pointcloud_name)                   # <-- the point cloud store is never a design phase
                 next if skip_prefixes.any? { |prefix| entry.start_with?(prefix.to_s) }
 
                 folder_path = File.join(content_path, entry)
@@ -670,6 +688,13 @@ module TrueVision3D
             self.Na__PortalMapper__ListSitePlanFolders(project_root).each do |store|
                 count = store[:glb_count].to_i
                 rows << { depth: 2, label: store[:folder_name], meta: "#{count} GLB#{count == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
+            end
+
+            pointcloud_path = File.join(content_path, self.Na__PortalMapper__PointCloudFolderName)
+            if Dir.exist?(pointcloud_path)
+                scenes = Dir.glob(File.join(pointcloud_path, 'PointCloudScene__*')).count { |path| File.directory?(path) }
+                rows << { depth: 2, label: self.Na__PortalMapper__PointCloudFolderName,
+                          meta: "#{scenes} point cloud scene#{scenes == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
             end
 
             archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName').to_s

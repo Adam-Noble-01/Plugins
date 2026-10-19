@@ -99,6 +99,12 @@ begin
 rescue ScriptError, StandardError => e
     puts "✗ [GlbBuilder] Linetype Linework Export module failed to load (model export unaffected): #{e.class}: #{e.message}"
 end
+begin
+    require_relative 'Na__TrueVision__GlbBuilder__PointCloudExport__'                # <-- Guarded: point clouds are optional; the model export never depends on them
+    require_relative 'Na__TrueVision__GlbBuilder__UserInterface__PointCloudActions__'
+rescue ScriptError, StandardError => e
+    puts "✗ [GlbBuilder] Point Cloud Export module failed to load (model export unaffected): #{e.class}: #{e.message}"
+end
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D
@@ -115,6 +121,7 @@ module TrueVision3D
         EXCLUDED_LAYER_PATTERN      =   /^TrueVision_.*_DoNotExportGLTF$/         # <-- Regex pattern for excluded layers (hardcoded fallback)
         EXCLUDED_LAYER_DESCRIPTION  =   "TrueVision_*_DoNotExportGLTF".freeze     # <-- Human-readable description for excluded layers
         SITE_PLAN_TAG_PATTERN       =   /^\d{2}__SitePlan__/                      # <-- Site plan tags (71-75): never written to model GLBs, even while the GitHub SSOT predates them
+        SURVEY_DATUM_TAG_PATTERN    =   /^\d{2}__Survey__DatumBenchmark/          # <-- Survey datum benchmark: a position for the point cloud manifests, never GLB geometry (keeps it out of 01__OrbitHelperCube)
         ALWAYS_EXCLUDED_LAYER_NAMES =   [
             "02__Linetype__DoorSwings",
             "02__ClearanceLines",

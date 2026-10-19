@@ -35,6 +35,13 @@
 #   action cards, and a badge-driven report panel.
 # - Export now runs quiet and reports in-dialog; the dialog stays open.
 #
+# 19-Oct-2026 - Version 2.11.0
+# - The Point Cloud tab. HandleAction parses the params once and hands the
+#   point cloud actions to HandlePointCloudAction (...PointCloudActions__.rb);
+#   PushModelStatus pushes the point cloud status with the model's; the
+#   dialog inlines the tab's script at {{POINT_CLOUD_SCRIPT}} (gsub's block
+#   form, so nothing in the script is read as a back reference).
+#
 # =============================================================================
 
 require 'json'
@@ -110,6 +117,10 @@ module TrueVision3D
             html_template      = File.read(self.Na__PathResolver__UiLayoutFilePath)
             stylesheet_content = File.read(self.Na__PathResolver__UiStylesheetFilePath)
             ui_bridge_script   = File.read(self.Na__PathResolver__UiBridgeFilePath)
+            # The Point Cloud tab's script sits beside the bridge; missing, the tab
+            # just stays empty and the rest of the dialog works as before.
+            point_cloud_path   = File.join(File.dirname(self.Na__PathResolver__UiBridgeFilePath), 'Na__TrueVision__GlbBuilder__PointCloud__UiBridge__.js')
+            point_cloud_script = File.exist?(point_cloud_path) ? File.read(point_cloud_path) : ''
 
             font_dir_uri = self.Na__UserInterface__FontDirectoryUri
             stylesheet_content = stylesheet_content.gsub('{{FONT_DIR_URI}}') { font_dir_uri }
@@ -131,6 +142,7 @@ module TrueVision3D
                 .gsub('{{LOGO_FILE_URI}}')      { logo_local }
                 .gsub('{{STYLESHEET_CONTENT}}') { stylesheet_content }
                 .gsub('{{UI_BRIDGE_SCRIPT}}')   { ui_bridge_script }
+                .gsub('{{POINT_CLOUD_SCRIPT}}') { point_cloud_script }
         rescue => e
             Na__Log__Warn "ERROR rendering GLB Builder dialog HTML: #{e.message}"
             self.Na__UserInterface__FallbackHtml(e)
@@ -224,10 +236,13 @@ module TrueVision3D
             else
                 # Project tab actions live in the ProjectActions module; it answers
                 # false when the action is not one of its own.
+                params  = self.Na__UserInterface__ParseParams(params_json)
                 handled = self.respond_to?(:Na__UserInterface__HandleProjectAction) &&
-                          self.Na__UserInterface__HandleProjectAction(
-                              dialog, action_id, self.Na__UserInterface__ParseParams(params_json)
-                          )
+                          self.Na__UserInterface__HandleProjectAction(dialog, action_id, params)
+                # Point Cloud tab actions (pointcloud_*) live in their own module
+                # and answer false for anything else, like the Project tab's.
+                handled ||= self.respond_to?(:Na__UserInterface__HandlePointCloudAction) &&
+                            self.Na__UserInterface__HandlePointCloudAction(dialog, action_id, params)
 
                 unless handled
                     self.Na__UserInterface__PushStatus(dialog, "Unknown action: #{action_id}", 'error')
@@ -835,6 +850,8 @@ module TrueVision3D
             dialog.execute_script(
                 "window.Na__Tvgb__ReceiveModelStatus && window.Na__Tvgb__ReceiveModelStatus(#{status_json});"
             )
+            # The Point Cloud tab (and the Export tab's point cloud card) follow the model
+            self.Na__UserInterface__PushPointCloudStatus(dialog) if self.respond_to?(:Na__UserInterface__PushPointCloudStatus)
         rescue => e
             Na__Log__Warn "[GlbBuilder] Could not push model status to dialog: #{e.message}"
         end

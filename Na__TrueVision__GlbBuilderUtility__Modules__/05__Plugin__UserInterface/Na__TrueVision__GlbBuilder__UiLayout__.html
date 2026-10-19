@@ -62,6 +62,8 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
         <nav class="naTvgb__TabBar">
             <button class="naTvgb__TabButton naTvgb__TabButton--active"
                     onclick="Na__Tvgb__ShowTab('export', this)">Export</button>
+            <button class="naTvgb__TabButton" id="naTvgbPcTabButton"
+                    onclick="Na__Tvgb__ShowTab('pointcloud', this)">Point Cloud</button>
             <button class="naTvgb__TabButton"
                     onclick="Na__Tvgb__ShowTab('project', this)">Project</button>
             <button class="naTvgb__TabButton"
@@ -100,6 +102,11 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                     <div class="naTvgb__ProjectStatus__Row">
                         <span class="naTvgb__ProjectStatus__Label">Site Plan Tags</span>
                         <span class="naTvgb__ProjectStatus__Value" id="naTvgbSitePlanCount">&mdash;</span>
+                    </div>
+                    <!-- Shown only while Export Point Clouds is on (Point Cloud tab) -->
+                    <div class="naTvgb__ProjectStatus__Row" id="naTvgbPcSummaryRow" hidden>
+                        <span class="naTvgb__ProjectStatus__Label">Point Clouds</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__PcSummary" id="naTvgbPcSummary"></span>
                     </div>
                 </div>
 
@@ -197,6 +204,19 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         </span>
                     </button>
 
+                    <!-- Shown only while Export Point Clouds is on: point clouds on their own -->
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbPcExportCard" hidden
+                            onclick="Na__Tvgb__PcRun(false)">
+                        <span class="naTvgb__ActionCard__Icon">&#9729;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Render Point Clouds Only</span>
+                            <span class="naTvgb__ActionCard__Desc" id="naTvgbPcExportCardDesc">Render the point cloud scenes into the project without exporting any GLBs.</span>
+                        </span>
+                    </button>
+
+                    <p class="naTvgb__PcExportNote" id="naTvgbPcExportNote" hidden></p>
+
                     <button type="button" class="naTvgb__ActionCard"
                             id="naTvgbRescanCard"
                             onclick="Na__Tvgb__RunExportAction('rescan_model')">
@@ -235,6 +255,103 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                     <h3 class="naTvgb__Report__Title">Last Export Report</h3>
                     <div class="naTvgb__Report__Steps" id="naTvgbReportSteps"></div>
                     <div class="naTvgb__Report__Summary" id="naTvgbReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Point Cloud Tab                                  -->
+            <!-- Rendered by Na__TrueVision__GlbBuilder__PointCloud__UiBridge__.js -->
+            <!-- from Na__Tvgb__ReceivePointCloudStatus. The scenes themselves  -->
+            <!-- are set up in the Na Point Cloud Viewer's Scenes tab.          -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-pointcloud" class="naTvgb__TabPanel">
+
+                <!-- Master switch -->
+                <div class="naTvgb__PcMaster" id="naTvgbPcMaster">
+                    <label class="naTvgb__PcSwitch" title="Export Point Clouds">
+                        <input type="checkbox" id="naTvgbPcEnabled" onchange="Na__Tvgb__PcSetEnabled(this.checked)">
+                        <span class="naTvgb__PcSwitch__Track"></span>
+                    </label>
+                    <span class="naTvgb__PcMaster__Body">
+                        <span class="naTvgb__PcMaster__Title">Export Point Clouds</span>
+                        <span class="naTvgb__PcMaster__Desc" id="naTvgbPcMasterDesc">Off by default. While off, exports never render or even check point clouds, so the model export runs exactly as fast as before. Everything set here is kept for when it is switched back on.</span>
+                    </span>
+                </div>
+
+                <!-- Readiness -->
+                <div class="naTvgb__ProjectStatus" id="naTvgbPcStatus">
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Viewer</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbPcViewer">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Point Cloud</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbPcCloud">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Exports Into</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path" id="naTvgbPcStore">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Datum</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbPcDatum">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn" id="naTvgbPcReloadBtn" onclick="Na__Tvgb__PcAction('pointcloud_reload_cloud')">Reload Point Cloud</button>
+                        <button type="button" class="naTvgb__Btn" id="naTvgbPcPythonBtn" onclick="Na__Tvgb__PcAction('pointcloud_check_python')">Check Python</button>
+                        <button type="button" class="naTvgb__Btn" id="naTvgbPcFolderBtn" onclick="Na__Tvgb__PcAction('pointcloud_open_folder')">Open Folder</button>
+                        <button type="button" class="naTvgb__Btn" id="naTvgbPcRefreshBtn" onclick="Na__Tvgb__PcAction('pointcloud_refresh')">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Scenes -->
+                <div class="naTvgb__Manifest" id="naTvgbPcScenes">
+                    <div class="naTvgb__Manifest__Header">
+                        <h3 class="naTvgb__Manifest__Title">Point Cloud Scenes</h3>
+                        <span class="naTvgb__Manifest__Count" id="naTvgbPcSceneCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__SelectBar">
+                        <span class="naTvgb__SelectBar__Label">Sync</span>
+                        <button type="button" class="naTvgb__MiniBtn" id="naTvgbPcAllOn" onclick="Na__Tvgb__PcSetAll(true)">Enable All</button>
+                        <button type="button" class="naTvgb__MiniBtn" id="naTvgbPcAllOff" onclick="Na__Tvgb__PcSetAll(false)">Disable All</button>
+                        <span class="naTvgb__SelectBar__Spacer"></span>
+                        <span class="naTvgb__SelectBar__Count" id="naTvgbPcSelectedCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__Manifest__Body" id="naTvgbPcSceneList"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="naTvgb__ActionGroup">
+                    <h3 class="naTvgb__ActionGroup__Title">Point Cloud Actions</h3>
+
+                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
+                            id="naTvgbPcRunCard" onclick="Na__Tvgb__PcRun(false)">
+                        <span class="naTvgb__ActionCard__Icon">&#9729;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Render Point Clouds</span>
+                            <span class="naTvgb__ActionCard__Desc">Render every scene switched on above into the project's point cloud folder. Unchanged scenes are skipped. No GLBs are exported.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbPcRunSyncCard" onclick="Na__Tvgb__PcRun(true)">
+                        <span class="naTvgb__ActionCard__Icon">&#8682;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Render Point Clouds And Sync To Cloud</span>
+                            <span class="naTvgb__ActionCard__Desc">The same, then rebuild the TrueVision project data and push it all to Cloudflare R2.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Last report, mirrored from the Export tab's panel -->
+                <div class="naTvgb__Report" id="naTvgbPcReport" style="display:none;">
+                    <h3 class="naTvgb__Report__Title">Last Export Report</h3>
+                    <div id="naTvgbPcReportBody"></div>
                 </div>
 
             </section>
@@ -690,6 +807,9 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
 
     <script>
     {{UI_BRIDGE_SCRIPT}}
+    </script>
+    <script>
+    {{POINT_CLOUD_SCRIPT}}
     </script>
 
     <!-- endregion ----------------------------------------------------------- -->

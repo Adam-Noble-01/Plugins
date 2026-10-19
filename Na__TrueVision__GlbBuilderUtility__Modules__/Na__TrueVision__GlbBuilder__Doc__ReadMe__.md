@@ -187,6 +187,35 @@ When children are nested inside a storey container (90-93), the following child 
 
 # ---------------------------------------------------------
 
+## Point Cloud Export (Point Cloud Tab, 2.11.0)
+
+- Renders the **point cloud scenes** saved in the Point Cloud Viewer's Scenes tab (0.9.0) into the
+  project, for TrueVision3D's point cloud viewports. A scene is a SketchUp scene with the viewer's
+  settings and a type (Plan, Site Plan, Elevation, Section, 3D View) and a print scale.
+- **Export Point Clouds** (the tab's master switch) is OFF by default. While it is off, the main
+  export never touches point clouds, and every setting is kept. On, the Export tab shows **Render
+  Point Clouds Only**, and the main export renders them after the models, before the sync.
+- Each selected scene renders off screen from its own camera (never by switching scenes), into
+  2048 px WebP tiles, a preview and a revision manifest in
+  `30__TrueVision__AppContent/PointCloud__ViewportData/PointCloudScene__<scene id>/Rev__<10 hex>/`.
+  `TrueVision__PointCloudData__Manifest__.json` lists every scene and its current export.
+  - A revision folder is content addressed and never deleted, so a TrueVision viewport pinned to
+    an export keeps it.
+  - A scene whose picture has not changed is skipped. Work happens in `00__Staging` and is renamed
+    into place only when complete.
+- The tab lists the scenes with their own on/off, type and scale; readiness (viewer, point cloud,
+  store, datum); Reload, Check Python and Open Folder.
+- The **datum benchmark** (tag `01__Survey__DatumBenchmark`, excluded from every GLB) is recorded in
+  the manifests in metres and as each picture's pixel.
+- WebP conversion: `Na__TrueVision__GlbBuilder__PointCloud__WebpTiles__.py` (Python 3, Pillow with
+  WebP). The ProjectVision build registers the store; the R2 sync uploads it (pictures first, the
+  store manifest last, nothing ever deleted).
+- Logic handled by `Na__TrueVision__GlbBuilder__PointCloudExport__.rb` and
+  `Na__TrueVision__GlbBuilder__UserInterface__PointCloudActions__.rb`. The settings live in the
+  model dictionary `Na__TrueVision__GlbBuilder__PointClouds`.
+
+# ---------------------------------------------------------
+
 ## Material and Texture Export System
 
 ### Material Export Modes
