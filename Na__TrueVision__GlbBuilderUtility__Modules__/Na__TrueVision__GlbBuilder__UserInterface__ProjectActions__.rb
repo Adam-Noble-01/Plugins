@@ -13,6 +13,8 @@
 #   choosing and creating design phase folders, exporting straight into the
 #   project portal, and pushing to Cloudflare R2.
 # - Builds the Project tab's status payload (link, folders, phase catalogue).
+#   The Site Plan tab reads the same payload (its siteplan_* keys), and its
+#   actions (choose or create the store, export into it) are handled here too.
 # - Lives beside the main UI module rather than inside it purely for size; both
 #   reopen the same module, and both sit flat in the modules root so the hot
 #   reloader's Dir.glob picks them up.
@@ -20,6 +22,17 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - Version 2.13.0
+# - The site plan actions now serve the dialog's own Site Plan tab; the
+#   Project tab no longer shows them. Nothing about what they do changed. The
+#   "no store chosen" warning names the Site Plan tab.
+#
+# 19-Oct-2026 - Version 2.12.0
+# - Scene Sync: Export To Project writes the scenes switched on in the Scene
+#   Sync tab straight after the GLBs (before any point cloud job or push), and
+#   Push To Cloud writes them before it builds, so every push carries them. A
+#   dry run writes nothing; a model with no scene switched on adds nothing.
+#
 # 19-Oct-2026 - Version 2.11.0
 # - Export To Project hands over to the point cloud job after the models
 #   when Export Point Clouds is on, and that job syncs when it is done; with
@@ -76,10 +89,17 @@ module TrueVision3D
             end
             if ['push_to_cloud', 'push_dry_run'].include?(action_id)
                 link = self.Na__ProjectLink__Read(Sketchup.active_model).dup
+                # Scene Sync: a real push carries the synced scenes as they are now
+                # (quick: nothing renders). A dry run writes nothing at all.
+                scene_steps = []
+                if action_id == 'push_to_cloud' && self.respond_to?(:Na__SceneSync__AfterModelExport)
+                    scene_steps = self.Na__SceneSync__AfterModelExport(link.dup, { steps: [] })[:steps]
+                end
                 @na_r2_inventory = nil
                 self.Na__ProjectActions__CloudJob(dialog,
                     proc { self.Na__CloudSync__PushProject(link, dry_run: action_id == 'push_dry_run') },
                     proc do |report|
+                        report[:steps] = scene_steps + Array(report[:steps]) if report.is_a?(Hash) && !scene_steps.empty?
                         self.Na__UserInterface__PushReport(dialog, report)
                         self.Na__UserInterface__PushStatus(dialog, report[:message], report[:success] ? 'success' : 'error')
                     end)
@@ -403,6 +423,13 @@ module TrueVision3D
                 message: "#{link[:project_code]} - #{link[:project_name]} → #{target_folder}"
             )
 
+            # Scene Sync (Scene Sync tab): the scenes switched on are written now,
+            # before any point cloud job or push, so the build a push runs finds
+            # them on disk. A model with no scene ever switched on adds nothing.
+            if report[:success] && self.respond_to?(:Na__SceneSync__AfterModelExport)
+                self.Na__SceneSync__AfterModelExport(link.dup, report)
+            end
+
             # Export Point Clouds on (Point Cloud tab): the scenes render next, then
             # the sync, as one job. Off, this answers false and nothing changes.
             if report[:success] && self.respond_to?(:Na__PointCloud__RunAfterModelExport) &&
@@ -524,11 +551,12 @@ module TrueVision3D
 
         # ACTION HANDLER | Export The Site Plan Straight Into The Linked Project
         # ---------------------------------------------------------------
-        # The Export tab's Export Site Plan Data opens a blind folder picker,
-        # which is how a site plan can land in the wrong project. This route
-        # resolves the folder from the project link instead, so there is nothing
-        # to pick and nothing to get wrong. The export still shows its own
-        # summary and names the folder before it writes anything.
+        # The Site Plan tab's own export. It resolves the folder from the project
+        # link and the chosen store, so there is nothing to pick and nothing to
+        # get wrong. (The Export tab's Export Site Plan Data reaches the same
+        # folder inside Na__SitePlan__Run; only an unlinked model gets a folder
+        # picker.) The export still shows its own summary and names the folder
+        # before it writes anything.
         # ---------------------------------------------------------------
         def self.Na__ProjectActions__ExportSitePlanToProject(dialog)
             model = Sketchup.active_model
@@ -547,7 +575,7 @@ module TrueVision3D
             if folder_name.empty?
                 self.Na__UserInterface__PushStatus(
                     dialog,
-                    'Choose Existing or Proposed first - a site plan must not be written into the wrong folder.',
+                    'Choose Existing or Proposed on the Site Plan tab first. A site plan must never be written into the wrong folder.',
                     'warning'
                 )
                 return

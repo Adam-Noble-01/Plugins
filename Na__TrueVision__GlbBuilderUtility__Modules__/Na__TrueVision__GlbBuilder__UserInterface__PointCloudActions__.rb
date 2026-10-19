@@ -22,6 +22,14 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - Version 2.13.1
+# - pointcloud_reorder_scenes: the tab's drag to reorder, saved through the
+#   viewer's Na__PublicApi__ReorderScenes (one undoable step in its record).
+#
+# 19-Oct-2026 - Version 2.12.0
+# - Render Point Clouds And Sync To Cloud writes the synced scenes (Scene
+#   Sync) before it pushes, as every push does.
+#
 # 19-Oct-2026 - Version 2.11.0
 # - Initial Point Cloud tab actions.
 #
@@ -60,6 +68,18 @@ module TrueVision3D
                               ::Na__PointCloudViewer.Na__PublicApi__SetSceneExport(model, params['sceneId'].to_s, params['values'].is_a?(Hash) ? params['values'] : {})
                           else
                               self.Na__PointCloud__ViewerStatus[:message]
+                          end
+                self.Na__UserInterface__PushStatus(dialog, problem, 'warning') if problem
+            when 'pointcloud_reorder_scenes'
+                # The order is the viewer's own record (scenes API 3), so its
+                # Scenes tab shows the same order and Undo puts it back.
+                viewer  = self.Na__PointCloud__ViewerStatus
+                problem = if !viewer[:available]
+                              viewer[:message]
+                          elsif !::Na__PointCloudViewer.respond_to?(:Na__PublicApi__ReorderScenes)
+                              'This Na Point Cloud Viewer cannot reorder its scenes from here. Reload it, then try again.'
+                          else
+                              ::Na__PointCloudViewer.Na__PublicApi__ReorderScenes(model, Array(params['sceneIds']).map(&:to_s))
                           end
                 self.Na__UserInterface__PushStatus(dialog, problem, 'warning') if problem
             when 'pointcloud_reload_cloud'
@@ -111,6 +131,8 @@ module TrueVision3D
                 proc do
                     report = self.Na__PointCloud__ExportJob(model, link, ->(text) { self.Na__UserInterface__PushStatus(dialog, text, 'info') })
                     if sync && report[:success]
+                        # Every push carries the synced scenes as they are now (Scene Sync)
+                        self.Na__SceneSync__AfterModelExport(link.dup, report) if self.respond_to?(:Na__SceneSync__AfterModelExport)
                         self.Na__UserInterface__PushStatus(dialog, 'Point clouds exported. Building project data and pushing to Cloudflare R2...', 'info')
                         push = self.Na__CloudSync__PushProject(link, dry_run: false)
                         report[:steps].concat(Array(push[:steps]))

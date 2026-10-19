@@ -105,6 +105,12 @@ begin
 rescue ScriptError, StandardError => e
     puts "✗ [GlbBuilder] Point Cloud Export module failed to load (model export unaffected): #{e.class}: #{e.message}"
 end
+begin
+    require_relative 'Na__TrueVision__GlbBuilder__SceneSync__'                       # <-- Guarded: Scene Sync is optional; the model export never depends on it
+    require_relative 'Na__TrueVision__GlbBuilder__UserInterface__SceneSyncActions__'
+rescue ScriptError, StandardError => e
+    puts "✗ [GlbBuilder] Scene Sync module failed to load (model export unaffected): #{e.class}: #{e.message}"
+end
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D

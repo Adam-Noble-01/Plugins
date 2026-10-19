@@ -38,6 +38,7 @@ module Na__PointCloudViewer
             'clip_scene_rename'       => :na_clip_scene_rename,
             'clip_scene_delete'       => :na_clip_scene_delete,
             'clip_scene_activate'     => :na_clip_scene_activate,
+            'clip_scene_reorder'      => :na_clip_scene_reorder,
             'transform_set_locked'    => :na_transform_set_locked,
             'transform_toggle_tool'   => :na_transform_toggle_tool,
             'transform_set_values'    => :na_transform_set_values,
@@ -63,6 +64,7 @@ module Na__PointCloudViewer
             'scenes_relink'           => :na_scenes_relink,
             'scenes_recall'           => :na_scenes_recall,
             'scenes_set_export'       => :na_scenes_set_export,
+            'scenes_reorder'          => :na_scenes_reorder,
             'open_backups_folder'     => :na_open_backups_folder,
             'cache_clear'             => :na_cache_clear,
             'job_cancel'              => :na_job_cancel,
@@ -183,6 +185,10 @@ module Na__PointCloudViewer
 
         def self.na_clip_scene_activate(payload)
             self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneActivate(session, payload['id']) }
+        end
+
+        def self.na_clip_scene_reorder(payload)
+            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneReorder(session, payload['ids']) }
         end
 
         # Every clip and transform handler returns nil on success or a
@@ -395,6 +401,10 @@ module Na__PointCloudViewer
         def self.na_scenes_set_export(payload)
             values = payload['values'].is_a?(Hash) ? payload['values'] : {}
             self.na_clip_change { |session| Na__SceneStore.Na__Scenes__SetExport(session, payload['id'], values) }
+        end
+
+        def self.na_scenes_reorder(payload)
+            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Reorder(session, payload['ids']) }
         end
 
     # endregion ----------------------------------------------------------------

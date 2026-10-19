@@ -44,10 +44,10 @@
     <div class="na-tab-strip">
         <nav id="na-tab-bar" class="na-tab-bar" role="tablist">
             <button id="na-tab-button-view"     class="na-tab na-tab-active" role="tab" data-na-tab-id="view"     onclick="Na_TabRouter.na_activateTab('view')">View</button>
+            <button id="na-tab-button-scenes" class="na-tab" role="tab" data-na-tab-id="scenes" onclick="Na_TabRouter.na_activateTab('scenes')">Scenes</button>
             <button id="na-tab-button-clipping" class="na-tab" role="tab" data-na-tab-id="clipping" onclick="Na_TabRouter.na_activateTab('clipping')">Clipping</button>
             <button id="na-tab-button-transform" class="na-tab" role="tab" data-na-tab-id="transform" onclick="Na_TabRouter.na_activateTab('transform')">Transform</button>
             <button id="na-tab-button-clean" class="na-tab" role="tab" data-na-tab-id="clean" onclick="Na_TabRouter.na_activateTab('clean')">Clean</button>
-            <button id="na-tab-button-scenes" class="na-tab" role="tab" data-na-tab-id="scenes" onclick="Na_TabRouter.na_activateTab('scenes')">Scenes</button>
             <button id="na-tab-button-settings" class="na-tab" role="tab" data-na-tab-id="settings" onclick="Na_TabRouter.na_activateTab('settings')">Settings</button>
         </nav>
     </div>
@@ -195,7 +195,7 @@
                         <input type="text" class="naInput" id="na-scene-name" maxlength="60" placeholder="Name, for example Ground Floor">
                         <button type="button" class="naButton" id="na-scene-save">Save Current Clip</button>
                     </div>
-                    <p class="na-hint">A scene remembers the clip box. Click a name to switch to it. Scenes are saved in this SketchUp model.</p>
+                    <p class="na-hint">A scene remembers the clip box. Click a name to switch to it. Drag a scene by its grip to reorder the list. Scenes are saved in this SketchUp model.</p>
                 </section>
 
             </div>
@@ -385,7 +385,7 @@
                     </div>
                     <p class="na-note na-hidden" id="na-pcs-problem"></p>
                     <div class="na-pcs-list" id="na-pcs-list"></div>
-                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene and the cloud takes back its point budget, size, opacity, colour and clip box.</p>
+                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene and the cloud takes back its point budget, size, opacity, colour and clip box. Drag a scene by its grip to reorder the list.</p>
                 </section>
 
                 <section class="na-card">
@@ -506,11 +506,13 @@
      REGION | JavaScript Includes (load order matters)
        1. BridgeBase  - window.sketchup wrapper
        2. MainShell   - receive dispatcher, status bar, loading overlay
+          DragReorder - drag a row by its grip (clip scenes, point cloud scenes)
        3. Tab logic   - View, LAS import, Clipping, Transform, model link, Settings
        4. TabRouter   - last: activates the remembered tab on first state
      ========================================================================== -->
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__BridgeBase__.js"></script>
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__MainShell__.js"></script>
+<script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__DragReorder__.js"></script>
 <script src="02__Src__AppModules/30__System__ViewTab/Na__PointCloudViewer__ViewTab__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/40__System__LasImport/Na__PointCloudViewer__LasImport__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/50__System__ClipBox/Na__PointCloudViewer__ClipBox__UiSystem__MainUiLogic__.js"></script>

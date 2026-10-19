@@ -23,6 +23,17 @@
     // -----------------------------------------------------------------------------
     //
     // DEVELOPMENT LOG:
+    // 19-Oct-2026 - Version 2.13.1
+    // - The scene rows can be dragged into a new order by their grips (the
+    //   main bridge's Na__Tvgb__MakeSortable, on this list only). The order is
+    //   the Na Point Cloud Viewer's own, changed through its public API, so
+    //   the viewer's Scenes tab shows it too.
+    //
+    // 19-Oct-2026 - Version 2.11.1
+    // - A project whose point cloud paths would not fit SketchUp's 259
+    //   characters (storePathProblem) is said on the Exports Into row and
+    //   blocks the render buttons, before an export is ever tried.
+    //
     // 19-Oct-2026 - Version 2.11.0
     // - Initial Point Cloud tab.
     //
@@ -35,7 +46,9 @@
 
     var naPc = {
         status : null,      // <-- last Na__Tvgb__ReceivePointCloudStatus payload
-        busy   : false      // <-- true from a report with running: true until one without
+        busy   : false,     // <-- true from a report with running: true until one without
+        sorter : null,      // <-- drag to reorder on the scene list
+        listWaiting : false // <-- a repaint held back while a row is being dragged
     };
 
     var NA_PC_STATE_TEXT = {
@@ -91,6 +104,12 @@
         return status && status.scenes ? status.scenes.filter(function(scene) { return scene.status === 'linked'; }) : [];
     }
 
+    // The order belongs to the viewer, so the viewer must be there to take it.
+    function na__pc__canReorder() {
+        var s = naPc.status;
+        return !!(s && !naPc.busy && !s.readonly && s.listOk && s.viewer && s.viewer.available && (s.scenes || []).length > 1);
+    }
+
     // Why a render cannot start now, or '' when it can.
     function na__pc__blockedReason() {
         var s = naPc.status;
@@ -99,6 +118,7 @@
         if (!s.viewer || !s.viewer.available) { return (s.viewer && s.viewer.message) || 'The Na Point Cloud Viewer is not available.'; }
         if (!s.projectLinked)         { return 'Link this model to a project on the Project tab.'; }
         if (!s.storePath)             { return s.storeMissingWhy || 'The project is not on this computer.'; }
+        if (s.storePathProblem)       { return s.storePathProblem; }
         if (!s.cloudLoaded)           { return s.cloudLinked ? 'The point cloud is not loaded. Press Reload Point Cloud.' : 'This model has no point cloud.'; }
         if (!s.selectedCount)         { return 'No point cloud scenes are switched on for sync.'; }
         return '';
@@ -151,7 +171,7 @@
         return html;
     }
 
-    function na__pc__sceneHtml(scene) {
+    function na__pc__sceneHtml(scene, sortable) {
         var id = na__pc__esc(scene.id);
         var on = scene.selected !== false;
         var cls = 'naTvgb__PcScene' + (on ? '' : ' naTvgb__PcScene--off') + (scene.status !== 'linked' ? ' naTvgb__PcScene--problem' : '');
@@ -168,8 +188,11 @@
         var warnings = (scene.warnings || []).map(function(text) {
             return '<p class="naTvgb__PcScene__Warn">' + na__pc__esc(text) + '</p>';
         }).join('');
-        return '<div class="' + cls + '">'
+        var grip = sortable && window.Na__Tvgb__GripHtml ? window.Na__Tvgb__GripHtml(scene.name)
+                                                         : '<span class="naTvgb__GripSpacer"></span>';
+        return '<div class="' + cls + '" data-na-sort-id="' + id + '">'
             + '<div class="naTvgb__PcScene__Head">'
+            +   grip
             +   '<input type="checkbox" class="naTvgb__FileRow__Toggle" data-na-pc-input title="Sync this scene"' + (on ? ' checked' : '')
             +   ' onchange="Na__Tvgb__PcToggleScene(\'' + id + '\', this.checked)">'
             +   '<span class="naTvgb__PcScene__Name">' + na__pc__esc(scene.name) + '</span>'
@@ -205,23 +228,29 @@
         na__pc__text('naTvgbPcCloud', s.cloudLoaded ? (s.cloudName || 'Loaded') + ' (loaded)'
             : s.cloudLinked ? (s.cloudName || 'The linked cloud') + ' is linked but not loaded. Press Reload Point Cloud.'
             : 'No point cloud in this model.');
-        na__pc__text('naTvgbPcStore', s.storePath ? s.storePath + (s.storeExists ? '' : '  (made by the first export)') : (s.storeMissingWhy || ''));
+        na__pc__text('naTvgbPcStore', s.storePath
+            ? s.storePath + (s.storeExists ? '' : '  (made by the first export)') + (s.storePathProblem ? '. ' + s.storePathProblem : '')
+            : (s.storeMissingWhy || ''));
         na__pc__text('naTvgbPcDatum', s.datumCount > 0
             ? s.datumCount + ' benchmark' + (s.datumCount === 1 ? '' : 's') + ' found. Recorded with every scene.'
             : 'None found. Put the datum benchmark component on the tag 01__Survey__DatumBenchmark to record it with every scene.');
 
-        // scenes
+        // scenes (held back while a row is being dragged; repainted on the drop)
         var list = na__pc__el('naTvgbPcSceneList');
         var scenes = s.scenes || [];
-        if (list) {
+        if (list && naPc.sorter && naPc.sorter.isDragging()) {
+            naPc.listWaiting = true;
+        } else if (list) {
             if (!s.listOk) {
                 list.innerHTML = '<div class="naTvgb__Note naTvgb__Note--empty">' + na__pc__esc(s.listProblem || 'The point cloud scenes could not be read.') + '</div>';
             } else if (!scenes.length) {
                 list.innerHTML = '<div class="naTvgb__Note naTvgb__Note--empty">No point cloud scenes yet. In the Na Point Cloud Viewer, open the Scenes tab, '
                     + 'set the cloud up for a SketchUp scene and press Save Settings For Scene. It appears here.</div>';
             } else {
-                list.innerHTML = scenes.map(na__pc__sceneHtml).join('');
+                var sortable = scenes.length > 1;
+                list.innerHTML = scenes.map(function(scene) { return na__pc__sceneHtml(scene, sortable); }).join('');
             }
+            if (naPc.sorter) { naPc.sorter.afterRender(); }
         }
         var linked = na__pc__linkedScenes();
         na__pc__text('naTvgbPcSceneCount', scenes.length ? scenes.length + ' scene' + (scenes.length === 1 ? '' : 's') : '');
@@ -260,6 +289,10 @@
         for (var i = 0; i < inputs.length; i += 1) {
             inputs[i].disabled = busy || !!(s && s.readonly);
         }
+        var grips = document.querySelectorAll('#naTvgbPcSceneList [data-na-sort-handle]');
+        for (var g = 0; g < grips.length; g += 1) {
+            grips[g].disabled = !na__pc__canReorder();
+        }
         ['naTvgbPcReloadBtn', 'naTvgbPcPythonBtn', 'naTvgbPcFolderBtn', 'naTvgbPcRefreshBtn'].forEach(function(buttonId) {
             var button = na__pc__el(buttonId);
             if (button) { button.disabled = busy; }
@@ -297,6 +330,25 @@
 
     function Na__Tvgb__PcAction(actionId) {
         na__pc__dispatch(actionId, {});
+    }
+
+    // Drag to reorder: every scene id, top to bottom. The viewer saves it as
+    // one undoable step and both tabs repaint in the new order.
+    function na__pc__attachSorter() {
+        var list = na__pc__el('naTvgbPcSceneList');
+        if (!list || !window.Na__Tvgb__MakeSortable || naPc.sorter) { return; }
+        naPc.sorter = window.Na__Tvgb__MakeSortable(list, {
+            canDrag: na__pc__canReorder,
+            onReorder: function(ids) {
+                na__pc__dispatch('pointcloud_reorder_scenes', { sceneIds: ids });
+            },
+            onEnd: function(changed) {
+                var waiting = naPc.listWaiting;
+                naPc.listWaiting = false;
+                // After a change Ruby pushes the new order; otherwise catch up now
+                if (waiting && !changed) { na__pc__render(); }
+            }
+        });
     }
 
     // Renders run through the main bridge so every card locks until the report.
@@ -354,6 +406,8 @@
     });
     na__pc__wrap('Na__Tvgb__ReceiveModelStatus', na__pc__applyLocks);
     na__pc__wrap('Na__Tvgb__ReceiveProjectStatus', na__pc__applyLocks);
+
+    na__pc__attachSorter();     // <-- this script sits after the markup, so the list is there
 
     // endregion -------------------------------------------------------------------
 

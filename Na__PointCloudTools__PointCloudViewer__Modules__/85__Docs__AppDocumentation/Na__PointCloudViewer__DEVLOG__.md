@@ -43,8 +43,54 @@ is the full description.
   scene type sits after Plan. It looks straight down like a plan, and TrueVision lays it on a site
   plan viewport (or a plan). The tilt warning names it: "A site plan should look straight down."
 
+### 19-Oct-2026: Adam's first look at the Scenes tab
+- **Scenes is now the second tab** (View, Scenes, Clipping, Transform, Clean, Settings).
+- **Colour mode checked:** RGB or Monochrome is part of every saved scene. It is captured, recalled,
+  baked into the exported picture, shown in the summary, and a colour change alone marks the scene
+  Settings changed.
+- **Update moved away from Go To Scene.** Adam: "The update button is too easy to fudge." Go To Scene
+  now stands alone on the left; Update and Remove sit together on the right. Update goes amber
+  (not blue) when the settings have changed.
+- **Are you sure? dialogs on Update and Remove.** These replace the old two-click Remove. Update
+  shows Saved Now against Will Become (the payload's new `currentSummary`) and warns when SketchUp
+  is showing a different scene, which is the easy mistake. Remove lists what goes and that TrueVision Sync
+  stops exporting the scene. Cancel has the focus; Escape and a click outside also cancel.
+
+### 19-Oct-2026: Scenes API 2, for TrueVision Sync's Scene Sync
+- Each row of `Na__PublicApi__SceneList` carries `pagePid`, the SketchUp scene's persistent id. TrueVision
+  Sync's Scene Sync tab (GLB Builder 2.12) uses it to pair a point cloud scene with the synced drawing of the
+  same SketchUp scene, which TrueVision then lays it on exactly. `NA_SCENES_API_VERSION` is 2, guarded for hot
+  reload, so a session reloaded from API 1 still answers 1: callers test for the key itself.
+
+### 19-Oct-2026: Drag to reorder (clip scenes and point cloud scenes)
+- Adam: "Ensure these can be rearranged so you can click to drag to reorder, use a grab box symbol". Each
+  clip scene row (Clipping tab) and each point cloud scene card (Scenes tab) has a six dot grip. Press it and
+  the row lifts and follows the pointer, the others slide out of its way, the panel scrolls near its edges,
+  and letting go drops it there. Esc puts everything back. A grip with the focus moves its row with the up
+  and down arrow keys. Full Cloud has no grip and stays first. No grips while a name is being renamed, on a
+  read-only record, or with only one scene.
+- `01__AppCore/...UiSystem__DragReorder__.js` is the shared piece: listeners delegated to the list (so a
+  state push never loses them), a repaint held back while a row is lifted, pointer capture, FLIP slides.
+- Ruby: `Na__Clip__SceneReorder` and `Na__Scenes__Reorder` take every id top to bottom and save the new
+  order as one undoable step ("Point Cloud: Reorder Clip Scenes" / "Point Cloud: Reorder Scenes"). A list
+  that no longer matches the scenes (one added or removed meanwhile, or an id twice) changes nothing and
+  says why; the same order again writes nothing. Dialog actions `clip_scene_reorder` and `scenes_reorder`.
+- **Scenes API 3:** `Na__PublicApi__ReorderScenes(model, ids)`, so TrueVision Sync's Point Cloud tab (GLB
+  Builder 2.13.1) drags the same record; the viewer's tab repaints when it does. Callers test respond_to?.
+- TrueVision's own scene list stays alphabetical: the GLB Builder's store manifest sorts by name.
+
 ### Tested
-- `pcv_scenario_scenes.rb`: 83 checks, all passing. They cover the record, read-only and
+- `pcv_scenario_scenes.rb`: 95 checks, all passing (83 plus the Update dialog's summary, colour
+  mode alone marking a change, putting it back clearing it, each row's pagePid, and section 13b: the
+  reorder from the tab and through API 3, the store revision, a stale list refused, Undo).
+- `pcv_scenario.rb`: 189 checks, all passing (183 plus section 9b: clip scene reorder, its named step,
+  the stored order, a stale or doubled list refused, the same order writing nothing, Undo).
+- Drag to reorder driven in a browser with real pointer events on both lists: the lifted row, the
+  live order, a state push held back mid drag, one call per drop with the full order, nothing for a
+  drop in place or after Esc, Full Cloud kept first, the arrow keys keeping focus.
+- The dialogs were driven in a browser with a stub state: Escape, backdrop and Cancel send nothing,
+  each confirm sends exactly one call, and the dialog closes if its scene disappears.
+- The original 83 cover the record, read-only and
   unknown-key cases, recall, relink and remove, and the public list (Site Plan, 1:1250 and 1:2500).
   They also cover the export: frame, tiles, dot centring for 1 to 4 px, perspective, horizontal
   fov, size limit and revision keys. Tripwires prove no SketchUp scene was ever written, updated,

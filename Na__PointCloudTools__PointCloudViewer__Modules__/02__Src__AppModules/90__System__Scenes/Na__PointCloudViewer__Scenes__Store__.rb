@@ -354,6 +354,23 @@ module Na__PointCloudViewer
             problem
         end
 
+        # Drag to reorder (the Scenes tab, or TrueVision Sync through the public
+        # API): ids is every scene id, top to bottom. Only the order changes,
+        # as one undoable step. A list that no longer matches the scenes (one
+        # added or removed meanwhile) changes nothing.
+        def self.Na__Scenes__Reorder(session, ids)
+            self.Na__Scenes__Ensure(session)
+            return session.scenes_problem || 'These scenes are read-only.' if session.scenes_readonly
+            wanted  = Array(ids).map(&:to_s)
+            current = session.scenes.map { |scene| scene['id'] }
+            return 'The point cloud scenes changed while you were moving one, so nothing was moved. Try again.' unless wanted.sort == current.sort && wanted.uniq.length == wanted.length
+            return nil if wanted == current
+            before = session.scenes.dup
+            by_id  = before.each_with_object({}) { |scene, hash| hash[scene['id']] = scene }
+            session.scenes.replace(wanted.map { |id| by_id[id] })
+            self.na_save_or_undo(session, 'Point Cloud: Reorder Scenes') { session.scenes.replace(before) }
+        end
+
         # Points a binding at another SketchUp scene (typically after its own
         # scene was deleted). The new scene must not have settings already.
         def self.Na__Scenes__Relink(session, scene_id, pid)

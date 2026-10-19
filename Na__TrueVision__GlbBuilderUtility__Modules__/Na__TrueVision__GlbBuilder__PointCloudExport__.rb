@@ -33,11 +33,26 @@
 #       PointCloudScene__RevisionManifest__.json        <- camera, frame, tiles, datum
 #       PointCloudScene__Preview__.webp                 <- whole image, longest side <= 2048
 #       PointCloud__Tile__R00__C00__.webp ...           <- full resolution, 2048 px tiles
-#   00__Staging/                                         <- work in progress, removed after
+#   00__Staging/<6 hex>/s01, p01 ...                     <- work in progress, removed after
+#
+# PATH LENGTH. SketchUp is not long-path aware, so Ruby inside it cannot open
+# a path over 259 characters even with Windows' long paths switched on (Python
+# can, which is why the offline tests never saw it). Staging names are kept
+# short, and an export whose paths would not fit is refused before it renders.
 #
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - Version 2.11.1
+# - Fix: JW02's first real export failed writing the revision manifest:
+#   "Errno::ENOENT ... 00__Staging/20261019-140438-73f0d1/PointCloudScene__
+#   pcs_d5daef4a/Rev__6fcc975b40/PointCloudScene__RevisionManifest__.json.
+#   66fa6088.tmp". That path is 274 characters, over the 259 SketchUp can open.
+#   Staging is now 00__Staging/<6 hex>/s01 (p01 for the PNGs); the revision
+#   folder takes its real name only when it is moved into place. The temporary
+#   file suffix is shorter. Every path an export will write is measured first,
+#   and an export that would not fit says so instead of failing half way.
+#
 # 19-Oct-2026 - Version 2.11.0
 # - Initial point cloud export.
 #
@@ -75,6 +90,7 @@ module TrueVision3D
             NA_PC_PREVIEW_MAX_PX    = 2048
             NA_PC_EXPORTER_VERSION  = '2.11.0'.freeze
         end
+        NA_PC_PATH_LIMIT = 259 unless defined?(NA_PC_PATH_LIMIT)              # <-- Windows MAX_PATH less its terminator: SketchUp is not long-path aware (own guard, so Reload Plugin defines it)
 
     # endregion -------------------------------------------------------------------
 
@@ -246,7 +262,7 @@ module TrueVision3D
         # HELPER FUNCTION | Write JSON So A Reader Never Sees Half A File
         # ---------------------------------------------------------------
         def self.Na__PointCloud__WriteJsonAtomic(path, data)
-            temporary = "#{path}.#{SecureRandom.hex(4)}.tmp"
+            temporary = "#{path}.#{SecureRandom.hex(2)}.tmp"                    # <-- short: every character counts against SketchUp's 259
             File.write(temporary, JSON.pretty_generate(data))
             File.rename(temporary, path)
         ensure
@@ -356,6 +372,7 @@ module TrueVision3D
                 storeFolder:    self.Na__PointCloud__FolderName,
                 storePath:      store.to_s,
                 storeExists:    store ? Dir.exist?(store) : false,
+                storePathProblem: store ? self.na_pc_path_problem(store, Array(list['scenes']).map { |row| row['id'].to_s }).to_s : '',   # <-- said on the tab before an export is tried
                 storeMissingWhy: link[:linked] ? self.Na__PortalMapper__MissingProjectMessage(link[:project_root]).to_s : 'Link this model to a project on the Project tab.',
                 datumCount:     self.Na__PointCloud__FindDatums(model, 5).length
             }
@@ -408,8 +425,10 @@ module TrueVision3D
             end
 
             store = self.Na__PointCloud__StorePath(link)
+            too_long = self.na_pc_path_problem(store, chosen.map { |row| row['id'].to_s })
+            return self.na_pc_fail(steps, 'Point Cloud Store', too_long) if too_long
             FileUtils.mkdir_p(store)
-            staging = File.join(store, NA_PC_STAGING_FOLDER, Time.now.strftime('%Y%m%d-%H%M%S-') + SecureRandom.hex(3))
+            staging = File.join(store, NA_PC_STAGING_FOLDER, SecureRandom.hex(3))    # <-- short on purpose: see PATH LENGTH in the header
             steps << { label: 'Point Cloud Store', success: true, message: "#{self.Na__PointCloud__FolderName} in #{link[:project_code]}" }
             steps << { label: 'Left Out', status: 'skip', message: "#{left_out} scene(s) are switched off for sync and were left as they are." } if left_out > 0
 
@@ -432,8 +451,9 @@ module TrueVision3D
             # --- render ---------------------------------------------------------------------
             rendered = []
             to_render.each_with_index do |plan, index|
-                scene_dir = File.join(staging, self.Na__PointCloud__SceneFolder(plan['sceneId']), self.Na__PointCloud__RevisionFolder(plan['revisionKey']))
-                png_dir   = File.join(staging, 'png', plan['sceneId'])
+                slot      = format('%02d', index + 1)
+                scene_dir = File.join(staging, "s#{slot}")                       # <-- becomes PointCloudScene__<id>/Rev__<key> when it is moved into place
+                png_dir   = File.join(staging, "p#{slot}")
                 FileUtils.mkdir_p(scene_dir)
                 total = plan['tiles'].length
                 say.call("Rendering #{plan['sceneName']} (#{index + 1} of #{to_render.length}): #{total} tile(s)...")
@@ -490,7 +510,11 @@ module TrueVision3D
                               failed: chosen.length - rendered.length - unchanged.length)
         rescue => e
             Na__Log__Warn "[PointCloud] Export failed: #{e.class}: #{e.message}\n#{e.backtrace.first(6).join("\n")}"
-            FileUtils.rm_rf(staging) if defined?(staging) && staging && Dir.exist?(staging)
+            if defined?(staging) && staging
+                FileUtils.rm_rf(staging) if Dir.exist?(staging)
+                staging_root = File.dirname(staging)
+                Dir.rmdir(staging_root) if Dir.exist?(staging_root) && Dir.empty?(staging_root)
+            end
             self.na_pc_fail(steps, 'Point Cloud Export', "#{e.class}: #{e.message}")
         end
         # ---------------------------------------------------------------
@@ -519,6 +543,32 @@ module TrueVision3D
             message = "Point clouds: #{rendered} scene(s) rendered, #{unchanged} unchanged" + (failed > 0 ? ", #{failed} could not be exported." : '.')
             { success: success, message: message, steps: steps, rendered: rendered, unchanged: unchanged, failed: failed }
         end
+
+        # HELPER FUNCTION | Will Every Path This Export Writes Fit? (nil when it will, else why not)
+        # ---------------------------------------------------------------
+        # SketchUp is not long-path aware: Ruby inside it cannot open a path over
+        # NA_PC_PATH_LIMIT characters, even with Windows' long paths switched on.
+        # Measured from the real store and the longest scene id, for the longest
+        # file each part of the export writes or reads, so an export that could
+        # not finish is refused before anything is rendered.
+        # ---------------------------------------------------------------
+        def self.na_pc_path_problem(store, scene_ids)
+            longest_id = Array(scene_ids).max_by(&:length) || 'pcs_00000000'
+            revision   = File.join(store, self.Na__PointCloud__SceneFolder(longest_id), self.Na__PointCloud__RevisionFolder('0' * 10))
+            staging    = File.join(store, NA_PC_STAGING_FOLDER, '0' * 6)
+            paths = [
+                File.join(revision, NA_PC_REVISION_MANIFEST),                       # <-- read back by the up-to-date check
+                File.join(revision, 'PointCloud__Tile__R00__C00__.webp'),
+                File.join(staging, 's00', "#{NA_PC_REVISION_MANIFEST}.0000.tmp"),   # <-- written in staging
+                File.join(staging, 'p00', 'PointCloud__Tile__R00__C00__.png'),      # <-- written by the viewer's engine
+                File.join(store, "#{NA_PC_STORE_MANIFEST}.0000.tmp")
+            ]
+            longest = paths.max_by(&:length)
+            return nil if longest.length <= NA_PC_PATH_LIMIT
+            "This project's folder path is too long for SketchUp to write the point cloud files: #{longest.length} characters, where SketchUp can open #{NA_PC_PATH_LIMIT}. " \
+            "Shorten the project folder's name, or move the repository to a shorter path (#{longest.length - NA_PC_PATH_LIMIT} characters shorter is enough)."
+        end
+        # ---------------------------------------------------------------
 
         def self.na_pc_scale_text(plan)
             frame = plan['frame']

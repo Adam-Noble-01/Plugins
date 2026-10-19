@@ -42,6 +42,11 @@
 #   dialog inlines the tab's script at {{POINT_CLOUD_SCRIPT}} (gsub's block
 #   form, so nothing in the script is read as a back reference).
 #
+# 19-Oct-2026 - Version 2.12.0
+# - The Scene Sync tab, wired the same way: HandleSceneSyncAction
+#   (...SceneSyncActions__.rb) takes the scenesync_* actions, PushModelStatus
+#   pushes its status too, and its script is inlined at {{SCENE_SYNC_SCRIPT}}.
+#
 # =============================================================================
 
 require 'json'
@@ -121,6 +126,8 @@ module TrueVision3D
             # just stays empty and the rest of the dialog works as before.
             point_cloud_path   = File.join(File.dirname(self.Na__PathResolver__UiBridgeFilePath), 'Na__TrueVision__GlbBuilder__PointCloud__UiBridge__.js')
             point_cloud_script = File.exist?(point_cloud_path) ? File.read(point_cloud_path) : ''
+            scene_sync_path    = File.join(File.dirname(self.Na__PathResolver__UiBridgeFilePath), 'Na__TrueVision__GlbBuilder__SceneSync__UiBridge__.js')
+            scene_sync_script  = File.exist?(scene_sync_path) ? File.read(scene_sync_path) : ''
 
             font_dir_uri = self.Na__UserInterface__FontDirectoryUri
             stylesheet_content = stylesheet_content.gsub('{{FONT_DIR_URI}}') { font_dir_uri }
@@ -143,6 +150,7 @@ module TrueVision3D
                 .gsub('{{STYLESHEET_CONTENT}}') { stylesheet_content }
                 .gsub('{{UI_BRIDGE_SCRIPT}}')   { ui_bridge_script }
                 .gsub('{{POINT_CLOUD_SCRIPT}}') { point_cloud_script }
+                .gsub('{{SCENE_SYNC_SCRIPT}}')  { scene_sync_script }
         rescue => e
             Na__Log__Warn "ERROR rendering GLB Builder dialog HTML: #{e.message}"
             self.Na__UserInterface__FallbackHtml(e)
@@ -243,6 +251,9 @@ module TrueVision3D
                 # and answer false for anything else, like the Project tab's.
                 handled ||= self.respond_to?(:Na__UserInterface__HandlePointCloudAction) &&
                             self.Na__UserInterface__HandlePointCloudAction(dialog, action_id, params)
+                # Scene Sync tab actions (scenesync_*), the same way.
+                handled ||= self.respond_to?(:Na__UserInterface__HandleSceneSyncAction) &&
+                            self.Na__UserInterface__HandleSceneSyncAction(dialog, action_id, params)
 
                 unless handled
                     self.Na__UserInterface__PushStatus(dialog, "Unknown action: #{action_id}", 'error')
@@ -852,6 +863,8 @@ module TrueVision3D
             )
             # The Point Cloud tab (and the Export tab's point cloud card) follow the model
             self.Na__UserInterface__PushPointCloudStatus(dialog) if self.respond_to?(:Na__UserInterface__PushPointCloudStatus)
+            # So does the Scene Sync tab (its scenes are the model's own pages)
+            self.Na__UserInterface__PushSceneSyncStatus(dialog) if self.respond_to?(:Na__UserInterface__PushSceneSyncStatus)
         rescue => e
             Na__Log__Warn "[GlbBuilder] Could not push model status to dialog: #{e.message}"
         end

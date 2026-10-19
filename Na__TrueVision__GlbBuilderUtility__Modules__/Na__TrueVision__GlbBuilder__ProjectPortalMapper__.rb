@@ -26,6 +26,11 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - Version 2.12.0
+# - The Scene Sync store (SceneSyncFolderName, SceneSync__SketchUpSceneData by
+#   default) is never a design phase either, and shows as an aside with its
+#   synced scene count.
+#
 # 19-Oct-2026 - Version 2.11.0
 # - The point cloud store (PointCloudFolderName, PointCloud__ViewportData by
 #   default) is never a design phase: phase discovery skips it, and the
@@ -125,6 +130,17 @@ module TrueVision3D
         def self.Na__PortalMapper__PointCloudFolderName
             name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'PointCloudFolderName').to_s
             name.empty? ? 'PointCloud__ViewportData' : name
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Read The Scene Sync Store Folder Name
+        # ---------------------------------------------------------------
+        # The SketchUp scenes synced into TrueVision (one manifest). Beside the
+        # design phases, never one of them.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__SceneSyncFolderName
+            name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SceneSyncFolderName').to_s
+            name.empty? ? 'SceneSync__SketchUpSceneData' : name
         end
         # ---------------------------------------------------------------
 
@@ -450,6 +466,7 @@ module TrueVision3D
             skip_prefixes = Array(self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SkipFolderPrefixes'))
             siteplan_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'SitePlanFolderName').to_s
             pointcloud_name = self.Na__PortalMapper__PointCloudFolderName
+            scenesync_name  = self.Na__PortalMapper__SceneSyncFolderName
 
             folders = []
             Dir.entries(content_path).sort.each do |entry|
@@ -458,6 +475,7 @@ module TrueVision3D
                 # through as a "scheme", which SuggestTargetFolder could then pick as the export target
                 next if !siteplan_name.empty? && entry.start_with?(siteplan_name)
                 next if entry.start_with?(pointcloud_name)                   # <-- the point cloud store is never a design phase
+                next if entry.start_with?(scenesync_name)                    # <-- nor is the Scene Sync store
                 next if skip_prefixes.any? { |prefix| entry.start_with?(prefix.to_s) }
 
                 folder_path = File.join(content_path, entry)
@@ -695,6 +713,18 @@ module TrueVision3D
                 scenes = Dir.glob(File.join(pointcloud_path, 'PointCloudScene__*')).count { |path| File.directory?(path) }
                 rows << { depth: 2, label: self.Na__PortalMapper__PointCloudFolderName,
                           meta: "#{scenes} point cloud scene#{scenes == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
+            end
+
+            scenesync_path = File.join(content_path, self.Na__PortalMapper__SceneSyncFolderName)
+            if Dir.exist?(scenesync_path)
+                synced = begin
+                    data = JSON.parse(File.read(File.join(scenesync_path, 'TrueVision__SceneSyncData__Manifest__.json'), encoding: 'bom|utf-8'))
+                    Array(data['SceneSyncData__Scenes']).length
+                rescue StandardError
+                    0
+                end
+                rows << { depth: 2, label: self.Na__PortalMapper__SceneSyncFolderName,
+                          meta: "#{synced} synced SketchUp scene#{synced == 1 ? '' : 's'} · not a design phase", kind: 'aside', marker: '' }
             end
 
             archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName').to_s

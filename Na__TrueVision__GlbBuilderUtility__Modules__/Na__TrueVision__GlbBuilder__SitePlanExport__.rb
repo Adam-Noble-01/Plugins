@@ -34,6 +34,12 @@
 #   EngineCore__LineworkModelHandling__ (BuildGltfFromEdgeData), Logging__, CoreExport__.
 #
 # DEVELOPMENT LOG:
+# 19-Oct-2026 - GLB Builder 2.13.0 (exporter output unchanged, still 1.4.1)
+# - The site plan store is now chosen on the GLB Builder's own Site Plan tab,
+#   not the Project tab, so the "no store chosen" message sends you there. The
+#   messages read without dashes (Adam's house rule for anything on screen).
+#   Nothing written to the folder changes, so the manifest version stays.
+#
 # 23-Sep-2026 - Version 1.4.1
 # - A LINKED PROJECT THAT IS NOT ON THIS COMPUTER IS NEVER BUILT AROUND THE EXPORT.
 #   RB05's site plan model was linked on the computer whose repo sits at
@@ -568,9 +574,10 @@ module TrueVision3D
         # HELPER FUNCTION | The Folder This Model's Project Says To Export Into
         # ---------------------------------------------------------------
         # THE POINT OF THE PROJECT LINK IS THAT NOBODY EVER PICKS A FOLDER AGAIN.
-        # The code is set once, the store is chosen once on the Project tab, and
-        # every export after that - this dialog, the Project tab, the Extensions
-        # menu - resolves the same folder without asking.
+        # The code is set once, the store is chosen once on the Site Plan tab,
+        # and every export after that - the Export tab's card, the Site Plan
+        # tab's card, the Extensions menu - resolves the same folder without
+        # asking.
         #
         # Returns nil when the model is not linked, which is the only case that
         # still falls back to a folder picker. Returns :unchosen when the model IS
@@ -611,7 +618,7 @@ module TrueVision3D
 
             buckets.keys.sort.each do |tag_name|
                 bucket = buckets[tag_name]
-                text   = "  #{tag_name} - #{bucket[:positions].length / 6} line(s)"
+                text   = "  #{tag_name}: #{bucket[:positions].length / 6} line(s)"
                 text  += ", #{bucket[:face_count]} face(s)" if bucket[:defn][:fills] && bucket[:face_count] > 0
                 lines << text
             end
@@ -892,7 +899,7 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # export_dir: nil        - ask for the folder, as the Export tab does.
         # export_dir: "<path>"   - write straight there, created if missing. The
-        #                          Project tab passes the linked project's site
+        #                          Site Plan tab passes the linked project's site
         #                          plan folder, so there is no folder picker and
         #                          no chance of exporting into the wrong project.
         # ---------------------------------------------------------------
@@ -935,8 +942,8 @@ module TrueVision3D
             if target == :unchosen
                 UI.messagebox(
                     "This model is linked to a project, but no site plan store has been chosen.\n\n" \
-                    "Open the Project tab, pick Existing Site Plan or Proposed Site Plan under " \
-                    "Site Plan Data, then export again.\n\n" \
+                    "Open the Site Plan tab in the TrueVision GLB Builder, pick Existing or Proposed, " \
+                    "then export again.\n\n" \
                     'It is not guessed on purpose: an existing site plan must never be written over a proposed one.'
                 )
                 return false
@@ -955,7 +962,7 @@ module TrueVision3D
             # The last thing read before anything is written says exactly where it
             # lands - the project, the store and the path.
             tail = if target
-                "Export into #{target[:code]} - #{target[:label]}:\n#{target[:path]}\n\nContinue?"
+                "Export into the #{target[:label]} for #{target[:code]}:\n#{target[:path]}\n\nContinue?"
             elsif export_dir
                 "Export into:\n#{export_dir}\n\nContinue?"
             else

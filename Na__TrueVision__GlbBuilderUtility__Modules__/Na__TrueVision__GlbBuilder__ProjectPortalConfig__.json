@@ -28,6 +28,7 @@
         "ProjectDataFileName": "TrueVision__ProjectData__.json",
         "SitePlanFolderName" : "SitePlan__DrawingData",
         "PointCloudFolderName": "PointCloud__ViewportData",
+        "SceneSyncFolderName": "SceneSync__SketchUpSceneData",
         "ArchiveFolderName"  : "00__Archive",
         "SkipFolderPrefixes" : [".", "00__"]
     },

@@ -8,6 +8,154 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.13.1 - 19-Oct-2026
+#### Point Cloud Scenes Drag Into Order
+
+**What Adam asked for**
+- "Ensure these can be rearranged so you can click to drag to reorder, use a grab box symbol thing to show
+  where to grab." The same was asked of the Point Cloud Viewer's clip scenes and point cloud scenes (viewer
+  0.9.0, its DEVLOG).
+
+**Built**
+- Each row of the Point Cloud tab's scene list has a six dot grip before its tick box. Press it and the row
+  lifts and follows the pointer, the others slide out of its way, the panel scrolls near its edges, and letting
+  go drops it there. Esc puts everything back; a grip with the focus moves with the up and down arrow keys. The
+  grips are locked while an export runs, on a read-only record, without the viewer, and hidden for one scene.
+- The order is the viewer's own record: `pointcloud_reorder_scenes` calls the viewer's
+  `Na__PublicApi__ReorderScenes` (scenes API 3), one undoable step, so the viewer's Scenes tab shows the same
+  order. An older viewer without it gets a plain message.
+- `Na__Tvgb__MakeSortable` and `Na__Tvgb__GripHtml` (end of the main UI bridge) are the shared piece. Only the
+  Point Cloud list uses them: Scene Sync's rows share the row class but are not reorderable, so the grip CSS
+  is scoped by its own classes and `#naTvgbPcSceneList`.
+- TrueVision's own list stays alphabetical: the store manifest sorts scenes by name.
+
+**Tested**
+- `tvpc_scenario.rb`: 43 checks, all passing (38 plus section 3a: the tab reorders the viewer's record as one
+  named step, lists and repaints in that order, a stale list moves nothing and says why).
+- Driven in a browser with real pointer events: grips on the Point Cloud rows only, settings still lined up
+  under the names, one call per drop with the full order, a status push held back mid drag, grips locked
+  during an export.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.13.0 - 19-Oct-2026
+#### Site Plan Data Gets Its Own Tab, Lit Like Scene Sync and Point Cloud
+
+**What Adam asked for**
+- "Put that in a tab and put the little light next to it, like with the others." The site plan setup sat in
+  the middle of the Project tab, between the design phases and the project structure, and made that tab hard to
+  manage. Site plans are rarely touched, so they get their own space.
+- Keep the Export tab's site plan button, which only lights up when a site plan can be exported.
+
+**Built**
+- **Site Plan tab**, between Point Cloud and Project. An intro, then readiness rows (Project, Site Plan Tags,
+  Exports Into, On Disk), then Existing Or Proposed (the store list, New Folder, Create Folder), then the Site
+  Plan Actions card. The tab's green dot, and the intro's edge, light when the model can export its site plan
+  straight into the project: linked, site plan tags in the model, and a store chosen (or the project's only one).
+- **Export tab**: Export Site Plan Data stays. It is now also held back while a linked model has no store chosen
+  (it used to start, scan the model, then stop with a message box), and its text names where the data will land,
+  for example "Goes straight into the Proposed Site Plan (original folder) for JW02".
+- **Project tab**: the Site Plan Data block is gone, and the design phase text points to the new tab. Its text
+  reads without dashes now; the folder dropdown says "Existing Conditions (DesignPhase00__ExistingConditions)".
+- **New Folder offers each store once.** It matched folders by name, so a project still on the original
+  `SitePlan__DrawingData` folder (which is read as Proposed) was offered a second Proposed folder beside it. It
+  now matches by variant, so that project is offered Existing only. With both stores present the dropdown says so.
+- The "no store chosen" status line and message box send you to the Site Plan tab. The site plan export's message
+  boxes read without dashes. Nothing it writes changed, so the exporter stays at 1.4.1.
+- The tab bar wraps rather than clipping six tabs at the dialog's 460 px minimum width.
+- No Ruby payload or data change: the tab reads the existing project status (`siteplan_*`) and model status
+  (`site_plan_tag_count`, `can_export_site_plan`).
+
+**Files**
+- `05__Plugin__UserInterface/...UiLayout__.html` (tab button, the new section, the Project tab block removed),
+  `...UiBridge__.js` (a Site Plan Tab region: rendering, the light, the card locks), `...Styles__.css` (tab bar wrap).
+- `...UserInterface__ProjectActions__.rb`, `...SitePlanExport__.rb`, `...ProjectLink__.rb`: messages and comments only.
+
+**Tested**
+- Ruby syntax through SketchUp's own interpreter (3 files) and `node --check` on the bridge.
+- The page assembled the way the plugin builds it and driven in a browser with stub pushes: the light and both
+  cards at startup, with the model status only, with nothing chosen, after picking Existing, for a model with no
+  site plan tags and for an unlinked model; New Folder beside the original folder; the Export tab guard; the tab
+  bar at 460 px.
+- Not yet tried inside SketchUp.
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.12.0 - 19-Oct-2026
+#### Scene Sync: SketchUp Scenes Kept in Step With TrueVision
+
+**What Adam asked for**
+- "We need a way like ValeVision that can take 3D and 2D scenes from SketchUp and sync them to TrueVision ... add a
+  new tab ... called Scene Sync that deals with what scenes are synced and what aren't ... by default they should
+  just all be off. Certain ones, when switched on, stay in sync and thus have generatable 3D and 2D viewports, so
+  you don't have to set everything up twice."
+- "SketchUp has ownership, but they should be detachable ... kept in lockstep with the TrueVision versions unless
+  detached at either end or toggled off." 2D and 3D together.
+
+**Built**
+- `Na__TrueVision__GlbBuilder__SceneSync__.rb`:
+  - Settings in this plugin's own model dictionary `Na__TrueVision__GlbBuilder__SceneSync` (one undoable operation
+    per change): the scenes switched on, by `Page#persistent_id`, each with an id (`sus_<hex>`) TrueVision binds
+    viewports to, and a type (automatic from the camera, or Plan, Elevation, Section, 3D View). Nothing is ever written
+    to a SketchUp scene and no scene is ever selected.
+  - Capture reads each scene's camera (in SketchUp inches and three.js metres), its active section plane
+    (`Page#active_section_planes`, SketchUp 2026, top level only), the hidden tags (as the GLB categories, a category
+    hidden only when every tag of it is) and the drawing it implies in TrueVision's own terms: a plan's cut height, an
+    elevation's exact bearing, plane origin and distance, where the camera looks and how much it shows. Warnings when
+    a plan is tilted, an elevation is not level, or a section plane is off square.
+  - One manifest per project, `30__TrueVision__AppContent/SceneSync__SketchUpSceneData/
+    TrueVision__SceneSyncData__Manifest__.json`. Rows are never deleted: switched off (frozen at its last sync),
+    detached (frozen for good; switching the page on again starts a new synced scene), missing (the SketchUp scene
+    was deleted). Another model's rows are kept as they are. Paths are measured against SketchUp's 259 characters
+    first, and no -0.0 is ever written, so the same view always writes the same bytes.
+  - A scene detached in TrueVision (its Layout Editor's SketchUp Scenes panel) shows as Detached in TrueVision, read
+    from the project data on this computer.
+- `Na__TrueVision__GlbBuilder__UserInterface__SceneSyncActions__.rb` and
+  `05__Plugin__UserInterface/Na__TrueVision__GlbBuilder__SceneSync__UiBridge__.js`: the Scene Sync tab (after
+  Export). Every scene with its switch, type, what it becomes in TrueVision and how it stands (Synced, Changed since
+  sync, Not synced yet, Off and kept, Detached in TrueVision); Switch All Off; Detach (two clicks); Sync Scenes (quick,
+  nothing renders) and Sync Scenes And Push To Cloud; the last report.
+- Every Export To Project, every Export And Sync, every Push To Cloud and the point cloud tab's render-and-sync write
+  the scenes first, so TrueVision never lags SketchUp. A model with no scene ever switched on adds nothing at all.
+- The Project tab's structure tree shows the store as an aside, and phase discovery skips it
+  (`SceneSyncFolderName` in the portal config). The Point Cloud Viewer's scenes API 2 gives each point cloud scene
+  its SketchUp scene, so a synced drawing names the point cloud scene that lays on it exactly.
+
+**Tested**
+- `ss_scenario.rb`, 102 checks, running the real modules in SketchUp's own Ruby against API doubles: off by default;
+  the type each camera suggests; a plan cut at 1200 mm by a section plane (a nested plane ignored); an elevation
+  looking north at azimuth 180 and a section looking east at 270, checked against TrueVision's own axes; vertical
+  field of view from a horizontal one; hidden tags, folders and hidden-by-default tags; changed, switched off, resumed,
+  detached and deleted scenes; another model's row untouched; refusals (unlinked, missing project, a newer record, a
+  path over 259 characters, JW02's real folder fits); the dialog's actions and Sync And Push (a fake push, no R2);
+  the export hook; no scene ever selected. The ProjectVision build and R2 sync checks pass too (16).
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.11.1 - 19-Oct-2026
+#### Point Cloud Export Fits Inside SketchUp's 259 Character Paths
+
+**The bug: Adam's first live point cloud export (JW02) stopped at the revision manifest**
+- `Errno::ENOENT ... PointCloud__ViewportData/00__Staging/20261019-140438-73f0d1/PointCloudScene__pcs_d5daef4a/
+  Rev__6fcc975b40/PointCloudScene__RevisionManifest__.json.66fa6088.tmp`. The models exported and the tiles were
+  rendered and converted, but the manifest could not be written, so nothing reached the store and the sync was
+  skipped. The failed run tidied up after itself.
+- That path is 274 characters. SketchUp is not long-path aware, so Ruby inside it cannot open a path over 259
+  characters, even with Windows' long paths switched on (they are, on the studio PC). The tiles (Python, which is
+  long-path aware) and the PNGs (shorter names) fitted; the manifest did not. The offline tests run Ruby inside
+  python.exe, which IS long-path aware, so they could never have seen it.
+
+**The fix**
+- Staging is `00__Staging/<6 hex>/s01` (and `p01` for the PNGs): the revision folder takes its real name,
+  `PointCloudScene__<id>/Rev__<key>`, only when it is moved into place. The temporary file suffix is shorter.
+  JW02's longest path is now 226 characters; the worst case today, PS02 on the other computer, 253.
+- Every path an export will write or read is measured first. A project whose paths would not fit is refused before
+  anything renders, with how many characters to lose, and the Point Cloud tab says so on its Exports Into row and
+  holds the render buttons.
+
+**Tested**
+- `tvpc_scenario.rb`, now 38 checks: every path the export used (59 of them, including the PNGs the viewer's engine
+  writes) measured as it would be in JW02's folder, the short staging layout, the up-front refusal, and the tab's
+  status.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.11.0 - 19-Oct-2026
 #### The Point Cloud Tab: Point Cloud Scenes Rendered Into the Project for TrueVision
 

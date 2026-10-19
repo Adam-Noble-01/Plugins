@@ -9,7 +9,7 @@
 //              dialog reopens where it was left, including after a reload.
 //              A remembered tab that no longer exists falls back to View.
 //
-// TABS       : view (default) | clipping | transform | clean | scenes | settings
+// TABS       : view (default) | scenes | clipping | transform | clean | settings
 //
 // =============================================================================
 

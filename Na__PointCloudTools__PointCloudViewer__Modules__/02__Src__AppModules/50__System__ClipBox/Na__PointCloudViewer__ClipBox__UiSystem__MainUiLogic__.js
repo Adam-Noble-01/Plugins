@@ -5,7 +5,8 @@
 // FILE       : Na__PointCloudViewer__ClipBox__UiSystem__MainUiLogic__.js
 // NAMESPACE  : window.Na__PointCloudViewer__ClipBox
 // PURPOSE    : Clipping tab: the Clip switch, Edit Clip Box, Reset to Cloud,
-//              the six typed limits and the saved clip scenes.
+//              the six typed limits and the saved clip scenes, which can be
+//              dragged by their grips into any order (Full Cloud stays first).
 //
 // STATE: everything shown comes from state.clip (Ruby). This file never keeps
 //   its own copy of the box; it only remembers what the user is typing, so a
@@ -19,6 +20,7 @@
     var ClipBox = {};
     var Shell   = window.Na__PointCloudViewer__Shell;
     var Bridge  = window.Na__PointCloudViewer__Bridge;
+    var DragReorder = window.Na__PointCloudViewer__DragReorder;
 
     var NA_PAIRS = [['left', 'right'], ['front', 'back'], ['bottom', 'top']];
     var NA_CONFIRM_MS = 3000;
@@ -30,6 +32,8 @@
     var na_renaming      = null;     // { id, text } while a scene name is being edited
     var na_confirm_id    = null;     // scene waiting for a second Delete click
     var na_confirm_timer = null;
+    var na_sorter        = null;     // drag to reorder on the scene list
+    var na_list_waiting  = false;    // a repaint held back while a row is being dragged
 
     // -------------------------------------------------------------------------
     // REGION | Clip Box Card
@@ -134,8 +138,11 @@
         return button;
     }
 
+    // options.sortable: the row has a grip and can be dragged (saved scenes)
     function na_scene_row(options) {
         var row = Shell.na_el('div', 'na-scene' + (options.isActive ? ' na-scene--active' : ''));
+        if (options.sortId) row.setAttribute('data-na-sort-id', options.sortId);
+        row.appendChild(options.sortable ? DragReorder.na_grip(options.name) : Shell.na_el('span', 'na-grip-spacer'));
         var name = Shell.na_el('button', 'na-scene__name', options.name);
         name.type = 'button';
         name.title = options.isActive ? 'Showing now' : 'Switch to ' + options.name;
@@ -147,6 +154,8 @@
 
     function na_rename_row(scene) {
         var row = Shell.na_el('div', 'na-scene na-scene--renaming');
+        row.setAttribute('data-na-sort-id', scene.id);
+        row.appendChild(Shell.na_el('span', 'na-grip-spacer'));
         var input = Shell.na_el('input', 'naInput na-scene__rename');
         input.type = 'text';
         input.maxLength = 60;
@@ -200,8 +209,11 @@
     }
 
     function na_render_scenes(clip) {
+        // A row is being dragged: the list repaints when it is dropped
+        if (na_sorter && na_sorter.na_is_dragging()) { na_list_waiting = true; return; }
         var list = document.getElementById('na-scene-list');
         list.innerHTML = '';
+        var sortable = (clip.scenes || []).length > 1 && !na_renaming;
 
         list.appendChild(na_scene_row({
             id: 'full', name: 'Full Cloud', isActive: !!clip.fullCloudActive,
@@ -214,7 +226,8 @@
                 return;
             }
             var tag = scene.isModified ? 'box changed' : (scene.isActive ? 'showing' : '');
-            var row = na_scene_row({ id: scene.id, name: scene.name, isActive: scene.isActive, tag: tag });
+            var row = na_scene_row({ id: scene.id, name: scene.name, isActive: scene.isActive, tag: tag,
+                                     sortId: scene.id, sortable: sortable });
             var actions = Shell.na_el('div', 'na-scene__actions');
             if (scene.isModified) {
                 var update = na_action_button('Update', 'na-scene-action--primary', function () {
@@ -242,6 +255,7 @@
 
         document.getElementById('na-scene-save').disabled = !clip.hasBox;
         document.getElementById('na-scene-name').disabled = !clip.hasBox;
+        if (na_sorter) na_sorter.na_after_render();
     }
 
     function na_save_scene() {
@@ -285,6 +299,22 @@
             Bridge.na_call('clip_reset', {});
         });
         document.getElementById('na-scene-save').addEventListener('click', na_save_scene);
+        // Full Cloud stays first: it has no grip and no sort id
+        na_sorter = DragReorder.na_attach(document.getElementById('na-scene-list'), {
+            canDrag: function () {
+                return !!na_clip && !na_renaming && (na_clip.scenes || []).length > 1;
+            },
+            onReorder: function (ids) {
+                na_clear_confirm();
+                Bridge.na_call('clip_scene_reorder', { ids: ids });
+            },
+            onEnd: function (changed) {
+                var waiting = na_list_waiting;
+                na_list_waiting = false;
+                // After a change Ruby pushes the new order; otherwise catch up now
+                if (!changed && (waiting || na_confirm_id) && na_clip) na_render_scenes(na_clip);
+            }
+        });
         document.getElementById('na-scene-name').addEventListener('keydown', function (event) {
             if (event.key === 'Enter') na_save_scene();
         });

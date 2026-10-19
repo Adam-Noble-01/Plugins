@@ -1109,6 +1109,9 @@ The tab refreshes when it is shown and when the dialog regains focus; there are 
 `Na__PublicApi__SceneList`, `SetSceneExport`, `PlanSceneExport`, `RenderSceneTiles`,
 `SceneFrameRecord`, `ScenePixelFor`, `ReloadPointCloud`: what TrueVision Sync (GLB Builder 2.11)
 calls to list the scenes, render them into its project store and record the datum's pixel.
+API 2 adds each row's `pagePid`; API 3 adds `ReorderScenes(model, ids)` (every id, top to bottom,
+one undoable step), so TrueVision Sync's Point Cloud tab can drag the same record the Scenes tab
+drags. The version constant is guarded for hot reload: callers test the key or respond_to?.
 
 ### 23.6 Tests
 

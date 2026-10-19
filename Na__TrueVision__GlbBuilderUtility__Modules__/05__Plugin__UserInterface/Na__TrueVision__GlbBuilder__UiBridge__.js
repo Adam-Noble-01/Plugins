@@ -12,6 +12,18 @@
     // -----------------------------------------------------------------------------
     //
     // DEVELOPMENT LOG:
+    // 19-Oct-2026 - Version 2.13.1
+    // - Drag to reorder: Na__Tvgb__MakeSortable and Na__Tvgb__GripHtml, in
+    //   their own block at the end of this file (the Point Cloud tab uses them).
+    //
+    // 19-Oct-2026 - Version 2.13.0
+    // - Site plan setup has its own Site Plan tab (it sat in the middle of the
+    //   Project tab). The tab is lit, like Scene Sync and Point Cloud, when the
+    //   model can export its site plan straight into the project. The Export
+    //   tab keeps Export Site Plan Data, now also held back while a linked
+    //   model has no Existing or Proposed store chosen, and naming where its
+    //   data will land.
+    //
     // 19-Sep-2026 - Version 2.8.0
     // - Initial bridge, ported from the ValeVision Cloud Sync UI bridge pattern.
     // - Manifest is rendered client-side from JSON pushed by Ruby so a rescan
@@ -28,7 +40,9 @@
         isRunning        : false,     // <-- true while an export action is in progress
         activeTabId      : 'export',  // <-- tracks which tab is visible
         canExportModel   : false,     // <-- model holds at least one exportable tag group
-        canExportSitePlan: false      // <-- model holds at least one site plan tag (71-75)
+        canExportSitePlan: false,     // <-- model holds at least one site plan tag (71-75)
+        sitePlanTagCount : 0,         // <-- how many, for the Site Plan tab
+        modelStatusSeen  : false      // <-- true once Ruby has pushed a model status
     };
 
     // endregion -------------------------------------------------------------------
@@ -161,11 +175,15 @@
         }
 
         if (actionId === 'export_model' && !naTvgbState.canExportModel) {
-            na__tvgb__setStatus('Nothing to export - no entities found on valid tag ranges.', 'warning');
+            na__tvgb__setStatus('Nothing to export: no entities found on valid tag ranges.', 'warning');
             return;
         }
         if (actionId === 'export_site_plan' && !naTvgbState.canExportSitePlan) {
             na__tvgb__setStatus('No site plan tags (71-75) in this model.', 'warning');
+            return;
+        }
+        if (actionId === 'export_site_plan' && naTvgbProject.linked && !naTvgbProject.sitePlanFolder) {
+            na__tvgb__setStatus('Choose Existing or Proposed on the Site Plan tab first.', 'warning');
             return;
         }
 
@@ -300,7 +318,10 @@
 
         naTvgbState.canExportModel    = !!status.can_export_model;
         naTvgbState.canExportSitePlan = !!status.can_export_site_plan;
+        naTvgbState.sitePlanTagCount  = Number(status.site_plan_tag_count || 0);
+        naTvgbState.modelStatusSeen   = true;
         na__tvgb__applyButtonLockState();
+        na__tvgb__renderSitePlanTab();
 
         na__tvgb__setText('naTvgbModelName',     status.model_name);
         na__tvgb__setText('naTvgbProjectPrefix', status.project_prefix);
@@ -574,16 +595,18 @@
             running || !naTvgbState.canExportModel,
             'No entities found on valid tag ranges.'
         );
-        na__tvgb__lockCard(
-            'naTvgbExportSitePlanCard',
-            running || !naTvgbState.canExportSitePlan,
-            'No site plan tags (71-75) in this model.'
-        );
-        var sitePlanBlocked = !naTvgbProject.linked ? 'Link this model to a project first.'
-                            : !naTvgbState.canExportSitePlan ? 'No site plan tags (71-75) in this model.'
-                            : !naTvgbProject.sitePlanFolder ? 'Choose Existing or Proposed first.'
-                            : '';
+        // Site plan. The Site Plan tab's card needs the project. The Export
+        // tab's card does not (an unlinked model gets a folder picker), but a
+        // linked model with no store chosen must not be able to start it. The
+        // tab is lit exactly when the data can go straight into the project.
+        var sitePlanBlocked   = na__tvgb__sitePlanBlockedReason();
+        var sitePlanExportWhy = !naTvgbState.canExportSitePlan ? 'No site plan tags (71-75) in this model.'
+                              : (naTvgbProject.linked && !naTvgbProject.sitePlanFolder)
+                                  ? 'Choose Existing or Proposed on the Site Plan tab first.'
+                              : '';
+        na__tvgb__lockCard('naTvgbExportSitePlanCard', running || sitePlanExportWhy !== '', sitePlanExportWhy);
         na__tvgb__lockCard('naTvgbSitePlanExportCard', running || sitePlanBlocked !== '', sitePlanBlocked);
+        na__tvgb__renderSitePlanLight(sitePlanBlocked === '');
 
         // Project-dependent cards: need a link, a target folder, and something to export
         var noProject   = !naTvgbProject.linked;
@@ -610,6 +633,7 @@
         na__tvgb__lockButton('naTvgbDeleteBtn', running || noProject || !dangerFolder);
 
         na__tvgb__updateProjectCardDescription();
+        na__tvgb__updateSitePlanCardDescription();
     }
 
     function na__tvgb__lockButton(elementId, shouldLock) {
@@ -659,7 +683,13 @@
 
         sitePlanFolder   : '',    // <-- Existing or Proposed; '' means not chosen, and nothing exports
         sitePlanFolders  : [],    // <-- site plan folders that exist on disk
-        sitePlanVariants : []     // <-- the catalogue of variants a project may hold
+        sitePlanVariants : [],    // <-- the catalogue of variants a project may hold
+        sitePlanFolderPath  : '', // <-- the chosen store's full path, for the Exports Into row
+        sitePlanExists      : false,
+        sitePlanGlbCount    : 0,
+        sitePlanLastWritten : '',
+
+        statusSeen       : false  // <-- true once Ruby has pushed a project status
     };
 
     var NA_TVGB_PROJECT_CODE_PATTERN = /^[A-Z]{2}[0-9]{2}$/;
@@ -979,7 +1009,7 @@
         // confirmation function. This generic path must never reach them, so a
         // future wiring mistake cannot resurrect the unguarded Duplicate.
         if (NA_TVGB_CONFIRMED_ACTIONS.indexOf(actionId) !== -1) {
-            na__tvgb__setStatus('That action needs confirming - use its own button.', 'warning');
+            na__tvgb__setStatus('That action needs confirming. Use its own button.', 'warning');
             return;
         }
 
@@ -1096,7 +1126,7 @@
 
         na__tvgb__showConfirm({
             title:          permanent ? 'Permanently delete this folder?' : 'Delete this folder?',
-            text:           text + ' Cloudflare R2 is not touched now - the next push removes this folder’s GLBs from R2 as well.',
+            text:           text + ' Cloudflare R2 is not touched now. The next push removes this folder’s GLBs from R2 as well.',
             detail:         folder.folder_name,
             structure:      true,
             affectedFolder: folder.folder_name,
@@ -1199,6 +1229,11 @@
         naTvgbProject.sitePlanFolders  = Array.isArray(status.siteplan_folders)  ? status.siteplan_folders  : [];
         naTvgbProject.sitePlanVariants = Array.isArray(status.siteplan_variants) ? status.siteplan_variants : [];
         naTvgbProject.sitePlanFolder   = status.siteplan_folder || '';
+        naTvgbProject.sitePlanFolderPath  = status.siteplan_folder_path || '';
+        naTvgbProject.sitePlanExists      = !!status.siteplan_exists;
+        naTvgbProject.sitePlanGlbCount    = Number(status.siteplan_glb_count || 0);
+        naTvgbProject.sitePlanLastWritten = status.siteplan_last_written || '';
+        naTvgbProject.statusSeen          = true;
 
         if (!naTvgbProject.selectedFolder || !na__tvgb__folderExists(naTvgbProject.selectedFolder)) {
             naTvgbProject.selectedFolder = naTvgbProject.targetFolder;
@@ -1206,7 +1241,7 @@
 
 
         na__tvgb__renderProjectCard(status);
-        na__tvgb__renderSitePlanCard(status);
+        na__tvgb__renderSitePlanTab();
         na__tvgb__renderPhaseSelect();
         na__tvgb__renderSchemeList();
         na__tvgb__renderTree('naTvgbStructureTree', naTvgbProject.structure, null);
@@ -1257,142 +1292,13 @@
         }
     }
 
-    // Site plan data is not a design phase, but it is chosen the same way: a
-    // radio list of the folders that exist, a dropdown of the ones that do not
-    // yet, and a Create button. The variant is never inferred from the model.
-    function na__tvgb__renderSitePlanCard(status) {
-        var group = document.getElementById('naTvgbSitePlanGroup');
-        if (group) { group.style.display = status.linked ? '' : 'none'; }
-        if (!status.linked) { return; }
-
-        na__tvgb__renderSitePlanList();
-        na__tvgb__renderSitePlanSelect();
-
-        var selected = naTvgbProject.sitePlanFolder;
-        na__tvgb__setText('naTvgbSitePlanFolder',
-            selected ? (status.siteplan_folder_path || selected) : 'Not chosen yet — pick Existing or Proposed');
-
-        var count = Number(status.siteplan_glb_count || 0);
-        var state;
-        if (!selected) {
-            state = 'Nothing is exported until a site plan folder is chosen';
-        } else if (!status.siteplan_exists) {
-            state = 'Not created yet — the first export makes it';
-        } else if (count === 0) {
-            state = 'Folder present, no site plan GLBs in it yet';
-        } else {
-            state = count + ' GLB' + (count === 1 ? '' : 's');
-            if (status.siteplan_last_written) { state += ' · last written ' + status.siteplan_last_written; }
-        }
-        na__tvgb__setText('naTvgbSitePlanState', state);
-
-        var variant = na__tvgb__sitePlanVariantFor(selected);
-        na__tvgb__setText('naTvgbSitePlanExportLabel',
-            variant ? ('Export The ' + variant.label + ' Into This Project')
-                    : 'Export Site Plan Into This Project');
-    }
-
-    function na__tvgb__sitePlanVariantFor(folderName) {
-        if (!folderName) { return null; }
-        for (var i = 0; i < naTvgbProject.sitePlanFolders.length; i += 1) {
-            if (naTvgbProject.sitePlanFolders[i].folder_name === folderName) {
-                return { label: naTvgbProject.sitePlanFolders[i].variant_label || 'Site Plan' };
-            }
-        }
-        for (var j = 0; j < naTvgbProject.sitePlanVariants.length; j += 1) {
-            if (naTvgbProject.sitePlanVariants[j].folder_name === folderName) {
-                return { label: naTvgbProject.sitePlanVariants[j].label };
-            }
-        }
-        return null;
-    }
-
-    function na__tvgb__renderSitePlanList() {
-        var list = document.getElementById('naTvgbSitePlanList');
-        if (!list) { return; }
-
-        if (naTvgbProject.sitePlanFolders.length === 0) {
-            list.innerHTML = '<div class="naTvgb__Note naTvgb__Note--empty">'
-                + 'No site plan folders yet. Choose Existing or Proposed below and create one.'
-                + '</div>';
-            return;
-        }
-
-        list.innerHTML = naTvgbProject.sitePlanFolders.map(function(folder) {
-            var selected = folder.folder_name === naTvgbProject.sitePlanFolder;
-            var meta     = folder.glb_count + ' GLB' + (folder.glb_count === 1 ? '' : 's');
-            if (folder.last_written) { meta += ' · last written ' + folder.last_written; }
-
-            var tag = '';
-            if (folder.is_legacy) {
-                tag = '<span class="naTvgb__SchemeRow__Tag naTvgb__SchemeRow__Tag--alias">Original folder</span>';
-            } else if (folder.glb_count === 0) {
-                tag = '<span class="naTvgb__SchemeRow__Tag naTvgb__SchemeRow__Tag--empty">Empty</span>';
-            }
-
-            return '<button type="button" class="naTvgb__SchemeRow' + (selected ? ' naTvgb__SchemeRow--selected' : '') + '"'
-                + ' onclick="Na__Tvgb__SelectSitePlanFolder(\'' + na__tvgb__escAttr(folder.folder_name) + '\')">'
-                + '<span class="naTvgb__SchemeRow__Radio"></span>'
-                + '<span class="naTvgb__SchemeRow__Body">'
-                + '<span class="naTvgb__SchemeRow__Name">' + na__tvgb__escHtml(folder.folder_name) + '</span>'
-                + '<span class="naTvgb__SchemeRow__Meta">' + na__tvgb__escHtml((folder.variant_label || 'Site Plan') + ' · ' + meta) + '</span>'
-                + '</span>'
-                + tag
-                + '</button>';
-        }).join('');
-    }
-
-    // Only variants that have no folder yet are offerable, so Create Folder can
-    // never be a second way to reach a folder the list above already shows.
-    function na__tvgb__renderSitePlanSelect() {
-        var select = document.getElementById('naTvgbNewSitePlanSelect');
-        if (!select) { return; }
-
-        var previous = select.value;
-        var existing = {};
-        naTvgbProject.sitePlanFolders.forEach(function(f) { existing[f.folder_name] = true; });
-
-        var options = naTvgbProject.sitePlanVariants.filter(function(v) { return !existing[v.folder_name]; });
-
-        select.innerHTML = options.map(function(v) {
-            return '<option value="' + na__tvgb__escHtml(v.variant_id) + '">'
-                 + na__tvgb__escHtml(v.label + ' — ' + v.folder_name)
-                 + '</option>';
-        }).join('');
-
-        if (previous) { select.value = previous; }
-        if (!select.value && options.length) { select.value = options[0].variant_id; }
-
-        var btn = document.getElementById('naTvgbCreateSitePlanBtn');
-        if (btn) {
-            btn.disabled = options.length === 0 || naTvgbState.isRunning;
-            btn.title    = options.length === 0 ? 'This project already has both site plan folders.' : '';
-        }
-    }
-
-    function Na__Tvgb__SelectSitePlanFolder(folderName) {
-        naTvgbProject.sitePlanFolder = String(folderName || '');
-        na__tvgb__renderSitePlanList();
-
-        na__tvgb__dispatch('set_siteplan_folder', { folderName: naTvgbProject.sitePlanFolder });
-    }
-
-    function Na__Tvgb__CreateSitePlanFolder() {
-        var select = document.getElementById('naTvgbNewSitePlanSelect');
-        if (!select || !select.value) {
-            na__tvgb__setStatus('This project already has both site plan folders.', 'warning');
-            return;
-        }
-        na__tvgb__dispatch('create_siteplan_folder', { variantId: select.value });
-    }
-
     function na__tvgb__renderPhaseSelect() {
         var select = document.getElementById('naTvgbNewPhaseSelect');
         if (!select) { return; }
 
         var previous = select.value;
         select.innerHTML = naTvgbProject.phases.map(function(phase) {
-            var label = phase.label + (phase.supports_schemes ? ' — next: ' + phase.next_folder_name : ' — ' + phase.next_folder_name);
+            var label = phase.label + (phase.supports_schemes ? ' (next: ' + phase.next_folder_name + ')' : ' (' + phase.next_folder_name + ')');
             return '<option value="' + na__tvgb__escHtml(phase.phase_id) + '">' + na__tvgb__escHtml(label) + '</option>';
         }).join('');
 
@@ -1535,6 +1441,240 @@
 
 
     // -----------------------------------------------------------------------------
+    // REGION | Site Plan Tab
+    // -----------------------------------------------------------------------------
+    //
+    // Everything about this model's site plan data, on its own tab since 2.13.0
+    // (it sat in the middle of the Project tab before).
+    //
+    // The tab reads BOTH pushes: the model status says whether the model holds
+    // site plan tags, the project status says where they would go. Either one
+    // repaints it, and the lock pass lights the tab when everything lines up.
+    //
+    // Site plan data is not a design phase, but its store is chosen the same
+    // way: a radio list of the folders that exist, a dropdown of the ones that
+    // do not yet, and a Create button. The variant is never inferred from the
+    // model, so an existing site plan can never be written over a proposed one.
+    //
+    // -----------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Why The Site Plan Cannot Go Straight Into The Project
+    // ------------------------------------------------------------
+    // '' means ready: linked, site plan tags in the model, and a store chosen
+    // (or the project's only store, which answers for itself). Ready lights
+    // the tab and makes the Site Plan tab's export card live.
+    // ------------------------------------------------------------
+    function na__tvgb__sitePlanBlockedReason() {
+        if (!naTvgbProject.linked)          { return 'Link this model to a project on the Project tab first.'; }
+        if (!naTvgbState.canExportSitePlan) { return 'No site plan tags (71-75) in this model.'; }
+        if (!naTvgbProject.sitePlanFolder)  { return 'Choose Existing or Proposed on the Site Plan tab first.'; }
+        return '';
+    }
+
+    // FUNCTION | Light The Tab, And The Intro's Edge, When The Model Is Ready
+    // ------------------------------------------------------------
+    // The same green dot the Scene Sync and Point Cloud tabs use.
+    // ------------------------------------------------------------
+    function na__tvgb__renderSitePlanLight(ready) {
+        var tab = document.getElementById('naTvgbSpTabButton');
+        if (tab) { tab.classList.toggle('naTvgb__TabButton--pcOn', !!ready); }
+
+        var intro = document.getElementById('naTvgbSpIntro');
+        if (intro) { intro.classList.toggle('naTvgb__PcMaster--on', !!ready); }
+    }
+
+    // FUNCTION | Paint The Site Plan Tab
+    // ------------------------------------------------------------
+    // Each row keeps its placeholder until the push it comes from arrives, so
+    // the tab never says "not linked" in the moment before the project status
+    // lands.
+    // ------------------------------------------------------------
+    function na__tvgb__renderSitePlanTab() {
+        if (naTvgbState.modelStatusSeen) {
+            var tags = naTvgbState.sitePlanTagCount;
+            na__tvgb__setText('naTvgbSpTags', tags > 0
+                ? tags + ' in this model'
+                : 'None in this model. Create Standardised Tags From Index, on the Settings tab, adds them.');
+        }
+        if (!naTvgbProject.statusSeen) { return; }
+
+        var linked = naTvgbProject.linked;
+        na__tvgb__setText('naTvgbSpProject', linked
+            ? (naTvgbProject.code || 'Linked')
+            : 'Not linked. Link this model on the Project tab.');
+
+        var group = document.getElementById('naTvgbSitePlanGroup');
+        if (group) { group.style.display = linked ? '' : 'none'; }
+
+        // The Exports Into row uses the path font only while it shows a path
+        var selected = linked ? naTvgbProject.sitePlanFolder : '';
+        var folderEl = document.getElementById('naTvgbSitePlanFolder');
+        if (folderEl) { folderEl.classList.toggle('naTvgb__ProjectStatus__Value--path', !!selected); }
+
+        if (!linked) {
+            na__tvgb__setText('naTvgbSitePlanFolder', 'A folder picked on each export, as this model is not linked');
+            na__tvgb__setText('naTvgbSitePlanState', 'Not checked until the model is linked');
+            na__tvgb__setText('naTvgbSitePlanExportLabel', 'Export Site Plan Into This Project');
+            return;
+        }
+
+        na__tvgb__renderSitePlanList();
+        na__tvgb__renderSitePlanSelect();
+
+        na__tvgb__setText('naTvgbSitePlanFolder',
+            selected ? (naTvgbProject.sitePlanFolderPath || selected) : 'Not chosen yet. Pick Existing or Proposed below.');
+
+        var count = naTvgbProject.sitePlanGlbCount;
+        var state;
+        if (!selected) {
+            state = 'Nothing is exported until a site plan folder is chosen';
+        } else if (!naTvgbProject.sitePlanExists) {
+            state = 'Not created yet. The first export makes it.';
+        } else if (count === 0) {
+            state = 'Folder present, no site plan GLBs in it yet';
+        } else {
+            state = count + ' GLB' + (count === 1 ? '' : 's');
+            if (naTvgbProject.sitePlanLastWritten) { state += ' · last written ' + naTvgbProject.sitePlanLastWritten; }
+        }
+        na__tvgb__setText('naTvgbSitePlanState', state);
+
+        var variant = na__tvgb__sitePlanVariantFor(selected);
+        na__tvgb__setText('naTvgbSitePlanExportLabel',
+            variant ? ('Export The ' + variant.label + ' Into This Project')
+                    : 'Export Site Plan Into This Project');
+    }
+
+    // HELPER FUNCTION | Name The Destination On The Export Tab's Site Plan Card
+    // ------------------------------------------------------------
+    // The card stays on the Export tab and says where the data will land, the
+    // way Export To Project Folder names its design phase folder.
+    // ------------------------------------------------------------
+    function na__tvgb__updateSitePlanCardDescription() {
+        var el = document.getElementById('naTvgbExportSitePlanDesc');
+        if (!el || !naTvgbProject.statusSeen) { return; }
+
+        var what = 'One linework GLB per site plan tag (71-75), plus fills and a manifest. ';
+        if (!naTvgbProject.linked) {
+            el.textContent = what + 'This model is not linked to a project, so it asks for a folder.';
+        } else if (naTvgbProject.sitePlanFolder) {
+            var variant = na__tvgb__sitePlanVariantFor(naTvgbProject.sitePlanFolder);
+            el.textContent = what + 'Goes straight into the '
+                + (variant ? variant.label : naTvgbProject.sitePlanFolder)
+                + ' for ' + naTvgbProject.code + ', with no folder picker.';
+        } else {
+            el.textContent = what + 'Choose Existing or Proposed on the Site Plan tab first.';
+        }
+    }
+
+    function na__tvgb__sitePlanVariantFor(folderName) {
+        if (!folderName) { return null; }
+        for (var i = 0; i < naTvgbProject.sitePlanFolders.length; i += 1) {
+            if (naTvgbProject.sitePlanFolders[i].folder_name === folderName) {
+                return { label: naTvgbProject.sitePlanFolders[i].variant_label || 'Site Plan' };
+            }
+        }
+        for (var j = 0; j < naTvgbProject.sitePlanVariants.length; j += 1) {
+            if (naTvgbProject.sitePlanVariants[j].folder_name === folderName) {
+                return { label: naTvgbProject.sitePlanVariants[j].label };
+            }
+        }
+        return null;
+    }
+
+    function na__tvgb__renderSitePlanList() {
+        var list = document.getElementById('naTvgbSitePlanList');
+        if (!list) { return; }
+
+        if (naTvgbProject.sitePlanFolders.length === 0) {
+            list.innerHTML = '<div class="naTvgb__Note naTvgb__Note--empty">'
+                + 'No site plan folders yet. Choose Existing or Proposed below and create one.'
+                + '</div>';
+            return;
+        }
+
+        list.innerHTML = naTvgbProject.sitePlanFolders.map(function(folder) {
+            var selected = folder.folder_name === naTvgbProject.sitePlanFolder;
+            var meta     = folder.glb_count + ' GLB' + (folder.glb_count === 1 ? '' : 's');
+            if (folder.last_written) { meta += ' · last written ' + folder.last_written; }
+
+            var tag = '';
+            if (folder.is_legacy) {
+                tag = '<span class="naTvgb__SchemeRow__Tag naTvgb__SchemeRow__Tag--alias">Original folder</span>';
+            } else if (folder.glb_count === 0) {
+                tag = '<span class="naTvgb__SchemeRow__Tag naTvgb__SchemeRow__Tag--empty">Empty</span>';
+            }
+
+            return '<button type="button" class="naTvgb__SchemeRow' + (selected ? ' naTvgb__SchemeRow--selected' : '') + '"'
+                + ' onclick="Na__Tvgb__SelectSitePlanFolder(\'' + na__tvgb__escAttr(folder.folder_name) + '\')">'
+                + '<span class="naTvgb__SchemeRow__Radio"></span>'
+                + '<span class="naTvgb__SchemeRow__Body">'
+                + '<span class="naTvgb__SchemeRow__Name">' + na__tvgb__escHtml(folder.folder_name) + '</span>'
+                + '<span class="naTvgb__SchemeRow__Meta">' + na__tvgb__escHtml((folder.variant_label || 'Site Plan') + ' · ' + meta) + '</span>'
+                + '</span>'
+                + tag
+                + '</button>';
+        }).join('');
+    }
+
+    // Only variants that have no folder yet are offerable, so Create Folder can
+    // never be a second way to reach a folder the list above already shows.
+    // Matched by VARIANT, not folder name: the original SitePlan__DrawingData
+    // folder already is the project's Proposed store, so a project holding it
+    // is offered Existing only, never a second Proposed folder beside it.
+    function na__tvgb__renderSitePlanSelect() {
+        var select = document.getElementById('naTvgbNewSitePlanSelect');
+        if (!select) { return; }
+
+        var previous = select.value;
+        var existing = {};
+        naTvgbProject.sitePlanFolders.forEach(function(f) {
+            existing[f.folder_name] = true;
+            if (f.variant_id) { existing['variant:' + f.variant_id] = true; }
+        });
+
+        var options = naTvgbProject.sitePlanVariants.filter(function(v) {
+            return !existing[v.folder_name] && !existing['variant:' + v.variant_id];
+        });
+
+        select.innerHTML = options.length === 0
+            ? '<option value="">This project already has both site plan folders</option>'
+            : options.map(function(v) {
+                return '<option value="' + na__tvgb__escHtml(v.variant_id) + '">'
+                     + na__tvgb__escHtml(v.label + ' (' + v.folder_name + ')')
+                     + '</option>';
+            }).join('');
+        select.disabled = options.length === 0;
+
+        if (previous) { select.value = previous; }
+        if (!select.value && options.length) { select.value = options[0].variant_id; }
+
+        var btn = document.getElementById('naTvgbCreateSitePlanBtn');
+        if (btn) {
+            btn.disabled = options.length === 0 || naTvgbState.isRunning;
+            btn.title    = options.length === 0 ? 'This project already has both site plan folders.' : '';
+        }
+    }
+
+    function Na__Tvgb__SelectSitePlanFolder(folderName) {
+        naTvgbProject.sitePlanFolder = String(folderName || '');
+        na__tvgb__renderSitePlanList();
+
+        na__tvgb__dispatch('set_siteplan_folder', { folderName: naTvgbProject.sitePlanFolder });
+    }
+
+    function Na__Tvgb__CreateSitePlanFolder() {
+        var select = document.getElementById('naTvgbNewSitePlanSelect');
+        if (!select || !select.value) {
+            na__tvgb__setStatus('This project already has both site plan folders.', 'warning');
+            return;
+        }
+        na__tvgb__dispatch('create_siteplan_folder', { variantId: select.value });
+    }
+
+    // endregion -------------------------------------------------------------------
+
+
+    // -----------------------------------------------------------------------------
     // REGION | Bootstrap - Ready Signal and Window API Surface
     // -----------------------------------------------------------------------------
 
@@ -1671,4 +1811,250 @@
 
         return Math.max(1, Math.round(Number(bytes || 0) / 1024)) + ' KB';
     }
+}());
+
+// =============================================================================
+// DRAG TO REORDER (2.13.1)
+// -----------------------------------------------------------------------------
+// A row dragged by its grip to a new place. The Point Cloud tab's scene list
+// uses it (only that list: Scene Sync's rows share its row class but are not
+// reorderable, so nothing here styles or queries rows by class). It behaves
+// exactly like the Na Point Cloud Viewer's DragReorder: the row lifts and
+// follows the pointer, the others slide out of its way, the panel scrolls near
+// its top and bottom, Esc puts it all back, and a grip with the focus moves its
+// row with the up and down arrow keys.
+//
+// CONTRACT: rows carry data-na-sort-id, grips data-na-sort-handle (GripHtml
+// writes one). Listeners are delegated to the one list passed in, so a repaint
+// never loses them. Only a drop that changes the order calls onReorder(ids,
+// movedId), with every id top to bottom. While isDragging() the caller must
+// not rebuild the list; onEnd(changed) says when it may again. Call
+// afterRender() after each repaint so a grip moved with the arrow keys keeps
+// the focus.
+// =============================================================================
+(function () {
+    'use strict';
+
+    var NA_EDGE_PX   = 40;      // auto scroll band at the top and bottom of the panel
+    var NA_SCROLL_PX = 14;      // per frame, at the very edge
+    var NA_SLIDE_MS  = 140;     // rows sliding out of the way, and the drop settling
+
+    window.Na__Tvgb__GripHtml = function (name) {
+        var label = String(name === undefined || name === null || name === '' ? 'this row' : name)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return '<button type="button" class="naTvgb__Grip" data-na-sort-handle'
+            + ' title="Drag to reorder, or use the up and down arrow keys"'
+            + ' aria-label="Move ' + label + '. Drag it, or use the up and down arrow keys."></button>';
+    };
+
+    // options: canDrag() -> bool, onReorder(ids, movedId), onEnd(changed)
+    window.Na__Tvgb__MakeSortable = function (list, options) {
+        var drag      = null;
+        var refocusId = null;
+
+        function items() {
+            return Array.prototype.filter.call(list.children, function (el) {
+                return el.hasAttribute('data-na-sort-id');
+            });
+        }
+
+        function ids() {
+            return items().map(function (el) { return el.getAttribute('data-na-sort-id'); });
+        }
+
+        function canDrag() {
+            return !options.canDrag || options.canDrag();
+        }
+
+        function scroller() {
+            var el = list.parentElement;
+            while (el && el !== document.body) {
+                var overflow = window.getComputedStyle(el).overflowY;
+                if ((overflow === 'auto' || overflow === 'scroll') && el.scrollHeight > el.clientHeight) { return el; }
+                el = el.parentElement;
+            }
+            return null;
+        }
+
+        // Puts the row in front of beforeNode (null = at the end) and slides the
+        // rows that moved from where they were (FLIP).
+        function moveSlot(item, beforeNode) {
+            if (beforeNode === item || item.nextSibling === beforeNode) { return; }
+            var others = items().filter(function (el) { return el !== item; });
+            var tops = others.map(function (el) { return el.getBoundingClientRect().top; });
+            list.insertBefore(item, beforeNode);
+            others.forEach(function (el, index) {
+                var dy = tops[index] - el.getBoundingClientRect().top;
+                if (!dy) { return; }
+                el.style.transition = 'none';
+                el.style.transform = 'translateY(' + dy + 'px)';
+                void el.offsetHeight;
+                el.style.transition = 'transform ' + NA_SLIDE_MS + 'ms ease';
+                el.style.transform = '';
+            });
+        }
+
+        // The slot under the pointer: in front of the first other row whose
+        // middle is below it.
+        function place(clientY) {
+            var item = drag.item;
+            var others = items().filter(function (el) { return el !== item; });
+            for (var i = 0; i < others.length; i += 1) {
+                var rect = others[i].getBoundingClientRect();
+                if (clientY < rect.top + rect.height / 2) {
+                    moveSlot(item, others[i]);
+                    return;
+                }
+            }
+            if (others.length) { moveSlot(item, others[others.length - 1].nextSibling); }
+        }
+
+        // The lifted row stays under the pointer, but never leaves the list.
+        function follow(clientY) {
+            var item = drag.item;
+            item.style.transform = '';
+            var natural = item.getBoundingClientRect();
+            var bounds = list.getBoundingClientRect();
+            var top = clientY - drag.grabOffset;
+            top = Math.max(bounds.top, Math.min(bounds.bottom - natural.height, top));
+            item.style.transform = 'translateY(' + Math.round(top - natural.top) + 'px)';
+        }
+
+        function tick() {
+            if (!drag) { return; }
+            var box = drag.scroller ? drag.scroller.getBoundingClientRect() : null;
+            if (box) {
+                var speed = 0;
+                if (drag.lastY < box.top + NA_EDGE_PX) {
+                    speed = -Math.ceil(NA_SCROLL_PX * (1 - Math.max(0, drag.lastY - box.top) / NA_EDGE_PX));
+                } else if (drag.lastY > box.bottom - NA_EDGE_PX) {
+                    speed = Math.ceil(NA_SCROLL_PX * (1 - Math.max(0, box.bottom - drag.lastY) / NA_EDGE_PX));
+                }
+                if (speed) {
+                    var before = drag.scroller.scrollTop;
+                    drag.scroller.scrollTop = before + speed;
+                    if (drag.scroller.scrollTop !== before) {
+                        place(drag.lastY);
+                        follow(drag.lastY);
+                    }
+                }
+            }
+            drag.frame = window.requestAnimationFrame(tick);
+        }
+
+        function onKey(event) {
+            if (event.key !== 'Escape' || !drag) { return; }
+            event.preventDefault();
+            event.stopPropagation();
+            finish(false);
+        }
+
+        function finish(commit) {
+            var done = drag;
+            drag = null;
+            window.cancelAnimationFrame(done.frame);
+            document.removeEventListener('keydown', onKey, true);
+            try { done.handle.releasePointerCapture(done.pointerId); } catch (ignore) { /* already released */ }
+            list.classList.remove('naTvgb__SortList--active');
+            done.item.classList.remove('naTvgb__SortItem--dragging');
+
+            // Esc, a cancelled pointer, or a list that went away: put it back
+            if (!commit && done.item.isConnected) {
+                var current = items();
+                if (current.length) {
+                    var marker = document.createComment('na-sort');
+                    list.insertBefore(marker, current[0]);
+                    done.startItems.forEach(function (el) { if (el.isConnected) { list.insertBefore(el, marker); } });
+                    list.removeChild(marker);
+                }
+            }
+            items().forEach(function (el) {
+                if (el === done.item) { return; }
+                el.style.transition = '';
+                el.style.transform = '';
+            });
+            // The dropped row settles into its slot
+            done.item.style.transition = 'transform ' + NA_SLIDE_MS + 'ms ease';
+            done.item.style.transform = '';
+            window.setTimeout(function () { done.item.style.transition = ''; }, NA_SLIDE_MS + 20);
+
+            var order = ids();
+            var changed = commit && done.item.isConnected && order.join('\n') !== done.startIds.join('\n');
+            if (changed) { options.onReorder(order, done.item.getAttribute('data-na-sort-id')); }
+            if (options.onEnd) { options.onEnd(changed); }
+        }
+
+        list.addEventListener('pointerdown', function (event) {
+            if (drag || event.button !== 0) { return; }
+            var handle = event.target.closest ? event.target.closest('[data-na-sort-handle]') : null;
+            if (!handle || !list.contains(handle)) { return; }
+            var item = handle.closest('[data-na-sort-id]');
+            if (!item || item.parentNode !== list || !canDrag()) { return; }
+            event.preventDefault();
+            var rect = item.getBoundingClientRect();
+            drag = {
+                item       : item,
+                handle     : handle,
+                pointerId  : event.pointerId,
+                grabOffset : event.clientY - rect.top,
+                lastY      : event.clientY,
+                startIds   : ids(),
+                startItems : items(),
+                scroller   : scroller(),
+                frame      : 0
+            };
+            try { handle.setPointerCapture(event.pointerId); } catch (ignore) { /* moves still bubble */ }
+            handle.focus();
+            item.style.transition = 'none';
+            item.classList.add('naTvgb__SortItem--dragging');
+            list.classList.add('naTvgb__SortList--active');
+            document.addEventListener('keydown', onKey, true);
+            drag.frame = window.requestAnimationFrame(tick);
+        });
+
+        list.addEventListener('pointermove', function (event) {
+            if (!drag || event.pointerId !== drag.pointerId) { return; }
+            drag.lastY = event.clientY;
+            place(event.clientY);
+            follow(event.clientY);
+        });
+
+        list.addEventListener('pointerup', function (event) {
+            if (drag && event.pointerId === drag.pointerId) { finish(true); }
+        });
+
+        list.addEventListener('pointercancel', function (event) {
+            if (drag && event.pointerId === drag.pointerId) { finish(false); }
+        });
+
+        // A grip with the focus: the arrow keys move its row one place.
+        list.addEventListener('keydown', function (event) {
+            if (drag || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) { return; }
+            var handle = event.target.closest ? event.target.closest('[data-na-sort-handle]') : null;
+            if (!handle || !list.contains(handle)) { return; }
+            var item = handle.closest('[data-na-sort-id]');
+            if (!item || item.parentNode !== list || !canDrag()) { return; }
+            event.preventDefault();
+            var all = items();
+            var from = all.indexOf(item);
+            var to = from + (event.key === 'ArrowUp' ? -1 : 1);
+            if (to < 0 || to >= all.length) { return; }
+            moveSlot(item, event.key === 'ArrowUp' ? all[to] : all[to].nextSibling);
+            refocusId = item.getAttribute('data-na-sort-id');
+            handle.focus();
+            options.onReorder(ids(), refocusId);
+        });
+
+        return {
+            isDragging: function () { return !!drag; },
+            afterRender: function () {
+                if (!refocusId) { return; }
+                var wanted = refocusId;
+                refocusId = null;
+                var item = items().filter(function (el) { return el.getAttribute('data-na-sort-id') === wanted; })[0];
+                var grip = item ? item.querySelector('[data-na-sort-handle]') : null;
+                if (grip) { grip.focus(); }
+            }
+        };
+    };
 }());

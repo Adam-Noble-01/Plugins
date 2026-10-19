@@ -19,11 +19,21 @@
 #   Na__PublicApi__ScenesApiVersion. Callers must check it before relying on a
 #   key added later.
 #
+# API 2 (19-Oct-2026): each SceneList row carries 'pagePid', the SketchUp
+#   scene's Page#persistent_id, so TrueVision Sync's Scene Sync can match a
+#   point cloud scene to the synced scene of the same page. The version
+#   constant is guarded for hot reload, so a session reloaded from API 1 still
+#   answers 1: callers test for the key itself.
+#
+# API 3 (19-Oct-2026): Na__PublicApi__ReorderScenes, so TrueVision Sync's
+#   Point Cloud tab can drag the scenes into a new order in the same record
+#   the Scenes tab reorders. Callers test respond_to?, for the same reason.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
 
-    NA_SCENES_API_VERSION = 1 unless defined?(NA_SCENES_API_VERSION)
+    NA_SCENES_API_VERSION = 3 unless defined?(NA_SCENES_API_VERSION)
 
     # -------------------------------------------------------------------------
     # REGION | Public API
@@ -56,7 +66,8 @@ module Na__PointCloudViewer
             'scenes'        => payload['scenes'].map do |row|
                 scene = Na__SceneStore.Na__Scenes__Find(session, row['id'])
                 row.merge('opacityPercent' => scene ? scene.dig('settings', 'opacityPercent') : nil,
-                          'updatedEpoch'   => scene ? scene['updatedEpoch'] : nil)
+                          'updatedEpoch'   => scene ? scene['updatedEpoch'] : nil,
+                          'pagePid'        => scene ? scene.dig('page', 'pid') : nil)   # <-- API 2: the SketchUp scene this point cloud scene belongs to
             end,
             'viewTypes'         => payload['viewTypes'],
             'scalePresets'      => payload['scalePresets'],
@@ -80,6 +91,19 @@ module Na__PointCloudViewer
     rescue StandardError => error
         Na__DebugTools.Na__Debug__Error('Public API: scene export settings could not be saved.', error)
         "The change could not be saved (#{error.message})."
+    end
+
+    # API 3. The Scenes tab's drag to reorder: scene_ids is every scene id, top
+    # to bottom, saved as one undoable operation. nil = done, else a reason.
+    def self.Na__PublicApi__ReorderScenes(model, scene_ids)
+        session = self.na_api_session(model)
+        return 'The point cloud viewer is not available for this model.' unless session
+        problem = Na__SceneStore.Na__Scenes__Reorder(session, scene_ids)
+        Na__DialogManager.Na__Dialog__PushState if Na__DialogManager.Na__Dialog__Visible?
+        problem
+    rescue StandardError => error
+        Na__DebugTools.Na__Debug__Error('Public API: the new scene order could not be saved.', error)
+        "The new order could not be saved (#{error.message})."
     end
 
     # { 'ok' => true, 'plan' => {...} } or { 'ok' => false, 'problem' => text }.

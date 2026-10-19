@@ -62,8 +62,12 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
         <nav class="naTvgb__TabBar">
             <button class="naTvgb__TabButton naTvgb__TabButton--active"
                     onclick="Na__Tvgb__ShowTab('export', this)">Export</button>
+            <button class="naTvgb__TabButton" id="naTvgbSsTabButton"
+                    onclick="Na__Tvgb__ShowTab('scenesync', this)">Scene Sync</button>
             <button class="naTvgb__TabButton" id="naTvgbPcTabButton"
                     onclick="Na__Tvgb__ShowTab('pointcloud', this)">Point Cloud</button>
+            <button class="naTvgb__TabButton" id="naTvgbSpTabButton"
+                    onclick="Na__Tvgb__ShowTab('siteplan', this)">Site Plan</button>
             <button class="naTvgb__TabButton"
                     onclick="Na__Tvgb__ShowTab('project', this)">Project</button>
             <button class="naTvgb__TabButton"
@@ -164,6 +168,16 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                 <div class="naTvgb__ActionGroup">
                     <h3 class="naTvgb__ActionGroup__Title">Export Actions</h3>
 
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbExportSyncCard"
+                            onclick="Na__Tvgb__RunExportAction('export_and_sync')">
+                        <span class="naTvgb__ActionCard__Icon">&#9729;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Export And Sync To Cloud</span>
+                            <span class="naTvgb__ActionCard__Desc">Export into the project folder, rebuild the TrueVision project data, then push it all to Cloudflare R2.</span>
+                        </span>
+                    </button>
+
                     <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
                             id="naTvgbExportModelCard"
                             onclick="Na__Tvgb__RunExportAction('export_model')">
@@ -185,22 +199,12 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                     </button>
 
                     <button type="button" class="naTvgb__ActionCard"
-                            id="naTvgbExportSyncCard"
-                            onclick="Na__Tvgb__RunExportAction('export_and_sync')">
-                        <span class="naTvgb__ActionCard__Icon">&#9729;</span>
-                        <span class="naTvgb__ActionCard__Body">
-                            <span class="naTvgb__ActionCard__Label">Export And Sync To Cloud</span>
-                            <span class="naTvgb__ActionCard__Desc">Export into the project folder, rebuild the TrueVision project data, then push it all to Cloudflare R2.</span>
-                        </span>
-                    </button>
-
-                    <button type="button" class="naTvgb__ActionCard"
                             id="naTvgbExportSitePlanCard"
                             onclick="Na__Tvgb__RunExportAction('export_site_plan')">
                         <span class="naTvgb__ActionCard__Icon">&#128506;</span>
                         <span class="naTvgb__ActionCard__Body">
                             <span class="naTvgb__ActionCard__Label">Export Site Plan Data</span>
-                            <span class="naTvgb__ActionCard__Desc">One linework GLB per site plan tag (71-75), plus fills and a manifest. Goes straight to the site plan folder set on the Project tab &mdash; no folder picker once this model is linked.</span>
+                            <span class="naTvgb__ActionCard__Desc" id="naTvgbExportSitePlanDesc">One linework GLB per site plan tag (71-75), plus fills and a manifest. Goes straight into the site plan folder chosen on the Site Plan tab, with no folder picker once this model is linked.</span>
                         </span>
                     </button>
 
@@ -255,6 +259,99 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                     <h3 class="naTvgb__Report__Title">Last Export Report</h3>
                     <div class="naTvgb__Report__Steps" id="naTvgbReportSteps"></div>
                     <div class="naTvgb__Report__Summary" id="naTvgbReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Scene Sync Tab                                   -->
+            <!-- Rendered by Na__TrueVision__GlbBuilder__SceneSync__UiBridge__.js -->
+            <!-- from Na__Tvgb__ReceiveSceneSyncStatus. Every SketchUp scene is -->
+            <!-- listed, all off until switched on here.                        -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-scenesync" class="naTvgb__TabPanel">
+
+                <!-- What this does -->
+                <div class="naTvgb__PcMaster naTvgb__SsIntro">
+                    <span class="naTvgb__PcMaster__Body">
+                        <span class="naTvgb__PcMaster__Title">Scene Sync</span>
+                        <span class="naTvgb__PcMaster__Desc">Switch a SketchUp scene on and TrueVision gets it as a plan, elevation, section or 3D view, ready to drop into layout viewports. Every sync keeps it in step with SketchUp, so nothing is set up twice. All scenes stay off until switched on here.</span>
+                    </span>
+                </div>
+
+                <!-- Readiness -->
+                <div class="naTvgb__ProjectStatus" id="naTvgbSsStatus">
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Project</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSsProject">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Syncs Into</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path" id="naTvgbSsStore">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Last Sync</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSsLast">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn" id="naTvgbSsFolderBtn" onclick="Na__Tvgb__SsAction('scenesync_open_folder')">Open Folder</button>
+                        <button type="button" class="naTvgb__Btn" id="naTvgbSsRefreshBtn" onclick="Na__Tvgb__SsAction('scenesync_refresh')">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Scenes -->
+                <div class="naTvgb__Manifest" id="naTvgbSsScenes">
+                    <div class="naTvgb__Manifest__Header">
+                        <h3 class="naTvgb__Manifest__Title">SketchUp Scenes</h3>
+                        <span class="naTvgb__Manifest__Count" id="naTvgbSsSceneCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__SelectBar">
+                        <span class="naTvgb__SelectBar__Label">Sync</span>
+                        <button type="button" class="naTvgb__MiniBtn" id="naTvgbSsAllOff" onclick="Na__Tvgb__SsAllOff()">Switch All Off</button>
+                        <span class="naTvgb__SelectBar__Spacer"></span>
+                        <span class="naTvgb__SelectBar__Count" id="naTvgbSsOnCount">&mdash;</span>
+                    </div>
+                    <div class="naTvgb__Manifest__Body" id="naTvgbSsSceneList"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="naTvgb__ActionGroup">
+                    <h3 class="naTvgb__ActionGroup__Title">Scene Sync Actions</h3>
+
+                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
+                            id="naTvgbSsRunCard" onclick="Na__Tvgb__SsRun(false)">
+                        <span class="naTvgb__ActionCard__Icon">&#8644;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Sync Scenes</span>
+                            <span class="naTvgb__ActionCard__Desc">Write the scenes switched on above into the project. Quick: nothing renders and no GLBs are exported. Export To Project and every push to the cloud do this too.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naTvgb__ActionCard"
+                            id="naTvgbSsRunPushCard" onclick="Na__Tvgb__SsRun(true)">
+                        <span class="naTvgb__ActionCard__Icon">&#8682;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label">Sync Scenes And Push To Cloud</span>
+                            <span class="naTvgb__ActionCard__Desc">The same, then rebuild the TrueVision project data and push it to Cloudflare R2.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- How a synced scene behaves -->
+                <div class="naTvgb__Note naTvgb__SsHelp">
+                    <strong>Switched off:</strong> TrueVision keeps the scene as it was last synced, so its viewports keep working. Switch it on again to resume.<br>
+                    <strong>Detach:</strong> TrueVision keeps the scene for good and SketchUp stops sending it. It can also be detached in TrueVision itself.<br>
+                    <strong>Deleted in SketchUp:</strong> TrueVision keeps its last sync and marks it missing.
+                </div>
+
+                <!-- Last report, mirrored from the Export tab's panel -->
+                <div class="naTvgb__Report" id="naTvgbSsReport" style="display:none;">
+                    <h3 class="naTvgb__Report__Title">Last Export Report</h3>
+                    <div id="naTvgbSsReportBody"></div>
                 </div>
 
             </section>
@@ -360,6 +457,97 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
 
 
             <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Site Plan Tab                                    -->
+            <!-- Everything about this model's site plan data, in one place:   -->
+            <!-- which store it exports into (Existing or Proposed) and the    -->
+            <!-- export itself. Rendered by the main UI bridge from the model  -->
+            <!-- and project status pushes. The tab is lit, and the Export     -->
+            <!-- tab's Export Site Plan Data card is live, when this model can -->
+            <!-- export its site plan straight into the project.               -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-siteplan" class="naTvgb__TabPanel">
+
+                <!-- What this is. Its edge turns green when the model is ready -->
+                <div class="naTvgb__PcMaster" id="naTvgbSpIntro">
+                    <span class="naTvgb__PcMaster__Body">
+                        <span class="naTvgb__PcMaster__Title">Site Plan Data</span>
+                        <span class="naTvgb__PcMaster__Desc">Site plan drawings in TrueVision read their own data: one linework GLB per site plan tag (71-75), plus fills and a manifest. None of it goes into the model GLBs. Set a site plan model up here once. After that, Export Site Plan Data on the Export tab goes straight into the right folder.</span>
+                    </span>
+                </div>
+
+                <!-- Readiness -->
+                <div class="naTvgb__ProjectStatus" id="naTvgbSpStatus">
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Project</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSpProject">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Site Plan Tags</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSpTags">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">Exports Into</span>
+                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path"
+                              id="naTvgbSitePlanFolder">&#8230;</span>
+                    </div>
+                    <div class="naTvgb__ProjectStatus__Row">
+                        <span class="naTvgb__ProjectStatus__Label">On Disk</span>
+                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSitePlanState">&#8230;</span>
+                    </div>
+                </div>
+
+                <!-- Which site plan this model is. Shown once the model is linked -->
+                <div class="naTvgb__SettingsGroup" id="naTvgbSitePlanGroup" style="display:none;">
+                    <h3 class="naTvgb__SettingsGroup__Title">Existing Or Proposed</h3>
+                    <p class="naTvgb__SettingsGroup__Desc">
+                        A project can hold an <strong>Existing</strong> site plan and a <strong>Proposed</strong>
+                        one, each in its own folder beside the design phase folders, because a scheme that
+                        re-cuts the ground cannot be told with layers alone. Pick which one this model is. It is
+                        never guessed, so an existing site plan cannot be written over a proposed one.
+                    </p>
+
+                    <div class="naTvgb__SchemeList" id="naTvgbSitePlanList"></div>
+
+                    <div class="naTvgb__FieldRow">
+                        <label class="naTvgb__FieldRow__Label" for="naTvgbNewSitePlanSelect">New Folder</label>
+                        <select id="naTvgbNewSitePlanSelect" class="naTvgb__Select"></select>
+                    </div>
+
+                    <div class="naTvgb__ButtonRow">
+                        <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
+                                id="naTvgbCreateSitePlanBtn"
+                                onclick="Na__Tvgb__CreateSitePlanFolder()">Create Folder</button>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="naTvgb__ActionGroup">
+                    <h3 class="naTvgb__ActionGroup__Title">Site Plan Actions</h3>
+
+                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
+                            id="naTvgbSitePlanExportCard"
+                            onclick="Na__Tvgb__RunProjectAction('export_siteplan_to_project')">
+                        <span class="naTvgb__ActionCard__Icon">&#128506;</span>
+                        <span class="naTvgb__ActionCard__Body">
+                            <span class="naTvgb__ActionCard__Label" id="naTvgbSitePlanExportLabel">Export Site Plan Into This Project</span>
+                            <span class="naTvgb__ActionCard__Desc" id="naTvgbSitePlanExportDesc">Writes straight into the folder chosen above, created if missing. No folder picker: the export lists what it found and names the folder before it writes anything.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- What happens next -->
+                <div class="naTvgb__Note">
+                    <strong>Publishing:</strong> an export writes into the project folder on this computer. Push Project To Cloudflare R2, on the Project tab, publishes it.<br>
+                    <strong>Not linked:</strong> Export Site Plan Data on the Export tab asks for a folder instead, and there is nothing to set here.
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
             <!-- UI SECTION | Project Tab -->
             <!-- ------------------------------------------------------------ -->
 
@@ -397,9 +585,10 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                 <div class="naTvgb__SettingsGroup" id="naTvgbSchemeGroup">
                     <h3 class="naTvgb__SettingsGroup__Title">Design Phases And Schemes</h3>
                     <p class="naTvgb__SettingsGroup__Desc">
-                        Every folder under <code>30__TrueVision__AppContent</code>. Pick the one this model
-                        exports into. A folder carrying an older name is still recognised as its phase and is
-                        never renamed &mdash; live TrueVision projects read those names.
+                        Every design phase folder under <code>30__TrueVision__AppContent</code>. Pick the one
+                        this model's GLBs export into. A folder carrying an older name is still recognised as its
+                        phase and is never renamed, because live TrueVision projects read those names. Site plan
+                        folders are set on the Site Plan tab.
                     </p>
 
                     <div class="naTvgb__SchemeList" id="naTvgbSchemeList"></div>
@@ -415,51 +604,6 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <button type="button" class="naTvgb__Btn" id="naTvgbDuplicateBtn"
                                 onclick="Na__Tvgb__ConfirmDuplicateScheme()">Duplicate Selected</button>
                     </div>
-                </div>
-
-                <!-- Site plan data store -->
-                <div class="naTvgb__SettingsGroup" id="naTvgbSitePlanGroup">
-                    <h3 class="naTvgb__SettingsGroup__Title">Site Plan Data</h3>
-                    <p class="naTvgb__SettingsGroup__Desc">
-                        Site plan drawings read their own folders, beside the design phase folders. A project
-                        can hold an <strong>Existing</strong> site plan and a <strong>Proposed</strong> one
-                        &mdash; a scheme that re-cuts the ground cannot be told with layers alone. Pick which
-                        one this model is before exporting; nothing is ever guessed, so an existing site plan
-                        cannot be written over a proposed one.
-                    </p>
-
-                    <div class="naTvgb__SchemeList" id="naTvgbSitePlanList"></div>
-
-                    <div class="naTvgb__FieldRow">
-                        <label class="naTvgb__FieldRow__Label" for="naTvgbNewSitePlanSelect">New Folder</label>
-                        <select id="naTvgbNewSitePlanSelect" class="naTvgb__Select"></select>
-                    </div>
-
-                    <div class="naTvgb__ButtonRow">
-                        <button type="button" class="naTvgb__Btn naTvgb__Btn--primary"
-                                id="naTvgbCreateSitePlanBtn"
-                                onclick="Na__Tvgb__CreateSitePlanFolder()">Create Folder</button>
-                    </div>
-
-                    <div class="naTvgb__ProjectStatus__Row">
-                        <span class="naTvgb__ProjectStatus__Label">Exports Into</span>
-                        <span class="naTvgb__ProjectStatus__Value naTvgb__ProjectStatus__Value--path"
-                              id="naTvgbSitePlanFolder">&mdash;</span>
-                    </div>
-                    <div class="naTvgb__ProjectStatus__Row">
-                        <span class="naTvgb__ProjectStatus__Label">On Disk</span>
-                        <span class="naTvgb__ProjectStatus__Value" id="naTvgbSitePlanState">&mdash;</span>
-                    </div>
-
-                    <button type="button" class="naTvgb__ActionCard naTvgb__ActionCard--primary"
-                            id="naTvgbSitePlanExportCard"
-                            onclick="Na__Tvgb__RunProjectAction('export_siteplan_to_project')">
-                        <span class="naTvgb__ActionCard__Icon">&#128506;</span>
-                        <span class="naTvgb__ActionCard__Body">
-                            <span class="naTvgb__ActionCard__Label" id="naTvgbSitePlanExportLabel">Export Site Plan Into This Project</span>
-                            <span class="naTvgb__ActionCard__Desc" id="naTvgbSitePlanExportDesc">Writes straight into the selected site plan folder, created if missing. No folder picker, and an existing site plan can never be written over a proposed one.</span>
-                        </span>
-                    </button>
                 </div>
 
                 <!-- Live project structure -->
@@ -540,8 +684,8 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <h4 class="naTvgb__DangerZone__Title">Delete A Design Phase Folder</h4>
                         <p class="naTvgb__DangerZone__Desc">
                             By default the folder is moved into <code>00__Archive</code>, which the build
-                            skips &mdash; the scheme disappears from TrueVision but the files stay
-                            recoverable on disk. <strong>Cloudflare R2 is not touched until the next push,
+                            skips. The scheme disappears from TrueVision but the files stay recoverable on
+                            disk. <strong>Cloudflare R2 is not touched until the next push,
                             which removes the folder's GLBs from R2 as well.</strong>
                         </p>
 
@@ -570,9 +714,9 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
                         <h4 class="naTvgb__DangerZone__Title">Purge A Folder From Cloudflare R2</h4>
                         <p class="naTvgb__DangerZone__Desc">
                             Fetch the cloud inventory, then pick a design phase to review what R2 actually
-                            holds for it. Purging removes <strong>only that folder's</strong> cloud GLBs
-                            &mdash; local files and every other scheme stay intact, and a later push uploads
-                            whatever is still on disk.
+                            holds for it. Purging removes <strong>only that folder's</strong> cloud GLBs.
+                            Local files and every other scheme stay intact, and a later push uploads whatever
+                            is still on disk.
                         </p>
 
                         <div class="naTvgb__ButtonRow">
@@ -713,7 +857,7 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
             </div>
             <div class="naTvgb__Modal__Body">
                 <p class="naTvgb__Modal__Text">
-                    Enter the Noble Architecture project code and this model will remember it &mdash; exports go
+                    Enter the Noble Architecture project code and this model will remember it. Exports go
                     straight into the project portal and can be pushed to Cloudflare R2 in one step.
                 </p>
 
@@ -810,6 +954,9 @@ NOTE       : All dynamic content (model status, export manifest, report panel)
     </script>
     <script>
     {{POINT_CLOUD_SCRIPT}}
+    </script>
+    <script>
+    {{SCENE_SYNC_SCRIPT}}
     </script>
 
     <!-- endregion ----------------------------------------------------------- -->

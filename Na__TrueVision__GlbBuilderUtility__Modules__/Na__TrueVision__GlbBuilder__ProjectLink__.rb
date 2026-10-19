@@ -229,7 +229,7 @@ module TrueVision3D
         # and a new key would silently never be read. Going at the dictionary
         # directly works on a reload as well as a restart.
         #
-        # An empty answer means "not chosen yet", which the Project tab shows as
+        # An empty answer means "not chosen yet", which the Site Plan tab shows as
         # a prompt rather than guessing a variant.
         # ---------------------------------------------------------------
         def self.Na__ProjectLink__ReadSitePlanFolder(model = Sketchup.active_model)

@@ -167,6 +167,7 @@ body {
 
 .naTvgb__TabBar {
     display                 : flex;
+    flex-wrap               : wrap;                 /* <-- Six tabs: wrap rather than clip at the 460 px minimum */
     gap                     : 4px;
     padding                 : 8px 12px;
     border-bottom           : 1px solid var(--naTvgb_Border);
@@ -1511,6 +1512,85 @@ body {
 
 
 /* ============================================================================= */
+/* REGION | Drag To Reorder (2.13.1)                                             */
+/* The grip and the lifted row, for lists made sortable by Na__Tvgb__MakeSortable */
+/* (the Point Cloud tab's scene list). Styled by their own classes only, never   */
+/* by row class, so rows that share .naTvgb__PcScene elsewhere are untouched.    */
+/* The grip's six dots are drawn by its background: no icon font needed.         */
+/* ============================================================================= */
+
+.naTvgb__Grip {
+    flex                    : 0 0 auto;
+    box-sizing              : content-box;
+    width                   : 10px;
+    height                  : 15px;
+    padding                 : 4px 3px;
+    margin                  : 0 -2px 0 0;
+    border                  : none;
+    border-radius           : 4px;
+    background-color        : transparent;
+    background-image        : radial-gradient(circle, currentColor 1.4px, transparent 1.8px);
+    background-size         : 5px 5px;
+    background-origin       : content-box;
+    background-clip         : content-box;
+    color                   : #a3abb4;
+    cursor                  : grab;
+    touch-action            : none;
+}
+
+.naTvgb__Grip:hover {
+    color                   : var(--naTvgb_NavyHover);
+}
+
+.naTvgb__Grip:focus-visible {
+    outline                 : 2px solid var(--naTvgb_NavyHover);
+    outline-offset          : 1px;
+    color                   : var(--naTvgb_NavyHover);
+}
+
+.naTvgb__Grip:disabled {
+    cursor                  : default;
+    opacity                 : 0.4;
+}
+
+/* Stands in for the grip when there is nothing to reorder (one row) */
+.naTvgb__GripSpacer {
+    flex                    : 0 0 auto;
+    width                   : 16px;
+    margin                  : 0 -2px 0 0;
+}
+
+.naTvgb__SortList--active,
+.naTvgb__SortList--active * {
+    cursor                  : grabbing !important;
+    user-select             : none;
+}
+
+.naTvgb__SortItem--dragging {
+    position                : relative;
+    z-index                 : 5;
+    background              : var(--naTvgb_PanelBg);
+    border-radius           : 4px;
+    box-shadow              : 0 8px 20px rgba(23, 43, 58, 0.22);
+    outline                 : 2px solid var(--naTvgb_NavyHover);
+    outline-offset          : 1px;
+}
+
+.naTvgb__SortItem--dragging .naTvgb__Grip {
+    color                   : var(--naTvgb_NavyHover);
+}
+
+/* Point Cloud scene rows carry a grip before the tick box, so their settings */
+/* and warnings line up under the name 22 px further in (Scene Sync's do not) */
+#naTvgbPcSceneList .naTvgb__PcScene__Fields,
+#naTvgbPcSceneList .naTvgb__PcScene__Warn {
+    margin-left             : 43px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
 /* REGION | Point Cloud Tab                                                      */
 /* The master switch, readiness rows, scene rows and the Export tab's point      */
 /* cloud row and note. Everything else reuses the existing classes.             */
@@ -1729,6 +1809,40 @@ body {
     background              : #eef4f8;
     border-left             : 3px solid var(--naTvgb_Success);
     border-radius           : 4px;
+}
+
+/* endregion ------------------------------------------------------------------- */
+
+
+/* ============================================================================= */
+/* REGION | Scene Sync Tab                                                       */
+/* Scene rows reuse the Point Cloud tab's classes; these are the differences.   */
+/* ============================================================================= */
+
+.naTvgb__SsIntro {
+    border-left-color       : var(--naTvgb_Navy);
+}
+
+/* Off is every scene's normal state here, so it is muted, not struck through */
+.naTvgb__SsScene.naTvgb__PcScene--off .naTvgb__PcScene__Name {
+    text-decoration         : none;
+}
+
+.naTvgb__SsScene__Summary {
+    margin                  : 5px 0 0 21px;
+    font-size               : 11px;
+    line-height             : 1.4;
+    color                   : var(--naTvgb_MutedText);
+}
+
+.naTvgb__MiniBtn.naTvgb__SsDetach--armed {
+    color                   : #ffffff;
+    background              : var(--naTvgb_Error);
+    border-color            : var(--naTvgb_Error);
+}
+
+.naTvgb__SsHelp {
+    margin                  : 4px 0 12px 0;
 }
 
 /* endregion ------------------------------------------------------------------- */

@@ -105,8 +105,18 @@ module Na__PointCloudViewer
                 'scalePresets'      => Na__SceneStore.Na__Scenes__ScalePresets,
                 'imageWidthPresets' => Na__SceneStore.Na__Scenes__ImageWidthPresets,
                 'pointSizeMaxPx'    => (Na__SceneStore.Na__Scenes__Config('exportPointSizeMaxPx') || 32).to_i,
-                'pxPerPaperMm'      => (Na__SceneStore.Na__Scenes__Config('export', 'pxPerPaperMm') || 12).to_f
+                'pxPerPaperMm'      => (Na__SceneStore.Na__Scenes__Config('export', 'pxPerPaperMm') || 12).to_f,
+                'currentSummary'    => self.na_current_summary(session, view, display)
             }
+        end
+
+        # What Update would save right now, in the same words as a scene's
+        # summary, so the Update confirmation can show saved against new.
+        def self.na_current_summary(session, view, display)
+            self.na_summary(Na__SceneStore.Na__Scenes__Capture(session, view), display)
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Warn("The current point cloud settings could not be summarised: #{error.message}")
+            nil
         end
 
         def self.na_scene_payload(session, scene, by_pid, bound_pids, pages, selected_pid, link_cloud, display, view)

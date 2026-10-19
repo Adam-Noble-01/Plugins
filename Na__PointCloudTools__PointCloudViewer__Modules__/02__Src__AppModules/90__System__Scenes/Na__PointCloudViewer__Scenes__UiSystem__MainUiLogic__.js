@@ -10,10 +10,19 @@
 //              Remove; and the export settings TrueVision Sync reads (type,
 //              scale or image width, dot size).
 //
+// SAFETY: Update and Remove sit together at the right of each card, away from
+//   Go To Scene, and each asks "Are you sure?" in a dialog first. Update shows
+//   what the scene holds now against what it would become, and warns when
+//   SketchUp is showing a different scene. Cancel has the focus, so Enter or
+//   Escape never confirms by accident.
+//
+// ORDER: each card has a grip; dragging it puts the card anywhere in the list
+//   (DragReorder), saved as one undoable step. TrueVision Sync shows the same
+//   order, and can change it the same way.
+//
 // STATE: everything shown comes from state.scenes (Ruby). This file only
 //   remembers what the user is in the middle of (a custom scale being typed,
-//   a Remove waiting for its second click, a relink choice), so a state push
-//   never wipes it.
+//   a confirmation dialog, a relink choice), so a state push never wipes it.
 //
 // FRESH LIST WITHOUT OBSERVERS: the viewer never watches SketchUp's scenes.
 //   Showing this tab, or the window gaining focus while it is shown, asks Ruby
@@ -27,12 +36,12 @@
     var Scenes = {};
     var Shell  = window.Na__PointCloudViewer__Shell;
     var Bridge = window.Na__PointCloudViewer__Bridge;
-
-    var NA_CONFIRM_MS = 3000;
+    var DragReorder = window.Na__PointCloudViewer__DragReorder;
 
     var na_state         = null;    // last state.scenes
-    var na_confirm_id    = null;    // scene waiting for a second Remove click
-    var na_confirm_timer = null;
+    var na_modal         = null;    // { sceneId, element, onKey } while a confirmation is open
+    var na_sorter        = null;    // drag to reorder on the card list
+    var na_list_waiting  = false;   // a repaint held back while a card is being dragged
     var na_custom_scale  = {};      // sceneId -> text being typed
     var na_relink_choice = {};      // sceneId -> pid picked for Relink
     var na_custom_open   = {};      // sceneId -> true while the custom scale box is shown
@@ -190,7 +199,7 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
-    // REGION | Scene Card
+    // REGION | Scene Card Parts
     // -------------------------------------------------------------------------
 
     function na_status_tags(scene) {
@@ -229,28 +238,133 @@
         return wrap;
     }
 
-    function na_ask_remove(scene) {
-        if (na_confirm_id === scene.id) {
-            na_clear_confirm();
-            Bridge.na_call('scenes_remove', { id: scene.id });
-            return;
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Are You Sure? (Update and Remove)
+    // -------------------------------------------------------------------------
+
+    // options: sceneId, title, paragraphs, rows ([label, value]), warning,
+    //          confirmLabel, danger, onConfirm. Cancel takes the focus.
+    function na_open_confirm(options) {
+        na_close_confirm();
+        var backdrop = Shell.na_el('div', 'na-pcs-modal');
+        var card = Shell.na_el('div', 'na-pcs-modal__card');
+        card.setAttribute('role', 'dialog');
+        card.setAttribute('aria-modal', 'true');
+        card.setAttribute('aria-labelledby', 'na-pcs-modal-title');
+        var title = Shell.na_el('h3', 'na-pcs-modal__title', options.title);
+        title.id = 'na-pcs-modal-title';
+        card.appendChild(title);
+        (options.paragraphs || []).forEach(function (text) {
+            card.appendChild(Shell.na_el('p', 'na-pcs-modal__text', text));
+        });
+        if (options.rows && options.rows.length) {
+            var grid = Shell.na_el('div', 'na-pcs-modal__compare');
+            options.rows.forEach(function (row) {
+                grid.appendChild(Shell.na_el('span', 'na-pcs-modal__label', row[0]));
+                grid.appendChild(Shell.na_el('span', 'na-pcs-modal__value', row[1]));
+            });
+            card.appendChild(grid);
         }
-        na_clear_confirm();
-        na_confirm_id = scene.id;
-        na_confirm_timer = window.setTimeout(function () { na_clear_confirm(); na_render(); }, NA_CONFIRM_MS);
-        na_render();
+        if (options.warning) card.appendChild(Shell.na_el('p', 'na-pcs-card__warning na-pcs-modal__warning', options.warning));
+
+        var actions = Shell.na_el('div', 'na-pcs-modal__actions');
+        var cancel = Shell.na_el('button', 'naButtonSecondary', 'Cancel');
+        cancel.type = 'button';
+        cancel.addEventListener('click', na_close_confirm);
+        var confirm = Shell.na_el('button', 'naButton' + (options.danger ? ' na-pcs-modal__danger' : ''), options.confirmLabel);
+        confirm.type = 'button';
+        confirm.addEventListener('click', function () {
+            na_close_confirm();
+            options.onConfirm();
+        });
+        actions.appendChild(cancel);
+        actions.appendChild(confirm);
+        card.appendChild(actions);
+        backdrop.appendChild(card);
+
+        backdrop.addEventListener('click', function (event) { if (event.target === backdrop) na_close_confirm(); });
+        var onKey = function (event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                na_close_confirm();
+            } else if (event.key === 'Tab') {
+                // Keep the focus on the two buttons while the dialog is open.
+                event.preventDefault();
+                (document.activeElement === cancel ? confirm : cancel).focus();
+            }
+        };
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(backdrop);
+        na_modal = { sceneId: options.sceneId, element: backdrop, onKey: onKey };
+        cancel.focus();
     }
 
-    function na_clear_confirm() {
-        if (na_confirm_timer) window.clearTimeout(na_confirm_timer);
-        na_confirm_timer = null;
-        na_confirm_id = null;
+    function na_close_confirm() {
+        if (!na_modal) return;
+        document.removeEventListener('keydown', na_modal.onKey, true);
+        if (na_modal.element.parentNode) na_modal.element.parentNode.removeChild(na_modal.element);
+        na_modal = null;
     }
 
-    function na_scene_card(scene) {
+    function na_ask_update(scene) {
+        var name = scene.name || '(unnamed scene)';
+        var now = na_state.currentSummary || 'The settings the viewer shows now.';
+        var paragraphs = [
+            'The point cloud settings and clip box saved for "' + name + '" will be replaced by what the viewer shows now. ' +
+            'Type, Scale and Dot Size stay as they are, and the SketchUp scene itself is not changed.'
+        ];
+        if (now === scene.summary) paragraphs.push('These look the same as the saved settings.');
+        paragraphs.push('Edit, Undo in SketchUp puts the old settings back.');
+        var warning = null;
+        if (!scene.isSelectedInSketchUp) {
+            var showing = (na_state.pages || []).filter(function (page) { return page.isSelected; })[0];
+            warning = (showing ? 'SketchUp is showing "' + showing.name + '" right now, not "' + name + '". '
+                               : 'SketchUp is not showing "' + name + '" right now. ') +
+                      'Check the cloud is set up for "' + name + '" before you update it.';
+        }
+        na_open_confirm({
+            sceneId: scene.id,
+            title: 'Update "' + name + '"?',
+            paragraphs: paragraphs,
+            rows: [['Saved now', scene.summary || ''], ['Will become', now]],
+            warning: warning,
+            confirmLabel: 'Update Scene',
+            onConfirm: function () { Bridge.na_call('scenes_update', { id: scene.id }); }
+        });
+    }
+
+    function na_ask_remove(scene) {
+        var name = scene.name || '(unnamed scene)';
+        na_open_confirm({
+            sceneId: scene.id,
+            title: 'Remove "' + name + '"?',
+            paragraphs: [
+                'The point cloud settings saved for "' + name + '" will be removed: budget, size, opacity, colour, clip box, ' +
+                'Type, Scale and Dot Size. TrueVision Sync will no longer export this scene.',
+                'The SketchUp scene itself is not changed. Edit, Undo in SketchUp brings the settings back.'
+            ],
+            rows: [['Saved now', scene.summary || '']],
+            confirmLabel: 'Remove Settings',
+            danger: true,
+            onConfirm: function () { Bridge.na_call('scenes_remove', { id: scene.id }); }
+        });
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // REGION | Scene Card
+    // -------------------------------------------------------------------------
+
+    function na_scene_card(scene, sortable) {
         var card = Shell.na_el('div', 'na-pcs-card' + (scene.isActive ? ' na-pcs-card--active' : '') +
                                       (scene.status === 'missing' ? ' na-pcs-card--missing' : ''));
+        card.setAttribute('data-na-sort-id', scene.id);
         var header = Shell.na_el('div', 'na-pcs-card__header');
+        if (sortable) header.appendChild(DragReorder.na_grip(scene.name));
         var name = na_button(scene.name || '(unnamed scene)', 'na-pcs-card__name', function () {
             Bridge.na_call('scenes_recall', { id: scene.id });
         }, scene.status === 'missing' ? 'This SketchUp scene no longer exists' : 'Go to ' + scene.name);
@@ -271,20 +385,24 @@
             card.appendChild(na_export_row(scene));
             card.appendChild(Shell.na_el('p', 'na-hint na-pcs-card__note', na_export_note(scene)));
 
+            // Go To Scene on the left; the two that change the record on the
+            // right, each behind an Are You Sure? dialog.
             var actions = Shell.na_el('div', 'na-pcs-card__actions');
             if (scene.status !== 'missing') {
                 actions.appendChild(na_button('Go To Scene', 'na-pcs-action na-pcs-action--primary', function () {
                     Bridge.na_call('scenes_recall', { id: scene.id });
                 }));
-                var update = na_button('Update', 'na-pcs-action' + (scene.isModified ? ' na-pcs-action--primary' : ''), function () {
-                    Bridge.na_call('scenes_update', { id: scene.id });
-                }, 'Save the cloud\'s current settings and clip box into ' + scene.name + '. The SketchUp scene itself is not changed.');
-                actions.appendChild(update);
             }
-            var confirming = na_confirm_id === scene.id;
-            actions.appendChild(na_button(confirming ? 'Click again to remove' : 'Remove', 'na-pcs-action na-pcs-action--danger', function () {
+            var changes = Shell.na_el('div', 'na-pcs-card__changes');
+            if (scene.status !== 'missing') {
+                changes.appendChild(na_button('Update', 'na-pcs-action' + (scene.isModified ? ' na-pcs-action--modified' : ''), function () {
+                    na_ask_update(scene);
+                }, 'Save the cloud\'s current settings and clip box into ' + scene.name + '. Asks first. The SketchUp scene itself is not changed.'));
+            }
+            changes.appendChild(na_button('Remove', 'na-pcs-action na-pcs-action--danger', function () {
                 na_ask_remove(scene);
-            }, 'Forget these point cloud settings. The SketchUp scene is not changed.'));
+            }, 'Forget these point cloud settings. Asks first. The SketchUp scene is not changed.'));
+            actions.appendChild(changes);
             card.appendChild(actions);
         }
         if (scene.updatedText) card.appendChild(Shell.na_el('p', 'na-pcs-card__time', scene.updatedText));
@@ -300,14 +418,18 @@
     function na_render_list() {
         var list = document.getElementById('na-pcs-list');
         if (!list) return;
+        // A card is being dragged: the list repaints when it is dropped
+        if (na_sorter && na_sorter.na_is_dragging()) { na_list_waiting = true; return; }
         list.innerHTML = '';
         var scenes = na_state.scenes || [];
-        scenes.forEach(function (scene) { list.appendChild(na_scene_card(scene)); });
+        var sortable = scenes.length > 1 && !na_state.readonly;
+        scenes.forEach(function (scene) { list.appendChild(na_scene_card(scene, sortable)); });
         if (!scenes.length) {
             list.appendChild(Shell.na_el('p', 'na-scene-empty', 'No point cloud scenes yet. Set the cloud up for a SketchUp scene, then save its settings below.'));
         }
         var pages = na_state.pages || [];
         Shell.na_text('na-pcs-count', scenes.length + ' of ' + pages.length + ' SketchUp scene' + (pages.length === 1 ? '' : 's'));
+        if (na_sorter) na_sorter.na_after_render();
     }
 
     function na_render_add() {
@@ -359,7 +481,7 @@
         if (!state || !state.scenes) return;
         na_state = state.scenes;
         var ids = (na_state.scenes || []).map(function (scene) { return scene.id; });
-        if (na_confirm_id && ids.indexOf(na_confirm_id) === -1) na_clear_confirm();
+        if (na_modal && ids.indexOf(na_modal.sceneId) === -1) na_close_confirm();
         na_render();
     };
 
@@ -378,6 +500,18 @@
             var select = document.getElementById('na-pcs-add-select');
             if (!select.value) return;
             Bridge.na_call('scenes_add', { pid: Number(select.value) });
+        });
+        na_sorter = DragReorder.na_attach(document.getElementById('na-pcs-list'), {
+            canDrag: function () {
+                return !!na_state && !na_state.readonly && !na_modal && (na_state.scenes || []).length > 1;
+            },
+            onReorder: function (ids) { Bridge.na_call('scenes_reorder', { ids: ids }); },
+            onEnd: function (changed) {
+                var waiting = na_list_waiting;
+                na_list_waiting = false;
+                // After a change Ruby pushes the new order; otherwise catch up now
+                if (waiting && !changed && na_state) na_render();
+            }
         });
         window.addEventListener('focus', function () {
             if (na_tab_is_active()) Bridge.na_call('state_refresh', {});

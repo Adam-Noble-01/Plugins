@@ -237,6 +237,27 @@ module Na__PointCloudViewer
             nil
         end
 
+        # The dialog's drag to reorder: ids is every scene id, top to bottom.
+        # Only the order changes, as one undoable step. A list that no longer
+        # matches the scenes (one added or deleted meanwhile) changes nothing.
+        def self.Na__Clip__SceneReorder(session, ids)
+            self.Na__Clip__Ensure(session)
+            wanted  = Array(ids).map(&:to_s)
+            current = session.clip_scenes.map { |scene| scene['id'] }
+            return 'The clip scenes changed while you were moving one, so nothing was moved. Try again.' unless wanted.sort == current.sort && wanted.uniq.length == wanted.length
+            return nil if wanted == current
+            before = session.clip_scenes.dup
+            by_id  = before.each_with_object({}) { |scene, hash| hash[scene['id']] = scene }
+            session.clip_scenes.replace(wanted.map { |id| by_id[id] })
+            begin
+                self.Na__Clip__Save(session, 'Point Cloud: Reorder Clip Scenes')
+            rescue StandardError
+                session.clip_scenes.replace(before)
+                raise
+            end
+            nil
+        end
+
         # 'full' = Full Cloud: clipping off. The box and the scene it came from
         # are kept, so turning Clip back on returns to them.
         def self.Na__Clip__SceneActivate(session, scene_id)

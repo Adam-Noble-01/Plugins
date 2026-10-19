@@ -173,17 +173,27 @@ When children are nested inside a storey container (90-93), the following child 
 
 # ---------------------------------------------------------
 
-## Site Plan Export (Tags 71-75)
+## Site Plan Export (Tags 71-75, Site Plan Tab)
 
 - Site plan tags (`71__SitePlan__...` to `75__SitePlan__...`, from the Tags SSOT) never go into model GLBs.
-- **Export Site Plan Data** (dialog button or Extensions menu) writes them to the project's
-  `30__TrueVision__AppContent/SitePlan__DrawingData/` folder:
+- The dialog's **Site Plan tab** (2.13.0) holds everything about it. Its green dot lights, like Scene Sync's and
+  Point Cloud's, when the model can export its site plan straight into the project: linked, site plan tags in
+  the model, and a store chosen.
+- A project can hold an **Existing** and a **Proposed** store, each its own folder under
+  `30__TrueVision__AppContent/`: `SitePlan__DrawingData__Existing` and `SitePlan__DrawingData__Proposed`. The
+  original `SitePlan__DrawingData` folder is read as Proposed and never renamed. The model's store is chosen on
+  the Site Plan tab and stored on the model. It is never guessed (a project holding exactly one store answers
+  for itself), so an existing site plan cannot be written over a proposed one.
+- **Export Site Plan Data** (the Export tab's card, the Site Plan tab's card, or the Extensions menu) writes
+  into that store, after showing what it found and where it goes:
   - one `{prefix}TrueVision__SitePlan__{Layer}__LineworkModel__.glb` per tag with geometry;
   - a `__FillModel__.glb` of face rings for fill tags (proposed buildings, trees, hedges);
   - `TrueVision__SitePlanData__Manifest__.json`.
+- An unlinked model asks for a folder instead.
 - Tag groups or raw geometry anywhere in the model. The nearest site plan tag above an edge or face decides its layer.
-- The ProjectVision build pipeline (option 3) publishes the folder; TrueVision3D Site Plan drawings read it.
-- Logic handled by `Na__TrueVision__GlbBuilder__SitePlanExport__.rb`.
+- Push Project To Cloudflare R2 (Project tab), or the ProjectVision build pipeline (option 3), publishes it;
+  TrueVision3D Site Plan drawings read it.
+- Logic handled by `Na__TrueVision__GlbBuilder__SitePlanExport__.rb`; the tab by the main UI bridge.
 
 # ---------------------------------------------------------
 
@@ -205,6 +215,8 @@ When children are nested inside a storey container (90-93), the following child 
     into place only when complete.
 - The tab lists the scenes with their own on/off, type and scale; readiness (viewer, point cloud,
   store, datum); Reload, Check Python and Open Folder.
+- The scenes drag into any order by their grips (2.13.1). The order is the viewer's own record
+  (scenes API 3), so its Scenes tab shows the same order; Undo puts it back.
 - The **datum benchmark** (tag `01__Survey__DatumBenchmark`, excluded from every GLB) is recorded in
   the manifests in metres and as each picture's pixel.
 - WebP conversion: `Na__TrueVision__GlbBuilder__PointCloud__WebpTiles__.py` (Python 3, Pillow with
@@ -213,6 +225,32 @@ When children are nested inside a storey container (90-93), the following child 
 - Logic handled by `Na__TrueVision__GlbBuilder__PointCloudExport__.rb` and
   `Na__TrueVision__GlbBuilder__UserInterface__PointCloudActions__.rb`. The settings live in the
   model dictionary `Na__TrueVision__GlbBuilder__PointClouds`.
+
+# ---------------------------------------------------------
+
+## Scene Sync (Scene Sync Tab, 2.12.0)
+
+- Keeps chosen **SketchUp scenes** in step with TrueVision3D, as plans, elevations, sections and 3D
+  views that its layout viewports bind to, so a view is set up once, in SketchUp.
+- **Every scene is off** until switched on in the tab. Each has a type: Automatic (from its camera: a
+  perspective is a 3D View, straight down a Plan, level an Elevation, or a Section when an active
+  section plane faces it) or chosen.
+- Nothing is written to a SketchUp scene and no scene is ever selected. The choices live in the model
+  dictionary `Na__TrueVision__GlbBuilder__SceneSync`, by each scene's persistent id, so renaming a
+  scene renames it in TrueVision and breaks nothing.
+- **Sync Scenes** (quick: nothing renders) writes
+  `30__TrueVision__AppContent/SceneSync__SketchUpSceneData/TrueVision__SceneSyncData__Manifest__.json`:
+  each scene's camera, section plane, hidden tags and the drawing it implies (a plan's cut height; an
+  elevation's bearing and plane). Export To Project and every push do the same first.
+- In TrueVision the synced scenes are read only, listed in the Layout Editor's **SketchUp Scenes**
+  panel and its viewport lists ("SketchUp: <name>"), never in the viewer's carousel, and never saved
+  into the project data.
+- **Switched off**, TrueVision keeps a scene as last synced; switch it on to resume. **Detach** (here,
+  or in TrueVision's panel) makes it TrueVision's own for good, with every viewport of it still bound.
+  A scene deleted in SketchUp is kept as last synced and marked missing.
+- The ProjectVision build registers the store (`SceneSync__DataStore`); the R2 sync uploads it.
+- Logic handled by `Na__TrueVision__GlbBuilder__SceneSync__.rb` and
+  `Na__TrueVision__GlbBuilder__UserInterface__SceneSyncActions__.rb`.
 
 # ---------------------------------------------------------
 
