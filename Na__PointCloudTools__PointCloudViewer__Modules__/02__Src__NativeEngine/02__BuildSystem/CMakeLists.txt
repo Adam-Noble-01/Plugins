@@ -57,7 +57,29 @@ add_library(Na__PointCloudViewer__NativeEngine SHARED
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__PngWriter__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LasImport__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__PointCache__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LasFile__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LasExport__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__Geometry__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__KdTree__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanRegion__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanNoise__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanSurface__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanDensity__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanSection__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanPipeline__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanContext__.cpp"
 )
+
+# Geometry, export and identity code must give the same bits on every run and
+# for every region shape (preview = full cloud), so the engine is compiled with
+# /fp:precise. Only the renderer's two files keep /fp:fast (pixels only).
+set(NA_FAST_MATH_SOURCES
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__Rasterizer__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__PngWriter__.cpp"
+)
+if(MSVC)
+    set_source_files_properties(${NA_FAST_MATH_SOURCES} PROPERTIES COMPILE_OPTIONS "/fp:fast")
+endif()
 
 target_include_directories(Na__PointCloudViewer__NativeEngine PRIVATE "${NA_SOURCE_DIR}")
 target_link_libraries(Na__PointCloudViewer__NativeEngine PRIVATE Na__Vendored__LASzip)
@@ -70,7 +92,7 @@ target_compile_definitions(Na__PointCloudViewer__NativeEngine PRIVATE
 
 if(MSVC)
     # No /arch:AVX2 - an illegal instruction on an older CPU would take SketchUp down with it.
-    target_compile_options(Na__PointCloudViewer__NativeEngine PRIVATE /W4 /permissive- /EHsc /O2 /fp:fast)
+    target_compile_options(Na__PointCloudViewer__NativeEngine PRIVATE /W4 /permissive- /EHsc /O2)
     set_property(TARGET Na__PointCloudViewer__NativeEngine PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
 endif()
 

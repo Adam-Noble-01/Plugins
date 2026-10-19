@@ -17,6 +17,13 @@
 //   "the first N points" - the point budget - is a uniform sample of the whole
 //   cloud rather than whichever patch the scanner wrote first.
 //
+// IDENTITY (v0.8.0): every stored point keeps the number of the LAS record it
+//   came from (source_index), shuffled with it. The cleaner works on stored
+//   points; the LAS exporter maps its results back to source records through
+//   this index and copies every other attribute from the LAS itself. Formats
+//   with GPS time also keep the time (relative to the first record's time),
+//   which lets the cleaner tell separate scan passes apart.
+//
 // THREADING: the worker touches only this job's own buffers and the LASzip
 //   reader. Results are published with a release store on `finished`.
 //
@@ -71,8 +78,10 @@ struct Na__LasImportJob {
     std::string cache_path;               // LAS import: also write this cache ("" = none)
     bool        from_cache = false;
     int64_t     expect_count = 0;         // cache load: refuse a different point count
+    uint64_t    expect_key = 0;           // cache load: refuse a cache of other LAS content (0 = any)
     double      las_bytes = 0;            // stored in the cache header
     double      las_mtime = 0;
+    uint64_t    content_key = 0;          // LAS import: stored in the cache header
     uint8_t     fallback_rgb[3] = { 110, 110, 110 };
     uint64_t    seed = 0x4E41504331ull;   // "NAPC1"
 
@@ -93,6 +102,7 @@ struct Na__LasImportJob {
     double  local_max[3] = { 0, 0, 0 };
     int     colour_bits = 0;          // 16, 8, or 0 when the format has no RGB
     int64_t point_count = 0;
+    int     cache_version = 0;        // cache load: the version that was read (1 has no source index)
     double  read_ms = 0, colour_ms = 0, shuffle_ms = 0, total_ms = 0;
 
     std::mutex  error_mutex;

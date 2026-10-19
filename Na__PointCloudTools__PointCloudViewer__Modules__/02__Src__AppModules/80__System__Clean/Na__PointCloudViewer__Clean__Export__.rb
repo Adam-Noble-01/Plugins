@@ -1,0 +1,481 @@
+# =============================================================================
+# NA POINT CLOUD VIEWER - CLEAN - EXPORT
+# =============================================================================
+#
+# FILE       : Na__PointCloudViewer__Clean__Export__.rb
+# NAMESPACE  : Na__PointCloudViewer::Na__CleanExport
+# PURPOSE    : Clean & Export LAS: cleans the WHOLE cloud with the Clean tab's
+#              settings, writes the result as a NEW LAS file, loads it, and
+#              only then makes the model use it.
+#
+# THE ORIGINAL IS NEVER TOUCHED (the rules, in order):
+#   1. Save As every time; the suggested name is <name>_Cleaned_01.las, then
+#      _02 and so on (the first free one). There is no option to overwrite:
+#      the source file itself, and any file that already exists, are refused
+#      (the engine checks again: it creates the new file exclusively and
+#      refuses one that turns out to be the source through another path).
+#   2. The engine cleans the whole cloud in tiles on its own thread, writes
+#      <final>.partial-<tag> in the destination folder, flushes it, reads it
+#      back with LASzip and checks every record, then renames it into place
+#      WITHOUT replacing anything. Cancel or any failure deletes the partial
+#      file; nothing else is ever deleted.
+#   3. The new file is loaded like any LAS (a new point cache, named by its
+#      own content key; the original's cache is kept).
+#   4. Only when export, check and load have all succeeded does the model
+#      change: the link names the new file (what it was made from is kept)
+#      and the cloud's position is carried over exactly, as ONE undoable
+#      operation "Point Cloud: Use Cleaned LAS". The clip box and scenes are
+#      in model coordinates and need no change.
+#   5. Export done but loading failed or cancelled: the file stays, the model
+#      keeps the original, and Load Cleaned LAS tries again.
+#   SketchUp's Undo can put the model's link back to the earlier file; Undo
+#   never deletes, moves or changes any file.
+#
+# COORDINATES: the new LAS keeps the source's own coordinates, scale and
+#   offset; the SketchUp position is never baked in. Its bounds (and so its
+#   local origin) can differ from the source's, so the position is carried
+#   over by Na__Placement__ForNewOrigin and the cloud stays where it was.
+#
+# =============================================================================
+
+module Na__PointCloudViewer
+    module Na__CleanExport
+
+    # -------------------------------------------------------------------------
+    # REGION | Checks + Names
+    # -------------------------------------------------------------------------
+
+        # nil, or why Clean & Export cannot start (shown on the button).
+        def self.Na__CleanExport__Blocker(session)
+            cloud = session ? session.cloud : nil
+            return 'Load a point cloud first.' unless cloud
+            info = cloud.las_info || {}
+            unless info['hasRecordIndex']
+                return 'This cloud came from a point cache made before v0.8.0, which does not record where each point is in the LAS. ' \
+                       'Clear Point Caches (Settings tab), then Reload Point Cloud, then export.'
+            end
+            path = cloud.source_path.to_s
+            unless File.file?(path)
+                return "The LAS this cloud came from is not at #{path}. Use Locate LAS on the View tab first: the export reads the original file."
+            end
+            return 'Only an uncompressed .las source can be cleaned and exported.' unless File.extname(path).casecmp('.las').zero?
+            settings = Na__CleanSettings.Na__CleanSettings__Current
+            return 'Turn on at least one filter first.' unless Na__CleanSettings::NA_FILTERS.any? { |filter| settings[filter]['enabled'] }
+            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
+            nil
+        end
+
+        # <stem>_Cleaned_NN.las, the first number not taken in that folder.
+        # A source that is itself a cleaned copy counts on from its stem.
+        def self.Na__CleanExport__SuggestedName(source_path)
+            return '' if source_path.to_s.empty?
+            suffix = Na__ConfigLoader.Na__Config__GetOr('_Cleaned_', 'clean', 'export', 'suffix').to_s
+            folder = File.dirname(source_path)
+            stem = File.basename(source_path, '.*').sub(/#{Regexp.escape(suffix)}\d+\z/i, '')
+            (1..999).each do |number|
+                name = format('%s%s%02d.las', stem, suffix, number)
+                return name unless File.exist?(File.join(folder, name))
+            end
+            format('%s%s%s.las', stem, suffix, Time.now.strftime('%Y%m%d-%H%M%S'))
+        end
+
+        # nil, or why this destination is refused.
+        def self.Na__CleanExport__DestinationProblem(source_path, dest_path)
+            name = File.basename(dest_path)
+            return 'Save the cleaned cloud as a .las file.' unless File.extname(dest_path).casecmp('.las').zero?
+            if File.expand_path(dest_path).casecmp(File.expand_path(source_path)).zero?
+                return "#{name} is the original LAS. The original is never overwritten: choose a new name."
+            end
+            return "#{name} already exists. Nothing is ever overwritten: choose a new name." if File.exist?(dest_path)
+            return "The folder #{File.dirname(dest_path)} does not exist." unless File.directory?(File.dirname(dest_path))
+            nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Start (from the dialog)
+    # -------------------------------------------------------------------------
+
+        # Returns nil when the job has started, 'cancelled', or a reason.
+        def self.Na__CleanExport__Start(session)
+            problem = self.Na__CleanExport__Blocker(session)
+            return problem if problem
+            cloud  = session.cloud
+            source = cloud.source_path.to_s
+            info   = cloud.las_info || {}
+            header = Na__NativeEngine.Na__Native__LasReadHeader(source)
+            return 'The LAS file is LAZ-compressed; only uncompressed LAS can be cleaned and exported.' if header['isCompressed'].to_i == 1
+            if header['pointCount'].to_i != cloud.total_points.to_i
+                return "The LAS file now holds #{Na__PerfStats.Na__Perf__Thousands(header['pointCount'])} points but the loaded cloud has " \
+                       "#{Na__PerfStats.Na__Perf__Thousands(cloud.total_points)}. It has changed since it was loaded: Reload Point Cloud first."
+            end
+            key = Na__NativeEngine.Na__Native__LasContentKey(source)
+            if info['contentKey'] && key != info['contentKey']
+                return 'The LAS file has changed since this cloud was loaded. Reload Point Cloud first, then export.'
+            end
+
+            dest = self.na_ask_destination(source)
+            return 'cancelled' unless dest
+
+            settings = Na__CleanSettings.Na__CleanSettings__Current
+            mm_per_unit = Na__CleanSettings.Na__CleanSettings__MmPerUnit(cloud)
+            params = Na__CleanSettings.Na__CleanSettings__EngineParams(mm_per_unit, settings)
+            provenance = self.na_provenance(session, cloud, key, settings, params)
+            Na__Placement.Na__Placement__Ensure(session)
+            return 'The loaded cloud has no position record; Reload Point Cloud first.' unless session.placement
+            job = Na__CleanExportJob.new(session, Sketchup.active_model.active_view, {
+                'source' => source, 'dest' => dest, 'params' => params, 'provenance' => provenance,
+                'origin' => info['localOriginSource'], 'sourceKey' => key, 'settings' => settings
+            })
+            Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
+        end
+
+        # Retry after an export whose loading failed or was cancelled.
+        def self.Na__CleanExport__RetryLoad(session)
+            state = Na__CleanPreview.Na__Clean__State(session)
+            retry_info = state.retry_load
+            return 'There is no cleaned LAS waiting to be loaded.' unless retry_info
+            return "The cleaned LAS is no longer at #{retry_info['path']}." unless File.file?(retry_info['path'])
+            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
+            job = Na__CleanExportJob.new(session, Sketchup.active_model.active_view, retry_info.merge('reloadOnly' => true))
+            Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
+        end
+
+        # Save As until the user picks an acceptable new file or cancels.
+        def self.na_ask_destination(source)
+            folder = File.dirname(source)
+            name = self.Na__CleanExport__SuggestedName(source)
+            20.times do
+                path = UI.savepanel('Save the cleaned point cloud as a NEW LAS file', folder, name)
+                return nil unless path
+                path = path.tr('\\', '/')
+                path += '.las' if File.extname(path).empty?
+                problem = self.Na__CleanExport__DestinationProblem(source, path)
+                return path unless problem
+                UI.messagebox(problem)
+                folder = File.dirname(path) if File.directory?(File.dirname(path))
+                name = self.Na__CleanExport__SuggestedName(File.join(folder, File.basename(source)))
+            end
+            nil
+        end
+
+        def self.na_provenance(session, cloud, source_key, settings, params)
+            model = session.model
+            JSON.generate(
+                'tool'        => Na__ConfigLoader.Na__Config__GetOr('Na Point Cloud Viewer', 'plugin', 'name'),
+                'version'     => Na__PointCloudViewer.Na__PublicApi__Version,
+                'operation'   => 'clean',
+                'exportId'    => format('%016x', Random.new.rand(2**64)),   # every export a distinct file (and content key)
+                'createdAt'   => Time.now.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'source'      => { 'fileName' => File.basename(cloud.source_path.to_s), 'contentKey' => source_key,
+                                   'pointCount' => cloud.total_points, 'sourceUnit' => cloud.source_unit },
+                'settings'    => Na__CleanSettings.Na__CleanSettings__Provenance(settings),
+                'engineParams'=> Na__NativeEngine::NA_CLEAN_PARAM_KEYS.zip(params.map { |v| v.round(6) }).to_h,
+                'model'       => { 'title' => model ? model.title.to_s : '' }
+            )
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Use the New File (after it has loaded)
+    # -------------------------------------------------------------------------
+
+        # Called with the freshly loaded cleaned cloud. Writes the model's link
+        # and position (one undoable operation), then installs the cloud.
+        # Raises (and leaves the original installed) when the model write fails.
+        def self.na_use_cleaned(session, new_cloud, view, job_info)
+            model = session.model
+            raise 'The model this cloud belongs to was closed.' unless model && model.valid?
+            base = self.na_base(session, job_info)
+            new_key = Na__Placement.Na__Placement__CloudKey(new_cloud)
+            placement = Na__Placement.Na__Placement__ForNewOrigin(base['placement'], base['unitFactor'], base['origin'],
+                                                                   new_cloud.las_info['localOriginSource'], new_key)
+            previous = Na__ModelLink.Na__Link__Read(model)
+            part = Na__ModelLink.Na__Link__CloudPart(model, new_cloud, new_key)
+            part['derivedFrom'] = base['derivedFrom'].merge('cleanedAt' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%z'))
+            history = (previous && previous['history'].is_a?(Array) ? previous['history'] : []) + [previous ? previous['cloud'] : base['derivedFrom']]
+            record = Na__ModelLink.Na__Link__BuildRecord(previous, part, history.last(20))
+            begin
+                model.start_operation('Point Cloud: Use Cleaned LAS', true)
+                model.set_attribute(Na__ModelLink::NA_DICT, Na__ModelLink::NA_KEY, JSON.generate(record))
+                model.set_attribute(Na__Placement::NA_DICT, Na__Placement::NA_KEY, JSON.generate(Na__Placement.Na__Placement__Record(placement)))
+                model.commit_operation
+            rescue StandardError
+                model.abort_operation
+                raise
+            end
+            # the model names the new file now: show it where the old one was
+            Na__Placement.Na__Placement__StopTool(session)
+            session.placement = placement
+            session.placement_note = nil
+            Na__Placement.na_apply(session, new_cloud)
+            Na__RenderController.Na__Render__InstallCloud(session, new_cloud, view)
+            Na__LocalBackup.Na__Backup__AfterSave(model, session)
+            Na__ModelRegistry.Na__Registry__SetVisible(true)
+        end
+
+        # What the new cloud's position is carried over from: the original
+        # cloud as it is placed now if it is still loaded, else as it was when
+        # the export started.
+        def self.na_base(session, job_info)
+            cloud = session.cloud
+            if cloud && cloud.equal?(job_info['sourceCloud']) && session.placement
+                return {
+                    'placement'   => session.placement,
+                    'unitFactor'  => cloud.unit_factor,
+                    'origin'      => cloud.las_info['localOriginSource'],
+                    'derivedFrom' => job_info['derivedFrom']
+                }
+            end
+            job_info['base']
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    end
+
+    # -------------------------------------------------------------------------
+    # REGION | The Job (Na__AsyncJobs contract)
+    # -------------------------------------------------------------------------
+
+    class Na__CleanExportJob
+
+        NA_POLL_SECONDS = 0.15
+        NA_PHASE_TEXT = {
+            0 => 'Checking the LAS file...',
+            1 => 'Indexing the whole cloud...',
+            2 => 'Cleaning the whole cloud',
+            3 => 'Writing the new LAS',
+            4 => 'Reading the new file back and checking every point',
+            5 => 'Publishing the new file (nothing is replaced)...',
+            6 => 'Finishing...'
+        }.freeze
+        NA_PHASE_SPAN = { 0 => [0, 1], 1 => [1, 5], 2 => [5, 60], 3 => [60, 75], 4 => [75, 88], 5 => [88, 89], 6 => [89, 90] }.freeze
+
+        # info: 'source', 'dest', 'params', 'provenance', 'origin', 'sourceKey', 'settings';
+        #       or a retry: 'path' + 'unit' + 'base' + 'reloadOnly'.
+        def initialize(session, view, info)
+            @session = session
+            @view    = view
+            @info    = info
+            @handle  = nil
+            @reload  = nil
+            @result  = nil
+            @cancel_message = nil
+            cloud = session.cloud
+            if info['reloadOnly']
+                @stage    = :reload
+                @dest     = info['path']
+                @unit     = info['unit']
+                @job_info = info
+            else
+                @stage    = :export
+                @dest     = info['dest']
+                @unit     = cloud.source_unit
+                derived = {
+                    'fileName'   => File.basename(info['source']),
+                    'lastPath'   => info['source'],
+                    'contentKey' => info['sourceKey'],
+                    'pointCount' => cloud.total_points,
+                    'sourceUnit' => cloud.source_unit
+                }
+                @job_info = {
+                    'sourceCloud' => cloud,
+                    'derivedFrom' => derived,
+                    'base' => {
+                        'placement'   => Marshal.load(Marshal.dump(session.placement)),
+                        'unitFactor'  => cloud.unit_factor,
+                        'origin'      => (cloud.las_info || {})['localOriginSource'],
+                        'derivedFrom' => derived
+                    }
+                }
+            end
+        end
+
+        def na_title
+            @stage == :reload && @info['reloadOnly'] ? "Loading #{File.basename(@dest)}" : "Clean & Export #{File.basename(@info['source'].to_s)}"
+        end
+
+        def na_step
+            @stage == :export ? self.na_step_export : self.na_step_reload
+        end
+
+        def na_cancel
+            if @stage == :export
+                if @handle
+                    Na__NativeEngine.Na__Native__ExportCancel(@handle)
+                    Na__NativeEngine.Na__Native__ExportDestroy(@handle)   # joins; deletes any partial file
+                    @handle = nil
+                end
+                @cancel_message = 'Cancelled. Nothing was written and the original LAS is untouched.'
+            else
+                @reload.na_cancel if @reload
+                @reload = nil
+                self.na_offer_retry
+                @cancel_message = "#{File.basename(@dest)} was written and checked, but loading it was cancelled. " \
+                                  'The model still uses the original. Load Cleaned LAS (Clean tab) loads it.'
+            end
+        end
+
+        def na_cancel_message
+            @cancel_message
+        end
+
+        def na_result_summary
+            { 'kind' => 'cleanExport', 'export' => @summary }
+        end
+
+        # ---------------------------------------------------------------
+        # Export
+        # ---------------------------------------------------------------
+
+        def na_step_export
+            unless @handle
+                state = Na__CleanPreview.Na__Clean__State(@session)
+                Na__NativeEngine.Na__Native__CleanCancel(state.context) if state.context
+                Na__CleanPreview.na_ensure_context(@session)
+                software = "#{Na__ConfigLoader.Na__Config__GetOr('Na Point Cloud Viewer', 'clean', 'export', 'software')} #{Na__PointCloudViewer.Na__PublicApi__Version}"
+                @handle = Na__NativeEngine.Na__Native__ExportStart(state.context, @info['source'], @dest, @info['params'],
+                                                                   @info['origin'], @info['provenance'], software)
+                return { 'done' => false, 'status' => NA_PHASE_TEXT[0], 'percent' => 0.5, 'delay' => NA_POLL_SECONDS }
+            end
+            poll = Na__NativeEngine.Na__Native__ExportPoll(@handle)
+            return self.na_export_finished(poll) if poll['finished'].to_i == 1
+            { 'done' => false, 'status' => self.na_status(poll), 'percent' => self.na_percent(poll), 'delay' => NA_POLL_SECONDS }
+        end
+
+        def na_export_finished(poll)
+            notes = Na__NativeEngine.Na__Native__ExportNotes(@handle)
+            if poll['failed'].to_i == 1 || poll['cancelled'].to_i == 1
+                message = poll['cancelled'].to_i == 1 ? 'The export was cancelled.' : Na__NativeEngine.Na__Native__ExportError(@handle)
+                Na__NativeEngine.Na__Native__ExportDestroy(@handle)
+                @handle = nil
+                raise "#{message} The original LAS is untouched." unless message.include?('untouched')
+                raise message
+            end
+            Na__NativeEngine.Na__Native__ExportDestroy(@handle)
+            @handle = nil
+            raise "The new file was not found at #{@dest} after publishing." unless File.file?(@dest)
+            @result = poll
+            @notes = notes
+            @summary = self.na_export_summary(poll, notes)
+            Na__CleanPreview.Na__Clean__State(@session).last_export = @summary
+            Na__DebugTools.Na__Debug__Info("Clean & Export wrote #{@dest} (#{poll['written'].to_i} points, #{(poll['totalMs'].to_f / 1000).round(1)} s). #{notes}")
+            @stage = :reload
+            { 'done' => false, 'status' => "Written and checked. Loading #{File.basename(@dest)}...", 'percent' => 90.0, 'delay' => 0.01 }
+        end
+
+        # ---------------------------------------------------------------
+        # Reload + Use
+        # ---------------------------------------------------------------
+
+        def na_step_reload
+            unless @reload
+                options = Na__LasImport.Na__LasImport__CacheOptions(@dest)
+                options['onCloud'] = lambda do |cloud|
+                    Na__CleanExport.na_use_cleaned(@session, cloud, @view, @job_info)
+                    self.na_final_message(cloud)
+                end
+                @reload = Na__LasImport::Na__LasImportJob.new(@session, @view, @dest, @unit, 0, options)
+            end
+            step = @reload.na_step
+            if step['done']
+                Na__CleanPreview.Na__Clean__State(@session).retry_load = nil
+                return step
+            end
+            percent = step['percent'] ? 90.0 + step['percent'].to_f * 0.1 : nil
+            { 'done' => false, 'status' => "Loading the cleaned LAS: #{step['status']}", 'percent' => percent, 'delay' => step['delay'] }
+        rescue StandardError => error
+            begin
+                @reload.na_cancel if @reload
+            rescue StandardError
+                nil
+            end
+            @reload = nil
+            self.na_offer_retry
+            Na__DebugTools.Na__Debug__Error('The cleaned LAS was written but could not be loaded.', error)
+            {
+                'done' => true, 'outcome' => 'partial',
+                'status' => "#{File.basename(@dest)} was written and checked, but loading it failed (#{error.message}). " \
+                            'The file is kept and the model still uses the original. Load Cleaned LAS (Clean tab) tries again.'
+            }
+        end
+
+        def na_offer_retry
+            Na__CleanPreview.Na__Clean__State(@session).retry_load = {
+                'path' => @dest, 'unit' => @unit, 'base' => @job_info['base'], 'derivedFrom' => @job_info['derivedFrom'],
+                'sourceCloud' => @job_info['sourceCloud']
+            }
+        end
+
+        def na_final_message(cloud)
+            name = File.basename(@dest)
+            unless @result
+                return "Loaded #{name} (#{Na__PerfStats.Na__Perf__Thousands(cloud.total_points)} points). The model now uses it; the original LAS is untouched."
+            end
+            removed = @result['removed'].to_i
+            source = @result['sourcePoints'].to_i
+            share = source > 0 ? removed * 100.0 / source : 0.0
+            text = "Saved #{name}: #{Na__PerfStats.Na__Perf__Thousands(@result['written'])} points " \
+                   "(#{Na__PerfStats.Na__Perf__Thousands(removed)} removed, #{format('%.1f', share)} %; " \
+                   "#{Na__PerfStats.Na__Perf__Thousands(@result['moved'])} refined) in #{format('%.1f', @result['totalMs'].to_f / 1000.0)} s. " \
+                   'It was checked point by point and is now the model\'s point cloud, in the same position. ' \
+                   'The original LAS and its cache are untouched; Undo puts the model\'s link back.'
+            text += " #{Na__PerfStats.Na__Perf__Thousands(@result['heldRange'])} points kept their position: the file's coordinate range could not hold the move." if @result['heldRange'].to_i > 0
+            text
+        end
+
+        # ---------------------------------------------------------------
+        # Progress + summary
+        # ---------------------------------------------------------------
+
+        def na_status(poll)
+            phase = poll['phase'].to_i
+            text = NA_PHASE_TEXT.fetch(phase, 'Working...')
+            total = poll['total'].to_i
+            return text unless [2, 3, 4].include?(phase) && total > 0
+            unit = phase == 2 ? 'points' : 'records'
+            "#{text}... #{Na__PerfStats.Na__Perf__Thousands(poll['done'])} of #{Na__PerfStats.Na__Perf__Thousands(total)} #{unit}"
+        end
+
+        def na_percent(poll)
+            span = NA_PHASE_SPAN.fetch(poll['phase'].to_i, [0, 1])
+            total = poll['total'].to_f
+            fraction = total > 0 ? [[poll['done'].to_f / total, 0.0].max, 1.0].min : 0.0
+            (span[0] + (span[1] - span[0]) * fraction).round(1)
+        end
+
+        def na_export_summary(poll, notes)
+            {
+                'fileName'        => File.basename(@dest),
+                'path'            => @dest,
+                'sourcePoints'    => poll['sourcePoints'].to_i,
+                'written'         => poll['written'].to_i,
+                'removed'         => poll['removed'].to_i,
+                'removedIsolated' => poll['removedIsolated'].to_i,
+                'removedCluster'  => poll['removedCluster'].to_i,
+                'removedBlowout'  => poll['removedBlowout'].to_i,
+                'removedDensity'  => poll['removedDensity'].to_i,
+                'moved'           => poll['moved'].to_i,
+                'heldRange'       => poll['heldRange'].to_i,
+                'doubling'        => poll['doubling'].to_i,
+                'candidates'      => poll['candidates'].to_i,
+                'bytes'           => poll['bytes'].to_i,
+                'seconds'         => (poll['totalMs'].to_f / 1000.0).round(1),
+                'tiles'           => poll['tiles'].to_i,
+                'peakWorkMb'      => poll['peakWorkMb'].to_f.round,
+                'notes'           => notes.to_s.split(' | ').reject(&:empty?)
+            }
+        end
+
+    end
+
+    # endregion ----------------------------------------------------------------
+
+end
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

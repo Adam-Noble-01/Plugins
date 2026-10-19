@@ -9,7 +9,7 @@
 //              dialog reopens where it was left, including after a reload.
 //              A remembered tab that no longer exists falls back to View.
 //
-// TABS       : view (default) | clipping | settings
+// TABS       : view (default) | clipping | transform | clean | settings
 //
 // =============================================================================
 
@@ -19,6 +19,7 @@
     var Na_TabRouter         = {};
     var na_active_tab_id     = 'view';
     var na_restored_from_state = false;
+    var na_change_listeners  = [];
     var NA_TAB_BUTTON_PREFIX = 'na-tab-button-';
     var NA_TAB_PANEL_PREFIX  = 'na-tab-';
 
@@ -60,9 +61,16 @@
         if (!(options && options.silent)) {
             window.Na__PointCloudViewer__Bridge.na_call('ui_remember_tab', { tabId: tabId });
         }
+        na_change_listeners.forEach(function (listener) {
+            try { listener(tabId); }
+            catch (err) { console.error('[Na_TabRouter] tab listener failed:', err); }
+        });
     };
 
     Na_TabRouter.na_get_active_tab = function () { return na_active_tab_id; };
+
+    // Called with the tab id on every activation, the silent restore included.
+    Na_TabRouter.na_on_change = function (listener) { na_change_listeners.push(listener); };
 
     // endregion ----------------------------------------------------------------
 

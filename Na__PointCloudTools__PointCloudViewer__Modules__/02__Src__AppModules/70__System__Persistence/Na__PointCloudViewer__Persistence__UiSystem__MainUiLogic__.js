@@ -43,6 +43,7 @@
                       'This computer has a backup of its setup for ' + cloudText + ', saved ' + link.backup.savedText + '.';
         } else {
             summary = 'This model is linked to ' + cloudText + '.';
+            if (link.derivedFrom) summary += ' It is a cleaned copy of ' + link.derivedFrom + ', which is kept unchanged.';
             if (link.otherLoaded) summary += ' A different point cloud is loaded now; Reload replaces it.';
         }
         Shell.na_text('na-link-summary', summary);

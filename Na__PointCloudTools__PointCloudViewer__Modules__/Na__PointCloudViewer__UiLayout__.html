@@ -7,7 +7,7 @@
      FILE       : Na__PointCloudViewer__UiLayout__.html
      PURPOSE    : HtmlDialog layout: brand header, tab strip, tab panels,
                   shared status bar and the full-dialog loading overlay.
-     TABS       : View (default) | Clipping | Transform | Settings
+     TABS       : View (default) | Clipping | Transform | Clean | Settings
      DATA       : None in the markup. Ruby pushes state as JSON through
                   window.Na__PointCloudViewer__Receive; the tab scripts render it.
      ============================================================================= -->
@@ -46,6 +46,7 @@
             <button id="na-tab-button-view"     class="na-tab na-tab-active" role="tab" data-na-tab-id="view"     onclick="Na_TabRouter.na_activateTab('view')">View</button>
             <button id="na-tab-button-clipping" class="na-tab" role="tab" data-na-tab-id="clipping" onclick="Na_TabRouter.na_activateTab('clipping')">Clipping</button>
             <button id="na-tab-button-transform" class="na-tab" role="tab" data-na-tab-id="transform" onclick="Na_TabRouter.na_activateTab('transform')">Transform</button>
+            <button id="na-tab-button-clean" class="na-tab" role="tab" data-na-tab-id="clean" onclick="Na_TabRouter.na_activateTab('clean')">Clean</button>
             <button id="na-tab-button-settings" class="na-tab" role="tab" data-na-tab-id="settings" onclick="Na_TabRouter.na_activateTab('settings')">Settings</button>
         </nav>
     </div>
@@ -300,6 +301,75 @@
         <!-- endregion ============================================================ -->
 
         <!-- ======================================================================
+             REGION | Tab Panel - Clean
+             The three filter cards are built by the Clean tab script from
+             state.clean.filters (labels, explanations, Advanced settings).
+             ====================================================================== -->
+        <div id="na-tab-clean" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="clean">
+            <div class="na-panel-body">
+
+                <section class="na-card" id="na-clean-region-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Preview Region</h3>
+                        <span class="na-card__value na-clean-region-size" id="na-clean-region-size"></span>
+                    </div>
+                    <p class="na-clip-status" id="na-clean-region-status"></p>
+                    <p class="na-note na-hidden" id="na-clean-region-note"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-clean-go-clipping">Clip Box Settings</button>
+                        <button type="button" class="naButtonSecondary" id="na-clean-preview-now">Preview Again</button>
+                    </div>
+                    <p class="na-hint">The preview cleans the points inside the clip box, reading a margin around it so the result is exactly what the export gives for those points. Clean &amp; Export always cleans the whole cloud.</p>
+                </section>
+
+                <div class="na-clean-filters" id="na-clean-filters"></div>
+
+                <section class="na-card" id="na-clean-results-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Preview Results</h3>
+                        <span class="na-clean-badge" id="na-clean-state-badge"></span>
+                    </div>
+                    <div class="na-switch-field">
+                        <span class="na-switch-field__label">Show in the model</span>
+                        <div class="na-switch na-switch--three" id="na-clean-display-switch">
+                            <button type="button" class="na-switch__option" data-na-value="original">Original</button>
+                            <button type="button" class="na-switch__option" data-na-value="cleaned">Cleaned</button>
+                            <button type="button" class="na-switch__option" data-na-value="differences">Differences</button>
+                        </div>
+                    </div>
+                    <div class="na-clean-legend na-hidden" id="na-clean-legend"></div>
+                    <p class="na-hint" id="na-clean-results-note"></p>
+                    <div class="na-stat-grid na-clean-stats" id="na-clean-stats"></div>
+                    <div class="na-clean-section" id="na-clean-section"></div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-clean-reset">Reset to Defaults</button>
+                    </div>
+                </section>
+
+                <section class="na-card na-card--export" id="na-clean-export-card">
+                    <h3 class="na-card__title">Clean &amp; Export</h3>
+                    <p class="na-hint na-hint--top">Cleans the whole cloud with the settings above and saves it as a NEW LAS file that you name. The original LAS is never changed, renamed or replaced, and nothing is ever overwritten. The new file is checked point by point, then loaded in the same position and used by this model.</p>
+                    <button type="button" class="naButton na-clean-export-button" id="na-clean-export">Clean &amp; Export LAS&hellip;</button>
+                    <p class="na-note na-hidden" id="na-clean-export-blocker"></p>
+                    <div class="na-clean-retry na-hidden" id="na-clean-retry">
+                        <p class="na-note" id="na-clean-retry-text"></p>
+                        <div class="na-button-row">
+                            <button type="button" class="naButton" id="na-clean-retry-load">Load Cleaned LAS</button>
+                        </div>
+                    </div>
+                    <div class="na-clean-last na-hidden" id="na-clean-last">
+                        <p class="na-xform-caption" id="na-clean-last-title"></p>
+                        <div class="na-stat-grid" id="na-clean-last-stats"></div>
+                        <p class="na-hint" id="na-clean-last-notes"></p>
+                    </div>
+                    <p class="na-hint" id="na-clean-units-hint">Lengths in these settings are millimetres. The cloud's own unit, chosen when it was imported, converts them; nothing is guessed. SketchUp's Undo can switch the model back to the earlier file but never deletes a file.</p>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ============================================================ -->
+
+        <!-- ======================================================================
              REGION | Tab Panel - Settings
              ====================================================================== -->
         <div id="na-tab-settings" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="settings">
@@ -408,6 +478,7 @@
 <script src="02__Src__AppModules/50__System__ClipBox/Na__PointCloudViewer__ClipBox__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/60__System__Transform/Na__PointCloudViewer__Transform__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/70__System__Persistence/Na__PointCloudViewer__Persistence__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/80__System__Clean/Na__PointCloudViewer__Clean__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/35__System__SettingsMode/Na__PointCloudViewer__SettingsTab__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__TabRouter__.js"></script>
 <!-- endregion ============================================================== -->

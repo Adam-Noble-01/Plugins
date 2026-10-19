@@ -140,6 +140,7 @@ module Na__PointCloudViewer
             Na__Placement.Na__Placement__Reload(session)
             Na__LocalBackup.Na__Backup__AfterReload(model, session)
             Na__RenderController.Na__Render__RefreshExtents(session)
+            Na__CleanPreview.Na__Clean__Changed(session) if defined?(Na__CleanPreview)
             model.active_view.invalidate
             Na__DialogManager.Na__Dialog__PushState if Na__DialogManager.Na__Dialog__Visible?
         end

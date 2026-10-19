@@ -84,13 +84,85 @@ module Na__PointCloudViewer
         end
 
         # Undo / Redo: the stored record may have changed under us.
+        #   - a record for this cloud: use it;
+        #   - the model now names ANOTHER cloud (a record for another cloud, or
+        #     a link to another file: for example Undo of "Use Cleaned LAS",
+        #     which puts the original file's records back while the cleaned
+        #     cloud is still loaded): the loaded cloud stays exactly where it
+        #     is, with a note. It never jumps to its import position;
+        #   - no record and the link still names this cloud (its first saved
+        #     change was undone): the import position.
         def self.Na__Placement__Reload(session)
             return unless session.cloud && session.placement
             stored = self.na_read(session.model)
             key = session.placement['key']
-            session.placement = stored && self.Na__Placement__SameCloud?(stored['key'], key) ? stored.merge('key' => key) : self.na_default(key)
+            other_file = self.na_link_names_other(session)
+            if stored && self.Na__Placement__SameCloud?(stored['key'], key)
+                session.placement = stored.merge('key' => key)
+                session.placement_note = nil
+            elsif stored || other_file
+                named = stored ? stored['file'] : other_file
+                session.placement_note = "The model now names #{named}. The loaded cloud stays where it is; " \
+                                         'Reload Point Cloud loads the file the model names.'
+            else
+                session.placement = self.na_default(key)
+            end
             self.na_apply(session, session.cloud)
             self.Na__Placement__StopTool(session) if session.placement['locked']
+        end
+
+        # The file name the model's link names, when that is not the loaded
+        # cloud (nil when it is, or when there is no link).
+        def self.na_link_names_other(session)
+            link = Na__ModelLink.Na__Link__Read(session.model)
+            return nil unless link
+            cloud_part = link['cloud']
+            loaded_key = (session.cloud.las_info || {})['contentKey']
+            same = if cloud_part['contentKey'] && loaded_key
+                       cloud_part['contentKey'] == loaded_key
+                   else
+                       cloud_part['fingerprint'] == Na__ModelLink.Na__Link__FingerprintFromKey(session.placement['key'])
+                   end
+            same ? nil : cloud_part['fileName'].to_s
+        end
+
+        # The placement of the same survey points when a cloud of the same LAS
+        # coordinates is loaded with another local origin (a cleaned copy:
+        # its bounds, and so its origin, can change). A LAS point p sits at
+        # R k (p - o) + t before and must sit at R k (p - o') + t' after, so
+        # t' = t + R k (o' - o); the gimbal point (local) shifts by o - o'.
+        # Rotation, lock and the unit factor k are unchanged.
+        def self.Na__Placement__ForNewOrigin(placement, unit_factor, old_origin, new_origin, new_key)
+            r = placement['rotation']
+            k = unit_factor.to_f
+            d = (0..2).map { |i| new_origin[i].to_f - old_origin[i].to_f }
+            turned = self.na_mul_vec(r, d)
+            gimbal = placement['gimbal'] ? (0..2).map { |i| placement['gimbal'][i].to_f - d[i] } : nil
+            {
+                'key'         => new_key,
+                'rotation'    => r.dup,
+                'translation' => (0..2).map { |i| placement['translation'][i].to_f + turned[i] * k },
+                'gimbal'      => gimbal,
+                'locked'      => placement['locked'] ? true : false
+            }
+        end
+
+        # The record Na__Placement__Save writes, for a placement (the Clean
+        # export writes it together with the link, as one operation).
+        def self.Na__Placement__Record(placement)
+            now = Time.now
+            {
+                'schema'        => NA_SCHEMA,
+                'schemaVersion' => NA_SCHEMA_VERSION,
+                'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'updatedEpoch'  => now.to_f,
+                'key'           => placement['key'],
+                'file'          => placement['key'].split('|').first,
+                'rotation'      => self.na_orthonormal(placement['rotation']),
+                'translation'   => placement['translation'],
+                'gimbal'        => placement['gimbal'],
+                'locked'        => placement['locked'] ? true : false
+            }
         end
 
         # A cloud imported before placements existed (or before a plugin reload)
@@ -139,19 +211,7 @@ module Na__PointCloudViewer
             return unless model && session.placement
             placement = session.placement
             placement['rotation'] = self.na_orthonormal(placement['rotation'])
-            now = Time.now
-            data = {
-                'schema'        => NA_SCHEMA,
-                'schemaVersion' => NA_SCHEMA_VERSION,
-                'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'updatedEpoch'  => now.to_f,
-                'key'           => placement['key'],
-                'file'          => placement['key'].split('|').first,
-                'rotation'      => placement['rotation'],
-                'translation'   => placement['translation'],
-                'gimbal'        => placement['gimbal'],
-                'locked'        => placement['locked'] ? true : false
-            }
+            data = self.Na__Placement__Record(placement)
             begin
                 model.start_operation(operation_name, true)
                 model.set_attribute(NA_DICT, NA_KEY, JSON.generate(data))
@@ -162,6 +222,7 @@ module Na__PointCloudViewer
             end
             session.placement_note = nil
             Na__LocalBackup.Na__Backup__AfterSave(model, session)
+            Na__CleanPreview.Na__Clean__Changed(session) if defined?(Na__CleanPreview)   # the box now covers other points
         end
 
     # endregion ----------------------------------------------------------------

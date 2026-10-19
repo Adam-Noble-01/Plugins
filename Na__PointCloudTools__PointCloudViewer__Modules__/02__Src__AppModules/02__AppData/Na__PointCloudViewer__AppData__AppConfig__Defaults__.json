@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na Point Cloud Viewer",
-        "version" : "0.7.0"
+        "version" : "0.8.0"
     },
 
     "dialog" : {
@@ -44,6 +44,17 @@
         ],
         "monochromeRgb"    : [0, 0, 0],
         "noRgbFallbackRgb" : [110, 110, 110],
+        "cleanColours" : {
+            "_comment"     : "Clean tab, Differences view. Moved points shade from movedSmall to movedMax by how far they moved (up to the largest move allowed); unchanged points keep their colour, blended this share towards unchangedTint.",
+            "removed"      : [214, 32, 32],
+            "movedSmall"   : [142, 197, 240],
+            "movedMax"     : [11, 60, 158],
+            "candidate"    : [240, 160, 0],
+            "doubling"     : [192, 0, 192],
+            "thinned"      : [200, 188, 168],
+            "unchangedTint": [230, 230, 230],
+            "tintShare"    : 0.6
+        },
         "nativeImage" : {
             "_comment"      : "Render scale = output pixels per logical viewport pixel. movingScale (and at most movingBudgetMax points) while the camera moves or something is dragged; fullScale and the whole budget once still for settleSeconds. movingBudgetMax 0 = no cap.",
             "movingScale"   : 0.5,
@@ -62,6 +73,71 @@
         "angleSnapDegrees" : 15,
         "gimbalPx"         : 90,
         "protractorPx"     : 80
+    },
+
+    "clean" : {
+        "_comment" : "Clean tab. Strength 0..100 maps to the physical values documented in 80__System__Clean/...Settings__.rb (50 = the engine defaults the tests use). Advanced values are millimetres unless a unit says otherwise; a typed value replaces the mapped one until Reset to Defaults.",
+        "preview" : {
+            "debounceSeconds" : 0.35,
+            "pollSeconds"     : 0.12,
+            "largeBoxPoints"  : 3000000
+        },
+        "export" : {
+            "suffix"       : "_Cleaned_",
+            "software"     : "Na Point Cloud Viewer"
+        },
+        "filters" : {
+            "noise" : {
+                "label"        : "Remove Noise",
+                "enabled"      : true,
+                "strength"     : 50,
+                "strengthLow"  : "Gentle",
+                "strengthHigh" : "Strong",
+                "summary"      : "Removes stray points that sit apart from every surface: single returns and small floating groups. Dense false surfaces, such as a reflection in a window, are kept. Sparse scatter beside windows is only marked, unless Remove reflection scatter is on. Small real objects (handles, pipes, lamps) are kept.",
+                "advanced" : [
+                    { "key" : "iso_ratio",          "label" : "Isolated point ratio",   "unit" : "x",      "min" : 1.5, "max" : 10,   "step" : 0.1, "hint" : "A point is removed when its nearest neighbours are this many times further away than the spacing of the surface around it." },
+                    { "key" : "iso_min_mm",         "label" : "Isolated point gap",     "unit" : "mm",     "min" : 1,   "max" : 500,  "step" : 1,   "hint" : "... and at least this far." },
+                    { "key" : "cluster_min_points", "label" : "Detached group size",    "unit" : "points", "min" : 2,   "max" : 2000, "step" : 1,   "hint" : "A group cut off from every surface with fewer points than this ..." },
+                    { "key" : "cluster_max_mm",     "label" : "Detached group extent",  "unit" : "mm",     "min" : 10,  "max" : 2000, "step" : 10,  "hint" : "... and smaller than this is removed." },
+                    { "key" : "link_factor",        "label" : "Group link factor",      "unit" : "x",      "min" : 1.5, "max" : 10,   "step" : 0.1, "hint" : "Points closer than this many local spacings belong to one group." },
+                    { "key" : "link_min_mm",        "label" : "Group link minimum",     "unit" : "mm",     "min" : 5,   "max" : 500,  "step" : 1 },
+                    { "key" : "link_max_mm",        "label" : "Group link maximum",     "unit" : "mm",     "min" : 10,  "max" : 1000, "step" : 1 },
+                    { "key" : "knn_cap_mm",         "label" : "Neighbour search radius","unit" : "mm",     "min" : 20,  "max" : 1000, "step" : 10,  "hint" : "Neighbours are only looked for this far." },
+                    { "key" : "scatter_ratio",      "label" : "Sparse scatter ratio",   "unit" : "x",      "min" : 1.2, "max" : 10,   "step" : 0.1, "hint" : "Off-surface points this many times sparser than the surfaces around them are marked as reflection scatter." },
+                    { "key" : "blowout_remove",     "label" : "Remove reflection scatter", "kind" : "toggle", "min" : 0, "max" : 1, "step" : 1, "hint" : "Off: sparse scatter beside windows is only marked (orange in Differences). On: it is removed. Dense false surfaces are never removed." }
+                ]
+            },
+            "refine" : {
+                "label"        : "Refine Surfaces",
+                "enabled"      : true,
+                "strength"     : 70,
+                "strengthLow"  : "Light",
+                "strengthHigh" : "Full",
+                "summary"      : "Pulls each point part of the way towards a smooth fit of its own surface nearby, along that surface's normal only, so walls get thinner without being flattened. Corners, reveals, sills, skirtings and steps from 30 mm are kept; points where two surfaces meet are left alone. A surface seen twice by different scan passes is marked, never averaged. Walls are never assumed to be plumb, square or flat.",
+                "advanced" : [
+                    { "key" : "max_move_mm",       "label" : "Largest move",             "unit" : "mm",           "min" : 1,   "max" : 100, "step" : 1,   "hint" : "No point is ever moved further than this." },
+                    { "key" : "smooth_radius_mm",  "label" : "Fit radius",               "unit" : "mm",           "min" : 10,  "max" : 200, "step" : 1,   "hint" : "The surface under a point is fitted over this radius (at most the analysis cell). Smaller keeps finer detail." },
+                    { "key" : "inlier_band",       "label" : "Surface band",             "unit" : "noise widths", "min" : 1,   "max" : 6,   "step" : 0.1, "hint" : "Only points this close to their surface are moved." },
+                    { "key" : "cell_mm",           "label" : "Analysis cell",            "unit" : "mm",           "min" : 20,  "max" : 200, "step" : 5,   "hint" : "Each surface is judged over 3 x 3 x 3 cells around a point." },
+                    { "key" : "pass_disagree_mm",  "label" : "Doubled surface gap",      "unit" : "mm",           "min" : 5,   "max" : 100, "step" : 1,   "hint" : "Two sheets of one surface further apart than this are marked as a possible scan registration error." },
+                    { "key" : "pass_gap_s",        "label" : "Scan pass gap",            "unit" : "s",            "min" : 0.1, "max" : 60,  "step" : 0.1, "hint" : "With GPS time, a pause this long starts a new scan pass." },
+                    { "key" : "doubling_hold",     "label" : "Leave doubled surfaces as they are", "kind" : "toggle", "min" : 0, "max" : 1, "step" : 1, "hint" : "On: points on a doubled surface are never moved." },
+                    { "key" : "sigma_fallback_mm", "label" : "Assumed noise",            "unit" : "mm",           "min" : 1,   "max" : 40,  "step" : 0.5, "hint" : "Used where the scan's noise cannot be measured nearby." }
+                ]
+            },
+            "density" : {
+                "label"        : "Reduce Density",
+                "enabled"      : false,
+                "strength"     : 50,
+                "strengthLow"  : "Fine",
+                "strengthHigh" : "Coarse",
+                "summary"      : "Thins the cloud by keeping real measured points only, never averages: about one per patch of plain wall or floor, and more at corners, edges, steps and small objects.",
+                "advanced" : [
+                    { "key" : "voxel_mm",       "label" : "Patch size",    "unit" : "mm", "min" : 2, "max" : 100, "step" : 0.5, "hint" : "About one point is kept per patch this size on plain surfaces." },
+                    { "key" : "feature_factor", "label" : "Detail factor", "unit" : "x",  "min" : 1, "max" : 6,   "step" : 0.1, "hint" : "Corners, edges, steps and small objects keep patches this many times finer." }
+                ]
+            }
+        }
     },
 
     "paths" : {

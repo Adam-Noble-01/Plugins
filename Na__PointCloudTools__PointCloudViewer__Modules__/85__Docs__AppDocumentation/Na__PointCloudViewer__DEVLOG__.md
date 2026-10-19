@@ -4,6 +4,120 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.8.0 - 12-Oct-2026 - Clean Tab, Clean & Export to a New LAS
+
+### Summary
+Adam asked for a complete architectural point cloud cleaning system inside the viewer: a Clean
+tab with three filters (Remove Noise, Refine Surfaces, Reduce Density), a live preview in the clip
+box, an Original / Cleaned / Differences view, a surface check, and Clean & Export LAS that never
+touches the original: a Save As every time, a new file, checked and published without replacing
+anything, loaded in the same position and used by the model only when everything succeeded.
+Designed, built and tested; ARCHITECTURE section 22 is the full description.
+
+### Built
+- **Engine (ABI 5):** clouds keep each point's LAS record and GPS time; LAS content key; point
+  cache v2 named by the content key (v1 still read); the cleaning engine (deterministic KD-tree,
+  zones and halos, preview worker per cloud with stage re-use and supersession, full-cloud tiling,
+  sparse cell grid); the LAS export writer (record passthrough, header rebuilt, VLRs / EVLRs kept,
+  provenance VLR, partial file, LASzip check, publish without replace).
+- **Ruby:** bridge for ABI 5 (contexts and export jobs destroyed before a DLL swap);
+  `80__System__Clean/` (Settings: strength to physical values; Preview: debounced requests, poll
+  timer, display clouds; Export: Save As loop, checks, the job, the model association, retry);
+  content keys in the import, the cache and the model link (`contentKey`, `derivedFrom`, `history`);
+  placement carried over to a new local origin; Undo after "Use Cleaned LAS" leaves the loaded
+  cloud in place with a note.
+- **UI:** Clean tab between Transform and Settings (Preview Region, three filter cards with
+  Advanced Settings, Preview Results with the display switch, legend, statistics, surface check,
+  Reset to Defaults; Clean & Export with the last export's report and Load Cleaned LAS). Version
+  0.8.0; config `clean` section and `render.cleanColours`.
+
+### Found by testing today and fixed
+- **False "doubled surface" at corners and trim junctions** (no doubling in those scenes). Causes,
+  each measured: 60 mm of a wall in a corner block fixes its normal only to ~5 degrees (PCA on the
+  true labels: 4.9 degrees), so a tilted plane read as two sheets; "thin" blocks at frame / sash
+  staircases and sill edges lent planes tilted 17 to 50 degrees; the second plane of a block was
+  scored on leftovers, where an edge-on frame strip fits any plane; trims fell back to the 8 mm
+  default noise width; junction steps passed the footprint test; a pipe's sides passed the width
+  test because 5 % of wall points inflated a standard deviation. Fixes: planes borrowed from thin
+  cells, joint scoring over the whole block, a half-block test for thin cells, the noise width from
+  the nearest thin cells, a mixing test for doubling, a robust width. False doubling points before
+  -> after: corner 1825 -> 0 and 856 -> 0; window 618 -> 451, 1429 -> 661, 124 -> 0; blow-out 8551 ->
+  3278; details 6981 -> 924 and 1695 -> 177. Real doublings still found (99.7 %, 99.9 %).
+- **Exports failing with "Not enough memory" for large Advanced values or sparse clouds:** the
+  per-region cell grid was dense over the whole tile plus halo (~400 MB even for 60 points). Now
+  sparse (blocks allocated where points are); results identical (preview = export still bit for
+  bit), memory follows the points.
+- **An existing destination or the source itself** was only refused after a whole clean, with the
+  message "appeared while cleaning". The engine now refuses both (and a missing folder) before
+  cleaning, with the right message.
+- **Undo of "Use Cleaned LAS"** could move the still-loaded cleaned cloud to its own import
+  position when the original had no saved position. Now it stays where it is, with a note.
+- **Previews too slow on dense scans** (a 1 m box on Cossethay took 2.5 s, over the 2 s target).
+  Measured stage by stage: the 1348 mm margin is most of the work for a small box (32k points in
+  the box, 1.45M gathered), and 75 % of the surface analysis was the two-sheet mixture test. The
+  mixture EM now runs on fine bins (validated against the per-point EM on 499 943 real cases: the
+  same decision in all but 10, each on a threshold); gather, the KD-tree build, the noise-width
+  helper and the MSAC cost loop were made faster without changing a single result (checked point
+  by point on 2.65M points and by test H). The same 1 m Cossethay box: 2.5 s -> 1.26 s. Not met
+  everywhere: at the densest spot of each scan a 1 m box takes 0.2 s (JW02), 0.9 s (Derby Road),
+  2.1 s (Cossethay) and 7.0 s (SK02, a passage the scanner went through many times: 615k points
+  in one square metre, where refinement alone takes 3.1 s).
+- **Whole-cloud clean slow on a site with one very dense spot** (found on SK02, Adam's Ascott
+  Drive scan): one tile size for the whole site was set by its densest spot, 1181 tiles of ~2 m,
+  each re-reading its 1.35 m margin. Tiles are now split only where the points are (113 tiles,
+  clean 480 -> 331 s); the same flags and positions for all 66.3M points of JW02, Cossethay and
+  SK02, compared point by point. The export now also fails, rather than skip a point, if the tiles
+  ever miss one.
+
+### Verified (all run today)
+- Algorithms A to H 100/100; identity and cache 20/20; export integrity I 122/122 (LAS 1.2 formats
+  0 to 3, LAS 1.4 formats 6 to 8, extra bytes, EVLRs, WKT); failure handling J 14/14; Ruby harness
+  183/183 (existing) and 57/57 (Clean tab); performance K below, on six clouds including Adam's
+  SK02 Ascott Drive GeoSLAM export (39.0M points). All suites were run again after the speed
+  changes. Every real scan's SHA-256 and modified time were unchanged after its export.
+
+### Performance (final engine, 12-Oct-2026 23:39; ARCHITECTURE 22.15)
+
+| Cloud | Points | Load | Clean whole cloud | Write + check | Export total | Engine work peak | Process peak | Preview 1 m / first 2 m / 2 m re-used | Source unchanged (SHA-256 + time) |
+|---|---|---|---|---|---|---|---|---|---|
+| Synthetic room (LAS 1.2 f1 + time) | 1.16M | 1.0 s | 3.2 s (1 tile) | 0.8 s | 4.0 s | 224 MB | 564 MB | 0.44 / 1.10 / 0.17 | n/a (synthetic) |
+| Synthetic 9 rooms (LAS 1.2 f1 + time) | 10.46M | 7.9 s | 42.1 s (8 tiles) | 5.3 s | 47.5 s | 959 MB | 1722 MB | 0.49 / 1.42 / 0.19 | n/a (synthetic) |
+| JW02, RealityCapture (LAS f2, no time) | 10.76M | 1.1 s | 33.0 s (12 tiles) | 5.5 s | 38.6 s | 576 MB | 1027 MB | 0.05 / 0.44 / 0.01 | yes |
+| Cossethay, GeoSLAM (LAS f1 + time) | 16.47M | 1.9 s | 86.6 s (25 tiles) | 8.0 s | 94.8 s | 1566 MB | 2694 MB | 1.38 / 3.51 / 0.78 | yes |
+| Derby Road, GeoSLAM (LAS f1 + time) | 31.30M | 3.7 s | 149.0 s (70 tiles) | 14.9 s | 164.0 s | 947 MB | 2413 MB | 0.04 / 1.13 / 0.01 | yes |
+| SK02 Ascott Drive, GeoSLAM (LAS f0, no time) | 39.03M | 3.3 s | 324.9 s (113 tiles) | 31.1 s | 356.2 s | 1814 MB | 3787 MB | 0.24 / 1.73 / 0.07 | yes |
+
+Other processes (RealityScan) kept 0 to 3.4 cores busy during these runs. Before the speed work
+and the adaptive tiles, the same evening: export total JW02 73.3 s, Cossethay 170.5 s, Derby Road
+293.6 s, SK02 535.8 s.
+
+### Limitations (see ARCHITECTURE 22.13)
+- Doubled surfaces closer than ~2.5 noise widths cannot be seen without GPS time (20 mm at 10 mm
+  noise: 11 %).
+- Dense false reflections are kept by design; sparse blow-out only marked unless asked.
+- Thin objects seen from both sides (an open door leaf, a radiator in front of its wall) are
+  flagged as possible doubling and held (seen on Cossethay); real scans: 6 to 15 % of points
+  flagged, not checked against a survey.
+- At 10 mm noise, a ~2 noise-width band each side of a corner line is held, not refined.
+- The first preview of a cloud also builds its coarse grid (0.3 to 0.4 s at 10 to 16M points,
+  ~1 s at 39M).
+- Not run: a destination folder without write permission; nothing was tried inside SketchUp itself.
+
+### For Adam to test
+- Reload Plugin is not enough this time: restart SketchUp (ABI 5 DLL and new Ruby).
+- Load a scan, turn on the clip box round a wall and a corner, open the Clean tab: the preview
+  appears; switch Original / Cleaned / Differences; drag a strength slider.
+- Clean & Export LAS...: the suggested name is `<name>_Cleaned_01.las`; try choosing the original
+  (refused) then a new name; when it finishes the model shows the new file in the same place; the
+  original and its cache are untouched; Edit > Undo puts the model's link back.
+- In Differences, magenta marks possible doubled surfaces: worth judging by eye on a real scan
+  (SK02 flags 14.8 % of its points; open doors and radiators are flagged too and left as scanned).
+- SK02 (39M points): a whole-cloud Clean & Export takes several minutes (see the table); check
+  that SketchUp stays responsive meanwhile and that Cancel stops it with nothing written (both
+  checked only in the offline harness so far).
+
+---
+
 ## Point Cloud Viewer - v0.7.0 - 03-Oct-2026 - Faster Rendering, Point Cache, Cold-Start Crash Fixed
 
 ### Summary

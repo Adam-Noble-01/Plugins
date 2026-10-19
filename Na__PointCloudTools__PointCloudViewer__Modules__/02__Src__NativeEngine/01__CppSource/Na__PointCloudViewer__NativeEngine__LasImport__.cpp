@@ -12,6 +12,7 @@
 // =============================================================================
 
 #include "Na__PointCloudViewer__NativeEngine__LasImport__.hpp"
+#include "Na__PointCloudViewer__NativeEngine__LasFile__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__PointCache__.hpp"
 
 #include "laszip_api.h"
@@ -111,10 +112,15 @@ namespace {
             // --- read ---------------------------------------------------------------
             job->total.store(count);
             job->phase.store(NA_LAS_PHASE_READING);
-            std::unique_ptr<Na__PointCloud> cloud(new Na__PointCloud());
+            std::shared_ptr<Na__CloudPoints> cloud(new Na__CloudPoints());
             cloud->count = count;
             cloud->xyz.resize(static_cast<size_t>(count) * 3);
             cloud->bgra.resize(static_cast<size_t>(count));
+            const bool keep_index = count <= static_cast<laszip_I64>(UINT32_MAX);
+            if (keep_index) cloud->source_index.resize(static_cast<size_t>(count));
+            const bool has_time = Na__Las__GpsTimeOffset(header->point_data_format) >= 0;
+            if (has_time) cloud->time.resize(static_cast<size_t>(count));
+            double time_min = 0.0, time_max = 0.0;
             std::vector<uint16_t> rgb16(has_rgb ? static_cast<size_t>(count) * 3 : 0);
 
             const auto read_start = std::chrono::steady_clock::now();
@@ -126,9 +132,16 @@ namespace {
                     laszip_close_reader(reader); laszip_destroy(reader);
                     return Na__Fail(job, error);
                 }
-                xyz[i * 3]     = static_cast<float>(point->X * sx + ox - job->origin[0]);
-                xyz[i * 3 + 1] = static_cast<float>(point->Y * sy + oy - job->origin[1]);
-                xyz[i * 3 + 2] = static_cast<float>(point->Z * sz + oz - job->origin[2]);
+                xyz[i * 3]     = Na__Las__LocalCoordinate(point->X, sx, ox, job->origin[0]);
+                xyz[i * 3 + 1] = Na__Las__LocalCoordinate(point->Y, sy, oy, job->origin[1]);
+                xyz[i * 3 + 2] = Na__Las__LocalCoordinate(point->Z, sz, oz, job->origin[2]);
+                if (keep_index) cloud->source_index[static_cast<size_t>(i)] = static_cast<uint32_t>(i);
+                if (has_time) {
+                    if (i == 0) { cloud->time_base = point->gps_time; time_min = time_max = point->gps_time; }
+                    time_min = std::min(time_min, point->gps_time);
+                    time_max = std::max(time_max, point->gps_time);
+                    cloud->time[static_cast<size_t>(i)] = static_cast<float>(point->gps_time - cloud->time_base);
+                }
                 if (has_rgb) {
                     rgb16[i * 3]     = point->rgb[0];
                     rgb16[i * 3 + 1] = point->rgb[1];
@@ -149,6 +162,11 @@ namespace {
             reader = nullptr;
             job->read_ms = Na__MsSince(read_start);
             job->done.store(count);
+            // A time that never changes carries nothing: drop it.
+            if (has_time && !(time_max > time_min)) {
+                std::vector<float>().swap(cloud->time);
+                cloud->time_base = 0.0;
+            }
 
             // --- colours: LAS says 16-bit, some writers store 0-255; detect -----------
             job->phase.store(NA_LAS_PHASE_COLOURS);
@@ -177,12 +195,16 @@ namespace {
             job->done.store(0);
             const auto shuffle_start = std::chrono::steady_clock::now();
             uint64_t state = job->seed;
+            uint32_t* source_index = cloud->source_index.empty() ? nullptr : cloud->source_index.data();
+            float*    times        = cloud->time.empty() ? nullptr : cloud->time.data();
             for (laszip_I64 i = count - 1; i > 0; --i) {
                 const laszip_I64 j = static_cast<laszip_I64>(Na__SplitMix64(state) % static_cast<uint64_t>(i + 1));
                 std::swap(xyz[i * 3], xyz[j * 3]);
                 std::swap(xyz[i * 3 + 1], xyz[j * 3 + 1]);
                 std::swap(xyz[i * 3 + 2], xyz[j * 3 + 2]);
                 std::swap(bgra[i], bgra[j]);
+                if (source_index) std::swap(source_index[i], source_index[j]);
+                if (times) std::swap(times[i], times[j]);
                 if ((i & 0xFFFF) == 0) {
                     job->done.store(count - i, std::memory_order_relaxed);
                     if (job->cancel_requested.load(std::memory_order_relaxed)) {
@@ -195,13 +217,15 @@ namespace {
             job->shuffle_ms = Na__MsSince(shuffle_start);
 
             job->point_count = count;
-            job->cloud = std::move(cloud);
+            job->cloud.reset(new Na__PointCloud());
+            job->cloud->count  = count;
+            job->cloud->points = std::move(cloud);
 
             // --- point cache for next time (a failure here never fails the import) ---
             if (!job->cache_path.empty()) {
                 job->phase.store(NA_LAS_PHASE_SAVING);
                 job->done.store(0);
-                job->total.store(static_cast<int64_t>(sizeof(Na__CacheHeader)) + count * 16);
+                job->total.store(static_cast<int64_t>(Na__Cache__FileBytes(*job->cloud->points)));
                 bool save_cancelled = false;
                 std::string cache_error;
                 const bool saved = Na__Cache__Write(job->cache_path, *job, job->done, job->cancel_requested, save_cancelled, cache_error);

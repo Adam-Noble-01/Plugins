@@ -13,7 +13,8 @@
 #   plugin and whether or not the LAS exists):
 #     Na__PointCloudViewer__ModelLink  which LAS: file name, last path, path
 #                                      relative to the .skp, unit, point count,
-#                                      fingerprint, link id
+#                                      fingerprint, content key, link id, and
+#                                      for a cleaned copy what it was made from
 #     Na__PointCloudViewer__Placement  position, rotation, gimbal point, lock
 #     Na__PointCloudViewer__ClipState  clip box and clip scenes
 #   A copy of all three is kept on this computer (Na__LocalBackup).
@@ -22,8 +23,16 @@
 #   Cloud button. Reload finds the LAS (last path, then beside the .skp, then
 #   this computer's backup path, then the last import folder), reads only its
 #   header, and loads it only if the header matches the link's fingerprint
-#   (point count + survey origin). A moved or renamed LAS can be pointed to
-#   with Locate LAS; the same check applies.
+#   (point count + survey origin) AND, when the link records one, its content
+#   key (v0.8.0): a cleaned copy with the same count and position is never
+#   taken for its original, nor the other way round. A moved or renamed LAS
+#   can be pointed to with Locate LAS; the same checks apply. A link written
+#   before v0.8.0 has no content key; its next load records one.
+#
+# CLEANED COPIES: after Clean & Export LAS, the link points to the NEW file
+#   (cloud.derivedFrom names the file it was made from; history keeps every
+#   earlier file). It is one undoable operation, so SketchUp's Undo can put
+#   the link back to the earlier file. Undo never deletes or changes a file.
 #
 # =============================================================================
 
@@ -95,28 +104,16 @@ module Na__PointCloudViewer
             model = session.model
             return unless model && session.placement
             current = self.Na__Link__Read(model)
-            fingerprint = self.Na__Link__FingerprintFromKey(session.placement['key'])
-            same_cloud = current && current['cloud']['fingerprint'] == fingerprint
-            cloud_part = {
-                'fileName'     => File.basename(cloud.source_path.to_s),
-                'lastPath'     => cloud.source_path.to_s.tr('\\', '/'),
-                'relativePath' => self.na_relative_path(model, cloud.source_path.to_s),
-                'sourceUnit'   => cloud.source_unit,
-                'pointCount'   => cloud.total_points,
-                'fingerprint'  => fingerprint
-            }
+            cloud_part = self.Na__Link__CloudPart(model, cloud, session.placement['key'])
+            same_cloud = current && self.na_same_cloud_part?(current['cloud'], cloud_part)
+            # a cleaned copy loaded again keeps what it was made from
+            if same_cloud
+                cloud_part['derivedFrom'] = current['cloud']['derivedFrom'] if current['cloud']['derivedFrom']
+                cloud_part['contentKey'] ||= current['cloud']['contentKey'] if current['cloud']['contentKey']
+            end
             changed = !(same_cloud && current['cloud'] == cloud_part)
             if changed
-                now = Time.now
-                record = {
-                    'schema'        => NA_SCHEMA,
-                    'schemaVersion' => NA_SCHEMA_VERSION,
-                    'linkId'        => same_cloud ? current['linkId'] : self.na_new_link_id(now),
-                    'createdAt'     => same_cloud ? current['createdAt'] : now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                    'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                    'pluginVersion' => Na__PointCloudViewer.Na__PublicApi__Version,
-                    'cloud'         => cloud_part
-                }
+                record = self.Na__Link__BuildRecord(same_cloud ? current : nil, cloud_part)
                 self.na_write(model, same_cloud ? 'Point Cloud: Update LAS Location' : 'Point Cloud: Link LAS to Model') do
                     model.set_attribute(NA_DICT, NA_KEY, JSON.generate(record))
                 end
@@ -145,14 +142,11 @@ module Na__PointCloudViewer
             return 'This model has no point cloud link to reload.' unless link
             backup = Na__LocalBackup.Na__Backup__Find(model, link)
             candidates = self.na_candidates(model, link, backup)
-            fingerprint = link['cloud']['fingerprint']
-            cached = Na__PointCache.Na__Cache__ForFingerprint(fingerprint)
-            if cached
-                unchanged = candidates.find { |path| Na__PointCache.Na__Cache__MatchesLas?(cached, path) }
-                return self.na_start_import(session, unchanged, link['cloud']['sourceUnit'], 0) if unchanged
-            end
-            match, mismatched = self.na_find_matching_file(candidates, fingerprint)
+            match, mismatched = self.na_find_matching_file(candidates, link['cloud'])
+            # the import uses this computer's cache of that exact file when it has one
             return self.na_start_import(session, match[0], link['cloud']['sourceUnit'], match[1]) if match
+            key = link['cloud']['contentKey']
+            cached = key ? Na__PointCache.Na__Cache__ForKey(key) : Na__PointCache.Na__Cache__LegacyForFingerprint(link['cloud']['fingerprint'])
             if cached
                 return Na__LasImport.Na__LasImport__StartFromCache(session, link['cloud']['lastPath'], link['cloud']['sourceUnit'], cached)
             end
@@ -168,9 +162,10 @@ module Na__PointCloudViewer
             start = model.path.to_s.empty? ? '' : File.dirname(model.path)
             path = UI.openpanel("Locate #{link['cloud']['fileName']}", start, 'LAS point cloud (*.las)|*.las||')
             return 'Locate cancelled.' unless path
-            match, = self.na_find_matching_file([path], link['cloud']['fingerprint'])
+            match, = self.na_find_matching_file([path], link['cloud'])
             unless match
-                return "That file is not the scan this model was linked to (#{Na__PerfStats.Na__Perf__Thousands(link['cloud']['pointCount'])} points). Nothing was loaded."
+                same = link['cloud']['contentKey'] ? ' and the same content' : ''
+                return "That file is not the scan this model was linked to (#{Na__PerfStats.Na__Perf__Thousands(link['cloud']['pointCount'])} points#{same}). Nothing was loaded."
             end
             self.na_start_import(session, match[0], link['cloud']['sourceUnit'], match[1])
         end
@@ -232,8 +227,10 @@ module Na__PointCloudViewer
                      self.Na__Link__FingerprintFromKey(session.placement['key']) == cloud['fingerprint'] ? true : false
             found = link ? self.na_first_existing(self.na_candidates(model, link, backup)) : nil
             stored_placement = Na__Placement.na_read(model)
+            derived = cloud['derivedFrom'].is_a?(Hash) ? cloud['derivedFrom'] : nil
             {
                 'state'         => link ? 'linked' : 'backupOnly',
+                'derivedFrom'   => derived ? derived['fileName'].to_s : nil,
                 'unreadable'    => unreadable,
                 'loaded'        => loaded,
                 'otherLoaded'   => session.cloud && !loaded ? true : false,
@@ -253,6 +250,53 @@ module Na__PointCloudViewer
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Warn("Point cloud link status could not be built: #{error.message}")
             { 'state' => 'none' }
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Records (shared with the Clean export)
+    # -------------------------------------------------------------------------
+
+        # The link's description of a loaded cloud.
+        def self.Na__Link__CloudPart(model, cloud, placement_key)
+            info = cloud.las_info || {}
+            part = {
+                'fileName'     => File.basename(cloud.source_path.to_s),
+                'lastPath'     => cloud.source_path.to_s.tr('\\', '/'),
+                'relativePath' => self.na_relative_path(model, cloud.source_path.to_s),
+                'sourceUnit'   => cloud.source_unit,
+                'pointCount'   => cloud.total_points,
+                'fingerprint'  => self.Na__Link__FingerprintFromKey(placement_key)
+            }
+            part['contentKey'] = info['contentKey'] if info['contentKey']
+            part
+        end
+
+        # A whole link record. previous: the record it replaces for the same
+        # model link (keeps the link id, creation time and history), or nil.
+        def self.Na__Link__BuildRecord(previous, cloud_part, history = nil)
+            now = Time.now
+            record = {
+                'schema'        => NA_SCHEMA,
+                'schemaVersion' => NA_SCHEMA_VERSION,
+                'linkId'        => previous ? previous['linkId'] : self.na_new_link_id(now),
+                'createdAt'     => previous ? previous['createdAt'] : now.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'pluginVersion' => Na__PointCloudViewer.Na__PublicApi__Version,
+                'cloud'         => cloud_part
+            }
+            history ||= previous && previous['history'].is_a?(Array) ? previous['history'] : nil
+            record['history'] = history if history && !history.empty?
+            record
+        end
+
+        # Same file: the content keys agree when both are known, else the
+        # fingerprints (links from before v0.8.0).
+        def self.na_same_cloud_part?(a, b)
+            return false unless a.is_a?(Hash) && b.is_a?(Hash)
+            return a['contentKey'] == b['contentKey'] if a['contentKey'] && b['contentKey']
+            a['fingerprint'] == b['fingerprint']
         end
 
     # endregion ----------------------------------------------------------------
@@ -308,13 +352,18 @@ module Na__PointCloudViewer
             paths.find { |path| File.file?(path) }
         end
 
-        # [[path, header_ms], mismatched_paths]. Reads only LAS headers.
-        def self.na_find_matching_file(paths, fingerprint)
+        # [[path, header_ms], mismatched_paths]. Reads LAS headers, and for a
+        # link that records a content key, about 2 MB of each file whose header
+        # matches (the same count and position is not enough).
+        def self.na_find_matching_file(paths, cloud_part)
+            fingerprint = cloud_part['fingerprint']
+            key = cloud_part['contentKey']
             mismatched = []
             paths.each do |path|
                 next unless File.file?(path) && File.extname(path).casecmp('.las').zero?
                 info, header_ms = Na__PerfStats.Na__Perf__Measure { Na__NativeEngine.Na__Native__LasReadHeader(path) }
-                if info['isCompressed'].to_i != 1 && self.Na__Link__FingerprintFromHeader(info) == fingerprint
+                if info['isCompressed'].to_i != 1 && self.Na__Link__FingerprintFromHeader(info) == fingerprint &&
+                   (key.nil? || Na__NativeEngine.Na__Native__LasContentKey(path) == key)
                     return [[path, header_ms], mismatched]
                 end
                 mismatched << path

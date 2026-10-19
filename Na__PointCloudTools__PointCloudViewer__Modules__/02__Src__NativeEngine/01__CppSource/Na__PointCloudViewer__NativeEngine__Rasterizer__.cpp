@@ -80,7 +80,7 @@ namespace {
         const int64_t chunks = 256;
         const int64_t chunk_size = (count + chunks - 1) / chunks;
         std::vector<int64_t> inside(static_cast<size_t>(chunks), 0);
-        const float* xyz = cloud.xyz.data();
+        const float* xyz = cloud.points->xyz.data();
         pool.Run([&](unsigned worker, unsigned workers) {
             for (int64_t c = worker; c < chunks; c += workers) {
                 const int64_t begin = std::min(count, c * chunk_size);
@@ -206,8 +206,8 @@ bool Na__Raster__Render(const Na__PointCloud& cloud, const double* p, Na__Thread
     const double limit_ms = Na__MsSince(limit_start);
 
     std::atomic<uint64_t>* depth = buffers.depth.get();
-    const float*    xyz  = cloud.xyz.data();
-    const uint32_t* bgra = cloud.bgra.data();
+    const float*    xyz  = cloud.points->xyz.data();
+    const uint32_t* bgra = cloud.points->bgra.data();
 
     // --- bands and bins ------------------------------------------------------------
     // More bands than workers so a cloud that fills only part of the image still

@@ -19,8 +19,10 @@
 #   na_title          -> String for the loading overlay
 #   na_step           -> Hash { 'done' => bool, 'status' => String, 'percent' => Float|nil,
 #                               optional 'delay' => seconds before the next tick (polling jobs),
-#                               optional 'quiet' => true to skip this tick's progress message }
+#                               optional 'quiet' => true to skip this tick's progress message,
+#                               optional 'outcome' => 'partial' when done but not fully (shown as a warning) }
 #   na_cancel         -> undo any partial work (called once, on Cancel)
+#   na_cancel_message -> optional: what Cancel left behind (default: nothing changed)
 #   na_result_summary -> Hash pushed to the dialog when the job ends
 #
 # =============================================================================
@@ -82,12 +84,13 @@ module Na__PointCloudViewer
 
             if @na_cancel_requested
                 job.na_cancel
-                return self.na_finish(job, 'cancelled', 'Cancelled. Nothing was changed.')
+                message = job.respond_to?(:na_cancel_message) && job.na_cancel_message ? job.na_cancel_message : 'Cancelled. Nothing was changed.'
+                return self.na_finish(job, 'cancelled', message)
             end
 
             step = job.na_step
             if step['done']
-                self.na_finish(job, 'done', step['status'])
+                self.na_finish(job, step['outcome'] || 'done', step['status'])
             else
                 Na__DialogManager.Na__Dialog__SendProgress(job.na_title, step['status'], step['percent'], 'running') unless step['quiet']
                 self.na_schedule_tick(step['delay'] || NA_TICK_SECONDS)
@@ -108,6 +111,8 @@ module Na__PointCloudViewer
             summary = job && job.respond_to?(:na_result_summary) ? job.na_result_summary : {}
             Na__DialogManager.Na__Dialog__SendJobFinished(outcome, message.to_s, summary)
             Na__DialogManager.Na__Dialog__PushState
+            # the Clean tab's preview waits while a job runs
+            Na__CleanPreview.Na__Clean__Changed(Na__ModelRegistry.Na__Registry__ActiveSession) if defined?(Na__CleanPreview)
             nil
         end
 

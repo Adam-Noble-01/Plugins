@@ -15,9 +15,18 @@
 #   LAS is restored). The LAS file itself is only ever opened for reading.
 #
 # POINT CACHE (Na__PointCache): a LAS import also writes the engine's .napc
-#   cache on the same worker thread; a job started with 'fromCache' loads that
-#   cache instead of the LAS (about a second instead of a full read). A cache
-#   that turns out unusable falls back to reading the LAS, if it is there.
+#   cache on the same worker thread, named by and recording the LAS content
+#   key; a job started with 'fromCache' loads that cache instead of the LAS
+#   (about a second instead of a full read), and the engine refuses a cache
+#   recording any other key. A cache that turns out unusable falls back to
+#   reading the LAS, if it is there.
+#
+# RECORD IDENTITY: the cloud remembers which LAS record each point came from
+#   (las_info['hasRecordIndex']); exporting a cleaned copy needs it.
+#
+# 'onCloud' (Ruby callers only): a callable that takes the finished cloud and
+#   returns the status message, instead of the usual install, placement and
+#   link (the Clean export loads its new file this way).
 #
 # =============================================================================
 
@@ -37,7 +46,9 @@ module Na__PointCloudViewer
             }.freeze
 
             # options: 'cachePath' + 'lasStamp' [bytes, mtime] -> also write the cache;
-            #          'fromCache' (+ 'expectCount', 'lasMissing') -> load that cache instead.
+            #          'fromCache' (+ 'expectCount', 'lasMissing') -> load that cache instead;
+            #          'contentKey' -> the LAS content key (recorded in, or required of, the cache);
+            #          'onCloud' -> see the file header.
             def initialize(session, view, path, source_unit, header_ms, options = {})
                 @session     = session
                 @view        = view
@@ -59,12 +70,12 @@ module Na__PointCloudViewer
             def na_step
                 unless @handle
                     if @from_cache
-                        @handle = Na__NativeEngine.Na__Native__CacheLoadStart(@from_cache, @options['expectCount'].to_i)
+                        @handle = Na__NativeEngine.Na__Native__CacheLoadStart(@from_cache, @options['expectCount'].to_i, @options['contentKey'])
                         return { 'done' => false, 'status' => 'Opening the point cache...', 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
                     end
                     fallback = Na__ConfigLoader.Na__Config__GetOr([110, 110, 110], 'render', 'noRgbFallbackRgb')
                     las_bytes, las_mtime = @options['lasStamp'] || [0, 0]
-                    @handle = Na__NativeEngine.Na__Native__LasImportStart(@path, fallback, @options['cachePath'], las_bytes, las_mtime)
+                    @handle = Na__NativeEngine.Na__Native__LasImportStart(@path, fallback, @options['cachePath'], las_bytes, las_mtime, @options['contentKey'])
                     return { 'done' => false, 'status' => NA_PHASE_TEXT[0], 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
                 end
 
@@ -102,6 +113,11 @@ module Na__PointCloudViewer
                 raise 'The LAS import finished without a point cloud.' unless pointer
 
                 cloud = self.na_build_cloud(pointer, poll)
+                if @options['onCloud']
+                    message = @options['onCloud'].call(cloud)
+                    @summary = { 'kind' => 'las', 'totalPoints' => cloud.total_points, 'timings' => cloud.timings, 'fromCache' => @from_cache ? true : false }
+                    return { 'done' => true, 'status' => message, 'percent' => 100.0 }
+                end
                 restored = Na__Placement.Na__Placement__AttachCloud(@session, cloud)
                 Na__RenderController.Na__Render__InstallCloud(@session, cloud, @view)
                 Na__ModelLink.Na__Link__AfterImport(@session, cloud)
@@ -140,9 +156,15 @@ module Na__PointCloudViewer
                 cloud.local_max         = [poll['maxX'], poll['maxY'], poll['maxZ']]
                 cloud.local_to_model    = [factor, 0.0, 0.0, 0.0, factor, 0.0, 0.0, 0.0, factor, 0.0, 0.0, 0.0]
                 cloud.bounds            = Na__Placement.na_model_bounds(cloud)
+                flags = poll['flags'].to_i
                 cloud.las_info          = {
                     'localOriginSource' => [poll['originX'], poll['originY'], poll['originZ']],
-                    'colourBits'        => poll['colourBits'].to_i
+                    'colourBits'        => poll['colourBits'].to_i,
+                    'contentKey'        => poll['contentKey'] || @options['contentKey'],
+                    'hasRecordIndex'    => (flags & 1) != 0,
+                    'hasTime'           => (flags & 2) != 0,
+                    'timeBase'          => poll['timeBase'],
+                    'fromCacheVersion'  => @from_cache ? poll['cacheVersion'].to_i : nil
                 }
                 cloud.timings['lasHeaderMs']    = @header_ms
                 cloud.timings['fromCache']      = @from_cache ? true : false
@@ -164,7 +186,10 @@ module Na__PointCloudViewer
                 File.delete(cache_path) if File.file?(cache_path)
                 @from_cache = nil
                 @fell_back  = true
-                @options = { 'cachePath' => cache_path, 'lasStamp' => Na__PointCache.Na__Cache__LasStamp(@path) }
+                key = @options['contentKey'] || Na__NativeEngine.Na__Native__LasContentKey(@path)
+                @options = @options.reject { |name, _| %w[fromCache expectCount lasMissing].include?(name) }
+                                   .merge('cachePath' => Na__PointCache.Na__Cache__PathForKey(key), 'contentKey' => key,
+                                          'lasStamp' => Na__PointCache.Na__Cache__LasStamp(@path))
                 { 'done' => false, 'status' => 'The point cache could not be used; reading the LAS instead...', 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }
             rescue SystemCallError
                 { 'done' => false, 'status' => 'Reading the LAS instead...', 'percent' => 1.0, 'delay' => NA_POLL_SECONDS }

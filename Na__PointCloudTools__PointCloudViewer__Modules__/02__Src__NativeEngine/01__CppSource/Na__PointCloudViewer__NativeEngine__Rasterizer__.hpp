@@ -42,10 +42,22 @@ struct Na__ClipLimitCache {
     int64_t limit = 0;
 };
 
-struct Na__PointCloud {
-    std::vector<float>    xyz;     // count * 3, local units
-    std::vector<uint32_t> bgra;    // count, 0xAARRGGBB little-endian -> bytes B,G,R,A
+// The points themselves: built once (import, cache load or a cleaning
+// preview), then never changed. Shared, so a cleaning worker can keep reading
+// them even if Ruby releases the cloud handle while the worker runs.
+struct Na__CloudPoints {
+    std::vector<float>    xyz;           // count * 3, local units (source unit, relative to the local origin)
+    std::vector<uint32_t> bgra;          // count, 0xAARRGGBB little-endian -> bytes B,G,R,A
+    std::vector<uint32_t> source_index;  // count: the LAS record each stored point came from (empty = unknown)
+    std::vector<float>    time;          // count: GPS time - time_base, seconds (empty = the LAS has no time)
+    double                time_base = 0.0;
     int64_t               count = 0;
+};
+
+// What Ruby holds: the shared points plus this handle's own render cache.
+struct Na__PointCloud {
+    std::shared_ptr<const Na__CloudPoints> points;
+    int64_t               count = 0;     // == points->count
     mutable Na__ClipLimitCache clip_cache;   // renders run one at a time (Ruby main thread)
 };
 

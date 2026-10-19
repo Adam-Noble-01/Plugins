@@ -37,7 +37,14 @@ module Na__PointCloudViewer
             dialog.set_file(Na__PointCloudViewer::NA_HTML_FILE)
             # Only clear the reference if it still points at THIS dialog - a
             # reload opens the replacement before the old close event lands.
-            dialog.set_on_closed { @na_dialog = nil if @na_dialog.equal?(dialog) }
+            dialog.set_on_closed do
+                if @na_dialog.equal?(dialog)
+                    @na_dialog = nil
+                    # with no Clean tab on screen, the model shows the loaded cloud again
+                    session = Na__ModelRegistry.Na__Registry__ActiveSession
+                    Na__CleanPreview.Na__Clean__SetTabActive(session, false) if session && defined?(Na__CleanPreview)
+                end
+            end
             @na_dialog = dialog
             dialog.show
         end

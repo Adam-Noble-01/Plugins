@@ -61,6 +61,7 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         def self.Na__Render__InstallCloud(session, cloud, view)
+            Na__CleanPreview.Na__Clean__Reset(session) if defined?(Na__CleanPreview)
             self.na_release_native(session, view)
             session.cloud = cloud
             session.fault = nil
@@ -69,6 +70,7 @@ module Na__PointCloudViewer
         end
 
         def self.Na__Render__ClearCloud(session, view)
+            Na__CleanPreview.Na__Clean__Reset(session) if defined?(Na__CleanPreview)
             Na__Placement.Na__Placement__Detach(session)
             self.na_release_native(session, view)
             session.cloud = nil

@@ -78,10 +78,12 @@ module Na__PointCloudViewer
         # persist_snapshot : the model's point cloud records as last written or
         #                  read, so an unrelated Undo never rewrites the backup
         # extents      : cached BoundingBox for Overlay#getExtents
+        # clean_state  : the Clean tab's preview context and results
+        #                (Na__CleanState, 80__System__Clean)
         attr_accessor :model, :settings, :cloud, :fault, :image_state,
                       :clip, :clip_scenes, :clip_active_scene, :clip_loaded, :clip_editing,
                       :clip_hover, :clip_drag_face, :placement, :placement_note, :transform_tool, :extents,
-                      :persist_snapshot
+                      :persist_snapshot, :clean_state
         attr_reader   :empty_bounds
 
         def initialize

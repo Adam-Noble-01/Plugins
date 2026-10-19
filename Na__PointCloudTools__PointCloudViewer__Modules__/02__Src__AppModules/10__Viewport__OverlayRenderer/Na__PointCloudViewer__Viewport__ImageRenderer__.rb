@@ -109,9 +109,18 @@ module Na__PointCloudViewer
             if cloud.native_generation != Na__NativeEngine.Na__Native__Generation
                 raise 'The native renderer was reloaded after this cloud was imported. Import the LAS again.'
             end
-            return if state.native_cloud.equal?(cloud.native_cloud)
-            state.native_cloud = cloud.native_cloud
+            shown = self.na_shown_cloud(session)
+            return if state.native_cloud.equal?(shown)
+            state.native_cloud = shown
             state.rendered_key = nil
+        end
+
+        # The Clean tab's preview of the clip box (Cleaned or Differences)
+        # while that tab shows one, else the loaded cloud. Both are in the
+        # loaded cloud's local coordinates, so the same placement applies.
+        def self.na_shown_cloud(session)
+            preview = defined?(Na__CleanPreview) ? Na__CleanPreview.Na__Clean__DisplayCloud(session) : nil
+            preview || session.cloud.native_cloud
         end
 
         def self.na_render_texture(session, view, state, scale)
@@ -161,8 +170,11 @@ module Na__PointCloudViewer
 
         # The settled frame draws the whole budget; a moving one at most
         # movingBudgetMax (still an even sample: points are stored shuffled).
+        # A Clean preview holds only the clip box's points: the budget caps it.
         def self.na_budget(session, scale)
-            budget = [session.settings['pointBudget'].to_i, session.cloud.total_points].min
+            shown_is_loaded = session.image_state && session.image_state.native_cloud.equal?(session.cloud.native_cloud)
+            total  = shown_is_loaded ? session.cloud.total_points : session.settings['pointBudget'].to_i
+            budget = [session.settings['pointBudget'].to_i, total].min
             full = Na__ConfigLoader.Na__Config__GetOr(1.0, 'render', 'nativeImage', 'fullScale').to_f
             return budget if scale >= full
             cap = Na__ConfigLoader.Na__Config__GetOr(0, 'render', 'nativeImage', 'movingBudgetMax').to_i

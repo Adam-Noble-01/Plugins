@@ -64,21 +64,22 @@ module Na__PointCloudViewer
             return refuse.('The point cloud overlay is not available for this model.') unless session
             return refuse.('Another task is still running.') if Na__AsyncJobs.Na__Jobs__Busy?
 
-            options = self.Na__LasImport__CacheOptions(path)
+            options = self.Na__LasImport__CacheOptions(path).merge(payload['extraOptions'].is_a?(Hash) ? payload['extraOptions'] : {})
             job = Na__LasImportJob.new(session, Sketchup.active_model.active_view, path, unit, payload['headerMs'], options)
             refuse.('Another task is still running.') unless Na__AsyncJobs.Na__Jobs__Start(job)
         end
 
-        # The cache of this exact LAS when there is one (same scan, same size and
-        # time), otherwise read the LAS and write a cache for next time.
+        # The cache of this exact LAS when there is one (same content key, and
+        # the file unchanged since the cache was written), otherwise read the
+        # LAS and write a cache, named by its content key, for next time.
         def self.Na__LasImport__CacheOptions(path)
+            key = Na__NativeEngine.Na__Native__LasContentKey(path)
             header = Na__NativeEngine.Na__Native__LasReadHeader(path)
-            fingerprint = Na__ModelLink.Na__Link__FingerprintFromHeader(header)
-            cached = Na__PointCache.Na__Cache__ForFingerprint(fingerprint)
+            cached = Na__PointCache.Na__Cache__ForKey(key, header['pointCount'].to_i)
             if cached && Na__PointCache.Na__Cache__MatchesLas?(cached, path)
-                return { 'fromCache' => cached['path'], 'expectCount' => cached['pointCount'].to_i }
+                return { 'fromCache' => cached['path'], 'expectCount' => cached['pointCount'].to_i, 'contentKey' => key }
             end
-            { 'cachePath' => Na__PointCache.Na__Cache__PathFor(fingerprint), 'lasStamp' => Na__PointCache.Na__Cache__LasStamp(path) }
+            { 'cachePath' => Na__PointCache.Na__Cache__PathForKey(key), 'lasStamp' => Na__PointCache.Na__Cache__LasStamp(path), 'contentKey' => key }
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Warn("Point cache skipped for this import: #{error.message}")
             {}
@@ -87,7 +88,8 @@ module Na__PointCloudViewer
         # A cache load with no LAS on disk (the model link found only the cache).
         def self.Na__LasImport__StartFromCache(session, las_path, unit, cached)
             return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
-            options = { 'fromCache' => cached['path'], 'expectCount' => cached['pointCount'].to_i, 'lasMissing' => true }
+            options = { 'fromCache' => cached['path'], 'expectCount' => cached['pointCount'].to_i, 'lasMissing' => true,
+                        'contentKey' => cached['contentKey'] }
             job = Na__LasImportJob.new(session, Sketchup.active_model.active_view, las_path, unit, 0, options)
             Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
         end

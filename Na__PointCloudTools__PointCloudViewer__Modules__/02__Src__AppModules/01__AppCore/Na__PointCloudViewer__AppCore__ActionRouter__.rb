@@ -50,6 +50,13 @@ module Na__PointCloudViewer
             'link_locate'             => :na_link_locate,
             'link_restore_backup'     => :na_link_restore_backup,
             'link_remove'             => :na_link_remove,
+            'clean_tab_active'        => :na_clean_tab_active,
+            'clean_set_filter'        => :na_clean_set_filter,
+            'clean_reset_defaults'    => :na_clean_reset_defaults,
+            'clean_set_display'       => :na_clean_set_display,
+            'clean_preview_now'       => :na_clean_preview_now,
+            'clean_export'            => :na_clean_export,
+            'clean_retry_load'        => :na_clean_retry_load,
             'open_backups_folder'     => :na_open_backups_folder,
             'cache_clear'             => :na_cache_clear,
             'job_cancel'              => :na_job_cancel,
@@ -280,6 +287,73 @@ module Na__PointCloudViewer
             folder = Na__LocalBackup.Na__Backup__Folder
             FileUtils.mkdir_p(folder)
             Na__AssetResolver.Na__Paths__OpenInExplorer(folder)
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Clean Tab
+    # @delegate: 02__Src__AppModules/80__System__Clean/
+    # -------------------------------------------------------------------------
+
+        def self.na_clean_tab_active(payload)
+            session = Na__ModelRegistry.Na__Registry__ActiveSession
+            Na__CleanPreview.Na__Clean__SetTabActive(session, payload['active'] == true) if session
+            Na__DialogManager.Na__Dialog__PushState
+        end
+
+        def self.na_clean_set_filter(payload)
+            problem = Na__CleanSettings.Na__CleanSettings__Apply(payload)
+            session = Na__ModelRegistry.Na__Registry__ActiveSession
+            Na__CleanPreview.Na__Clean__Changed(session) if session && !problem
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        def self.na_clean_reset_defaults(_payload)
+            Na__CleanSettings.Na__CleanSettings__Reset
+            session = Na__ModelRegistry.Na__Registry__ActiveSession
+            Na__CleanPreview.Na__Clean__Changed(session) if session
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus('The three filters are back to their default settings.', 'success')
+        end
+
+        def self.na_clean_set_display(payload)
+            session = self.na_require_session
+            return unless session
+            problem = Na__CleanPreview.Na__Clean__SetDisplay(session, payload['display'])
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        def self.na_clean_preview_now(_payload)
+            session = self.na_require_session
+            return unless session
+            state = Na__CleanPreview.Na__Clean__State(session)
+            state.request_key = nil        # run it again even if nothing changed
+            problem = Na__CleanPreview.Na__Clean__RequestNow(session)
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        # Opens Save As (modal) first, so the page raises no overlay before
+        # calling; the job then reports progress like an import.
+        def self.na_clean_export(_payload)
+            session = self.na_require_session
+            return unless session
+            problem = Na__CleanExport.Na__CleanExport__Start(session)
+            return unless problem
+            if problem == 'cancelled'
+                Na__DialogManager.Na__Dialog__PushStatus('Export cancelled. Nothing was written.', 'info')
+            else
+                Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn')
+            end
+        end
+
+        def self.na_clean_retry_load(_payload)
+            session = self.na_require_session
+            return unless session
+            problem = Na__CleanExport.Na__CleanExport__RetryLoad(session)
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
         end
 
     # endregion ----------------------------------------------------------------

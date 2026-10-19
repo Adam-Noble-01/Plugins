@@ -1,0 +1,318 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - CLEAN STYLES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__Clean__.css
+   PURPOSE    : Clean tab: filter cards (strength row, Advanced Settings),
+                the three-way display switch, the Differences legend, the
+                preview state badge, the surface check bars and the export
+                card. Same card, hint, note and switch family as the others.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Filter Cards */
+/* ----------------------------------------------------------------- */
+
+.na-clean-filters {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 12px;
+}
+
+.na-clean-filter--off .na-clean-strength,
+.na-clean-filter--off .na-clean-filter__mapped {
+    opacity             : 0.5;
+}
+
+.na-clean-filter__summary {
+    margin              : 0 0 8px;
+    font-size           : 12px;
+    color               : var(--na-text);
+    line-height         : 1.45;
+}
+
+.na-clean-strength {
+    display             : grid;
+    grid-template-columns : auto 1fr auto 34px;
+    align-items         : center;
+    gap                 : 10px;
+}
+
+.na-clean-strength__end {
+    font-size           : 11px;
+    font-weight         : 600;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+}
+
+.na-clean-strength__value {
+    text-align          : right;
+}
+
+.na-clean-filter__mapped {
+    margin-top          : 4px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Advanced Settings */
+/* ----------------------------------------------------------------- */
+
+.na-clean-advanced {
+    margin-top          : 10px;
+    border-top          : 1px solid var(--na-border);
+    padding-top         : 8px;
+}
+
+.na-clean-advanced__summary {
+    cursor              : pointer;
+    font-size           : 11px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+    user-select         : none;
+}
+
+.na-clean-advanced[open] .na-clean-advanced__summary {
+    color               : var(--na-accent);
+    margin-bottom       : 8px;
+}
+
+.na-clean-advanced__grid {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 6px;
+}
+
+.na-clean-advanced__row {
+    display             : grid;
+    grid-template-columns : minmax(150px, 1.2fr) 90px minmax(40px, auto);
+    grid-template-areas : "label input unit" "hint hint hint";
+    align-items         : center;
+    gap                 : 2px 8px;
+}
+
+.na-clean-advanced__label {
+    grid-area           : label;
+    font-size           : 12px;
+    color               : var(--na-text);
+}
+
+.naInput.na-clean-advanced__input {
+    grid-area           : input;
+    padding             : 4px 7px;
+    text-align          : right;
+    font-variant-numeric: tabular-nums;
+}
+
+.naInput.na-clean-advanced__input--override {
+    border-color        : var(--na-accent);
+    background          : #eef3fb;
+}
+
+.na-clean-advanced__check {
+    grid-area           : input;
+    display             : flex;
+    justify-content     : flex-end;
+}
+
+.na-clean-advanced__check input {
+    accent-color        : var(--na-accent);
+    cursor              : pointer;
+}
+
+.na-clean-advanced__unit {
+    grid-area           : unit;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+}
+
+.na-clean-advanced__hint {
+    grid-area           : hint;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    line-height         : 1.4;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Region + Results */
+/* ----------------------------------------------------------------- */
+
+.na-clean-region-size {
+    font-size           : 12px;
+}
+
+.na-switch.na-switch--three {
+    grid-template-columns : 1fr 1fr 1fr;
+}
+
+.na-clean-badge {
+    border-radius       : 999px;
+    padding             : 3px 10px;
+    background          : #e9ecf1;
+    color               : var(--na-subtle);
+    font-size           : 11px;
+    font-weight         : 700;
+    letter-spacing      : 0.04em;
+    text-transform      : uppercase;
+    font-variant-numeric: tabular-nums;
+}
+
+.na-clean-badge--running {
+    background          : var(--na-accent);
+    color               : #fff;
+}
+
+.na-clean-badge--done {
+    background          : var(--na-success);
+    color               : #fff;
+}
+
+.na-clean-badge--stale {
+    background          : var(--na-warn);
+    color               : #fff;
+}
+
+.na-clean-badge--failed {
+    background          : var(--na-danger);
+    color               : #fff;
+}
+
+.na-clean-stats {
+    margin-top          : 10px;
+}
+
+.na-clean-legend {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 6px 14px;
+    margin-top          : 10px;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+}
+
+.na-clean-legend__item {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 6px;
+}
+
+.na-clean-chip {
+    width               : 12px;
+    height              : 12px;
+    border-radius       : 3px;
+    border              : 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.na-clean-chip--removed   { background: rgb(214, 32, 32); }
+.na-clean-chip--moved     { background: linear-gradient(90deg, rgb(142, 197, 240), rgb(11, 60, 158)); }
+.na-clean-chip--candidate { background: rgb(240, 160, 0); }
+.na-clean-chip--doubling  { background: rgb(192, 0, 192); }
+.na-clean-chip--thinned   { background: rgb(200, 188, 168); }
+.na-clean-chip--unchanged { background: rgb(214, 214, 214); }
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Surface Check */
+/* ----------------------------------------------------------------- */
+
+.na-clean-section__title {
+    display             : block;
+    margin              : 14px 0 6px;
+}
+
+.na-clean-surface {
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    padding             : 8px 10px;
+    margin-bottom       : 8px;
+    background          : #fafbfc;
+}
+
+.na-clean-surface__title {
+    font-size           : 12.5px;
+    font-weight         : 700;
+    color               : var(--na-text);
+    margin-bottom       : 6px;
+}
+
+.na-clean-surface__bar-row {
+    display             : grid;
+    grid-template-columns : 48px 1fr 70px;
+    align-items         : center;
+    gap                 : 8px;
+    margin-top          : 3px;
+}
+
+.na-clean-surface__bar-label,
+.na-clean-surface__bar-value {
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    font-variant-numeric: tabular-nums;
+}
+
+.na-clean-surface__bar-value {
+    text-align          : right;
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.na-clean-surface__bar-track {
+    height              : 8px;
+    border-radius       : 999px;
+    background          : #e9ecf1;
+    overflow            : hidden;
+}
+
+.na-clean-surface__bar-fill {
+    display             : block;
+    height              : 100%;
+    border-radius       : 999px;
+}
+
+.na-clean-surface__bar-fill--before { background: #9aa3af; }
+.na-clean-surface__bar-fill--after  { background: var(--na-success); }
+
+/* A visible "no single figure" state: never a misleading number. */
+.na-clean-unsuitable {
+    border-left         : 3px solid var(--na-warn);
+    background          : #fff4e5;
+    border-radius       : 4px;
+    padding             : 7px 10px;
+    font-size           : 12px;
+    color               : #7a4a00;
+    line-height         : 1.45;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Export Card */
+/* ----------------------------------------------------------------- */
+
+.na-card--export {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.12);
+}
+
+.naButton.na-clean-export-button {
+    display             : block;
+    width               : 100%;
+    margin-top          : 10px;
+    padding             : 11px 14px;
+    font-size           : 14px;
+    font-weight         : 600;
+}
+
+.na-clean-last {
+    margin-top          : 12px;
+    border-top          : 1px solid var(--na-border);
+    padding-top         : 8px;
+}
+
+/* endregion ----------------------------------------------------------------- */

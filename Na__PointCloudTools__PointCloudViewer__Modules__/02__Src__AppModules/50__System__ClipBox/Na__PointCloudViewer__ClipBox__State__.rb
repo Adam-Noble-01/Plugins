@@ -122,6 +122,7 @@ module Na__PointCloudViewer
                 raise
             end
             Na__LocalBackup.Na__Backup__AfterSave(model, session)
+            Na__CleanPreview.Na__Clean__Changed(session) if defined?(Na__CleanPreview)   # the box is the preview region
         end
 
         # Undo / Redo: see Na__ModelRegistry.Na__Registry__ReloadModelState, which

@@ -32,6 +32,7 @@ module Na__PointCloudViewer
                 'clip'         => Na__ClipBox.Na__Clip__Payload(session, model),
                 'transform'    => Na__Placement.Na__Placement__Payload(session, model),
                 'link'         => Na__ModelLink.Na__Link__Payload(session, model),
+                'clean'        => Na__CleanPreview.Na__Clean__Payload(session, model),
                 'job'          => { 'isRunning' => Na__AsyncJobs.Na__Jobs__Busy?, 'title' => Na__AsyncJobs.Na__Jobs__ActiveTitle },
                 'paths'        => {
                     'cacheFolder'    => Na__AssetResolver.Na__Paths__CacheFolder,

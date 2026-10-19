@@ -19,6 +19,7 @@
 #include <windows.h>
 
 #include "Na__PointCloudViewer__NativeEngine__Api__.h"
+#include "Na__PointCloudViewer__NativeEngine__LasFile__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LasImport__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__PngWriter__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__PointCache__.hpp"
@@ -51,15 +52,6 @@ namespace {
         return *g_pool;
     }
 
-    std::wstring Na__Utf8ToWide(const char* text) {
-        if (!text) return std::wstring();
-        const int length = MultiByteToWideChar(CP_UTF8, 0, text, -1, nullptr, 0);
-        if (length <= 0) return std::wstring();
-        std::wstring wide(static_cast<size_t>(length - 1), L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, text, -1, wide.data(), length);
-        return wide;
-    }
-
     int32_t Na__Fail(const char* message, int32_t code) {
         g_last_error = message;
         return code;
@@ -87,20 +79,29 @@ NAPC_API const char* napc_last_error(void) {
 // REGION | Clouds
 // -----------------------------------------------------------------------------
 
-NAPC_API void* napc_cloud_create(const float* xyz, const uint8_t* rgb, int64_t count) {
+NAPC_API void* napc_cloud_create_ex(const float* xyz, const uint8_t* rgb, const uint32_t* source_index,
+                                   const float* time, double time_base, int64_t count) {
     if (!xyz || !rgb || count <= 0) {
         Na__Fail("No point data was supplied.", -1);
         return nullptr;
     }
     try {
-        std::unique_ptr<Na__PointCloud> cloud(new Na__PointCloud());
-        cloud->count = count;
-        cloud->xyz.assign(xyz, xyz + count * 3);
-        cloud->bgra.resize(static_cast<size_t>(count));
+        std::shared_ptr<Na__CloudPoints> points(new Na__CloudPoints());
+        points->count = count;
+        points->xyz.assign(xyz, xyz + count * 3);
+        points->bgra.resize(static_cast<size_t>(count));
         for (int64_t i = 0; i < count; ++i) {
-            cloud->bgra[i] = 0xFF000000u | (static_cast<uint32_t>(rgb[i * 3]) << 16) |
-                             (static_cast<uint32_t>(rgb[i * 3 + 1]) << 8) | rgb[i * 3 + 2];
+            points->bgra[i] = 0xFF000000u | (static_cast<uint32_t>(rgb[i * 3]) << 16) |
+                              (static_cast<uint32_t>(rgb[i * 3 + 1]) << 8) | rgb[i * 3 + 2];
         }
+        if (source_index) points->source_index.assign(source_index, source_index + count);
+        if (time) {
+            points->time.assign(time, time + count);
+            points->time_base = time_base;
+        }
+        std::unique_ptr<Na__PointCloud> cloud(new Na__PointCloud());
+        cloud->count  = count;
+        cloud->points = std::move(points);
         return cloud.release();
     } catch (const std::bad_alloc&) {
         Na__Fail("Not enough memory to hold the point cloud in the native engine.", -2);
@@ -108,8 +109,36 @@ NAPC_API void* napc_cloud_create(const float* xyz, const uint8_t* rgb, int64_t c
     }
 }
 
+NAPC_API void* napc_cloud_create(const float* xyz, const uint8_t* rgb, int64_t count) {
+    return napc_cloud_create_ex(xyz, rgb, nullptr, nullptr, 0.0, count);
+}
+
 NAPC_API void napc_cloud_destroy(void* cloud) {
     delete static_cast<Na__PointCloud*>(cloud);
+}
+
+NAPC_API int32_t napc_cloud_info(void* cloud_handle, double* out, int32_t out_count) {
+    const Na__PointCloud* cloud = static_cast<const Na__PointCloud*>(cloud_handle);
+    if (!cloud || !cloud->points || !out || out_count < 4) return Na__Fail("Cloud info is missing arguments.", -1);
+    out[0] = static_cast<double>(cloud->count);
+    out[1] = cloud->points->source_index.empty() ? 0 : 1;
+    out[2] = cloud->points->time.empty() ? 0 : 1;
+    out[3] = cloud->points->time_base;
+    return 0;
+}
+
+NAPC_API int32_t napc_cloud_read(void* cloud_handle, int64_t first, int64_t count, float* xyz, uint32_t* bgra,
+                                 uint32_t* source_index, float* time) {
+    const Na__PointCloud* cloud = static_cast<const Na__PointCloud*>(cloud_handle);
+    if (!cloud || !cloud->points) return Na__Fail("No point cloud was given.", -1);
+    const Na__CloudPoints& points = *cloud->points;
+    if (first < 0 || count < 0 || first + count > points.count) return Na__Fail("The requested range is outside the cloud.", -2);
+    const size_t begin = static_cast<size_t>(first), n = static_cast<size_t>(count);
+    if (xyz)  std::memcpy(xyz, points.xyz.data() + begin * 3, n * 12);
+    if (bgra) std::memcpy(bgra, points.bgra.data() + begin, n * 4);
+    if (source_index && !points.source_index.empty()) std::memcpy(source_index, points.source_index.data() + begin, n * 4);
+    if (time && !points.time.empty()) std::memcpy(time, points.time.data() + begin, n * 4);
+    return 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -199,6 +228,26 @@ NAPC_API int32_t napc_las_read_header(const char* path_utf8, double* info, int32
     return 0;
 }
 
+namespace {
+    uint64_t Na__KeyFromParams(const double* params, int32_t param_count, int32_t at) {
+        if (!params || param_count < at + 2) return 0;
+        return (static_cast<uint64_t>(params[at]) << 32) | static_cast<uint64_t>(params[at + 1]);
+    }
+    void Na__KeyToDoubles(uint64_t key, double* hi, double* lo) {
+        *hi = static_cast<double>(key >> 32);
+        *lo = static_cast<double>(key & 0xFFFFFFFFull);
+    }
+}
+
+NAPC_API int32_t napc_las_content_key(const char* path_utf8, double* out, int32_t out_count) {
+    if (!path_utf8 || !out || out_count < 2) return Na__Fail("Content key request is missing arguments.", -1);
+    uint64_t key = 0;
+    std::string error;
+    if (!Na__LasFile__ContentKey(Na__Utf8ToWide(path_utf8), key, error)) return Na__Fail(error.c_str(), -2);
+    Na__KeyToDoubles(key, &out[0], &out[1]);
+    return 0;
+}
+
 NAPC_API void* napc_las_import_start(const char* path_utf8, const char* cache_path_utf8,
                                     const double* params, int32_t param_count) {
     if (!path_utf8) {
@@ -216,6 +265,7 @@ NAPC_API void* napc_las_import_start(const char* path_utf8, const char* cache_pa
             job->las_bytes = params[3];
             job->las_mtime = params[4];
         }
+        job->content_key = Na__KeyFromParams(params, param_count, 5);
         Na__LasJob__Start(job);
         return job;
     } catch (...) {
@@ -234,6 +284,7 @@ NAPC_API void* napc_cache_load_start(const char* cache_path_utf8, const double* 
         job->path = cache_path_utf8;
         job->from_cache = true;
         if (params && param_count >= 1) job->expect_count = static_cast<int64_t>(params[0]);
+        job->expect_key = Na__KeyFromParams(params, param_count, 1);
         Na__LasJob__Start(job);
         return job;
     } catch (...) {
@@ -247,16 +298,19 @@ NAPC_API int32_t napc_cache_peek(const char* cache_path_utf8, double* out, int32
     Na__CacheHeader header;
     std::string error;
     if (!Na__Cache__ReadHeader(cache_path_utf8, header, error)) return Na__Fail(error.c_str(), -2);
-    out[0] = static_cast<double>(header.point_count);
+    out[NAPC_C_POINT_COUNT] = static_cast<double>(header.point_count);
     for (int axis = 0; axis < 3; ++axis) {
-        out[1 + axis] = header.origin[axis];
-        out[4 + axis] = header.local_min[axis];
-        out[7 + axis] = header.local_max[axis];
+        out[NAPC_C_ORIGIN_X + axis] = header.origin[axis];
+        out[NAPC_C_MIN_X + axis]    = header.local_min[axis];
+        out[NAPC_C_MAX_X + axis]    = header.local_max[axis];
     }
-    out[10] = header.colour_bits;
-    out[11] = header.las_bytes;
-    out[12] = header.las_mtime;
-    out[13] = header.version;
+    out[NAPC_C_COLOUR_BITS] = header.colour_bits;
+    out[NAPC_C_LAS_BYTES]   = header.las_bytes;
+    out[NAPC_C_LAS_MTIME]   = header.las_mtime;
+    out[NAPC_C_VERSION]     = header.version;
+    out[NAPC_C_FLAGS]       = header.flags;
+    Na__KeyToDoubles(header.content_key, &out[NAPC_C_KEY_HI], &out[NAPC_C_KEY_LO]);
+    out[NAPC_C_TIME_BASE]   = header.time_base;
     return 0;
 }
 
@@ -282,6 +336,11 @@ NAPC_API int32_t napc_job_poll(void* job_handle, double* out, int32_t out_count)
             out[NAPC_J_MAX_X + axis] = job->local_max[axis];
         }
         out[NAPC_J_POINT_COUNT] = static_cast<double>(job->point_count);
+        const Na__CloudPoints* points = job->cloud ? job->cloud->points.get() : nullptr;
+        out[NAPC_J_FLAGS]     = points ? ((points->source_index.empty() ? 0 : 1) | (points->time.empty() ? 0 : 2)) : 0;
+        out[NAPC_J_TIME_BASE] = points ? points->time_base : 0.0;
+        Na__KeyToDoubles(job->content_key, &out[NAPC_J_KEY_HI], &out[NAPC_J_KEY_LO]);
+        out[NAPC_J_CACHE_VERSION] = job->cache_version;
     }
     out[NAPC_J_CACHE_STATE] = job->cache_state.load();
     return finished ? 1 : 0;
@@ -313,7 +372,10 @@ NAPC_API void napc_job_destroy(void* job_handle) {
 // REGION | Shutdown
 // -----------------------------------------------------------------------------
 
+void Na__Clean__ShutdownAll();   // CleanContext.cpp
+
 NAPC_API void napc_shutdown(void) {
+    Na__Clean__ShutdownAll();    // no cleaning worker may outlive the DLL
     std::lock_guard<std::mutex> lock(g_render_mutex);
     delete g_pool;
     g_pool = nullptr;

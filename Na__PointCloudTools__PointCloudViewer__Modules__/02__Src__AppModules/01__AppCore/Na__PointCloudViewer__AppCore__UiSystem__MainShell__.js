@@ -97,7 +97,7 @@
 
     function na_on_job_finished(payload) {
         Shell.na_loading_hide();
-        var level = payload.outcome === 'done' ? 'success' : (payload.outcome === 'cancelled' ? 'warn' : 'error');
+        var level = payload.outcome === 'done' ? 'success' : (payload.outcome === 'cancelled' || payload.outcome === 'partial' ? 'warn' : 'error');
         if (payload.message) Shell.na_set_status(payload.message, level);
     }
 
