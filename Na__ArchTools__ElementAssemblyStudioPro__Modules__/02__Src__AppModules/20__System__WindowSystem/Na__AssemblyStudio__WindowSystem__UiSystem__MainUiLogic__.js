@@ -70,6 +70,61 @@ const Na_DynamicUI = (function() {
     ];
     // ---------------------------------------------------------------
 
+    // MODULE CONSTANT | Settings Every Exterior Door Type Shares
+    // ------------------------------------------------------------
+    // Each exterior door type keeps its leaf settings under its own key
+    // prefix, so a Door Type switch used to land on the new type's untouched
+    // defaults: a single flanking panel drawn beside a pair of doors had its
+    // stiles, rails, fielded panels, handles and finish rebuilt control by
+    // control. na_transposeSharedDoorSettings now carries every setting below
+    // from the type being left to the type being entered.
+    //
+    // Width and height are deliberately not here - they still reset to each
+    // type's default opening (na_applyDoorModeDefaultDimensions).
+    //
+    // Each row is [suffix on Double + Single, suffix on Sliding + MultiFold].
+    // The sliding and multi-folding sets name the leaf thickness, the stile
+    // and two rails differently, and have no hinges or handles at all: a null cell
+    // means that type has no such setting and keeps its own value.
+    const NA_EXT_DOOR_TYPE_PREFIXES = {
+        double_door_mode     : 'double_door',
+        ext_single_door_mode : 'single_door',
+        sliding_mode         : 'sliding_door',
+        multifold_mode       : 'bifold_door'
+    };
+    const NA_EXT_DOOR_SHARED_SUFFIXES = [
+        ['leaf_composition',            'leaf_composition'],
+        ['leaf_thickness_mm',           'panel_thickness_mm'],
+        ['panel_stile_width_mm',        'stile_width_mm'],
+        ['panel_top_rail_width_mm',     'head_rail_mm'],
+        ['panel_bottom_rail_width_mm',  'base_rail_mm'],
+        ['mid_rail_width_mm',           'mid_rail_width_mm'],
+        ['panel_output_mode',           'panel_output_mode'],
+        ['panel_profile',               'panel_profile'],
+        ['panel_preset',                'panel_preset'],
+        ['panel_columns',               'panel_columns'],
+        ['panel_rows',                  'panel_rows'],
+        ['fielded_section_height_mm',   'fielded_section_height_mm'],
+        ['panel_inset_mm',              'panel_inset_mm'],
+        ['panel_depth_mm',              'panel_depth_mm'],
+        ['panel_bevel_width_mm',        'panel_bevel_width_mm'],
+        ['fixed_panels',                null],
+        ['swing_direction',             null],
+        ['opening_angle_deg',           null],
+        ['hinge_projection_mm',         null],
+        ['show_swing_arcs',             null],
+        ['create_open_state_copy',      null],
+        ['handle_asset_key',            null],
+        ['handle_height_mm',            null],
+        ['handle_backset_mm',           null],
+        ['leaf_material_id',            null],
+        ['handle_material_id',          null]
+    ];
+
+    // A pair sets these per leaf (double_door_left_opening_angle_deg); a single leaf has one
+    const NA_EXT_DOOR_PER_LEAF_SUFFIXES = ['opening_angle_deg', 'hinge_projection_mm'];
+    // ---------------------------------------------------------------
+
     // FUNCTION | Resolve the Active Hinged Exterior Door Product Descriptor
     // ------------------------------------------------------------
     // @param  {Object} [config] - Config to test; defaults to the live _config
@@ -269,6 +324,7 @@ const Na_DynamicUI = (function() {
                 if (nextModeId === 'sliding_sash_window') {
                     na_applySlidingSashCasementDefaults();
                 } else if (nextModeId) {
+                    na_transposeSharedDoorSettings(previousModeId, nextModeId);
                     na_applyDoorModeDefaultDimensions(nextModeId);
                     if (nextModeId === 'double_door_mode') na_seedDoubleDoorActiveLeafWidth();
                 }
@@ -1350,6 +1406,58 @@ const Na_DynamicUI = (function() {
 
         na_updateControlValue('height_mm', defaultHeight);
         na_updateControlValue('width_mm',  defaultWidth);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve the Keys One Door Type Holds a Shared Setting Under
+    // ------------------------------------------------------------
+    // @param  {string} modeId - Product mode id (double_door_mode, sliding_mode ...)
+    // @param  {Array}  row    - One NA_EXT_DOOR_SHARED_SUFFIXES row
+    // @return {string[]}        Keys to write, the first is the one read; empty
+    //                           when the type has no such setting
+    function na_resolveSharedDoorSettingKeys(modeId, row) {
+        const prefix = NA_EXT_DOOR_TYPE_PREFIXES[modeId];
+        const isHinged = modeId === 'double_door_mode' || modeId === 'ext_single_door_mode';
+        const suffix = isHinged ? row[0] : row[1];
+        if (!prefix || !suffix) return [];
+
+        if (modeId === 'double_door_mode' && NA_EXT_DOOR_PER_LEAF_SUFFIXES.includes(suffix)) {
+            // The active leaf speaks for the pair: it is the one a single door
+            // beside it should match, even when the other leaf is drawn shut.
+            const activeSide = _config.double_door_active_leaf === 'Right' ? 'right' : 'left';
+            const otherSide = activeSide === 'left' ? 'right' : 'left';
+            return [`${prefix}_${activeSide}_${suffix}`, `${prefix}_${otherSide}_${suffix}`];
+        }
+        return [`${prefix}_${suffix}`];
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Carry Shared Settings Across an Exterior Door Type Switch
+    // ------------------------------------------------------------
+    // Copies every NA_EXT_DOOR_SHARED_SUFFIXES setting from the door type being
+    // left to the one being entered, so flicking Double -> Single keeps the
+    // fielded panels, stile and rail proportions, insets, handles and finish.
+    // A setting the old type does not have (handles, leaving a sliding set)
+    // leaves the new type's own value alone. Not called on a switch to or from
+    // a window, and not from na_setConfig, so a door loaded from SketchUp keeps
+    // exactly what it was saved with.
+    function na_transposeSharedDoorSettings(fromModeId, toModeId) {
+        if (!NA_EXT_DOOR_TYPE_PREFIXES[fromModeId] || !NA_EXT_DOOR_TYPE_PREFIXES[toModeId]) return;
+
+        NA_EXT_DOOR_SHARED_SUFFIXES.forEach(row => {
+            const sourceKeys = na_resolveSharedDoorSettingKeys(fromModeId, row);
+            const targetKeys = na_resolveSharedDoorSettingKeys(toModeId, row);
+            if (!sourceKeys.length || !targetKeys.length) return;
+
+            const value = _config[sourceKeys[0]];
+            if (value === undefined) return;
+            targetKeys.forEach(key => {
+                _config[key] = value;
+                na_updateControlValue(key, value);
+            });
+        });
+
+        na_syncBifoldGlazedFromComposition(_config);                       // <-- Legacy glazed flag follows a carried composition
     }
     // ---------------------------------------------------------------
 

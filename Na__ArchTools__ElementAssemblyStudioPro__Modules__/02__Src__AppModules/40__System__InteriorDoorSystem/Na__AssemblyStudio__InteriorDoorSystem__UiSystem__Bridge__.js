@@ -333,23 +333,29 @@
             na_door_patch_select_options('Na__DoorConfig__HandleAssetKey', options, selectedKey);
             na_door_ensure_preview_cache_entry(selectedKey, 'asset-options-received');
 
-            // The Exterior Double Door system intentionally reuses this same
+            // The exterior double and single doors intentionally reuse this same
             // InteriorDoor__Handles__ asset library rather than duplicating it.
-            var exteriorDescriptor = (window.NA_EXT_DOUBLE_DOOR_CONFIG || []).find(function (item) {
-                return item && item.id === 'double_door_handle_asset_key';
-            });
-            if (exteriorDescriptor) {
+            // Both dropdowns are filled: the single door's used to stay empty,
+            // so a handle carried across a Door Type switch could not be seen.
+            var exteriorConfig = window.Na_DynamicUI &&
+                typeof window.Na_DynamicUI.na_getConfig === 'function'
+                ? window.Na_DynamicUI.na_getConfig()
+                : {};
+            [
+                { controls: window.NA_EXT_DOUBLE_DOOR_CONFIG, id: 'double_door_handle_asset_key' },
+                { controls: window.NA_EXT_SINGLE_DOOR_CONFIG, id: 'single_door_handle_asset_key' }
+            ].forEach(function (exteriorControl) {
+                var exteriorDescriptor = (exteriorControl.controls || []).find(function (item) {
+                    return item && item.id === exteriorControl.id;
+                });
+                if (!exteriorDescriptor) return;
                 exteriorDescriptor.options = options;
-                var exteriorConfig = window.Na_DynamicUI &&
-                    typeof window.Na_DynamicUI.na_getConfig === 'function'
-                    ? window.Na_DynamicUI.na_getConfig()
-                    : {};
-                var exteriorSelectedKey = exteriorConfig.double_door_handle_asset_key;
+                var exteriorSelectedKey = exteriorConfig[exteriorControl.id];
                 if (!exteriorSelectedKey || !options.some(function (opt) { return opt.value === exteriorSelectedKey; })) {
                     exteriorSelectedKey = payload.defaultKey || options[0].value;
                 }
-                na_door_patch_select_options('double_door_handle_asset_key', options, exteriorSelectedKey);
-            }
+                na_door_patch_select_options(exteriorControl.id, options, exteriorSelectedKey);
+            });
         } catch (err) {
             console.error('[Na_DoorBridge] Failed to receive handle asset options:', err);
         }

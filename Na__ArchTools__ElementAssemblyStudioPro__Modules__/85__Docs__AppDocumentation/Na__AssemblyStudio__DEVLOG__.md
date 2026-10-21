@@ -3,6 +3,48 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.7.2 - 21-Oct-2026 - Door Type Switch Keeps Your Settings
+
+### Context
+The usual way exterior doors get drawn on a classical elevation is a pair of doors with a single fixed panel either side, all in the same joinery language: same stiles and rails, same fielded panels, same leaf thickness, same finish. Drawing that meant setting the pair up, flicking Door Type to Single Door, and finding every one of those settings back at its factory default. Then flicking back to the pair for the next opening and doing it again.
+
+Nothing was being reset. Each door type keeps its leaf settings under its own key prefix (`double_door_*`, `single_door_*`, `sliding_door_*`, `bifold_door_*`), so a switch simply showed the other type's untouched values. The settings every product already shares under one unprefixed key (frame, cill, glaze bars, Fuse Parts, Frame Finish) were always carried. The leaf itself never was.
+
+### Feature Summary
+- **Switching Door Type now carries every shared setting across.** Leaf composition, leaf thickness, perimeter stile, top, bottom and separating midrail widths, and the whole fielded panel set: output, profile, layout, custom columns and rows, fielded section height, panel inset, depth and bevel.
+- **Between Double Doors and Single Door, the hinged settings come too:** Fixed Panel(s), swing direction, opening angle, hinge projection, swing arcs, open-state copy, handle asset, height and backset, leaf finish and handle finish.
+- **Width and height still reset** to each type's default opening (1800 / 1000 / 3000 x 2100mm), as before.
+- **Sliding and MultiFolding doors take part as well.** Their leaf settings carry to and from the hinged doors. The sliding and folding sets name four of them differently, and the table maps them: Leaf Thickness to Panel Thickness, and the stile, top rail and bottom rail to `stile_width_mm`, `head_rail_mm` and `base_rail_mm`.
+- **The Single Door's Handle Asset dropdown now lists the handles.** It was never filled: only the pair's dropdown received the handle library, so the single door's was always empty. A handle carried across from the pair would have been in the config with nothing on screen to show it.
+
+### What Is Not Carried, and Why
+- **Swing side and active leaf.** A single door's Swing Side names its hinge stile; a pair's Active Leaf names the leaf that opens first. They are not the same setting, and a flanking panel goes either side of the pair, so each type keeps its own.
+- **Settings the old type does not have.** Leaving a sliding or folding set, which has no hinges, handles or leaf finish, leaves the hinged door's own handles and finish as they were rather than resetting them.
+- **The pair's per-leaf overrides** (Link Leaf Settings off). The pair's shared settings are what carry. A leaf someone has deliberately overridden stays overridden.
+- **Hidden glaze bars and leaded cells.** Their keys name a leaf position, and a single door and a pair do not have the same leaves.
+
+### Opening Angle and Hinge Projection on a Pair
+A pair sets these per leaf, a single door has one. Going to the single door, the **active** leaf supplies the value. That is the leaf the single should match, and it stays correct when the other leaf is drawn shut at 0 degrees to show only one leaf open. Going to the pair, the single door's value goes to both leaves.
+
+### One Table, Not Four Copy Routines
+`na_transposeSharedDoorSettings` in the WindowSystem MainUiLogic walks `NA_EXT_DOOR_SHARED_SUFFIXES`: one row per setting, as `[suffix on Double + Single, suffix on Sliding + MultiFold]`, with null where a type has no such setting. It runs only on a manual Door Type change between two door types. It does not run on a switch to or from Windows, or from `na_setConfig`, so **a door selected in SketchUp still loads exactly as it was saved**. The legacy `bifold_door_glazed` flag is re-synced after a carried composition.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js` - the shared settings table, the transpose and its key resolver, called from the Door Type change path ahead of the default dimensions.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Bridge__.js` - the handle library now fills the Single Door's Handle Asset dropdown as well as the pair's.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__DoorTypeSwitch__Spec__.js` **(new)** - 71-assertion suite.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` - version 1.7.2.
+
+### Testing
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__DoorTypeSwitch__Spec__.js"
+```
+It loads the shipped control configs and MainUiLogic unmodified against an empty DOM stub, captures the real control-change handler the Events module binds, and drives Door Type through it the way a click does. It covers Double to Single and back, active-leaf opening angles, hinged to Sliding to MultiFold and back, the renamed rails, the Windows round trip, and a loaded door keeping its saved values. Expect `71 passed, 0 failed`. With the transpose call removed, 44 of the 71 fail.
+
+The other four suites are unchanged and still report: ExteriorDoorParity `109`, ArithmeticEvaluator `108`, ComponentName `32`, MullionMath `76`.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.1 - 17-Sep-2026 - Negative Cill Protrusion (stub cills into the reveal)
 
 ### Context
