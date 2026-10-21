@@ -1,12 +1,12 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.9.0: native image renderer (binned raster, screen crop, orbit budget), LAS import
+Status: **v0.9.1: native image renderer (binned raster, screen crop, orbit budget), LAS import
 with the `.napc` point cache (v2, named by the LAS content key), the clip box with clip scenes,
 the Transform tab, model persistence (LAS link + local backup, explicit Reload), the Clean tab
 (Remove Noise, Refine Surfaces, Reduce Density; live preview in the clip box; Clean & Export LAS
-to a NEW file, section 22) and the Scenes tab (point cloud scenes for TrueVision, section 23)
-are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026, cleaning added
-12-Oct-2026, scenes 19-Oct-2026. Keep this file true: when a design decision changes,
+to a NEW file, section 22), the Scenes tab (point cloud scenes for TrueVision, section 23) and
+LAZ import through a lossless LAZ to LAS converter (section 24) are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026, cleaning added
+12-Oct-2026, scenes 19-Oct-2026, LAZ 21-Oct-2026. Keep this file true: when a design decision changes,
 change it here and say why in the DEVLOG.
 
 **The decisive finding (M1):** SketchUp's View API costs ~2.3 us per drawn point (100k points =
@@ -99,7 +99,8 @@ in `01__ExternalDependencies__VersionLocked/02__LASzip__Pinned__v3.5.0/` (see th
 README there). It is a *copy*, not a submodule, so the repo alone reproduces the build. Only the
 C API is used: `laszip_create`, `laszip_open_reader`, `laszip_get_header_pointer`,
 `laszip_get_point_pointer`, `laszip_read_point`, `laszip_close_reader`, `laszip_destroy`,
-`laszip_get_error`. LAZ decoding exists in the library but no LAZ import is offered.
+`laszip_get_error`. Since v0.9.1 a LAZ is first decompressed into a new LAS (section 24), which then
+imports like any LAS; the converter also uses LASzip's header-only raw item writers.
 
 Reported at import: LAS version, point data record format, point count (legacy + 1.4 extended),
 X/Y/Z scale and offset, bounds, RGB present (formats 2, 3, 5, 7, 8, 10) and RGB bit depth,
@@ -955,8 +956,8 @@ dependency, now also used to verify every exported file.
   4.1 s, and 13 s at that SK02 spot (22.16).
 - **Preview size estimate** before the first run is only an even-spread estimate; the measured
   count replaces it once a preview has run.
-- **Sources:** LAZ is not supported (neither for import nor export); export needs a cloud loaded
-  from its LAS or a v2 cache.
+- **Sources:** a LAZ cannot be cleaned directly; import it (section 24 converts it to a LAS first)
+  and clean that. Export needs a cloud loaded from its LAS or a v2 cache.
 - **Not tested here:** a destination folder without write permission (needs ACL changes; the
   engine's create failure path is covered by a missing folder and an unavailable drive).
 
@@ -1118,3 +1119,62 @@ drags. The version constant is guarded for hot reload: callers test the key or r
 `pcv_scenario_scenes.rb`: 83 checks (the record and its refusals, recall, relink, remove, the
 public list with the Site Plan type and the 1:1250 and 1:2500 presets, export geometry, dot
 centring, perspective, limits, revision keys), with the Page tripwires quiet throughout.
+
+---
+
+## 24. LAZ import: the lossless LAZ to LAS converter (BUILT in v0.9.1)
+
+Asked for on 21-Oct-2026 so Polycam LAZ files can be imported, with Adam's rule: nothing may affect
+accuracy or size. A LAZ is never read into a cloud directly. It is decompressed into a NEW
+uncompressed LAS beside it, and that LAS is imported like any other, so the point cache, model link
+and Clean & Export (which copies LAS records verbatim) need no LAZ path at all.
+
+### 24.1 Flow
+
+Import LAS / LAZ -> a .laz (or a LAZ-compressed file named .las) -> Save As (`<name>.las`, else
+`<name>_FromLaz_NN.las`; an existing file or the LAZ itself is refused, never replaced) -> the
+engine job (`napc_laz_convert_*`, ABI 6) on its own worker thread, polled by `Na__LazConvertJob`
+through AsyncJobs -> `Na__LasImport__Inspect(new LAS, report)`: the usual report and unit question,
+with Converted from, Conversion check and Header bounds rows first.
+
+### 24.2 What is copied, what changes (LazConvert.hpp)
+
+- **Points:** LASzip 3.5.0 decodes each record into its `laszip_point`; `Na__LazRecordWriter`
+  (LazRecord.cpp) writes it back with LASzip's own raw item writers in the item order of each format
+  (POINT10 / POINT14, GPS time, RGB / RGBNIR, waveform packet, extra bytes). X, Y and Z are the
+  stored integers: no rescale, re-offset or reordering, so accuracy cannot change.
+- **Header:** the LAZ's own bytes. Changed only where compression changed them: byte 104 loses bits 6
+  and 7; the LASzip VLR (`laszip encoded` / 22204) is taken out, so the VLR count (100) and the
+  offset to points (96) shrink; a LAS 1.4 EVLR start (235) moves to just after the points.
+- **Bounds are never recomputed.** The engine measures the points' real extent (integer min / max x
+  scale + offset) and reports it beside the header's. The importer's local origin and the unit sizes
+  come from the header bounds, so a LAZ whose header disagrees with its points gets a warning that says
+  so, with the largest difference in file units.
+- **VLRs, user data after the header, EVLRs:** copied verbatim. COPC records (user id `copc`) index
+  chunks of the compressed file, mean nothing in a LAS and are left out with a note.
+- **Refused:** not LAZ; LASzip compatibility mode (`lascompatible` VLR: the stored header is a 1.2/1.3
+  disguise of the real 1.4 one); internal waveform data (global encoding bit 1); any header LASzip
+  reads differently from its bytes (version, format, record length, count, scale, offset, bounds,
+  VLR count and offset must all agree exactly); a damaged or cut-short LAZ.
+
+### 24.3 The check, and publishing
+
+Written to `<final>.partial-<tag>` (CREATE_NEW) and flushed. Then: `Na__LasFile__ReadLayout` must read
+it as an uncompressed LAS with the LAZ's exact format, record length, count, scale, offset and bounds,
+the expected size, and every header byte outside the patched fields equal to the LAZ's; the record
+bytes on disk must hash to the hash taken while writing; and a second LASzip reader must read every
+record back to the same bytes again. Only then `MoveFileExW` without REPLACE_EXISTING. Cancel or any
+failure deletes the partial file; nothing else is ever deleted, and the LAZ is only opened to read.
+
+### 24.4 Tests (21-Oct-2026)
+
+- Adam's Polycam LAZ (LAS 1.2, format 2, 3,698,370 points): 1.2 s, the LAS is exactly
+  227 + 3,698,370 x 26 bytes, header bytes changed only at 96, 97, 100 and 104, and the decoded extent
+  equals the header bounds to the last bit.
+- `laz_convert.rb.test`: 34 checks with SketchUp's Ruby running the real bridge, AsyncJobs, Controller
+  and converter against the DLL (pick, Save As, convert, report; destination rules; cancel; refusals;
+  wrong header bounds kept and warned about).
+- All 11 point formats (LAS 1.2 / 1.3 / 1.4, extra bytes, NIR, waveform), 50,000 random points each,
+  written by the vendored LASzip both compressed and uncompressed: every converted record is
+  byte-identical to LASzip's own uncompressed output; compatibility mode is refused.
+

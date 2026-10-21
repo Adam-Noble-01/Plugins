@@ -27,6 +27,7 @@
 # ABI 5 (v0.8.0): clouds remember which LAS record each point came from and
 #   its GPS time, caches are named by the LAS content key, and the cleaning
 #   engine (preview context + export job) is exposed.
+# ABI 6 (v0.9.1): the LAZ to LAS converter job (napc_laz_convert_*).
 #
 # =============================================================================
 
@@ -40,7 +41,7 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         NA_DLL_NAME         = 'Na__PointCloudViewer__NativeEngine.dll'.freeze
-        NA_EXPECTED_ABI     = 5
+        NA_EXPECTED_ABI     = 6
         NA_PARAM_COUNT      = 48
         NA_STAT_COUNT       = 10
         NA_STAT_KEYS        = %w[pointsTested pointsOnScreen threads clearMs rasterMs resolveMs encodeMs writeMs nativeTotalMs pngBytes].freeze
@@ -71,6 +72,14 @@ module Na__PointCloudViewer
         NA_EXPORT_POLL_COUNT = NA_EXPORT_KEYS.length   # 37
         NA_PREVIEW_STATES   = { 0 => 'idle', 1 => 'running', 2 => 'done', 3 => 'failed', 4 => 'cancelled' }.freeze
 
+        # LAZ to LAS (Api.h Na__LazPollIndex)
+        NA_LAZ_KEYS         = %w[phase done total finished failed cancelled pointCount pointFormat recordLength
+                                 versionMajor versionMinor sourceBytes writtenBytes
+                                 headerMinX headerMinY headerMinZ headerMaxX headerMaxY headerMaxZ
+                                 pointMinX pointMinY pointMinZ pointMaxX pointMaxY pointMaxZ
+                                 droppedRecords convertMs checkMs totalMs].freeze
+        NA_LAZ_POLL_COUNT   = NA_LAZ_KEYS.length   # 29
+
         @na_handle       = nil  unless defined?(@na_handle)
         @na_functions    = nil  unless defined?(@na_functions)
         @na_generation   = 0    unless defined?(@na_generation)
@@ -79,6 +88,7 @@ module Na__PointCloudViewer
         @na_live         = ObjectSpace::WeakMap.new unless defined?(@na_live)
         @na_live_contexts = ObjectSpace::WeakMap.new unless defined?(@na_live_contexts)
         @na_live_jobs    = ObjectSpace::WeakMap.new unless defined?(@na_live_jobs)
+        @na_live_laz_jobs = ObjectSpace::WeakMap.new unless defined?(@na_live_laz_jobs)
         @na_stats_buffer = nil  unless defined?(@na_stats_buffer)
 
     # endregion ----------------------------------------------------------------
@@ -181,15 +191,23 @@ module Na__PointCloudViewer
                 export_error:         fn.('napc_clean_export_error', [voidp, voidp, int], int),
                 export_notes:         fn.('napc_clean_export_notes', [voidp, voidp, int], int),
                 export_cancel:        fn.('napc_clean_export_cancel', [voidp], void),
-                export_destroy:       fn.('napc_clean_export_destroy', [voidp], void)
+                export_destroy:       fn.('napc_clean_export_destroy', [voidp], void),
+                laz_start:            fn.('napc_laz_convert_start', [voidp, voidp], voidp),
+                laz_poll:             fn.('napc_laz_convert_poll', [voidp, voidp, int], int),
+                laz_error:            fn.('napc_laz_convert_error', [voidp, voidp, int], int),
+                laz_notes:            fn.('napc_laz_convert_notes', [voidp, voidp, int], int),
+                laz_cancel:           fn.('napc_laz_convert_cancel', [voidp], void),
+                laz_destroy:          fn.('napc_laz_convert_destroy', [voidp], void)
             }
         end
 
-        # Every live native object dies with the old DLL: export jobs and
-        # cleaning contexts first (each joins its own worker), then clouds.
+        # Every live native object dies with the old DLL: LAZ conversions,
+        # export jobs and cleaning contexts first (each joins its own worker),
+        # then clouds.
         # Their owners notice the generation change and start again.
         def self.na_unload
-            [[@na_live_jobs, :export_destroy], [@na_live_contexts, :clean_destroy], [@na_live, :destroy]].each do |live, destroy|
+            [[@na_live_laz_jobs, :laz_destroy], [@na_live_jobs, :export_destroy], [@na_live_contexts, :clean_destroy],
+             [@na_live, :destroy]].each do |live, destroy|
                 live.each do |pointer, alive|
                     next unless alive
                     begin
@@ -203,6 +221,7 @@ module Na__PointCloudViewer
             @na_live          = ObjectSpace::WeakMap.new
             @na_live_contexts = ObjectSpace::WeakMap.new
             @na_live_jobs     = ObjectSpace::WeakMap.new
+            @na_live_laz_jobs = ObjectSpace::WeakMap.new
             @na_functions[:shutdown].call if @na_functions
             @na_handle.close if @na_handle
         rescue StandardError => error
@@ -528,6 +547,52 @@ module Na__PointCloudViewer
             job.free = nil
             @na_live_jobs[job] = false
             @na_functions[:export_destroy].call(job)
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | LAZ to LAS (a NEW uncompressed LAS, checked and published)
+    # -------------------------------------------------------------------------
+
+        # Returns a job pointer (freed by GC or Na__Native__LazDestroy, which
+        # also deletes any partial file).
+        def self.Na__Native__LazStart(source_path, dest_path)
+            raise self.na_unavailable_error unless self.Na__Native__EnsureLoaded
+            source_c = self.na_cstr(source_path)
+            dest_c   = self.na_cstr(dest_path)
+            raw = @na_functions[:laz_start].call(Fiddle::Pointer[source_c], Fiddle::Pointer[dest_c])
+            raise "The LAZ conversion could not start: #{self.na_last_error}" if raw.null?
+            pointer = Fiddle::Pointer.new(raw.to_i, 0, @na_functions[:laz_destroy])
+            @na_live_laz_jobs[pointer] = true
+            pointer
+        end
+
+        def self.Na__Native__LazPoll(job)
+            out = Fiddle::Pointer.malloc(8 * NA_LAZ_POLL_COUNT, self.na_ruby_free)
+            @na_functions[:laz_poll].call(job, out, NA_LAZ_POLL_COUNT)
+            values = out.to_s(8 * NA_LAZ_POLL_COUNT).unpack('d*')
+            NA_LAZ_KEYS.each_with_index.to_h { |key, index| [key, values[index]] }
+        end
+
+        def self.Na__Native__LazError(job)
+            self.na_read_text(:laz_error, job)
+        end
+
+        # Plain-English notes about records left out (' | ' separated).
+        def self.Na__Native__LazNotes(job)
+            self.na_read_text(:laz_notes, job)
+        end
+
+        def self.Na__Native__LazCancel(job)
+            @na_functions[:laz_cancel].call(job) if job && @na_functions && @na_live_laz_jobs[job]
+        end
+
+        def self.Na__Native__LazDestroy(job)
+            return unless job && @na_functions && @na_live_laz_jobs[job]
+            job.free = nil
+            @na_live_laz_jobs[job] = false
+            @na_functions[:laz_destroy].call(job)
         end
 
     # endregion ----------------------------------------------------------------

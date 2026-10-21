@@ -89,6 +89,7 @@ require_relative 'Na__PointCloudViewer__AppCore__AsyncJobs__'
 
 require_relative '../40__System__LasImport/Na__PointCloudViewer__LasImport__Controller__'
 require_relative '../40__System__LasImport/Na__PointCloudViewer__LasImport__Job__'
+require_relative '../40__System__LasImport/Na__PointCloudViewer__LasImport__LazConvert__'
 require_relative '../50__System__ClipBox/Na__PointCloudViewer__ClipBox__State__'
 require_relative '../50__System__ClipBox/Na__PointCloudViewer__ClipBox__EditTool__'
 require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__Placement__'

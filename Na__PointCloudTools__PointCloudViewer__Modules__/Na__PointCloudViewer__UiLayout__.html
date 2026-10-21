@@ -73,11 +73,11 @@
                     <div id="na-view-cloud-summary" class="na-cloud-summary na-cloud-summary--empty">No point cloud loaded.</div>
                     <p class="na-fault na-hidden" id="na-view-fault"></p>
                     <div class="na-button-row">
-                        <button type="button" class="naButton" id="na-view-import-las">Import LAS&hellip;</button>
+                        <button type="button" class="naButton" id="na-view-import-las" title="A LAZ (from Polycam and others) is first decompressed, losslessly, into a new LAS next to it">Import LAS / LAZ&hellip;</button>
                         <button type="button" class="naButtonSecondary" id="na-view-zoom" title="Frames the cloud, or only the clipped part while clipping is on">Zoom to Cloud</button>
                         <button type="button" class="naButtonSecondary" id="na-view-unload">Unload</button>
                     </div>
-                    <p class="na-hint">The LAS file is only ever read, never changed. The model remembers which LAS it uses, where the cloud sits and the clip box; Reload Point Cloud brings the points back next time.</p>
+                    <p class="na-hint">The LAS file is only ever read, never changed. A LAZ is first decompressed into a new LAS, checked point by point, and that LAS is imported. The model remembers which LAS it uses, where the cloud sits and the clip box; Reload Point Cloud brings the points back next time.</p>
                 </section>
 
                 <section class="na-card na-card--link na-hidden" id="na-link-card">

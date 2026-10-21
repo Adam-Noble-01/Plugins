@@ -59,6 +59,8 @@ add_library(Na__PointCloudViewer__NativeEngine SHARED
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__PointCache__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LasFile__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LasExport__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LazConvert__.cpp"
+    "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__LazRecord__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__Geometry__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__KdTree__.cpp"
     "${NA_SOURCE_DIR}/Na__PointCloudViewer__NativeEngine__CleanRegion__.cpp"

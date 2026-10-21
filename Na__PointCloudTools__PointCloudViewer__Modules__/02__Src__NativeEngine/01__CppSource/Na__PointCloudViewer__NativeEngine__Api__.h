@@ -30,7 +30,8 @@
 // bridge refuses a DLL whose ABI it does not know.
 //   5 (v0.8.0): source record identity + time in clouds, cache v2, LAS content
 //               key, the cleaning engine (preview context + export job).
-#define NAPC_ABI_VERSION 5
+//   6 (v0.9.1): the LAZ to LAS converter (napc_laz_convert_*).
+#define NAPC_ABI_VERSION 6
 
 // Render parameter layout (doubles), shared with the Ruby bridge.
 enum Na__RenderParamIndex {
@@ -213,6 +214,28 @@ enum Na__ExportPollIndex {
     NAPC_E_TILES, NAPC_E_MAX_TILE_POINTS, NAPC_E_PEAK_WORK_MB,
     NAPC_E_BY_RETURN_MISMATCH, NAPC_E_DROPPED_VLRS, NAPC_E_DROPPED_EVLRS, NAPC_E_GRID_MS,
     NAPC_E_COUNT
+};
+
+// --- LAZ to LAS (LazConvert.hpp) ---------------------------------------------------
+// Decompresses source_utf8 (a .laz) into dest_utf8, a NEW uncompressed LAS (never
+// replacing anything), checked and published on a worker thread.
+NAPC_API void*       napc_laz_convert_start(const char* source_utf8, const char* dest_utf8);
+// Fills NAPC_Z_COUNT doubles. Returns 1 when finished (success, failure or cancel).
+NAPC_API int32_t     napc_laz_convert_poll(void* job, double* out, int32_t out_count);
+NAPC_API int32_t     napc_laz_convert_error(void* job, char* text, int32_t text_cap);
+NAPC_API int32_t     napc_laz_convert_notes(void* job, char* text, int32_t text_cap);
+NAPC_API void        napc_laz_convert_cancel(void* job);
+// Cancels if running, joins, frees (and deletes any partial file).
+NAPC_API void        napc_laz_convert_destroy(void* job);
+
+enum Na__LazPollIndex {
+    NAPC_Z_PHASE = 0, NAPC_Z_DONE, NAPC_Z_TOTAL, NAPC_Z_FINISHED, NAPC_Z_FAILED, NAPC_Z_CANCELLED,
+    NAPC_Z_POINT_COUNT, NAPC_Z_POINT_FORMAT, NAPC_Z_RECORD_LENGTH, NAPC_Z_VERSION_MAJOR, NAPC_Z_VERSION_MINOR,
+    NAPC_Z_SOURCE_BYTES, NAPC_Z_WRITTEN_BYTES,
+    NAPC_Z_HEADER_MIN_X, NAPC_Z_HEADER_MIN_Y, NAPC_Z_HEADER_MIN_Z, NAPC_Z_HEADER_MAX_X, NAPC_Z_HEADER_MAX_Y, NAPC_Z_HEADER_MAX_Z,
+    NAPC_Z_POINT_MIN_X, NAPC_Z_POINT_MIN_Y, NAPC_Z_POINT_MIN_Z, NAPC_Z_POINT_MAX_X, NAPC_Z_POINT_MAX_Y, NAPC_Z_POINT_MAX_Z,
+    NAPC_Z_DROPPED_RECORDS, NAPC_Z_CONVERT_MS, NAPC_Z_CHECK_MS, NAPC_Z_TOTAL_MS,
+    NAPC_Z_COUNT
 };
 
 // Stops and joins the worker threads. Call before unloading the DLL.

@@ -4,6 +4,75 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.9.1 - 21-Oct-2026 - LAZ Import: Lossless LAZ to LAS Converter
+
+### Summary
+Adam asked for a LAZ to LAS converter so Polycam LAZ files can be imported, with one rule above all:
+nothing may affect accuracy or size. Import LAS / LAZ now accepts a .laz. It is decompressed into a
+NEW LAS next to it (Save As, never overwriting), checked record by record, and that LAS's usual import
+report and unit question follow. Everything after that (point cache, model link, Clean & Export)
+works on the LAS exactly as before. No new dependency: the decoder is the LASzip 3.5.0 the engine
+already vendored, unmodified. ARCHITECTURE section 24 is the full description.
+
+### Built
+- **Engine (ABI 6):** `LazConvert.hpp/.cpp` (the job: worker thread, progress, cancel, partial file,
+  check, publish without replace) and `LazRecord.cpp` (turns each decoded point back into record bytes
+  with LASzip's OWN raw item writers, `laswriteitemraw.hpp`). The header, VLRs, user data and LAS 1.4
+  EVLRs are copied byte for byte; only the point format's compression bits, the LASzip VLR (so the VLR
+  count and offset to points) and a 1.4 EVLR start change. Scale, offset, bounds, counts, GUID, dates
+  and generating software are untouched, and the bounds are never recomputed: the points' real extent
+  is measured and reported beside them. COPC index records are dropped with a note. Refused with a
+  plain message: not LAZ, LASzip compatibility mode, internal waveform data, a header LASzip reads
+  differently from its bytes, a damaged or cut-short LAZ.
+- **Check before the file gets its name:** the new layout must read back with the LAZ's exact format,
+  record length, count, scale, offset and bounds, and every other header byte equal; the record bytes
+  on disk must hash to what was written; LASzip must read every record back to the same bytes again.
+- **Ruby:** bridge ABI 6 (`Na__Native__Laz*`, its own live-job map destroyed first on a DLL swap);
+  `40__System__LasImport/...LasImport__LazConvert__.rb` (Save As loop: `<name>.las`, else
+  `<name>_FromLaz_01.las`; the job; the report rows); the Controller routes .laz (and a LAZ-compressed
+  file named .las) to it and gained `Na__LasImport__Inspect(path, conversion)`.
+- **UI:** the button reads Import LAS / LAZ, the picker shows both, and a converted file's report starts
+  with Converted from, Conversion check and Header bounds rows. When a LAZ's header bounds disagree with
+  its points, the status line is a warning that says the size shown comes from the header.
+
+### 21-Oct-2026: what the online converter did to Adam's sample (reported to Adam)
+- Adam's sample `21_10_2026.laz` (Polycam, LAS 1.2, format 2, 3,698,370 points) and the LAS an online
+  converter made from it (`21_10_2026 (1).las`). The engine's conversion keeps every point; its decoded
+  extent reproduces Polycam's own header bounds to the last bit.
+- The online converter's LAS has the same count, scale and offset, but **not one of its 3,698,370 records
+  is identical to the LAZ's**. Matched to the nearest point, its points sit 0.33e-3 file units away at
+  the median, up to 1.48e-3 (0.3 mm and 1.5 mm if the file is in metres). That is about the scan's own
+  point spacing (0.35e-3), so its points are not the LAZ's points moved slightly: they are effectively
+  different points. Its header bounds were recomputed from those points (overall extent 2.0e-5 smaller in
+  X). Do not use that file for survey work; convert the LAZ with the viewer instead.
+- The sample's whole extent is 1.343 x 1.285 x 0.466 file units (1.3 m x 1.3 m x 46.6 cm if in metres),
+  the same in the LAZ and both LAS files. Worth a look on import if the scan was a room.
+
+### Tested
+- Adam's LAZ through the DLL: 3,698,370 points in 1.2 s (1.0 s decode + 0.2 s check); the LAS is
+  96,157,847 bytes = 227 + 3,698,370 x 26; header bytes changed from the LAZ: only 96, 97, 100, 104.
+- `laz_convert.rb.test` (SketchUp's own Ruby 3.2 loading the real bridge, AsyncJobs, Controller and
+  converter against the real DLL; UI and dialog doubles): 34 checks, all passing. Pick a .laz, Save As,
+  convert, the import report with its rows; byte-identical to the DLL-only run; the destination rules
+  and the refusal of an existing file; cancel mid-conversion (nothing left, not even a partial file); an
+  uncompressed LAS and a cut-short LAZ refused with nothing written; a LAZ with deliberately wrong header
+  bounds converted with the bounds kept byte for byte and the warning shown.
+- All 11 point formats: a generator built against the vendored LASzip wrote the same 50,000 random
+  points (every attribute, GPS time, RGB, NIR, waveform packets, 3 extra bytes on formats 1, 4, 7, 10,
+  LAS 1.2 / 1.3 / 1.4, an extra VLR) as LAZ and as uncompressed LAS. Each converted LAZ's records are
+  byte-identical to LASzip's own uncompressed LAS, header fields and VLRs equal; a compatibility-mode
+  LAZ is refused. 40/40 Ruby files compile under SketchUp's Ruby 3.2.
+- Not yet tried in SketchUp itself: the Save As dialog, the overlay during conversion, the report card,
+  then importing the converted LAS.
+
+### Checklist for Adam (in SketchUp)
+1. Settings > Reload Plugin (the engine swaps to the ABI 6 build), then Import LAS / LAZ and pick the
+   Polycam .laz. Save As offers `21_10_2026.las` in the same folder.
+2. The overlay shows Decompressing, then Checking; Cancel deletes everything it wrote.
+3. The import card opens with Converted from, Conversion check and Header bounds rows (Header bounds
+   should say Match the points exactly). Check the Extent and the unit sizes, choose the units, Import.
+4. Pick the converted `.las` again later: it imports directly, with no conversion.
+
 ## Point Cloud Viewer - v0.9.0 - 19-Oct-2026 - Scenes Tab: Point Cloud Scenes for TrueVision
 
 ### Summary

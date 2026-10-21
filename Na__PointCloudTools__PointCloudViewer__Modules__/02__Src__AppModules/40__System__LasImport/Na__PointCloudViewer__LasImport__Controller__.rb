@@ -5,7 +5,9 @@
 # FILE       : Na__PointCloudViewer__LasImport__Controller__.rb
 # NAMESPACE  : Na__PointCloudViewer::Na__LasImport
 # PURPOSE    : Step 1 - pick a .las, read its header natively, and show the
-#              user a plain report plus the unit question.
+#              user a plain report plus the unit question. A .laz (or a
+#              LAZ-compressed file named .las) is first decompressed into a
+#              NEW LAS (LazConvert.rb), whose report is then shown.
 #              Step 2 - start the threaded import with the unit they chose.
 #
 # UNITS (the rule): LAS files do not reliably state their units, so the user
@@ -26,23 +28,34 @@ module Na__PointCloudViewer
         def self.Na__LasImport__PickAndInspect
             folder = Na__UserConfigStore.Na__UserConfig__Get('import', 'lastFolder', '')
             folder = '' unless folder.is_a?(String) && File.directory?(folder)
-            path = UI.openpanel('Choose a LAS point cloud', folder, 'LAS point cloud (*.las)|*.las||')
+            path = UI.openpanel('Choose a LAS or LAZ point cloud', folder, 'LAS or LAZ point cloud (*.las;*.laz)|*.las;*.laz||')
             return Na__DialogManager.Na__Dialog__PushStatus('Import cancelled.', 'info') unless path
 
             path = path.tr('\\', '/')
             Na__UserConfigStore.Na__UserConfig__Set('import', 'lastFolder', File.dirname(path))
-            unless File.extname(path).casecmp('.las').zero?
-                return Na__DialogManager.Na__Dialog__PushStatus('Only .las files can be imported in this version. LAZ, E57, PLY and other formats are not supported.', 'error')
+            extension = File.extname(path).downcase
+            unless %w[.las .laz].include?(extension)
+                return Na__DialogManager.Na__Dialog__PushStatus('Only .las and .laz files can be imported. E57, PLY and other formats are not supported.', 'error')
             end
+            return self.Na__LazConvert__Start(path) if extension == '.laz'
+            self.Na__LasImport__Inspect(path)
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Error('LAS header read failed.', error)
+            Na__DialogManager.Na__Dialog__PushStatus("The LAS file could not be read: #{error.message}", 'error')
+        end
 
+        # Reads the header and shows the report. conversion: the LAZ converter's
+        # report (Na__LazConvert__Report) when this LAS was just made from a LAZ.
+        def self.Na__LasImport__Inspect(path, conversion = nil)
             info, header_ms = Na__PerfStats.Na__Perf__Measure { Na__NativeEngine.Na__Native__LasReadHeader(path) }
             if info['isCompressed'].to_i == 1
-                return Na__DialogManager.Na__Dialog__PushStatus('This file is LAZ-compressed. Export it as uncompressed LAS; LAZ import is not part of this version.', 'error')
+                return self.Na__LazConvert__Start(path) unless conversion
+                return Na__DialogManager.Na__Dialog__PushStatus('The converted file is still LAZ-compressed; it was not imported.', 'error')
             end
             if info['pointCount'].to_i <= 0
                 return Na__DialogManager.Na__Dialog__PushStatus('This LAS file contains no points.', 'error')
             end
-            Na__DialogManager.Na__Dialog__Send('lasHeader', self.na_header_payload(path, info, header_ms))
+            Na__DialogManager.Na__Dialog__Send('lasHeader', self.na_header_payload(path, info, header_ms, conversion))
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Error('LAS header read failed.', error)
             Na__DialogManager.Na__Dialog__PushStatus("The LAS file could not be read: #{error.message}", 'error')
@@ -100,14 +113,16 @@ module Na__PointCloudViewer
     # REGION | Report Payload
     # -------------------------------------------------------------------------
 
-        def self.na_header_payload(path, info, header_ms)
+        def self.na_header_payload(path, info, header_ms, conversion = nil)
             extent = %w[X Y Z].map { |axis| info["max#{axis}"].to_f - info["min#{axis}"].to_f }
             suggested = self.na_wkt_unit(info['wkt'])
             {
                 'path'          => path,
                 'fileName'      => File.basename(path),
                 'headerMs'      => header_ms.round(1),
-                'rows'          => self.na_report_rows(path, info, extent),
+                'rows'          => (conversion ? conversion['rows'] : []) + self.na_report_rows(path, info, extent),
+                'statusText'    => conversion ? conversion['statusText'] : nil,
+                'statusLevel'   => conversion ? conversion['statusLevel'] : nil,
                 'unitOptions'   => Na__UnitContract::NA_SOURCE_UNITS.map do |key, entry|
                     { 'key' => key, 'label' => entry['label'], 'sizeText' => self.na_size_text(extent, key) }
                 end,

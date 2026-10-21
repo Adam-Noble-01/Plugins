@@ -19,8 +19,9 @@ format (0-10), applies nothing silently, and exposes the raw header (scale, offs
 VLRs) and each point's integer X/Y/Z and RGB. That is the whole requirement. PDAL would drag in
 GDAL/PROJ and a package manager for no gain.
 
-LASzip can also decompress LAZ. The plugin deliberately offers no LAZ import in V1; the
-capability simply sits unused in the library.
+LASzip also decompresses LAZ. Since v0.9.1 the plugin uses that to convert a LAZ into a new,
+uncompressed LAS before importing it (`LazConvert.hpp`, ARCHITECTURE section 24). Nothing here was
+changed for it.
 
 ## What was kept
 - `src/*.cpp`, `src/*.hpp` - the library
@@ -34,6 +35,12 @@ The native engine's `CMakeLists.txt` compiles every `src/*.cpp` into a static li
 the Ruby extension. Definitions: `UNORDERED`, `HAVE_UNORDERED_MAP=1`. `LASZIP_DYN_LINK` stays
 undefined so `LASZIP_API` expands to nothing (static linkage). No network access at build or run
 time.
+
+## What the LAZ converter adds (v0.9.1)
+The same reader calls, plus LASzip's header-only internal `bytestreamout.hpp` and
+`laswriteitemraw.hpp` (the raw item writers its own uncompressed writer uses), included by
+`Na__PointCloudViewer__NativeEngine__LazRecord__.cpp` only, with their warnings muted there. They are
+used unmodified, so a decoded point goes back to exactly the bytes LASzip itself would write.
 
 ## The API calls the importer uses
 `laszip_create` -> `laszip_open_reader` -> `laszip_get_header_pointer` /

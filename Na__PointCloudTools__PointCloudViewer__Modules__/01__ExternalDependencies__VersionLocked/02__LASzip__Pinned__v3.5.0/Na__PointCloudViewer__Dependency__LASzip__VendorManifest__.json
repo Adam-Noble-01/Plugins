@@ -2,7 +2,7 @@
     "schema"          : "Na__PointCloudViewer__DependencyManifest",
     "schemaVersion"   : 1,
     "name"            : "LASzip",
-    "purpose"         : "LAS 1.0-1.4 point reading (header, scale/offset, point records, RGB) for the native engine.",
+    "purpose"         : "LAS 1.0-1.4 point reading (header, scale/offset, point records, RGB) for the native engine; since v0.9.1 also LAZ decompression for the LAZ to LAS converter (reader API + the header-only raw item writers).",
     "repository"      : "https://github.com/LASzip/LASzip",
     "pinnedTag"       : "3.5.0",
     "pinnedCommit"    : "fa089bd8b2b4ca5631e199d257374c32a125f73f",

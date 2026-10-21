@@ -21,6 +21,7 @@
 #include "Na__PointCloudViewer__NativeEngine__Api__.h"
 #include "Na__PointCloudViewer__NativeEngine__LasFile__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LasImport__.hpp"
+#include "Na__PointCloudViewer__NativeEngine__LazConvert__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__PngWriter__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__PointCache__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__Rasterizer__.hpp"
@@ -366,6 +367,83 @@ NAPC_API void* napc_job_take_cloud(void* job_handle) {
 
 NAPC_API void napc_job_destroy(void* job_handle) {
     Na__LasJob__Destroy(static_cast<Na__LasImportJob*>(job_handle));
+}
+
+// -----------------------------------------------------------------------------
+// REGION | LAZ to LAS
+// -----------------------------------------------------------------------------
+
+NAPC_API void* napc_laz_convert_start(const char* source_utf8, const char* dest_utf8) {
+    if (!source_utf8 || !dest_utf8) {
+        Na__Fail("The LAZ conversion needs a source and a destination path.", -1);
+        return nullptr;
+    }
+    try {
+        Na__LazConvertJob* job = new Na__LazConvertJob();
+        job->source_utf8 = source_utf8;
+        job->dest_utf8   = dest_utf8;
+        Na__LazConvert__Start(job);
+        return job;
+    } catch (...) {
+        Na__Fail("The LAZ conversion could not be started.", -2);
+        return nullptr;
+    }
+}
+
+NAPC_API int32_t napc_laz_convert_poll(void* job_handle, double* out, int32_t out_count) {
+    Na__LazConvertJob* job = static_cast<Na__LazConvertJob*>(job_handle);
+    if (!job || !out || out_count < NAPC_Z_COUNT) return Na__Fail("LAZ conversion poll is missing arguments.", -1);
+    const bool finished = job->finished.load(std::memory_order_acquire);
+    std::fill(out, out + NAPC_Z_COUNT, 0.0);
+    out[NAPC_Z_PHASE]     = job->phase.load();
+    out[NAPC_Z_DONE]      = static_cast<double>(job->done.load());
+    out[NAPC_Z_TOTAL]     = static_cast<double>(job->total.load());
+    out[NAPC_Z_FINISHED]  = finished ? 1 : 0;
+    out[NAPC_Z_FAILED]    = job->failed.load() ? 1 : 0;
+    out[NAPC_Z_CANCELLED] = job->cancelled.load() ? 1 : 0;
+    if (finished) {
+        out[NAPC_Z_POINT_COUNT]   = static_cast<double>(job->point_count);
+        out[NAPC_Z_POINT_FORMAT]  = job->point_format;
+        out[NAPC_Z_RECORD_LENGTH] = job->record_length;
+        out[NAPC_Z_VERSION_MAJOR] = job->version_major;
+        out[NAPC_Z_VERSION_MINOR] = job->version_minor;
+        out[NAPC_Z_SOURCE_BYTES]  = static_cast<double>(job->source_bytes);
+        out[NAPC_Z_WRITTEN_BYTES] = static_cast<double>(job->written_bytes);
+        for (int axis = 0; axis < 3; ++axis) {
+            out[NAPC_Z_HEADER_MIN_X + axis] = job->header_min[axis];
+            out[NAPC_Z_HEADER_MAX_X + axis] = job->header_max[axis];
+            out[NAPC_Z_POINT_MIN_X + axis]  = job->point_min[axis];
+            out[NAPC_Z_POINT_MAX_X + axis]  = job->point_max[axis];
+        }
+        out[NAPC_Z_DROPPED_RECORDS] = job->dropped_records;
+        out[NAPC_Z_CONVERT_MS]      = job->convert_ms;
+        out[NAPC_Z_CHECK_MS]        = job->check_ms;
+        out[NAPC_Z_TOTAL_MS]        = job->total_ms;
+    }
+    return finished ? 1 : 0;
+}
+
+NAPC_API int32_t napc_laz_convert_error(void* job_handle, char* text, int32_t text_cap) {
+    Na__LazConvertJob* job = static_cast<Na__LazConvertJob*>(job_handle);
+    if (!job) return 0;
+    std::lock_guard<std::mutex> lock(job->text_mutex);
+    return Na__CopyText(job->error, text, text_cap);
+}
+
+NAPC_API int32_t napc_laz_convert_notes(void* job_handle, char* text, int32_t text_cap) {
+    Na__LazConvertJob* job = static_cast<Na__LazConvertJob*>(job_handle);
+    if (!job) return 0;
+    std::lock_guard<std::mutex> lock(job->text_mutex);
+    return Na__CopyText(job->notes, text, text_cap);
+}
+
+NAPC_API void napc_laz_convert_cancel(void* job_handle) {
+    Na__LazConvertJob* job = static_cast<Na__LazConvertJob*>(job_handle);
+    if (job) job->cancel_requested.store(true);
+}
+
+NAPC_API void napc_laz_convert_destroy(void* job_handle) {
+    Na__LazConvert__Destroy(static_cast<Na__LazConvertJob*>(job_handle));
 }
 
 // -----------------------------------------------------------------------------

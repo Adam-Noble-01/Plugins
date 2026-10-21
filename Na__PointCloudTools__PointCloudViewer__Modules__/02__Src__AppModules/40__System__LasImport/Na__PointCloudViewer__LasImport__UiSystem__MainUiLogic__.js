@@ -8,6 +8,8 @@
 //              pushes 'lasHeader'; this shows the report and the unit choice.
 //              Import stays disabled until a unit is chosen - nothing is ever
 //              assumed. Each unit option shows the real size it would give.
+//              A LAS just decompressed from a LAZ arrives with the converter's
+//              rows first and its own status line (statusText / statusLevel).
 //
 // =============================================================================
 
@@ -60,7 +62,7 @@
         na_card().classList.remove('na-hidden');
         if (window.Na_TabRouter) window.Na_TabRouter.na_activateTab('view');
         na_card().scrollIntoView({ block: 'nearest' });
-        Shell.na_set_status('Check the report and choose the units, then press Import.', 'info');
+        Shell.na_set_status(header.statusText || 'Check the report and choose the units, then press Import.', header.statusLevel || 'info');
     };
 
     LasImport.na_hide = function () {
@@ -77,7 +79,7 @@
 
     function na_wire() {
         document.getElementById('na-view-import-las').addEventListener('click', function () {
-            Shell.na_set_status('Choose a LAS file...', 'info');
+            Shell.na_set_status('Choose a LAS or LAZ file...', 'info');
             Bridge.na_call('las_pick_file', {});
         });
         document.getElementById('na-las-import-cancel').addEventListener('click', function () {
