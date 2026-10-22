@@ -34,6 +34,9 @@
 #                MAT011__ModelingUtility__Transparent. The container, not the
 #                faces, so it can be cleared again in one click.
 #
+#   ALT+SHIFT switches Subtraction on and off, mid-drag included: the drag
+#   in hand follows the switch, and so it does from the popup.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -58,6 +61,7 @@ module Na__InsertPrimatives
         def initialize
             na_drawn__init_shared_state
             na_volume__clear_target
+            na_volume__release_chord
         end
         # ---------------------------------------------------------------
 
@@ -92,7 +96,8 @@ module Na__InsertPrimatives
                 'VCB depth: 300 | +50 | -25',
                 'A pinned axis stops following the drag — BKSP releases it again',
                 'Type straight after drawing to correct the box in place',
-                'Right-click for the menu — Subtraction and Transparent sit under this tool'
+                'Right-click for the menu — Subtraction and Transparent sit under this tool',
+                'ALT+SHIFT switches Subtraction on and off, mid-drag too'
             ]
 
             hints << 'SUBTRACTION ON: rectangle, then click the group to cut, then the depth' if na_volume__subtract_option?
@@ -195,8 +200,10 @@ module Na__InsertPrimatives
             points = na_drawn__rectangle_points
             return unless points
 
+            fill, border = na_volume__rectangle_colors
+
             unless na_drawn__rectangle_valid?
-                Na__InsertPrimatives.Na__DrawnPreview__DrawOutline(view, points, NA_DRAWN_PLANE_BORDER_COLOR)
+                Na__InsertPrimatives.Na__DrawnPreview__DrawOutline(view, points, border)
                 return
             end
 
@@ -205,9 +212,7 @@ module Na__InsertPrimatives
                 return
             end
 
-            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(
-                view, points, NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
-            )
+            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(view, points, fill, border)
             Na__InsertPrimatives.Na__DrawnPreview__LabelRectangle(view, points, @na_size_u, @na_size_v, na_drawn__locked?(:u), na_drawn__locked?(:v))
             Na__InsertPrimatives.Na__DrawnPreview__SummarisePlane(view, points[2], @na_size_u, @na_size_v)
         end
@@ -323,6 +328,13 @@ module Na__InsertPrimatives
             else
                 na_drawn__revise_available? ? 'Type W,H,D to correct the box just drawn' : 'Click and drag out the base rectangle'
             end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Keys Named at the End of the Status Line
+        # ------------------------------------------------------------
+        def na_drawn__vertex_hint
+            "#{super}  ALT+SHIFT subtract"
         end
         # ---------------------------------------------------------------
 

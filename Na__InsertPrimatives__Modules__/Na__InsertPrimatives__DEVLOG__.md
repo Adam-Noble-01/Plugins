@@ -3,6 +3,85 @@
 
 # =============================================================================
 
+## Version 5.1.23 - 22-Oct-2026 - Drawn Volume: Subtraction Switches Mid-Drag, and ALT+SHIFT
+
+### Asked For
+*"currently the subtraction mode cant be toggled on or off durng the tools operation which is
+really annoying. we need to also add a hot key alt+shift should toggle subtraction mode on and
+off"*, with a screenshot of the popup's Drawn Volume submenu (Subtraction: Off).
+
+### Why the Switch Did Nothing
+The popup toggle stored the option and redrew. Drawn Volume only read it at one moment: when
+the base rectangle settled (`na_drawn__advance_from_b`). So a drag already past that point
+kept going where it was going:
+- switched **on** while extruding: the box was still **placed**;
+- switched **off** with a target picked: the box was still **cut** out of it.
+
+### Now the Drag in Hand Follows the Switch
+| Switched | While | Becomes |
+|---|---|---|
+| ON | drawing the rectangle | the rectangle turns cutter red; it asks for a target when it settles |
+| ON | extruding a box | the target stage: hover the group to cut, then the depth |
+| OFF | picking the target | the depth stage: the box extrudes as a plain volume |
+| OFF | dragging a cut's depth | the same depth, now a box to place |
+
+- **A dragged depth** is let go when the box stops to ask for a target, as it always was on
+  the way in. A depth **typed** as W,H,D stays pinned through both directions.
+- **A key never places anything.** Switching off a fully typed W,H,D that is waiting for its
+  target moves it to the depth stage, and the click or Enter places it.
+- **Without SketchUp Pro's solid tools**, ON is stored but the drag stays a box, and the status
+  line says *Subtraction ON, but cutting needs the solid tools in SketchUp Pro*.
+- **Transparent** is untouched: it was already read when the box is built.
+
+### ALT+SHIFT
+- **Either order:** SHIFT then ALT, or ALT then SHIFT.
+- **Once per press of the pair.** The held key's auto-repeat never flips it back. With SHIFT
+  held, each fresh tap of ALT flips it again.
+- **Not with CTRL down:** CTRL+SHIFT is the vertex-to-grid snap, and CTRL+ALT runs shortcuts
+  (Ctrl+Alt+V is Drawn Volume itself).
+- **ALT as half of the pair is swallowed**, key-down and key-up, so it cannot wake the menu bar.
+  A **bare ALT is passed on**, so Alt+F and the rest of the menu bar still work.
+- **Lost key-ups heal themselves**, the 5.1.21 way: an ALT key-up the menu bar ate is forgotten
+  after 2 s (a held ALT's auto-repeat keeps it fresh), and the mouse flags re-arm the pair the
+  moment they show SHIFT up.
+- **The popup keeps up.** It stays open after an option toggle, so it can be standing beside
+  the model when the keys flip the option. Its button is rewritten in place
+  (`Na__RightClickPopup__RefreshOption`).
+- **Said out loud:** the status line ends `CTRL vertex  CTRL+SHIFT vertex→grid  ALT+SHIFT
+  subtract`, `| SUBTRACTION` is shown while it is on, and the console banner lists the keys.
+
+### Verified Offline (SketchUp's bundled Ruby 3.2, the real DrawnVolumeTool on doubles)
+- Syntax: 77/77 InsertPrimatives files compile.
+- 47 checks, all passing: the four switches in the table, a typed W,H,D switched off, Transparent
+  mid-cut, both key orders, auto-repeat, fresh taps, CTRL blocking the pair, bare ALT passed
+  through, a lost SHIFT key-up, a stale ALT, and no solid tools.
+- Against the pre-5.1.23 code the same suite fails 22 checks, the reported bug among them.
+
+### Files
+- `20__System__DrawnPrimitives/..DrawnVolume__Subtract__.rb`: constants; the region *Switching
+  Subtraction Mid-Drag* (`Na__DrawnMode__ToggleToolOption` override,
+  `na_volume__follow_subtract_option`, the ALT+SHIFT key handling, `na_volume__release_chord`);
+  `na_volume__rectangle_colors`.
+- `20__System__DrawnPrimitives/..DrawnVolumeTool__.rb`: header, the chord state in
+  `initialize`, the banner line, the rectangle colours, `na_drawn__vertex_hint`.
+- `40__UserInterface/..RightClickPopup__.rb`: `Na__RightClickPopup__RefreshOption`.
+
+### Testing Notes
+- [ ] Drag a box, and while extruding press ALT+SHIFT: the box stops and asks for the group to
+      cut. Click a wall, drag the depth, click: it cuts.
+- [ ] Rectangle, target picked, cut depth showing red, press ALT+SHIFT: the red cutter turns
+      into an amber box. Click: a box is placed and nothing is cut.
+- [ ] While drawing the base rectangle, ALT+SHIFT turns it red and back to blue.
+- [ ] Both orders (SHIFT then ALT, ALT then SHIFT); holding both flips once only.
+- [ ] Hold SHIFT and tap ALT three times: on, off, on.
+- [ ] A bare ALT still opens the menu bar; Alt+F still opens File.
+- [ ] With the popup left open beside the model, ALT+SHIFT updates its Subtraction button.
+- [ ] Same switches from the popup mid-drag (right-click, click Subtraction, back to the model).
+- [ ] If Windows has two keyboard layouts, Left ALT+SHIFT also switches layout (a Windows
+      setting, outside the plugin).
+
+# =============================================================================
+
 ## Version 5.1.22 - 06-Oct-2026 - Ovolo and Cavetto, a Drag That Opens at 25%, C R O V, and a Guarded Push/Pull
 
 ### Asked For

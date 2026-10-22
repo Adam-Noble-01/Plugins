@@ -28,6 +28,16 @@
 #   the drag sets the depth's SIZE only. Dragging either way grows the opening
 #   into the wall, which is the one thing a reveal depth can usefully mean.
 #
+# SWITCHING IT MID-DRAG (5.1.23, popup or ALT+SHIFT):
+# - The drag in hand follows the switch at once, rather than the next one:
+#     ON  while extruding a box   the box stops to ask which group to cut
+#     OFF while picking a target  the target is dropped and the box extrudes
+#     OFF while dragging a cut    the target is dropped, the same depth places a box
+# - Before the rectangle settles nothing needs moving: the rectangle simply
+#   turns cutter red, and advance_from_b reads the option when it gets there.
+# - ALT+SHIFT works in either order and flips once per press of the pair. A
+#   bare ALT is left to Windows, so the menu bar and Alt+F still work.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -43,13 +53,27 @@ module Na__InsertPrimatives
     module DrawnVolumeSubtract
 
         # -----------------------------------------------------------------------------
+        # REGION | Constants
+        # -----------------------------------------------------------------------------
+        # Declared here rather than borrowed from DrawnToolShared: a mixin looks
+        # constants up in its own scope, not the host tool's.
+
+        NA_VOL_SUBTRACT_OPTION = 'volume_subtract'.freeze
+        NA_VOL_ALT_KEY         = defined?(ALT_MODIFIER_KEY)       ? ALT_MODIFIER_KEY       : 18
+        NA_VOL_SHIFT_KEY       = defined?(CONSTRAIN_MODIFIER_KEY) ? CONSTRAIN_MODIFIER_KEY : 16
+        NA_VOL_ALT_HELD_S      = 2.0                                          # <-- A missed ALT key-up (the menu bar eats it) is forgotten after this
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
         # REGION | Option State
         # -----------------------------------------------------------------------------
 
         # FUNCTION | Is the Subtraction Option Switched On?
         # ------------------------------------------------------------
         def na_volume__subtract_option?
-            Na__InsertPrimatives.Na__ToolOptions__Enabled?('volume_subtract')
+            Na__InsertPrimatives.Na__ToolOptions__Enabled?(NA_VOL_SUBTRACT_OPTION)
         end
         # ---------------------------------------------------------------
 
@@ -193,6 +217,171 @@ module Na__InsertPrimatives
 
 
         # -----------------------------------------------------------------------------
+        # REGION | Switching Subtraction Mid-Drag
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | Subtraction Switched From the Popup (or the Keys Below)
+        # ------------------------------------------------------------
+        # The shared toggle flips the stored option and nothing else. That was
+        # enough for a choice read when the NEXT rectangle settles, and it left
+        # the drag in hand going wherever it was already going: a box being
+        # extruded was still placed, a target already picked was still cut.
+        # ------------------------------------------------------------
+        def Na__DrawnMode__ToggleToolOption(option_id)
+            result = super
+            return result unless option_id.to_s == NA_VOL_SUBTRACT_OPTION
+
+            model = Sketchup.active_model
+            na_volume__after_subtract_switched(model ? model.active_view : nil)
+            result
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Bring the Drag, the Status Line and the Preview Into Line
+        # ------------------------------------------------------------
+        def na_volume__after_subtract_switched(view)
+            moved = view ? na_volume__follow_subtract_option(view) : false
+
+            @na_last_status_text = nil
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            na_volume__report_switch(moved)
+            view.invalidate if view
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Move the Live Drag to the Stage the Option Now Asks For
+        # Returns true when the drag changed stage.
+        # ------------------------------------------------------------
+        def na_volume__follow_subtract_option(view)
+            if na_volume__subtract_active?
+                return false unless @na_state == :picking_depth && !na_volume__target_locked?
+
+                return na_volume__begin_target_stage(view)
+            end
+
+            return false unless @na_state == :picking_target || na_volume__target_locked?
+
+            # Exactly where advance_from_b would have sent it with the option
+            # off. A depth pinned by a typed W,H,D stays pinned and waits for
+            # a click: a key press should never place geometry on its own.
+            na_volume__clear_target
+            @na_state = :picking_depth
+            na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y)
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Say What the Switch Did
+        # ------------------------------------------------------------
+        def na_volume__report_switch(moved)
+            on = na_volume__subtract_option?
+            Na__InsertPrimatives.Na__Debug__Puts "DRAWN VOLUME: Subtraction #{on ? 'ON' : 'OFF'}#{moved ? ' — the drag in hand followed' : ''}"
+
+            return unless on && !Na__InsertPrimatives.Na__Subtract__Available?
+
+            Sketchup::set_status_text('Subtraction ON, but cutting needs the solid tools in SketchUp Pro — boxes are still placed', SB_PROMPT)
+        end
+        # ---------------------------------------------------------------
+
+        # ON KEY DOWN | ALT+SHIFT Flips Subtraction; Everything Else Is the Shared Handler's
+        # ------------------------------------------------------------
+        # Either order: SHIFT then ALT, or ALT then SHIFT. One flip per press of
+        # the pair, so the held key's auto-repeat never flips it back, and with
+        # SHIFT held each fresh tap of ALT flips it again. Not with CTRL down:
+        # CTRL+SHIFT is the vertex-to-grid snap and CTRL+ALT runs shortcuts.
+        #
+        # ALT taken as half of the pair is swallowed (true) so it cannot wake
+        # the menu bar. A bare ALT is passed on, so Alt+F and the rest work.
+        # The key flags are not read: on Windows they carry the scan code,
+        # whose bits can look like a modifier mask.
+        # ------------------------------------------------------------
+        def onKeyDown(key, repeat, flags, view)
+            if key == NA_VOL_ALT_KEY
+                @na_vol_alt_at = Time.now
+                return super unless @na_shift_held && !@na_ctrl_held
+
+                @na_vol_alt_taken = true
+                na_volume__chord_pressed
+                return true
+            end
+
+            if key == NA_VOL_SHIFT_KEY && !@na_shift_held && !@na_ctrl_held && na_volume__alt_down?
+                result = super                                                # <-- SHIFT's own bookkeeping first
+                na_volume__chord_pressed
+                return result
+            end
+
+            super
+        end
+        # ---------------------------------------------------------------
+
+        # ON KEY UP | Releasing Either Key Arms the Pair Again
+        # ------------------------------------------------------------
+        def onKeyUp(key, repeat, flags, view)
+            if key == NA_VOL_ALT_KEY
+                taken = @na_vol_alt_taken
+                na_volume__release_chord
+                return true if taken                                          # <-- The ALT whose key-down was swallowed keeps its key-up too
+
+                return super
+            end
+
+            @na_vol_chord_fired = false if key == NA_VOL_SHIFT_KEY
+            super
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Mouse Flags Are the Truth About SHIFT
+        # A SHIFT key-up this tool never saw would otherwise leave the pair
+        # spent, and the next ALT+SHIFT would do nothing.
+        # ------------------------------------------------------------
+        def na_drawn__sync_modifier(flags)
+            changed = super
+            @na_vol_chord_fired = false unless @na_shift_held
+            changed
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is ALT Down?
+        # A held ALT repeats its key-down, which keeps this fresh. One whose
+        # key-up went to the menu bar is forgotten after NA_VOL_ALT_HELD_S.
+        # ------------------------------------------------------------
+        def na_volume__alt_down?
+            @na_vol_alt_at ? (Time.now - @na_vol_alt_at).to_f < NA_VOL_ALT_HELD_S : false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Pair Is Down: Flip Subtraction Once
+        # ------------------------------------------------------------
+        def na_volume__chord_pressed
+            return false if @na_vol_chord_fired
+
+            @na_vol_chord_fired = true
+            self.Na__DrawnMode__ToggleToolOption(NA_VOL_SUBTRACT_OPTION)
+
+            # The popup may be standing open beside the model, and its button
+            # would otherwise go on saying the opposite of what the tool does.
+            if Na__InsertPrimatives.respond_to?(:Na__RightClickPopup__RefreshOption)
+                Na__InsertPrimatives.Na__RightClickPopup__RefreshOption(NA_VOL_SUBTRACT_OPTION)
+            end
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Forget Both Keys
+        # ------------------------------------------------------------
+        def na_volume__release_chord
+            @na_vol_alt_at      = nil
+            @na_vol_alt_taken   = false
+            @na_vol_chord_fired = false
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
         # REGION | Depth Direction
         # -----------------------------------------------------------------------------
 
@@ -237,6 +426,18 @@ module Na__InsertPrimatives
         # -----------------------------------------------------------------------------
         # REGION | Preview
         # -----------------------------------------------------------------------------
+
+        # FUNCTION | The Base Rectangle's Colours: Cutter Red While It Will Cut
+        # Until a target was picked the rectangle was always plane blue, so a
+        # switch made before then showed nothing. Red from the moment the
+        # option is live says what the drag will end in.
+        # ------------------------------------------------------------
+        def na_volume__rectangle_colors
+            return [NA_DRAWN_CUTTER_FILL_COLOR, NA_DRAWN_CUTTER_BORDER_COLOR] if na_volume__subtract_active?
+
+            [NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR]
+        end
+        # ---------------------------------------------------------------
 
         # FUNCTION | Draw the Box Around the Group Being Cut
         # ------------------------------------------------------------

@@ -558,6 +558,30 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Rewrite One Option Button If the Menu Is Standing Open
+    # ------------------------------------------------------------
+    # For an option switched from the keyboard (Drawn Volume's ALT+SHIFT).
+    # The menu stays open after an option toggle, so it can be sitting beside
+    # the model while the keys flip the option underneath it.
+    # ------------------------------------------------------------
+    def self.Na__RightClickPopup__RefreshOption(option_id)
+        dialog = @na_right_click_popup
+        return false unless dialog && dialog.visible?
+
+        caption = Na__InsertPrimatives.Na__ToolOptions__CaptionFor(option_id)
+        enabled = Na__InsertPrimatives.Na__ToolOptions__Enabled?(option_id)
+
+        dialog.execute_script(
+            "naApplyOption('#{Na__InsertPrimatives.Na__RightClickPopup__JsString(option_id)}', " \
+            "'#{Na__InsertPrimatives.Na__RightClickPopup__JsString(caption)}', " \
+            "#{enabled ? 'true' : 'false'});"
+        )
+        true
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
     # endregion -------------------------------------------------------------------
 
 end # End Na__InsertPrimatives module
