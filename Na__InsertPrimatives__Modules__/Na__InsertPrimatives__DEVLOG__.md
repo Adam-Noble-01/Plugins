@@ -3,6 +3,75 @@
 
 # =============================================================================
 
+## Version 5.1.24 - 22-Oct-2026 - Drawn Volume: SHIFT+TAB Switches Subtraction, Not ALT+SHIFT
+
+### Asked For
+*"Alt is brittle and dosnt work correctly, try shift + tab instead"*, after trying 5.1.23's
+ALT+SHIFT in SketchUp.
+
+### Why ALT Was the Wrong Key, Again
+This is the lesson of 0.4.34 to 0.4.36, met a third time:
+- **The mouse flags never report ALT.** So the tool only knows about ALT from its key events.
+- **Those events are shared with the Windows menu bar,** which can take a key-up the tool never
+  sees.
+- **5.1.23 patched round both** with a 2 s timeout, a swallowed key-down and a re-arm from the
+  mouse flags. In use it was still brittle.
+
+SHIFT is reported by the mouse flags on every event, and TAB is a plain key the tool already
+owns (plane cycling).
+
+### SHIFT+TAB
+- **SHIFT+TAB flips Subtraction**, mid-drag included. The drag in hand follows exactly as in
+  5.1.23 (see its table).
+- **Once per press of TAB.** The guard is TAB's own held guard, the one that has kept plane
+  cycling to one step per press since 0.4.4. Hold SHIFT and tap TAB to flip it again.
+- **A held TAB repeats nothing.** Its auto-repeat is swallowed, so it neither flips back nor
+  falls through to cycle the plane.
+- **Plain TAB still cycles the plane:** Auto > XY > XZ > YZ.
+- **Not with CTRL down:** CTRL+SHIFT is the vertex-to-grid snap, so CTRL+SHIFT+TAB is plain TAB.
+- **ALT is left alone entirely.** ALT and ALT+SHIFT pass straight to Windows again.
+- **Said out loud:** the status line ends `SHIFT+TAB subtract`, and the console banner says the
+  same.
+
+### Reload Without a Restart
+Reload Plugin Data re-`load`s files and never removes a method. So 5.1.23's ALT `onKeyUp` and
+`na_drawn__sync_modifier` overrides are replaced with explicit pass-throughs, not deleted:
+- **After a reload,** nothing of the ALT handling still runs.
+- **Its helpers** (`na_volume__chord_pressed` and the rest) linger, uncalled, until SketchUp
+  next restarts.
+
+### Verified Offline (SketchUp's bundled Ruby 3.2, the real DrawnVolumeTool on doubles)
+- **Syntax:** 77/77 files compile.
+- **49 checks on the new code:**
+  - the 5.1.23 stage switches, unchanged;
+  - SHIFT+TAB, its auto-repeat, and fresh taps;
+  - plain TAB still cycling the plane;
+  - CTRL+SHIFT+TAB;
+  - SHIFT known only from the mouse flags;
+  - TAB held before SHIFT;
+  - ALT+SHIFT now doing nothing.
+- **51 checks after a simulated Reload Plugin Data over 5.1.23** (the same suite, plus proof
+  that the stale 5.1.23 methods are present, as they would be in a running SketchUp).
+
+### Files
+- `20__System__DrawnPrimitives/..DrawnVolume__Subtract__.rb`: the header; `NA_VOL_TAB_KEY`
+  replaces the ALT constants; the new `onKeyDown`; pass-through `onKeyUp` and
+  `na_drawn__sync_modifier`; `na_volume__toggle_by_key`.
+- `20__System__DrawnPrimitives/..DrawnVolumeTool__.rb`: the header, the banner line and
+  `na_drawn__vertex_hint`; the chord reset leaves `initialize`.
+- `40__UserInterface/..RightClickPopup__.rb`: a comment.
+
+### Testing Notes
+- [ ] Reload Plugin Data, then SHIFT+TAB while extruding a box: it asks for the group to cut.
+- [ ] SHIFT+TAB with a red cut depth showing: it turns amber, and a click places a box.
+- [ ] Hold SHIFT, tap TAB three times: on, off, on. The plane lock never moves.
+- [ ] Hold SHIFT+TAB down: one flip only.
+- [ ] Plain TAB still cycles Auto > XY > XZ > YZ.
+- [ ] ALT+SHIFT does nothing in the tool; Alt+F opens File.
+- [ ] With the popup left open, SHIFT+TAB updates its Subtraction button.
+
+# =============================================================================
+
 ## Version 5.1.23 - 22-Oct-2026 - Drawn Volume: Subtraction Switches Mid-Drag, and ALT+SHIFT
 
 ### Asked For

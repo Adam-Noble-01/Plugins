@@ -28,15 +28,16 @@
 #   the drag sets the depth's SIZE only. Dragging either way grows the opening
 #   into the wall, which is the one thing a reveal depth can usefully mean.
 #
-# SWITCHING IT MID-DRAG (5.1.23, popup or ALT+SHIFT):
+# SWITCHING IT MID-DRAG (5.1.23, popup or SHIFT+TAB):
 # - The drag in hand follows the switch at once, rather than the next one:
 #     ON  while extruding a box   the box stops to ask which group to cut
 #     OFF while picking a target  the target is dropped and the box extrudes
 #     OFF while dragging a cut    the target is dropped, the same depth places a box
 # - Before the rectangle settles nothing needs moving: the rectangle simply
 #   turns cutter red, and advance_from_b reads the option when it gets there.
-# - ALT+SHIFT works in either order and flips once per press of the pair. A
-#   bare ALT is left to Windows, so the menu bar and Alt+F still work.
+# - SHIFT+TAB flips it once per press of TAB; plain TAB still cycles the
+#   plane. 5.1.23 used ALT+SHIFT, which proved brittle (5.1.24): ALT has no
+#   bit in the mouse flags, and its key events are shared with the menu bar.
 #
 # =============================================================================
 
@@ -59,9 +60,7 @@ module Na__InsertPrimatives
         # constants up in its own scope, not the host tool's.
 
         NA_VOL_SUBTRACT_OPTION = 'volume_subtract'.freeze
-        NA_VOL_ALT_KEY         = defined?(ALT_MODIFIER_KEY)       ? ALT_MODIFIER_KEY       : 18
-        NA_VOL_SHIFT_KEY       = defined?(CONSTRAIN_MODIFIER_KEY) ? CONSTRAIN_MODIFIER_KEY : 16
-        NA_VOL_ALT_HELD_S      = 2.0                                          # <-- A missed ALT key-up (the menu bar eats it) is forgotten after this
+        NA_VOL_TAB_KEY         = 9                                            # <-- No VK_TAB constant in the SketchUp API
 
         # endregion -------------------------------------------------------------------
 
@@ -284,80 +283,49 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # ON KEY DOWN | ALT+SHIFT Flips Subtraction; Everything Else Is the Shared Handler's
+        # ON KEY DOWN | SHIFT+TAB Flips Subtraction; Plain TAB Still Cycles the Plane
         # ------------------------------------------------------------
-        # Either order: SHIFT then ALT, or ALT then SHIFT. One flip per press of
-        # the pair, so the held key's auto-repeat never flips it back, and with
-        # SHIFT held each fresh tap of ALT flips it again. Not with CTRL down:
-        # CTRL+SHIFT is the vertex-to-grid snap and CTRL+ALT runs shortcuts.
+        # SHIFT is the modifier the mouse flags report on every event, so
+        # @na_shift_held is always the truth; ALT (5.1.23) never was. The key
+        # flags are not read: on Windows they carry the scan code.
         #
-        # ALT taken as half of the pair is swallowed (true) so it cannot wake
-        # the menu bar. A bare ALT is passed on, so Alt+F and the rest work.
-        # The key flags are not read: on Windows they carry the scan code,
-        # whose bits can look like a modifier mask.
+        # One flip per press of TAB, through TAB's own held guard, which the
+        # shared key-up clears. A held TAB's auto-repeat is swallowed, so it
+        # neither flips back nor falls through to cycle the plane.
+        # Not with CTRL down: CTRL+SHIFT is the vertex-to-grid snap.
         # ------------------------------------------------------------
         def onKeyDown(key, repeat, flags, view)
-            if key == NA_VOL_ALT_KEY
-                @na_vol_alt_at = Time.now
-                return super unless @na_shift_held && !@na_ctrl_held
+            return super unless key == NA_VOL_TAB_KEY && @na_shift_held && !@na_ctrl_held
 
-                @na_vol_alt_taken = true
-                na_volume__chord_pressed
-                return true
+            unless @na_tab_held
+                @na_tab_held = true
+                na_volume__toggle_by_key
             end
-
-            if key == NA_VOL_SHIFT_KEY && !@na_shift_held && !@na_ctrl_held && na_volume__alt_down?
-                result = super                                                # <-- SHIFT's own bookkeeping first
-                na_volume__chord_pressed
-                return result
-            end
-
-            super
+            true
         end
         # ---------------------------------------------------------------
 
-        # ON KEY UP | Releasing Either Key Arms the Pair Again
+        # ON KEY UP | Left to the Shared Handler
+        # ------------------------------------------------------------
+        # Stated rather than deleted: Reload Plugin Data re-loads this file
+        # without removing anything, so 5.1.23's ALT key-up override would
+        # otherwise live on in a running SketchUp until a restart.
         # ------------------------------------------------------------
         def onKeyUp(key, repeat, flags, view)
-            if key == NA_VOL_ALT_KEY
-                taken = @na_vol_alt_taken
-                na_volume__release_chord
-                return true if taken                                          # <-- The ALT whose key-down was swallowed keeps its key-up too
-
-                return super
-            end
-
-            @na_vol_chord_fired = false if key == NA_VOL_SHIFT_KEY
             super
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | The Mouse Flags Are the Truth About SHIFT
-        # A SHIFT key-up this tool never saw would otherwise leave the pair
-        # spent, and the next ALT+SHIFT would do nothing.
+        # FUNCTION | Modifiers Come From the Shared Handler (Same Reason as Above)
         # ------------------------------------------------------------
         def na_drawn__sync_modifier(flags)
-            changed = super
-            @na_vol_chord_fired = false unless @na_shift_held
-            changed
+            super
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Is ALT Down?
-        # A held ALT repeats its key-down, which keeps this fresh. One whose
-        # key-up went to the menu bar is forgotten after NA_VOL_ALT_HELD_S.
+        # FUNCTION | Flip Subtraction From the Keyboard
         # ------------------------------------------------------------
-        def na_volume__alt_down?
-            @na_vol_alt_at ? (Time.now - @na_vol_alt_at).to_f < NA_VOL_ALT_HELD_S : false
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | The Pair Is Down: Flip Subtraction Once
-        # ------------------------------------------------------------
-        def na_volume__chord_pressed
-            return false if @na_vol_chord_fired
-
-            @na_vol_chord_fired = true
+        def na_volume__toggle_by_key
             self.Na__DrawnMode__ToggleToolOption(NA_VOL_SUBTRACT_OPTION)
 
             # The popup may be standing open beside the model, and its button
@@ -366,15 +334,6 @@ module Na__InsertPrimatives
                 Na__InsertPrimatives.Na__RightClickPopup__RefreshOption(NA_VOL_SUBTRACT_OPTION)
             end
             true
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Forget Both Keys
-        # ------------------------------------------------------------
-        def na_volume__release_chord
-            @na_vol_alt_at      = nil
-            @na_vol_alt_taken   = false
-            @na_vol_chord_fired = false
         end
         # ---------------------------------------------------------------
 

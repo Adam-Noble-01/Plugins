@@ -34,7 +34,7 @@
 #                MAT011__ModelingUtility__Transparent. The container, not the
 #                faces, so it can be cleared again in one click.
 #
-#   ALT+SHIFT switches Subtraction on and off, mid-drag included: the drag
+#   SHIFT+TAB switches Subtraction on and off, mid-drag included: the drag
 #   in hand follows the switch, and so it does from the popup.
 #
 # =============================================================================
@@ -61,7 +61,6 @@ module Na__InsertPrimatives
         def initialize
             na_drawn__init_shared_state
             na_volume__clear_target
-            na_volume__release_chord
         end
         # ---------------------------------------------------------------
 
@@ -97,7 +96,7 @@ module Na__InsertPrimatives
                 'A pinned axis stops following the drag — BKSP releases it again',
                 'Type straight after drawing to correct the box in place',
                 'Right-click for the menu — Subtraction and Transparent sit under this tool',
-                'ALT+SHIFT switches Subtraction on and off, mid-drag too'
+                'SHIFT+TAB switches Subtraction on and off, mid-drag too'
             ]
 
             hints << 'SUBTRACTION ON: rectangle, then click the group to cut, then the depth' if na_volume__subtract_option?
@@ -334,7 +333,7 @@ module Na__InsertPrimatives
         # FUNCTION | The Keys Named at the End of the Status Line
         # ------------------------------------------------------------
         def na_drawn__vertex_hint
-            "#{super}  ALT+SHIFT subtract"
+            "#{super}  SHIFT+TAB subtract"
         end
         # ---------------------------------------------------------------
 

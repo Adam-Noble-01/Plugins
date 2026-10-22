@@ -560,7 +560,7 @@ module Na__InsertPrimatives
 
     # FUNCTION | Rewrite One Option Button If the Menu Is Standing Open
     # ------------------------------------------------------------
-    # For an option switched from the keyboard (Drawn Volume's ALT+SHIFT).
+    # For an option switched from the keyboard (Drawn Volume's SHIFT+TAB).
     # The menu stays open after an option toggle, so it can be sitting beside
     # the model while the keys flip the option underneath it.
     # ------------------------------------------------------------
