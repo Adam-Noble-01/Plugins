@@ -106,11 +106,24 @@ module Na__Noble3dModellingTools
                 base_thickness_mm: [payload_hash.fetch('base_thickness_mm', 10.0).to_f, 0.0].max,
                 lift_mm:           payload_hash.fetch('lift_mm', 0.0).to_f,
                 stagger:           na_flag(payload_hash, 'stagger', true),
+                offset_x_mm:       payload_hash.fetch('offset_x_mm', 0.0).to_f,
+                offset_y_mm:       payload_hash.fetch('offset_y_mm', 0.0).to_f,
                 trim_to_face:      na_flag(payload_hash, 'trim_to_face', true),
                 rotation_steps:    payload_hash.fetch('rotation_steps', 0).to_i % 4
             }
         end
         private_class_method :na_read_options
+        # ------------------------------------------------------------
+
+        # HELPER FUNCTION | Wrap an Offset into One Pattern Repeat [0, period)
+        # ------------------------------------------------------------
+        # Mirrors na_wrapOffset in the JS generator so Apply lands exactly
+        # where the preview showed it.
+        def self.na_wrap_offset(offset_mm, period_mm)
+            return 0.0 unless period_mm > 0.0
+            offset_mm.to_f % period_mm
+        end
+        private_class_method :na_wrap_offset
         # ------------------------------------------------------------
 
         # HELPER FUNCTION | Read a Boolean Payload Flag with a Default
@@ -193,13 +206,14 @@ module Na__Noble3dModellingTools
             x_step_mm = tile_width_mm + options[:side_gap_mm]
             y_step_mm = visible_gauge_mm
             row_index = 0
-            y_mm      = min_y - y_step_mm
+            y_mm      = min_y - (3.0 * y_step_mm) + na_wrap_offset(options[:offset_y_mm], 2.0 * y_step_mm)
+            start_x_mm = min_x - (2.0 * x_step_mm) + na_wrap_offset(options[:offset_x_mm], x_step_mm)
             instances = 0
             trimmed   = 0
 
             while y_mm <= max_y + y_step_mm
                 row_offset_mm = options[:stagger] && row_index.odd? ? -(x_step_mm / 2.0) : 0.0
-                x_mm = min_x - x_step_mm + row_offset_mm
+                x_mm = start_x_mm + row_offset_mm
 
                 while x_mm <= max_x + x_step_mm
                     corners = [

@@ -212,6 +212,8 @@
             payload.slate_width_mm  = Number(values.slate_width_mm) || 250;
             payload.headlap_mm      = Number(values.headlap_mm) || 100;
             payload.side_gap_mm     = Number(values.side_gap_mm) || 0;
+            payload.offset_x_mm     = Number(values.offset_x_mm) || 0;
+            payload.offset_y_mm     = Number(values.offset_y_mm) || 0;
             payload.stagger         = values.stagger !== false;
             payload.trim_to_face    = values.trim_to_face !== false;
         }
@@ -223,6 +225,8 @@
             payload.headlap_mm        = Number(values.headlap_mm) || 65;
             payload.side_gap_mm       = Number(values.side_gap_mm) || 0;
             payload.base_thickness_mm = Math.max(0, Number(values.base_thickness_mm) || 0);
+            payload.offset_x_mm       = Number(values.offset_x_mm) || 0;
+            payload.offset_y_mm       = Number(values.offset_y_mm) || 0;
             payload.stagger           = values.stagger !== false;
             payload.trim_to_face      = values.trim_to_face !== false;
         }

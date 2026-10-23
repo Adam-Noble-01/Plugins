@@ -25,9 +25,26 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
 
     // endregion ---------------------------------------------------------------
 
+    var NA_BOND_REPEAT_COURSES = 4;                                             // <-- English bond repeats every 4 courses; stretcher and Flemish every 2
+
+    // endregion ---------------------------------------------------------------
+
     // -------------------------------------------------------------------------
     // REGION | Bond Layout
     // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Wrap an Offset into One Pattern Repeat [0, period)
+    // ------------------------------------------------------------
+    // The layout starts one repeat early and slides forward by the wrapped
+    // offset, so any typed offset moves the pattern rigidly and the face is
+    // always fully covered.
+    function na_wrapOffset(offset, period) {
+        var value = Number(offset) || 0;
+        if (!(period > 0)) { return 0; }
+        return ((value % period) + period) % period;
+    }
+    // ------------------------------------------------------------
+
 
     // HELPER FUNCTION | Compute Brick Positions for One Course Row
     // ------------------------------------------------------------
@@ -40,7 +57,7 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
         if (bond === 'flemish') {
             var flemishUnit   = (system.width + mortar) + (system.header + mortar);
             var flemishOffset = courseIndex % 2 === 1 ? flemishUnit * 0.5 : 0;
-            var xf = bounds.min_x - flemishOffset;
+            var xf = bounds.min_x - flemishOffset - flemishUnit + na_wrapOffset(params.offset_x_mm, flemishUnit);
             var stretcher = true;
             while (xf < bounds.max_x + system.width) {
                 var width = stretcher ? system.width : system.header;
@@ -56,7 +73,7 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
             var widthEnglish  = isStretcher ? system.width : system.header;
             var unitEnglish   = widthEnglish + mortar;
             var offsetEnglish = isStretcher && (Math.floor(courseIndex / 2) % 2 === 1) ? unitEnglish * 0.5 : 0;
-            var xe = bounds.min_x - offsetEnglish;
+            var xe = bounds.min_x - offsetEnglish - unitEnglish + na_wrapOffset(params.offset_x_mm, unitEnglish);
             while (xe < bounds.max_x + widthEnglish) {
                 bricks.push({ x: xe, width: widthEnglish });
                 xe += unitEnglish;
@@ -66,7 +83,7 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
 
         var stretcherUnit   = system.width + mortar;
         var stretcherOffset = courseIndex % 2 === 1 ? stretcherUnit * 0.5 : 0;
-        var xs = bounds.min_x - stretcherOffset;
+        var xs = bounds.min_x - stretcherOffset - stretcherUnit + na_wrapOffset(params.offset_x_mm, stretcherUnit);
         while (xs < bounds.max_x + system.width) {
             bricks.push({ x: xs, width: system.width });
             xs += stretcherUnit;
@@ -118,15 +135,18 @@ window.Na__FacePattern__BrickworkGenerator = (function () {
         var noiseApi   = window.Na__FacePattern__Noise;
 
         var layout      = na_expandBounds(bounds, system.width + mortar, courseHeight, trimToFace);
+        var offsetX     = Number(params.offset_x_mm) || 0;
+        var offsetY     = Number(params.offset_y_mm) || 0;
+        var bondRepeat  = courseHeight * NA_BOND_REPEAT_COURSES;
         var polylines   = [];
         var brickCount  = 0;
         var courseIndex = 0;
-        for (var y = layout.min_y; y <= layout.max_y; y += courseHeight) {
+        for (var y = layout.min_y - bondRepeat + na_wrapOffset(offsetY, bondRepeat); y <= layout.max_y; y += courseHeight) {
             var bricks = na_getCourseBricks(courseIndex, params, layout);
             bricks.forEach(function (brick) {
                 if (renderMode === 'artistic') {
-                    var nx = (brick.x + (brick.width * 0.5)) * 0.015;
-                    var ny = (y + (system.height * 0.5)) * 0.015;
+                    var nx = (brick.x + (brick.width * 0.5) - offsetX) * 0.015;     // <-- Sample in pattern space so the ruin slides with the bond
+                    var ny = (y + (system.height * 0.5) - offsetY) * 0.015;
                     if (noiseApi.na_fbmNoise(nx, ny, Number(params.seed) || 0, 3) > density) { return; }
                 }
 

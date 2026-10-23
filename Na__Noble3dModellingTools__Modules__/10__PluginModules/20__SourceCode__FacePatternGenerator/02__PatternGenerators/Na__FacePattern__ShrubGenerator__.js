@@ -101,8 +101,8 @@ window.Na__FacePattern__ShrubGenerator = (function () {
         var bounds  = context.faceData.bounds;
         var params  = context.params;
         var clipApi = window.Na__FacePattern__PolygonClip;
-        var centerX = bounds.min_x + (bounds.width * 0.5);
-        var centerY = bounds.min_y + (bounds.height * 0.5);
+        var centerX = bounds.min_x + (bounds.width * 0.5) + (Number(params.offset_x_mm) || 0);
+        var centerY = bounds.min_y + (bounds.height * 0.5) + (Number(params.offset_y_mm) || 0);
 
         if (!clipApi.na_pointInFace([centerX, centerY], context.faceData.outer, context.faceData.holes)) {
             for (var sampleX = bounds.min_x; sampleX <= bounds.max_x; sampleX += Math.max(20, bounds.width / 20)) {

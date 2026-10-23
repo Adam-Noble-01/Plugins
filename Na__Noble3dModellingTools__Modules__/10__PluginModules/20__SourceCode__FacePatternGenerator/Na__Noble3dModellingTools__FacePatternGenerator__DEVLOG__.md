@@ -16,6 +16,38 @@ and applies the generated linework back onto the face plane.
 
 
 # Na Noble3d Modelling Tools
+## Version 0.6.5 - 23-Oct-2026 - X / Y Offset on Every Pattern
+
+### Update 01 - Offset Controls Everywhere
+- `UiConfig` gives **Patio, Brickwork, Shrub, Slate Roof and Rosemary Tile Roof** the `offset_x_mm` / `offset_y_mm` sliders Floor Tiling and Stonework already had (+/-1500 slider, +/-20000 box), grouped under the `section_position` / `section_output` sections. Shrub has no Trim control, so it gets the position section only. No Setting Out select was added: these five have always set out from the face corner.
+
+### Update 02 - A Rigid Slide That Never Uncovers an Edge
+- New helper `na_wrapOffset(offset, period)` in the Patio, Brickwork, Slate and Rosemary generators returns the offset wrapped into [0, period). Each layout starts one repeat earlier than before and moves forward by the wrapped offset, so an offset of any size slides the pattern rigidly while the start stays below the face minimum.
+- Repeats: Patio one `module_mm` each way. Brickwork per course one unit (stretcher unit, Flemish stretcher+header pair, English stretcher or header unit) along X, and `NA_BOND_REPEAT_COURSES = 4` courses in Y, so stretcher, Flemish and English all keep their course parity. Slate and Rosemary one `xStep` along X and `2 x yStep` in Y, so a staggered course stays staggered.
+- At zero offset every layout is the old one plus one spare ring of units below and left, which the clip drops, so existing work redraws unchanged.
+- Brickwork Artistic samples `na_fbmNoise` at the brick position minus the offset, so the ruin pattern moves with the bond.
+- Shrub adds the offsets to its centre before the shrink-to-fit loop.
+
+### Update 03 - Apply Path for Slate and Rosemary
+- These two are rebuilt in Ruby on Apply (component instances plus trimmed rings), not taken from the preview polylines. `AppCore.na_applyPattern` now adds `offset_x_mm` / `offset_y_mm` to both payloads. `SlateBuilder` and `RosemaryBuilder` read them in `na_read_options` and gain `na_wrap_offset`, mirroring the JS. `na_populate_face` starts at `min_y - 3 x y_step + wrap(oy, 2 x y_step)` and `min_x - 2 x x_step + wrap(ox, x_step)`, the same as the preview.
+- The builders work in the face's local 2D frame after `na_rotate_basis_clockwise!`, so the offsets follow Rotate 90 exactly as the preview does. No new world/local conversion was added; Apply's handling of open groups is unchanged.
+
+### Validation
+- Node harness on the live generator files with real `RectClip` (scratch test, not committed): six offsets from 0/0 to 19999/-20000 on Slate (staggered, and unstaggered with a 5mm gap), Rosemary, and Stretcher, Flemish and English brickwork. The unit sets match the zero-offset layout modulo the repeat, and the face is fully covered allowing for joints: **all pass**. Patio units stay on the offset module grid with full cover. The Shrub centre moves by exactly the offset.
+- `node --check` passes on every JS file. The Ruby changes were reviewed against the JS but not run outside SketchUp.
+
+### Validation Checklist
+- [ ] Close the Face Pattern Generator, press **Reload Plugin Data**, reopen it on a roof face.
+- [ ] **Rosemary Tile Roof**: Offset X / Y appear under **Pattern Position On Face**. Drag Offset X: every course slides sideways together and the verges stay filled. Drag Offset Y: the courses slide up the slope.
+- [ ] Apply with an offset set, e.g. X 50 / Y 30: the tiles in the model land exactly where the preview put them. Repeat for **Slate Roof**.
+- [ ] Apply a Rosemary or Slate pattern inside a moved and rotated group, with an offset set: tiles still land where the preview showed them.
+- [ ] **Brickwork**: Offset Y brings a bed joint onto a cill line; Offset X moves the perps. Artistic mode: the ruin moves with the bricks rather than staying still while they slide.
+- [ ] **Patio**: Offset X / Y move the module grid lines (the slab mix still re-rolls on each change).
+- [ ] **Shrub**: Offset X / Y move the shrub off centre; pushed against an edge, it shrinks to stay inside the face.
+- [ ] Rotate 90°, then offset: the offsets follow the rotated face axes.
+
+---
+# Na Noble3d Modelling Tools
 ## Version 0.6.4 - 10-Sep-2026 - Floor Tiling Leads, Density Follows Artistic
 
 ### Update 01 - Floor Tiling Is What the Tool Opens On

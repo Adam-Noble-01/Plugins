@@ -59,6 +59,18 @@ window.Na__FacePattern__PatioGenerator = (function () {
     }
     // ------------------------------------------------------------
 
+    // HELPER FUNCTION | Wrap an Offset into One Pattern Repeat [0, period)
+    // ------------------------------------------------------------
+    // The layout starts one repeat early and slides forward by the wrapped
+    // offset, so any typed offset moves the pattern rigidly and the face is
+    // always fully covered.
+    function na_wrapOffset(offset, period) {
+        var value = Number(offset) || 0;
+        if (!(period > 0)) { return 0; }
+        return ((value % period) + period) % period;
+    }
+    // ------------------------------------------------------------
+
     // HELPER FUNCTION | Mark Grid Cells as Occupied
     // ------------------------------------------------------------
     function na_markGrid(grid, x, y, width, height) {
@@ -89,10 +101,10 @@ window.Na__FacePattern__PatioGenerator = (function () {
         var rectApi   = window.Na__FacePattern__RectGeometry;
 
         var overshoot = trimToFace ? 1 : 0;                                     // <-- One spare module ring to trim back
-        var originX   = bounds.min_x - (overshoot * moduleSize);
-        var originY   = bounds.min_y - (overshoot * moduleSize);
-        var gridW = Math.ceil(bounds.width / moduleSize) + (overshoot * 2);
-        var gridH = Math.ceil(bounds.height / moduleSize) + (overshoot * 2);
+        var originX   = bounds.min_x - ((overshoot + 1) * moduleSize) + na_wrapOffset(params.offset_x_mm, moduleSize);
+        var originY   = bounds.min_y - ((overshoot + 1) * moduleSize) + na_wrapOffset(params.offset_y_mm, moduleSize);
+        var gridW = Math.ceil(bounds.width / moduleSize) + (overshoot * 2) + 1;   // <-- +1 for the module the offset start adds
+        var gridH = Math.ceil(bounds.height / moduleSize) + (overshoot * 2) + 1;
         var grid  = [];
         for (var gx = 0; gx < gridW; gx += 1) {
             grid[gx] = [];

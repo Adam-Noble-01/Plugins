@@ -83,6 +83,24 @@ window.Na__FacePattern__RosemaryRoofGenerator = (function () {
     // endregion ---------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Pattern Offset
+    // -------------------------------------------------------------------------
+
+    // HELPER FUNCTION | Wrap an Offset into One Pattern Repeat [0, period)
+    // ------------------------------------------------------------
+    // The layout starts one repeat early and slides forward by the wrapped
+    // offset, so any typed offset moves the pattern rigidly and the face is
+    // always fully covered.
+    function na_wrapOffset(offset, period) {
+        var value = Number(offset) || 0;
+        if (!(period > 0)) { return 0; }
+        return ((value % period) + period) % period;
+    }
+    // ------------------------------------------------------------
+
+    // endregion ---------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Public Generator
     // -------------------------------------------------------------------------
 
@@ -105,10 +123,12 @@ window.Na__FacePattern__RosemaryRoofGenerator = (function () {
         var polylines = [];
         var tileCount = 0;
         var row = 0;
+        var startY = bounds.min_y - (3 * yStep) + na_wrapOffset(params.offset_y_mm, 2 * yStep);   // <-- Stagger repeats every 2 courses
+        var startX = bounds.min_x - (2 * xStep) + na_wrapOffset(params.offset_x_mm, xStep);
 
-        for (var y = bounds.min_y - yStep; y <= bounds.max_y + yStep; y += yStep) {
+        for (var y = startY; y <= bounds.max_y + yStep; y += yStep) {
             var rowOffset = options.stagger && (row % 2 === 1) ? -(xStep * 0.5) : 0;
-            for (var x = bounds.min_x - xStep + rowOffset; x <= bounds.max_x + xStep; x += xStep) {
+            for (var x = startX + rowOffset; x <= bounds.max_x + xStep; x += xStep) {
                 var pieces = clipApi.na_unitPolylines(
                     x, y, options.tileWidth, visibleGauge, context.faceData, options.trimToFace
                 );

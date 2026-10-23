@@ -3,6 +3,30 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.17 - 23-Oct-2026 - Face Pattern Generator: X / Y Offset on Every Pattern
+
+- **Offset X / Y on all seven patterns.** Floor Tiling and Stonework already had them; **Patio, Brickwork, Shrub, Slate Roof and Rosemary Tile Roof** now get the same two sliders (+/-1500mm travel, box to +/-20000mm) under a **Pattern Position On Face** section, closed by **Pattern Output To Face** over Trim and Lift where the pattern has them.
+- **The pattern slides; the coverage holds.** Each layout now starts one full pattern repeat early and moves forward by the offset wrapped into that repeat: one slab module for Patio, one unit along each course and four courses up for Brickwork (English bond repeats every four), and one tile across and two courses up for Slate and Rosemary (the half-bond stagger repeats every two). Any offset therefore moves the whole pattern rigidly and never opens a gap at a face edge. With no offset the layout is identical to 0.9.16.
+- **Slate and Rosemary reach the model too.** Their Apply is rebuilt by the Ruby `SlateBuilder` and `RosemaryBuilder`, not from the preview, so `AppCore` now sends `offset_x_mm` / `offset_y_mm` in their payloads and both builders apply the same wrap. Both work in the face's own 2D frame, after the Rotate 90 step, so the offsets follow the rotated axes as the preview does.
+- **Brickwork Artistic** samples its ruin noise in pattern space, so the gaps travel with the bricks.
+- **Shrub** has no grid: the offsets move its centre off the middle of the face, and the existing shrink-to-fit still keeps it inside.
+- **Validation.**
+  - Node, real generators and real `RectClip`, on a 3000 x 2000mm face, at offsets 0/0, 37/-12, 150/90, -220/310, 1000.5/-777 and 19999/-20000: every unit position modulo the pattern repeat matches the zero-offset layout (rigid slide) and every sample point on the face is covered (allowing for joint widths), for Slate (with and without stagger, with a side gap), Rosemary, and Stretcher, Flemish and English brickwork. Patio lines stay on the offset module grid and cover the face. The Shrub centre moves by exactly the offset.
+  - The Ruby builders use the same arithmetic. Ruby's float `%` already returns [0, period). They were not run outside SketchUp.
+  - Native SketchUp testing remains with the user.
+
+### Validation Checklist
+- [ ] Close the Face Pattern Generator, press **Reload Plugin Data**, reopen it on a roof face.
+- [ ] **Rosemary Tile Roof**: Offset X / Y appear under **Pattern Position On Face**. Drag Offset X: every course slides sideways together and the verges stay filled. Drag Offset Y: the courses slide up the slope.
+- [ ] Apply with an offset set, e.g. X 50 / Y 30: the tiles in the model land exactly where the preview put them. Repeat for **Slate Roof**.
+- [ ] Apply a Rosemary or Slate pattern inside a moved and rotated group, with an offset set: tiles still land where the preview showed them.
+- [ ] **Brickwork**: Offset Y brings a bed joint onto a cill line; Offset X moves the perps. Artistic mode: the ruin moves with the bricks rather than staying still while they slide.
+- [ ] **Patio**: Offset X / Y move the module grid lines (the slab mix still re-rolls on each change).
+- [ ] **Shrub**: Offset X / Y move the shrub off centre; pushed against an edge, it shrinks to stay inside the face.
+- [ ] Rotate 90°, then offset: the offsets follow the rotated face axes.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.16 - 13-Oct-2026 - Image Viewer Count Tool
 
 - New **Count** tool (toolbar button beside Angle, or **C**) for counting repeated things on a photo: brick courses, bricks in a course, tiles, balusters. It works like SketchUp's Divide crossed with a dimension.

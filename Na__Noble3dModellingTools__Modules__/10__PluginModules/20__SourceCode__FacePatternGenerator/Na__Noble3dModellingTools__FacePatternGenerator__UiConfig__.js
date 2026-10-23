@@ -180,6 +180,40 @@
                 { id: 'module_mm', type: 'number', label: 'Module (mm)', default: 300, min: 100, max: 800, step: 50 },
                 { id: 'joint_mm', type: 'number', label: 'Joint (mm)', default: 10, min: 0, max: 40, step: 1, hint: 'Set 0 for gapless hatch.' },
                 {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides the module grid along the face so a joint lines up with a step, a door or a wall. Drag the slider or type any value, positive or negative; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Same up the face. The slab mix still re-rolls on each change; only the module lines are set out by the offsets.'
+                },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
+                },
+                {
                     id: 'trim_to_face',
                     type: 'select',
                     label: 'Trim to Face Edges',
@@ -238,6 +272,40 @@
                     step: 1,
                     showWhen: { render_mode: ['artistic'] },
                     hint: 'Artistic mode only — the share of units the noise field keeps, so a lower value opens more gaps in a ruined wall.'
+                },
+                {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides the whole bond along the courses to line a perp end up with an opening or a quoin. Drag the slider or type any value, positive or negative; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Same up the face, to bring a bed joint down onto a cill, a DPC or a lintel. The bond slides rigidly, ruins and all.'
+                },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
                 },
                 {
                     id: 'trim_to_face',
@@ -410,6 +478,40 @@
                 { id: 'shrub_height_mm', type: 'number', label: 'Shrub Height (mm)', default: 900, min: 200, max: 10000, step: 10 },
                 { id: 'leaf_scale', type: 'number', label: 'Leaf Scale', default: 24, min: 1, max: 120, step: 1 },
                 { id: 'roughness_pct', type: 'number', label: 'Roughness (%)', default: 35, min: 0, max: 100, step: 1 },
+                {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Moves the shrub off the centre of the face, positive to the right. Drag the slider or type any value; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Moves the shrub up or down the face. A shrub pushed against an edge shrinks until it fits inside the face.'
+                },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
+                },
                 { id: 'lift_mm', type: 'number', label: 'Lift from face (mm)', default: 0, min: 0, max: 100, step: 1 }
             ]
         },
@@ -450,6 +552,40 @@
                         { value: 'true', label: 'Yes' },
                         { value: 'false', label: 'No' }
                     ]
+                },
+                {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides every course along the eaves to line a tile edge up with a verge or an abutment. Drag the slider or type any value, positive or negative; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides the courses up the slope to set the eaves course or bring a course line onto a rooflight. Reaches the applied model as well as the preview.'
+                },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
                 },
                 {
                     id: 'trim_to_face',
@@ -499,6 +635,40 @@
                         { value: 'true', label: 'Yes' },
                         { value: 'false', label: 'No' }
                     ]
+                },
+                {
+                    id: 'section_position',
+                    type: 'section',
+                    label: 'Pattern Position On Face'
+                },
+                {
+                    id: 'offset_x_mm',
+                    type: 'slider',
+                    label: 'Offset X (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides every course along the eaves to line a tile edge up with a verge or an abutment. Drag the slider or type any value, positive or negative; the box is not limited to the slider travel.'
+                },
+                {
+                    id: 'offset_y_mm',
+                    type: 'slider',
+                    label: 'Offset Y (mm)',
+                    default: 0,
+                    min: -20000,
+                    max: 20000,
+                    slider_min: -1500,
+                    slider_max: 1500,
+                    step: 1,
+                    hint: 'Slides the courses up the slope to set the eaves course or bring a course line onto a rooflight. Reaches the applied model as well as the preview.'
+                },
+                {
+                    id: 'section_output',
+                    type: 'section',
+                    label: 'Pattern Output To Face'
                 },
                 {
                     id: 'trim_to_face',
