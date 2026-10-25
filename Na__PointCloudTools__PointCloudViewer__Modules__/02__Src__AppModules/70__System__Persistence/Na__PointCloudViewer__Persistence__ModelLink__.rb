@@ -172,11 +172,22 @@ module Na__PointCloudViewer
 
         # The cloud has a record and is not loaded, or what is loaded is not
         # the file its record names (an Undo of Use Cleaned LAS puts the
-        # original back in the record while the cleaned cloud stays shown).
+        # original back in the record while the cleaned cloud stays shown), or
+        # (v0.11.0) its points belong to an engine that has since been swapped
+        # out: they are gone, and only a reload brings the cloud back.
         def self.Na__Link__NeedsReload?(slot)
             return false unless slot.record && slot.record['link']
             return true unless slot.cloud
+            return true if self.Na__Link__StaleEngine?(slot)
             slot.placement ? !Na__Placement.na_link_names_other(slot).nil? : false
+        end
+
+        # The cloud is loaded, but into an engine Reload Plugin has replaced.
+        def self.Na__Link__StaleEngine?(slot)
+            cloud = slot ? slot.cloud : nil
+            return false unless cloud
+            !(cloud.native_cloud && cloud.native_generation == Na__NativeEngine.Na__Native__Generation &&
+              Na__NativeEngine.Na__Native__CloudLive?(cloud.native_cloud))
         end
 
         def self.Na__Link__Locate(slot)

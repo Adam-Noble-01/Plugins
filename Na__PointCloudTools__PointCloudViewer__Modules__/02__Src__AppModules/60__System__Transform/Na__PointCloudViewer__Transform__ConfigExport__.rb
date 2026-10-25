@@ -13,7 +13,8 @@
 #
 # SCHEMA 2 (v0.10.0): 'clouds' is a list, one entry per cloud, each keyed by
 #   its permanent cloudId (the id the scenes and TrueVision use). Schema 1 had
-#   one cloud at the top level.
+#   one cloud at the top level. v0.11.0 adds each cloud's Crop and Cut boxes
+#   ('cropCut'), a new key, so the schema version stays 2.
 #
 # The survey relationship is spelled out in the file, so a placement can be
 # checked or rebuilt by hand:  model = R * (k * (source - localOrigin)) + t
@@ -80,7 +81,8 @@ module Na__PointCloudViewer
                 'link'        => slot.record ? slot.record['link'] : nil,
                 'cloud'       => self.na_cloud(slot),
                 'placement'   => self.na_placement(slot, display),
-                'clip'        => self.na_clip(slot, display)
+                'clip'        => self.na_clip(slot, display),
+                'cropCut'     => Na__CleanBoxes.Na__Boxes__ConfigPart(slot, display)
             }
         end
 

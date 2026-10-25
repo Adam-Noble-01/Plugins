@@ -92,11 +92,18 @@ module Na__PointCloudViewer
         #                is drawn); clip_hover / clip_drag_face: highlighted sides
         # clean_state  : the Clean tab's preview context and results (Na__CleanState)
         # layer_stats  : this cloud's part of the last frame (demand, share, drawn)
+        # box_view     : Crop and Cut (v0.11.0): 'original', 'result' or 'differences'
+        #                (this session; nil = result). The boxes themselves are in
+        #                its record ('cropCut'); box_parsed / box_parsed_from cache
+        #                them for the record they came from
+        # box_showing  : { 'id' } of the box last put into the clip box (Update)
+        # box_counts   : { 'key', 'value' } the last count of what the boxes remove
         attr_accessor :id, :session, :name, :colour, :record, :record_state, :visible, :display,
                       :cloud, :placement, :placement_note,
                       :clip, :clip_scenes, :clip_active_scene, :clip_loaded,
                       :clip_editing, :clip_hover, :clip_drag_face,
-                      :clean_state, :layer_stats
+                      :clean_state, :layer_stats,
+                      :box_view, :box_showing, :box_parsed, :box_parsed_from, :box_counts
 
         def initialize(session, id)
             @session      = session

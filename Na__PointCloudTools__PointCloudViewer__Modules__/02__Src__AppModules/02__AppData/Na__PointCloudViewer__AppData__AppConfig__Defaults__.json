@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na Point Cloud Viewer",
-        "version" : "0.10.0"
+        "version" : "0.11.0"
     },
 
     "clouds" : {
@@ -95,6 +95,13 @@
         "export" : {
             "suffix"       : "_Cleaned_",
             "software"     : "Na Point Cloud Viewer"
+        },
+        "boxes" : {
+            "_comment"     : "Crop and Cut (v0.11.0): boxes captured from the clip box that remove points for good, into a NEW LAS. The Keep box removes every point outside it; each Cut box removes every point inside it. maxCutBoxes is at most the engine's 20. keepColour and cutColour are the box outlines drawn in the model; removed points use render.cleanColours.removed in the Differences view. suffix names the new file: <name>_Cropped_01.las.",
+            "suffix"       : "_Cropped_",
+            "maxCutBoxes"  : 20,
+            "keepColour"   : [24, 128, 56],
+            "cutColour"    : [214, 32, 32]
         },
         "filters" : {
             "noise" : {

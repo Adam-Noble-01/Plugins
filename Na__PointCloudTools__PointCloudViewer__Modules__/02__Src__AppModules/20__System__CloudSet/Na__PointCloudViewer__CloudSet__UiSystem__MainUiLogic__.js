@@ -114,7 +114,7 @@
     function na_status(row) {
         if (!row.loaded) return row.foundPath ? ['Not loaded', 'warn'] : ['LAS not found', 'danger'];
         if (row.recordState === 'unsaved') return ['Not in the model', 'warn'];
-        if (row.namesOther) return ['Reload to update', 'warn'];
+        if (row.namesOther || row.staleEngine) return ['Reload to update', 'warn'];
         return row.visible ? ['Shown', 'ok'] : ['Hidden', ''];
     }
 
@@ -139,7 +139,7 @@
     function na_chip_mark(row) {
         if (!row.loaded) return row.foundPath ? 'not loaded' : 'not found';
         if (row.recordState === 'unsaved') return 'not saved';
-        if (row.namesOther) return 'reload';
+        if (row.namesOther || row.staleEngine) return 'reload';
         return '';
     }
 
@@ -294,9 +294,11 @@
         // Unloaded: what Reload will do. Loaded: whether the Transform tab may move it.
         var position = row.loaded ? (row.locked ? 'Its position is locked.' : 'Its position is unlocked: the Transform tab can move it.') : row.positionText;
         if (position && row.recordState !== 'unsaved') wrap.appendChild(Shell.na_el('p', 'na-cloud-row__line', position));
-        if (row.derivedFrom) wrap.appendChild(Shell.na_el('p', 'na-cloud-row__line', 'A cleaned copy of ' + row.derivedFrom + ', which is kept unchanged.'));
+        if (row.derivedFrom) wrap.appendChild(Shell.na_el('p', 'na-cloud-row__line', 'A ' + (row.derivedHow || 'cleaned') + ' copy of ' + row.derivedFrom + ', which is kept unchanged.'));
         if (row.recordState === 'unsaved') {
             wrap.appendChild(Shell.na_el('p', 'na-note', 'This cloud is on screen but not saved in the model (an Undo took it out). Unload it, or import its LAS again to add it back.'));
+        } else if (row.staleEngine) {
+            wrap.appendChild(Shell.na_el('p', 'na-note', 'The point cloud engine was updated after this cloud was loaded, so its points are gone from memory. Reload brings it back (from its point cache, quickly).'));
         } else if (row.namesOther) {
             wrap.appendChild(Shell.na_el('p', 'na-note', 'The model now names a different LAS for this cloud than the one on screen. Reload uses the one the model names.'));
         }

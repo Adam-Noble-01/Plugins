@@ -4,8 +4,11 @@
    FILE       : Na__PointCloudViewer__UiFeature__Styles__Clean__.css
    PURPOSE    : Clean tab: filter cards (strength row, Advanced Settings),
                 the three-way display switch, the Differences legend, the
-                preview state badge, the surface check bars and the export
-                card. Same card, hint, note and switch family as the others.
+                preview state badge, the surface check bars, the export
+                card, and Crop and Cut (v0.11.0): the clip box line, the two
+                capture buttons (green Keep, red Cut, the colours of their
+                outlines in the model) and the box list. Same card, hint,
+                note, list and switch family as the others.
    ============================================================================= */
 
 /* ----------------------------------------------------------------- */
@@ -313,6 +316,118 @@
     margin-top          : 12px;
     border-top          : 1px solid var(--na-border);
     padding-top         : 8px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Crop and Cut */
+/* ----------------------------------------------------------------- */
+
+/* The clip box the buttons capture, with its own switch and edit button. */
+.na-boxes-clip {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 10px;
+    margin-top          : 10px;
+    padding             : 7px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : #fafbfc;
+}
+
+.na-boxes-clip__text {
+    margin              : 0;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    line-height         : 1.4;
+}
+
+.na-boxes-clip__text--on {
+    color               : var(--na-text);
+    font-weight         : 600;
+}
+
+.na-boxes-clip__controls {
+    display             : flex;
+    align-items         : center;
+    gap                 : 10px;
+    flex-shrink         : 0;
+}
+
+.naButtonSecondary.na-boxes-clip__edit--active {
+    border-color        : var(--na-warn);
+    background          : #fff4e5;
+    color               : #7a4a00;
+    font-weight         : 600;
+}
+
+/* Remove Outside (the Keep box, green) and Remove Inside (a Cut box, red). */
+.na-boxes-capture {
+    display             : grid;
+    grid-template-columns : 1fr 1fr;
+    gap                 : 8px;
+    margin-top          : 10px;
+}
+
+.naButton.na-boxes-capture__keep {
+    background          : #188038;
+    border-color        : #188038;
+    font-weight         : 600;
+}
+
+.naButton.na-boxes-capture__keep:hover {
+    background          : #12692d;
+    border-color        : #12692d;
+}
+
+.naButton.na-boxes-capture__cut {
+    background          : #c62828;
+    border-color        : #c62828;
+    font-weight         : 600;
+}
+
+.naButton.na-boxes-capture__cut:hover {
+    background          : #a51f1f;
+    border-color        : #a51f1f;
+}
+
+.na-boxes-list {
+    margin-top          : 10px;
+}
+
+.na-boxes-row .na-scene__tag {
+    font-variant-numeric: tabular-nums;
+}
+
+.na-box-chip {
+    flex-shrink         : 0;
+    min-width           : 36px;
+    padding             : 2px 6px;
+    border-radius       : 3px;
+    color               : #fff;
+    font-size           : 10px;
+    font-weight         : 700;
+    letter-spacing      : 0.06em;
+    text-align          : center;
+}
+
+.na-box-chip--keep { background: #188038; }
+.na-box-chip--cut  { background: #d62020; }
+
+.na-boxes-list-foot {
+    display             : flex;
+    justify-content     : flex-end;
+    margin-top          : 6px;
+}
+
+.na-boxes-results {
+    margin-top          : 12px;
+}
+
+.na-boxes-stats {
+    margin-top          : 8px;
 }
 
 /* endregion ----------------------------------------------------------------- */

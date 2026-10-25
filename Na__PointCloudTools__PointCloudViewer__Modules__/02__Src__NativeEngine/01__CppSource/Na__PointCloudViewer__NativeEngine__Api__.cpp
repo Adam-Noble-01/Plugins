@@ -19,6 +19,7 @@
 #include <windows.h>
 
 #include "Na__PointCloudViewer__NativeEngine__Api__.h"
+#include "Na__PointCloudViewer__NativeEngine__BoxFilter__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LasFile__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LasImport__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LazConvert__.hpp"
@@ -181,7 +182,7 @@ namespace {
 NAPC_API int32_t napc_render_png(void* cloud_handle, const double* params, int32_t param_count,
                                  const char* path_utf8, double* stats, int32_t stat_count) {
     if (!cloud_handle) return Na__Fail("No point cloud is loaded in the native engine.", -1);
-    if (!params || param_count < NAPC_P_COUNT) return Na__Fail("Render parameters are missing.", -2);
+    if (!params || param_count < NAPC_P_BASE_COUNT) return Na__Fail("Render parameters are missing.", -2);
     if (!path_utf8) return Na__Fail("No output path was given.", -3);
 
     const auto total_start = std::chrono::steady_clock::now();
@@ -192,7 +193,7 @@ NAPC_API int32_t napc_render_png(void* cloud_handle, const double* params, int32
 
         Na__RasterStats raster;
         std::string error;
-        if (!Na__Raster__Render(cloud, params, Na__Pool(), *g_buffers, raster, error)) return Na__Fail(error.c_str(), -4);
+        if (!Na__Raster__Render(cloud, params, param_count, Na__Pool(), *g_buffers, raster, error)) return Na__Fail(error.c_str(), -4);
         return Na__FinishRender(params, path_utf8, raster, total_start, stats, stat_count);
     } catch (const std::bad_alloc&) {
         return Na__Fail("Not enough memory for the render image.", -6);
@@ -209,7 +210,7 @@ NAPC_API int32_t napc_render_layers_png(void* const* clouds, int32_t layer_count
     for (int32_t i = 0; i < layer_count; ++i) {
         if (!clouds[i]) return Na__Fail("A point cloud to render is not loaded in the native engine.", -1);
     }
-    if (!params || param_stride < NAPC_P_COUNT) return Na__Fail("Render parameters are missing.", -2);
+    if (!params || param_stride < NAPC_P_BASE_COUNT) return Na__Fail("Render parameters are missing.", -2);
     if (!path_utf8) return Na__Fail("No output path was given.", -3);
 
     const auto total_start = std::chrono::steady_clock::now();
@@ -220,6 +221,7 @@ NAPC_API int32_t napc_render_layers_png(void* const* clouds, int32_t layer_count
         for (int32_t i = 0; i < layer_count; ++i) {
             layers[i].cloud  = static_cast<const Na__PointCloud*>(clouds[i]);
             layers[i].params = params + static_cast<size_t>(i) * static_cast<size_t>(param_stride);
+            layers[i].param_count = param_stride;
         }
         const int64_t budget = total_budget >= 9.0e18 ? std::numeric_limits<int64_t>::max()
                                                       : (total_budget > 0.0 ? static_cast<int64_t>(total_budget) : 0);
@@ -245,6 +247,56 @@ NAPC_API int32_t napc_render_layers_png(void* const* clouds, int32_t layer_count
         return Na__Fail("Not enough memory for the render image.", -6);
     } catch (...) {
         return Na__Fail("The native renderer failed unexpectedly.", -7);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// REGION | Crop and Cut: how many points the boxes remove
+// -----------------------------------------------------------------------------
+
+// The same Verdict() as the export (both /fp:precise), so the dialog's figures
+// are exactly what Remove Points & Export LAS removes. Runs on the render pool,
+// under the render mutex (the pool takes one task at a time).
+NAPC_API int32_t napc_box_count(void* cloud_handle, const double* boxes, int32_t box_count, double* out, int32_t out_count) {
+    const Na__PointCloud* cloud = static_cast<const Na__PointCloud*>(cloud_handle);
+    if (!cloud || !cloud->points) return Na__Fail("No point cloud is loaded in the native engine.", -1);
+    if (!boxes || box_count < NAPC_BOXES_COUNT || !out || out_count < 4) return Na__Fail("The box count is missing arguments.", -2);
+    Na__BoxFilter filter;
+    if (!Na__BoxFilter__Read(boxes, boxes + 12, filter)) return Na__Fail("A Crop and Cut box is not a valid box.", -3);
+    std::lock_guard<std::mutex> lock(g_render_mutex);
+    try {
+        const Na__CloudPoints& points = *cloud->points;
+        const int64_t count = points.count;
+        const float* xyz = points.xyz.data();
+        Na__ThreadPool& pool = Na__Pool();
+        const unsigned workers = pool.Size();
+        std::vector<int64_t> outside(workers, 0), inside(workers, 0);
+        if (filter.Active()) {
+            pool.Run([&](unsigned worker, unsigned total) {
+                const int64_t chunk = (count + total - 1) / total;
+                const int64_t begin = std::min<int64_t>(count, chunk * worker);
+                const int64_t end   = std::min<int64_t>(count, begin + chunk);
+                int64_t o = 0, c = 0;
+                for (int64_t i = begin; i < end; ++i) {
+                    const int verdict = filter.Verdict(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
+                    if (verdict == NA_BOX_OUTSIDE_KEEP) ++o;
+                    else if (verdict == NA_BOX_INSIDE_CUT) ++c;
+                }
+                outside[worker] = o;
+                inside[worker] = c;
+            });
+        }
+        int64_t removed_keep = 0, removed_cut = 0;
+        for (unsigned w = 0; w < workers; ++w) { removed_keep += outside[w]; removed_cut += inside[w]; }
+        out[0] = static_cast<double>(count);
+        out[1] = static_cast<double>(removed_keep);
+        out[2] = static_cast<double>(removed_cut);
+        out[3] = static_cast<double>(count - removed_keep - removed_cut);
+        return 0;
+    } catch (const std::bad_alloc&) {
+        return Na__Fail("Not enough memory to count the points.", -4);
+    } catch (...) {
+        return Na__Fail("Counting the points failed unexpectedly.", -5);
     }
 }
 

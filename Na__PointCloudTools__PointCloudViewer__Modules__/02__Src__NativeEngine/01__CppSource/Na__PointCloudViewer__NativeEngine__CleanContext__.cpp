@@ -16,6 +16,12 @@
 //     but not its lifetime: the job keeps them alive. Cleans the whole cloud
 //     in tiles, then writes, verifies and publishes the LAS (LasExport.cpp).
 //
+//   BOX EXPORT (v0.11.0, Crop and Cut): the same job, started from a cloud
+//     with its Keep and Cut boxes instead of a cleaning context. No grid and
+//     no cleaning: every point is tested against the boxes (BoxFilter.hpp,
+//     the test the preview and the count use), then the same writer copies
+//     the kept records, checks the file and publishes it. Nothing moves.
+//
 //   SHUTDOWN (DLL hot swap): napc_shutdown stops and joins every worker that
 //     is still alive before the pools go, so no thread can run in an unloaded
 //     DLL. The Ruby bridge destroys its contexts and jobs first.
@@ -31,6 +37,7 @@
 #include <windows.h>
 
 #include "Na__PointCloudViewer__NativeEngine__Api__.h"
+#include "Na__PointCloudViewer__NativeEngine__BoxFilter__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__CleanPipeline__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LasExport__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__LasFile__.hpp"
@@ -98,6 +105,8 @@ struct Na__CleanExportJob {
     std::shared_ptr<Na__CleanShared> shared;
     std::string source, dest;               // UTF-8
     bool dry_run = false;
+    bool box_mode = false;                  // Crop and Cut: the boxes decide, nothing is cleaned
+    Na__BoxFilter boxes;
     Na__CleanParams params;
     double origin[3] = { 0, 0, 0 };
     std::string provenance, software;
@@ -279,6 +288,41 @@ namespace {
         return false;
     }
 
+    // Crop and Cut: every point gets the boxes' verdict, in stored order, on
+    // the job's own thread (a fraction of a second for tens of millions of
+    // points; the writing and the check that follow take far longer).
+    void Na__MarkBoxes(Na__CleanExportJob* job, double* o) {
+        const auto start = std::chrono::steady_clock::now();
+        const Na__CloudPoints& points = *job->shared->cloud;
+        const int64_t n = points.count;
+        job->full.flags.assign(static_cast<size_t>(n), 0);
+        job->full.delta.clear();
+        job->total.store(n);
+        job->done.store(0);
+        const float* xyz = points.xyz.data();
+        const int64_t step = int64_t(1) << 20;
+        int64_t outside = 0, inside = 0;
+        for (int64_t base = 0; base < n; base += step) {
+            Na__CheckCancel(&job->cancel);
+            const int64_t end = std::min(n, base + step);
+            for (int64_t i = base; i < end; ++i) {
+                const int verdict = job->boxes.Verdict(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
+                if (verdict == NA_BOX_OUTSIDE_KEEP) {
+                    job->full.flags[static_cast<size_t>(i)] = NA_CF_REMOVED_KEEP;
+                    ++outside;
+                } else if (verdict == NA_BOX_INSIDE_CUT) {
+                    job->full.flags[static_cast<size_t>(i)] = NA_CF_REMOVED_CUT;
+                    ++inside;
+                }
+            }
+            job->done.store(end);
+        }
+        job->full.ms = Na__MsSince(start);
+        o[NAPC_E_REMOVED_KEEP] = static_cast<double>(outside);
+        o[NAPC_E_REMOVED_CUT] = static_cast<double>(inside);
+        o[NAPC_E_CLEAN_MS] = job->full.ms;
+    }
+
     void Na__ExportWorker(Na__CleanExportJob* job) {
         const auto start = std::chrono::steady_clock::now();
         double* o = job->out;
@@ -287,24 +331,29 @@ namespace {
                 std::string problem;
                 if (Na__DestinationProblem(job->source, job->dest, problem)) return Na__ExportFail(job, problem);
             }
-            job->phase.store(NA_EXPORT_PHASE_INDEXING);
-            const auto grid_start = std::chrono::steady_clock::now();
-            std::shared_ptr<const Na__CleanGrid> grid = job->shared->Grid(&job->cancel);
-            o[NAPC_E_GRID_MS] = Na__MsSince(grid_start);
+            if (job->box_mode) {
+                job->phase.store(NA_EXPORT_PHASE_CLEANING);
+                Na__MarkBoxes(job, o);
+            } else {
+                job->phase.store(NA_EXPORT_PHASE_INDEXING);
+                const auto grid_start = std::chrono::steady_clock::now();
+                std::shared_ptr<const Na__CleanGrid> grid = job->shared->Grid(&job->cancel);
+                o[NAPC_E_GRID_MS] = Na__MsSince(grid_start);
 
-            job->phase.store(NA_EXPORT_PHASE_CLEANING);
-            Na__CleanPipeline__RunFull(job->shared->cloud, *grid, job->params, &job->cancel, &job->done, &job->total, job->full);
-            o[NAPC_E_CLEAN_MS] = job->full.ms;
-            o[NAPC_E_TILES] = static_cast<double>(job->full.tiles);
-            o[NAPC_E_MAX_TILE_POINTS] = static_cast<double>(job->full.max_tile_points);
-            o[NAPC_E_PEAK_WORK_MB] = job->full.peak_work_bytes / 1048576.0;
-            for (uint16_t f : job->full.flags) {
-                if (f & NA_CF_REMOVED_ISOLATED) o[NAPC_E_REMOVED_ISOLATED] += 1;
-                if (f & NA_CF_REMOVED_CLUSTER) o[NAPC_E_REMOVED_CLUSTER] += 1;
-                if (f & NA_CF_REMOVED_BLOWOUT) o[NAPC_E_REMOVED_BLOWOUT] += 1;
-                if ((f & NA_CF_REMOVED_DENSITY) && !(f & NA_CF_REMOVED_NOISE)) o[NAPC_E_REMOVED_DENSITY] += 1;
-                if (f & NA_CF_DOUBLING) o[NAPC_E_DOUBLING] += 1;
-                if (f & NA_CF_CANDIDATE) o[NAPC_E_CANDIDATES] += 1;
+                job->phase.store(NA_EXPORT_PHASE_CLEANING);
+                Na__CleanPipeline__RunFull(job->shared->cloud, *grid, job->params, &job->cancel, &job->done, &job->total, job->full);
+                o[NAPC_E_CLEAN_MS] = job->full.ms;
+                o[NAPC_E_TILES] = static_cast<double>(job->full.tiles);
+                o[NAPC_E_MAX_TILE_POINTS] = static_cast<double>(job->full.max_tile_points);
+                o[NAPC_E_PEAK_WORK_MB] = job->full.peak_work_bytes / 1048576.0;
+                for (uint16_t f : job->full.flags) {
+                    if (f & NA_CF_REMOVED_ISOLATED) o[NAPC_E_REMOVED_ISOLATED] += 1;
+                    if (f & NA_CF_REMOVED_CLUSTER) o[NAPC_E_REMOVED_CLUSTER] += 1;
+                    if (f & NA_CF_REMOVED_BLOWOUT) o[NAPC_E_REMOVED_BLOWOUT] += 1;
+                    if ((f & NA_CF_REMOVED_DENSITY) && !(f & NA_CF_REMOVED_NOISE)) o[NAPC_E_REMOVED_DENSITY] += 1;
+                    if (f & NA_CF_DOUBLING) o[NAPC_E_DOUBLING] += 1;
+                    if (f & NA_CF_CANDIDATE) o[NAPC_E_CANDIDATES] += 1;
+                }
             }
             o[NAPC_E_SOURCE_POINTS] = static_cast<double>(job->shared->cloud->count);
 
@@ -315,7 +364,7 @@ namespace {
                 input.final_path = Na__Utf8ToWide(job->dest);
                 input.cloud = job->shared->cloud.get();
                 input.flags = &job->full.flags;
-                input.delta = &job->full.delta;
+                input.delta = job->box_mode ? nullptr : &job->full.delta;
                 for (int a = 0; a < 3; ++a) input.origin[a] = job->origin[a];
                 input.provenance_json = job->provenance;
                 input.software = job->software;
@@ -616,6 +665,34 @@ NAPC_API void* napc_clean_export_start(void* handle, const char* source_utf8, co
     }
 }
 
+NAPC_API void* napc_box_export_start(void* cloud_handle, const char* source_utf8, const char* dest_utf8,
+                                     const double* boxes, int32_t box_count, const double* origin,
+                                     const char* provenance_json, const char* software) {
+    const Na__PointCloud* cloud = static_cast<const Na__PointCloud*>(cloud_handle);
+    if (!cloud || !cloud->points || (dest_utf8 && !source_utf8) || !boxes || box_count < NAPC_BOXES_COUNT) return nullptr;
+    Na__BoxFilter filter;
+    if (!Na__BoxFilter__Read(boxes, boxes + 12, filter) || !filter.Active()) return nullptr;
+    try {
+        Na__CleanExportJob* job = new Na__CleanExportJob();
+        job->shared = std::make_shared<Na__CleanShared>();   // the points only: no grid is ever built
+        job->shared->cloud = cloud->points;                  // shared: releasing the cloud handle is safe
+        job->box_mode = true;
+        job->boxes = filter;
+        job->dry_run = dest_utf8 == nullptr;
+        job->source = source_utf8 ? source_utf8 : "";
+        job->dest = dest_utf8 ? dest_utf8 : "";
+        if (origin) for (int a = 0; a < 3; ++a) job->origin[a] = origin[a];
+        job->provenance = provenance_json ? provenance_json : "{}";
+        job->software = software ? software : "Na Point Cloud Viewer";
+        job->worker = std::thread(Na__ExportWorker, job);
+        std::lock_guard<std::mutex> lock(g_registry_mutex);
+        g_jobs.insert(job);
+        return job;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 NAPC_API int32_t napc_clean_export_poll(void* handle, double* out, int32_t out_count) {
     Na__CleanExportJob* job = static_cast<Na__CleanExportJob*>(handle);
     if (!job || !out || out_count < NAPC_E_COUNT) return -1;
@@ -656,7 +733,11 @@ NAPC_API int64_t napc_clean_export_points(void* handle, uint16_t* flags, float* 
     const int64_t count = static_cast<int64_t>(job->full.flags.size());
     const int64_t n = std::min(count, std::max<int64_t>(0, cap));
     if (flags) std::memcpy(flags, job->full.flags.data(), size_t(n) * 2);
-    if (delta) std::memcpy(delta, job->full.delta.data(), size_t(n) * 12);
+    if (delta) {
+        // a box export moves nothing and keeps no displacements
+        if (job->full.delta.size() >= size_t(n) * 3) std::memcpy(delta, job->full.delta.data(), size_t(n) * 12);
+        else std::memset(delta, 0, size_t(n) * 12);
+    }
     return count;
 }
 

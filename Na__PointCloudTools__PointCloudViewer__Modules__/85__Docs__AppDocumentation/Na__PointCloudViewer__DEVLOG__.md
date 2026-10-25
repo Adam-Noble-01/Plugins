@@ -4,6 +4,86 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.11.0 - 25-Oct-2026 - Crop and Cut: Remove Points With Boxes
+
+### Summary
+Adam asked for a new section at the bottom of the Clean tab: capture the current clip box and use it
+to remove every point outside it, and inner boxes to remove a tree or some noise; to physically clean
+points out of the cloud, fast, stable and intuitive, without ever destroying the original. He also
+asked whether the existing filters work on the cached cloud. ARCHITECTURE section 26 is the full
+description.
+
+### What the existing tools do to the original (checked 25-Oct-2026)
+Nothing edits a file or the loaded cloud. The filter preview is a picture of the clip box. Clean &
+Export reads the original LAS's own records, writes a NEW LAS (Save As, nothing overwritten, read
+back and checked, published without replacing anything), loads it with its own point cache (the
+original's cache is kept) and only then switches the model's link to it, in one undoable step. The
+`.napc` cache is written once per file by the import and never edited. Crop and Cut uses exactly the
+same path.
+
+### Built
+- **Crop and Cut card** at the bottom of the Clean tab: **Remove Outside** (the clip box becomes the
+  Keep box: everything outside it goes) and **Remove Inside** (a Cut box: everything inside it goes,
+  up to 20); the clip box's own line with its Clip switch and Edit Clip Box; the box list (press a
+  name to put that box into the clip box, adjust it, then Update; Rename; Delete; Delete All);
+  Original / Result / Differences; exact counts; **Remove Points & Export LAS**.
+- **The boxes live in the cloud's own record** (`cropCut`), every change one undoable step.
+- **Live preview:** Result hides what the boxes remove (and the budget counts only kept points, so
+  the result is as dense as the whole cloud); Differences paints it red. Outlines in the model: the
+  Keep box green, Cut boxes red, each named. Only the active cloud, only while the Clean tab shows;
+  while the boxes show, the filter preview waits.
+- **Engine, ABI 8:** one box test (BoxFilter.hpp) for the picture, the count and the export;
+  `napc_box_count`; `napc_box_export_start` through Clean & Export's own LAS writer (records copied
+  byte for byte, nothing moves). A 48-number render block (the scene export) renders as before.
+- **The export:** `<name>_Cropped_01.las`; then "Point Cloud: Use Cropped LAS" switches the link,
+  keeps the position and clears the boxes (the same Undo brings both back). The cloud row says "a
+  cropped copy". The configuration export holds each cloud's boxes.
+
+### Fixed on the way
+- **Engine swap safety.** While building, the new ABI 8 engine was written into the live plugin
+  folder while SketchUp ran v0.10.0, which expects ABI 7: the old bridge unloaded its working engine
+  first and then refused the new one, so cloud loading failed (Adam's Technical Log, 15:30). The
+  committed DLL was put back within minutes; loaded clouds needed Reload All. The bridge now checks
+  a build's ABI before touching the running engine, keeps an engine it can use running, and tries a
+  refused build once, not every frame. Development of this version moved to a staging copy.
+- **Cancel just after publishing.** A Cancel that arrived after the engine had already published
+  the new file reported "Nothing was written" although the file existed. The engine's last word is
+  now read first: the file is kept and offered (both exports).
+- **Shadow copies named by content.** The engine's shadow copy is named by a digest of the build's
+  bytes, not the file's time, so an engine update can keep the old file's time: a running plugin
+  sees nothing newer and keeps its engine until Reload Plugin brings the code that wants the new one.
+- **Reload after an engine swap.** Found by the upgrade test: after Reload Plugin swapped the engine,
+  a loaded cloud counted as loaded although its points were gone, so Reload All said "Every point
+  cloud of this model is loaded already" and its row had no Reload button (only Unload, then Reload,
+  brought it back; a v0.10.0 gap). It now counts as needing a reload, with its own note.
+- Reload Plugin now says when it swapped the engine, and that the clouds need Reload All.
+
+### Tested (25-Oct-2026, all passing)
+- Native, `test_native_boxes.py`, 65 checks: ABI 7 and ABI 8 byte for byte (synthetic cloud and
+  JW02); Result frames equal a cloud of only the kept points; Differences equals a hand-recoloured
+  cloud; counts against an independent numpy verdict, faces included; real exports of the synthetic
+  room, two fixtures and JW02, every kept record byte for byte; the source's SHA-256 and time
+  unchanged; refusals; cancel. JW02: count 10 to 17 ms, export 3.6 s (Clean & Export: 38.6 s).
+- Ruby harness, SketchUp's own Ruby 3.2 with the real DLL and LAS files: boxes 84 (new), main 197,
+  scenes 96, clean 59, multi 87, legacy 52, and the upgrade test 12 (the committed v0.10.0 running,
+  the new DLL installed, then the v0.11.0 files loaded on top as Reload Plugin does). 587 in all.
+- The card in a browser with states dumped by the boxes suite, at 600 and 440 px wide.
+- Not yet tried in SketchUp itself.
+
+### Checklist for Adam (in SketchUp)
+1. Start SketchUp (in a running one, Settings > Reload Plugin swaps the engine to ABI 8 and says
+   so), open a model and Reload its clouds (View tab).
+2. Clean tab, at the bottom: Crop and Cut. Press Edit Clip Box, fit the box round the part to keep,
+   press Remove Outside. Turn Clip off in the card: the model shows what will be saved (Result).
+   Try Differences and Original.
+3. Fit the clip box round a tree and press Remove Inside: it vanishes (Result) or turns red
+   (Differences). Press its name to put it back into the clip box, move a side, press Update.
+   Rename it.
+4. Remove Points & Export LAS: Save As suggests `<name>_Cropped_01.las`. The new file loads in the
+   same position; its point count matches the card; the original LAS and its cache are untouched.
+5. Edit > Undo: the model names the original again, with its boxes. Reload brings the original back.
+6. Clean & Export the cropped file: fewer points, a quicker clean.
+
 ## Point Cloud Viewer - v0.10.0 - 25-Oct-2026 - Several Point Clouds in One Model
 
 ### Summary

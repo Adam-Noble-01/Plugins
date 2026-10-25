@@ -73,7 +73,7 @@ struct Na__LasExportInput {
     std::wstring final_path;         // the NEW file (must not exist)
     const Na__CloudPoints* cloud = nullptr;
     const std::vector<uint16_t>* flags = nullptr;    // per stored point
-    const std::vector<float>* delta = nullptr;       // per stored point * 3
+    const std::vector<float>* delta = nullptr;       // per stored point * 3; null = no point moves (Crop and Cut)
     double origin[3] = { 0, 0, 0 };  // the loaded cloud's local origin (source units)
     std::string provenance_json;     // from Ruby: settings, ids
     std::string software;            // "Na Point Cloud Viewer 0.8.0"

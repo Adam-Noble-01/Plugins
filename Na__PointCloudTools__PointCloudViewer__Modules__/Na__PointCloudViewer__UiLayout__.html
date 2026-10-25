@@ -396,6 +396,70 @@
                     <p class="na-hint" id="na-clean-units-hint">Lengths in these settings are millimetres. The cloud's own unit, chosen when it was imported, converts them; nothing is guessed. SketchUp's Undo can switch the model back to the earlier file but never deletes a file.</p>
                 </section>
 
+                <!-- Crop and Cut (v0.11.0): boxes captured from the clip box that
+                     remove points for good, into a NEW LAS. Built by the Clean tab
+                     script from state.clean.boxes. -->
+                <section class="na-card na-card--boxes" id="na-boxes-card">
+                    <div class="na-card__header">
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Crop and Cut</h3>
+                            <span class="na-cloud-tag na-hidden" data-na-cloud-tag></span>
+                        </div>
+                        <span class="na-card__value" id="na-boxes-summary"></span>
+                    </div>
+                    <p class="na-hint na-hint--top">Removes points for good, into a new LAS file. Fit the clip box round an area, then <strong>Remove Outside</strong> crops the cloud to it, or <strong>Remove Inside</strong> cuts it out: a tree, a car, a clump of noise. Add as many Cut boxes as you need.</p>
+
+                    <div class="na-boxes-clip">
+                        <p class="na-boxes-clip__text" id="na-boxes-clip-text"></p>
+                        <div class="na-boxes-clip__controls">
+                            <label class="na-toggle" title="Hide every point of this cloud outside the clip box (the same switch as the Clipping tab)">
+                                <input type="checkbox" id="na-boxes-clip-enabled">
+                                <span class="na-toggle__track"></span>
+                                <span class="na-toggle__label">Clip</span>
+                            </label>
+                            <button type="button" class="naButtonSecondary na-button--small" id="na-boxes-clip-edit">Edit Clip Box</button>
+                        </div>
+                    </div>
+
+                    <div class="na-boxes-capture">
+                        <button type="button" class="naButton na-boxes-capture__keep" id="na-boxes-remove-outside">Remove Outside</button>
+                        <button type="button" class="naButton na-boxes-capture__cut" id="na-boxes-remove-inside">Remove Inside</button>
+                    </div>
+
+                    <div class="na-scene-list na-boxes-list na-hidden" id="na-boxes-list"></div>
+                    <div class="na-boxes-list-foot na-hidden" id="na-boxes-list-foot">
+                        <button type="button" class="na-scene-action na-scene-action--danger" id="na-boxes-delete-all">Delete All Boxes</button>
+                    </div>
+
+                    <div class="na-boxes-results na-hidden" id="na-boxes-results">
+                        <div class="na-switch-field">
+                            <span class="na-switch-field__label">Show in the model</span>
+                            <div class="na-switch na-switch--three" id="na-boxes-view-switch">
+                                <button type="button" class="na-switch__option" data-na-value="original" title="The cloud as it is, with the boxes outlined">Original</button>
+                                <button type="button" class="na-switch__option" data-na-value="result" title="The cloud as it will be saved: what the boxes remove is hidden">Result</button>
+                                <button type="button" class="na-switch__option" data-na-value="differences" title="What the boxes remove in red, the rest faded">Differences</button>
+                            </div>
+                        </div>
+                        <p class="na-hint" id="na-boxes-view-note"></p>
+                        <div class="na-stat-grid na-boxes-stats" id="na-boxes-stats"></div>
+                    </div>
+
+                    <button type="button" class="naButton na-clean-export-button" id="na-boxes-export">Remove Points &amp; Export LAS&hellip;</button>
+                    <p class="na-note na-hidden" id="na-boxes-export-blocker"></p>
+                    <div class="na-clean-retry na-hidden" id="na-boxes-retry">
+                        <p class="na-note" id="na-boxes-retry-text"></p>
+                        <div class="na-button-row">
+                            <button type="button" class="naButton" id="na-boxes-retry-load">Load Cropped LAS</button>
+                        </div>
+                    </div>
+                    <div class="na-clean-last na-hidden" id="na-boxes-last">
+                        <p class="na-xform-caption" id="na-boxes-last-title"></p>
+                        <div class="na-stat-grid" id="na-boxes-last-stats"></div>
+                        <p class="na-hint" id="na-boxes-last-notes"></p>
+                    </div>
+                    <p class="na-hint">Saves the cloud without those points as a NEW LAS file that you name, checks it point by point, then loads it in the same position and uses it in this model. The original LAS is never changed, renamed or replaced. Only the boxes decide (no point is analysed or moved), so this takes seconds, not minutes: crop first, then Clean &amp; Export the smaller cloud. Like the clip box, the boxes stay level with the model.</p>
+                </section>
+
             </div>
         </div>
         <!-- endregion ============================================================ -->

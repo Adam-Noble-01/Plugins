@@ -33,10 +33,32 @@
 //   6 (v0.9.1): the LAZ to LAS converter (napc_laz_convert_*).
 //   7 (v0.10.0): several clouds in one frame (napc_render_layers_png): one depth
 //               buffer, one shared point budget, opacity per cloud.
-#define NAPC_ABI_VERSION 7
+//   8 (v0.11.0): Crop and Cut boxes (BoxFilter.hpp): the render parameters carry
+//               them (Result hides what they remove, Differences colours it),
+//               napc_box_count, and napc_box_export_start writes a NEW LAS without
+//               those points. A 48-number parameter block (ABI 7) still renders.
+#define NAPC_ABI_VERSION 8
 
 // The most clouds one frame can hold (the plugin allows 10 per model).
 #define NAPC_MAX_LAYERS 16
+
+// The most Cut boxes one cloud can have (the plugin's own limit may be lower).
+#define NAPC_MAX_CUT_BOXES 20
+
+// The boxes themselves (doubles): a Keep box and up to NAPC_MAX_CUT_BOXES Cut
+// boxes, each axis-aligned in MODEL inches, like the clip box.
+enum Na__BoxBlockIndex {
+    NAPC_B_KEEP = 0,                                       // 1 = there is a Keep box
+    NAPC_B_KEEP_MIN_X, NAPC_B_KEEP_MIN_Y, NAPC_B_KEEP_MIN_Z,
+    NAPC_B_KEEP_MAX_X, NAPC_B_KEEP_MAX_Y, NAPC_B_KEEP_MAX_Z,
+    NAPC_B_CUT_COUNT,                                      // 0 .. NAPC_MAX_CUT_BOXES
+    NAPC_B_CUTS,                                           // per Cut box: min x, y, z, max x, y, z
+    NAPC_BOX_BLOCK_COUNT = NAPC_B_CUTS + 6 * NAPC_MAX_CUT_BOXES
+};
+
+// napc_box_count / napc_box_export_start take the cloud's local -> model
+// transform (12: row-major 3x3, then the translation) followed by the box block.
+#define NAPC_BOXES_COUNT (12 + NAPC_BOX_BLOCK_COUNT)
 
 // Render parameter layout (doubles), shared with the Ruby bridge.
 enum Na__RenderParamIndex {
@@ -61,7 +83,15 @@ enum Na__RenderParamIndex {
     NAPC_P_CLIP_MAX_X, NAPC_P_CLIP_MAX_Y, NAPC_P_CLIP_MAX_Z,              // axis-aligned to the model
     NAPC_P_FULL_WIDTH, NAPC_P_FULL_HEIGHT,  // the whole viewport in output pixels (projection centre)
     NAPC_P_CROP_X, NAPC_P_CROP_Y,           // where the output image (WIDTH x HEIGHT) starts in it
-    NAPC_P_COUNT
+    NAPC_P_BASE_COUNT,                      // 48: the ABI 7 block ends here (no boxes)
+    // Crop and Cut preview (ABI 8). Only read when a block holds NAPC_P_COUNT numbers.
+    NAPC_P_BOX_MODE = NAPC_P_BASE_COUNT,    // 0 off, 1 Result: what the boxes remove is not drawn,
+                                            // 2 Differences: it is drawn in the removed colour
+    NAPC_P_BOX_REMOVED_R, NAPC_P_BOX_REMOVED_G, NAPC_P_BOX_REMOVED_B,
+    NAPC_P_BOX_TINT_R, NAPC_P_BOX_TINT_G, NAPC_P_BOX_TINT_B,
+    NAPC_P_BOX_TINT_SHARE,                  // Differences: kept points blended this share towards the tint
+    NAPC_P_BOX_BLOCK,                       // NAPC_BOX_BLOCK_COUNT numbers (Na__BoxBlockIndex)
+    NAPC_P_COUNT = NAPC_P_BOX_BLOCK + NAPC_BOX_BLOCK_COUNT
 };
 
 // Render stats layout (doubles) written by napc_render_png and napc_render_layers_png.
@@ -132,6 +162,7 @@ NAPC_API int32_t     napc_cloud_read(void* cloud, int64_t first, int64_t count, 
                                      uint32_t* source_index, float* time);
 
 // Renders the cloud for one camera into an uncompressed RGBA PNG at path_utf8.
+// param_count: NAPC_P_COUNT, or NAPC_P_BASE_COUNT for a frame without boxes.
 NAPC_API int32_t     napc_render_png(void* cloud, const double* params, int32_t param_count,
                                      const char* path_utf8, double* stats, int32_t stat_count);
 
@@ -142,7 +173,8 @@ NAPC_API int32_t     napc_render_png(void* cloud, const double* params, int32_t 
 // params: layer_count blocks of param_stride doubles, each in the Na__RenderParamIndex
 // layout. The FIRST block's camera and image fields describe the frame; each
 // block's transform, clip box, point size, opacity, colour mode and monochrome
-// colour apply to its own cloud; NAPC_P_BUDGET is not read.
+// colour apply to its own cloud; NAPC_P_BUDGET is not read. param_stride is
+// NAPC_P_COUNT, or NAPC_P_BASE_COUNT for frames without Crop and Cut boxes.
 // layer_stats: null, or layer_count * NAPC_LS_COUNT doubles.
 NAPC_API int32_t     napc_render_layers_png(void* const* clouds, int32_t layer_count, const double* params,
                                             int32_t param_stride, double total_budget, const char* path_utf8,
@@ -240,8 +272,23 @@ enum Na__ExportPollIndex {
     NAPC_E_CLEAN_MS, NAPC_E_WRITE_MS, NAPC_E_VERIFY_MS, NAPC_E_TOTAL_MS,
     NAPC_E_TILES, NAPC_E_MAX_TILE_POINTS, NAPC_E_PEAK_WORK_MB,
     NAPC_E_BY_RETURN_MISMATCH, NAPC_E_DROPPED_VLRS, NAPC_E_DROPPED_EVLRS, NAPC_E_GRID_MS,
+    NAPC_E_REMOVED_KEEP, NAPC_E_REMOVED_CUT,        // ABI 8: Crop and Cut (outside the Keep box, inside a Cut box)
     NAPC_E_COUNT
 };
+
+// --- Crop and Cut (BoxFilter.hpp) ----------------------------------------------------
+// boxes: NAPC_BOXES_COUNT doubles (the local -> model transform, then the box block).
+// out: [points, outside the Keep box, inside a Cut box, kept]. Runs on the render
+// pool (a few ms per 10 M points). Returns 0, or < 0 (napc_last_error).
+NAPC_API int32_t     napc_box_count(void* cloud, const double* boxes, int32_t box_count, double* out, int32_t out_count);
+
+// A NEW LAS without the points the boxes remove: the source's own records, byte for
+// byte, checked and published exactly as a Clean & Export (LasExport.hpp). No point
+// moves. dest_utf8 = null: mark only (napc_clean_export_points). The job is polled,
+// cancelled and destroyed with the napc_clean_export_* functions above.
+NAPC_API void*       napc_box_export_start(void* cloud, const char* source_utf8, const char* dest_utf8,
+                                           const double* boxes, int32_t box_count, const double* origin,
+                                           const char* provenance_json, const char* software);
 
 // --- LAZ to LAS (LazConvert.hpp) ---------------------------------------------------
 // Decompresses source_utf8 (a .laz) into dest_utf8, a NEW uncompressed LAS (never

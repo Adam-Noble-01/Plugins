@@ -111,9 +111,13 @@ enum Na__CleanFlag : uint16_t {
     NA_CF_HELD_RANGE        = 1u << 8,   // export: the LAS quantisation could not hold its new position
     NA_CF_ON_SURFACE        = 1u << 9,   // assigned to a confident local surface
     NA_CF_FEATURE           = 1u << 10,  // in a corner, edge, step or rough cell (density kept more)
+    NA_CF_REMOVED_KEEP      = 1u << 11,  // Crop and Cut: outside the Keep box (box export only)
+    NA_CF_REMOVED_CUT       = 1u << 12,  // Crop and Cut: inside a Cut box (box export only)
 };
 
-const uint16_t NA_CF_REMOVED_ANY = NA_CF_REMOVED_ISOLATED | NA_CF_REMOVED_CLUSTER | NA_CF_REMOVED_BLOWOUT | NA_CF_REMOVED_DENSITY;
+const uint16_t NA_CF_REMOVED_BOX = NA_CF_REMOVED_KEEP | NA_CF_REMOVED_CUT;
+const uint16_t NA_CF_REMOVED_ANY = NA_CF_REMOVED_ISOLATED | NA_CF_REMOVED_CLUSTER | NA_CF_REMOVED_BLOWOUT | NA_CF_REMOVED_DENSITY |
+                                   NA_CF_REMOVED_BOX;
 const uint16_t NA_CF_REMOVED_NOISE = NA_CF_REMOVED_ISOLATED | NA_CF_REMOVED_CLUSTER | NA_CF_REMOVED_BLOWOUT;
 
 // -----------------------------------------------------------------------------

@@ -31,6 +31,13 @@
 // CROP: the image can be just the rectangle of the viewport the clouds cover
 //   (FULL_WIDTH/HEIGHT + CROP_X/Y); the projection still uses the whole view.
 //
+// CROP AND CUT BOXES (v0.11.0, ABI 8): a layer can carry the Clean tab's
+//   boxes (BoxFilter.hpp). Result: the points they remove are not drawn and
+//   the budget counts only the points kept, so the result is drawn as densely
+//   as the whole cloud. Differences: every point is drawn, the removed ones in
+//   the removed colour and the kept ones tinted. A 48-number block (ABI 7)
+//   has no boxes and renders exactly as before.
+//
 // =============================================================================
 
 #pragma once
@@ -43,14 +50,15 @@
 
 #include "Na__PointCloudViewer__NativeEngine__ThreadPool__.hpp"
 
-// How many of a cloud's points lie inside its clip box, counted per fixed
-// chunk of the (randomly ordered) point list. Recomputed only when the box or
-// the placement change; the prefix that holds any share of the budget is then
-// found from the counts (one chunk scanned), and the last one is kept.
+// How many of a cloud's points are shown (inside its clip box, and kept by
+// its Crop and Cut boxes in the Result view), counted per fixed chunk of the
+// (randomly ordered) point list. Recomputed only when a box or the placement
+// change; the prefix that holds any share of the budget is then found from
+// the counts (one chunk scanned), and the last one is kept.
 struct Na__ClipCountCache {
     bool                 valid = false;
-    double               key[19] = {};      // local -> model (12) + clip enabled and box (7)
-    std::vector<int64_t> inside;            // points inside the box, per chunk
+    std::vector<double>  key;               // local -> model (12), clip enabled and box (7), hide flag (+ the boxes)
+    std::vector<int64_t> inside;            // points shown, per chunk
     int64_t              inside_total = 0;
     int64_t              limit_share = -1;  // the last share asked for ...
     int64_t              limit = 0;         // ... and the prefix length that holds it
@@ -75,11 +83,13 @@ struct Na__PointCloud {
     mutable Na__ClipCountCache clip_cache;   // renders run one at a time (the render mutex)
 };
 
-// One cloud of a frame: its points and its NAPC_P_COUNT render parameters.
-// The FIRST layer's camera and image fields describe the frame for every layer.
+// One cloud of a frame: its points and its render parameters (NAPC_P_COUNT,
+// or NAPC_P_BASE_COUNT without boxes). The FIRST layer's camera and image
+// fields describe the frame for every layer.
 struct Na__RenderLayer {
     const Na__PointCloud* cloud  = nullptr;
     const double*         params = nullptr;
+    int32_t               param_count = 0;
 };
 
 // One projected point waiting in a band's bin (12 bytes).
@@ -126,5 +136,5 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
                               std::string& error);
 
 // One cloud, its budget in params[NAPC_P_BUDGET] (the single-layer frame).
-bool Na__Raster__Render(const Na__PointCloud& cloud, const double* params, Na__ThreadPool& pool,
+bool Na__Raster__Render(const Na__PointCloud& cloud, const double* params, int32_t param_count, Na__ThreadPool& pool,
                         Na__FrameBuffers& buffers, Na__RasterStats& stats, std::string& error);

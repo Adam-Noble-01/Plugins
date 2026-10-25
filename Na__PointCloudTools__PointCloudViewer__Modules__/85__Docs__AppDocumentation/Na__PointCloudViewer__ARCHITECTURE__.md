@@ -1,15 +1,17 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.10.0: native image renderer (binned raster, screen crop, orbit budget, several clouds
+Status: **v0.11.0: native image renderer (binned raster, screen crop, orbit budget, several clouds
 in one depth-tested frame), LAS import with the `.napc` point cache (v2, named by the LAS content
 key), the clip box with clip scenes, the Transform tab, model persistence (one record per cloud +
 local backup, explicit Reload), the Clean tab (Remove Noise, Refine Surfaces, Reduce Density; live
 preview in the clip box; Clean & Export LAS to a NEW file, section 22), the Scenes tab (point cloud
-scenes for TrueVision, section 23), LAZ import through a lossless LAZ to LAS converter (section 24)
-and up to ten point clouds per model, each with its own position, clip box and look (section 25)
-are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026, cleaning added
-12-Oct-2026, scenes 19-Oct-2026, LAZ 21-Oct-2026, several clouds 25-Oct-2026. Keep this file true:
-when a design decision changes, change it here and say why in the DEVLOG.
+scenes for TrueVision, section 23), LAZ import through a lossless LAZ to LAS converter (section 24),
+up to ten point clouds per model, each with its own position, clip box and look (section 25), and
+Crop and Cut: Keep and Cut boxes captured from the clip box, shown live, exported to a NEW file
+(section 26) are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026,
+cleaning added 12-Oct-2026, scenes 19-Oct-2026, LAZ 21-Oct-2026, several clouds and Crop and Cut
+25-Oct-2026. Keep this file true: when a design decision changes, change it here and say why in
+the DEVLOG.
 
 **The decisive finding (M1):** SketchUp's View API costs ~2.3 us per drawn point (100k points =
 3 fps). So points are never handed to SketchUp. The C++ engine rasterises them into an image and
@@ -31,7 +33,9 @@ interactive editing or recolouring of points, any format but `.las`.
 **Cleaning (v0.8.0) never edits a file.** The Clean tab previews three filters on the clip box and
 Clean & Export LAS writes the whole cloud, cleaned, to a NEW LAS the user names; the original is
 only ever read. Surface analysis exists inside the cleaning engine only (it finds the local
-surfaces to refine towards); it is not offered as wall detection or geometry.
+surfaces to refine towards); it is not offered as wall detection or geometry. **Crop and Cut
+(v0.11.0) is the same:** boxes remove points only from a NEW LAS (section 26); the loaded cloud,
+its point cache and the original file are never changed.
 
 ---
 
@@ -79,6 +83,7 @@ for the SketchUp session. The synthetic test cloud, the benchmark and the Ruby p
 | Clean tab: settings -> physical parameters, preview requests, display switch [BUILT v0.8.0] | Cleaning engine: preview worker per cloud, full-cloud tiling, LAS export with verify + publish [BUILT v0.8.0] |
 | Save As, destination checks, model association (one operation) [BUILT v0.8.0] | LAS content key, record identity and GPS time per point [BUILT v0.8.0] |
 | Cloud set: slots, the active cloud, one record per cloud, looks and visibility per cloud [BUILT v0.10.0] | Layered render: several clouds in one depth-tested frame, one budget shared between them, per-layer stats [BUILT v0.10.0, ABI 7] |
+| Crop and Cut: boxes captured from the clip box, kept in the cloud's record, the view switch, the outlines [BUILT v0.11.0] | One box test for the render (Result hides, Differences colours), the count and the export; the box export job [BUILT v0.11.0, ABI 8] |
 
 **Bridge = Fiddle, not a Ruby C extension** (`08__NativeEngine/...Bridge__.rb`). Ruby passes
 packed binary Strings and a numeric parameter array; the DLL returns status codes and fills a
@@ -260,6 +265,12 @@ Not solvable from the overlay: points are drawn over SketchUp faces (no depth fr
 **Several clouds (v0.10.0, ABI 7):** every cloud on show is a layer of the SAME frame, with its own
 transform, clip box, dot size, opacity and colour, one depth buffer and one shared budget (section
 25.5). The settings key covers every layer. A one-cloud frame is byte-identical to ABI 6.
+
+**Crop and Cut boxes (v0.11.0, ABI 8):** a layer's block grows from 48 to 184 numbers: how to show
+the boxes (Result hides what they remove, and the budget then counts only kept points; Differences
+draws it in the removed colour) and the boxes themselves (section 26). A 48-number block still
+renders, byte-identical to ABI 7 (tested on JW02 and a synthetic cloud), so the scene export, which
+never shows boxes, is padded by the bridge and unchanged.
 
 ---
 
@@ -450,7 +461,7 @@ puts every wall you trace in the wrong place. So:
 | Plugin defaults | `02__AppData/...AppConfig__Defaults__.json` (committed, read-only) | limits, presets, defaults, image render scales, overlay id, paths |
 | User config | `91__UserConfig__LocalOnly/Na__PointCloudViewer__UserConfig__.json` (git-ignored, per PC, schema v3) | last tab, last LAS folder, move and angle snap, the point budget (`render.lastSettings`), each cloud's look by cloud id (`render.cloudLooks`, v0.10.0), the Clean tab's filter settings (`clean.filters`) |
 | Model: the clouds | the `.skp`, dictionary `Na__PointCloudViewer__Clouds` - BUILT v0.10.0 | model id (names the backup file), the clouds' order, where a converted v0.9 model came from (section 25.3) |
-| Model: one cloud | the `.skp`, dictionary `Na__PointCloudViewer__Cloud__pc_<8 hex>`, one per cloud - BUILT v0.10.0 | name, colour, LAS link, placement, clip box, clip scenes (section 25.3) |
+| Model: one cloud | the `.skp`, dictionary `Na__PointCloudViewer__Cloud__pc_<8 hex>`, one per cloud - BUILT v0.10.0 | name, colour, LAS link, placement, clip box, clip scenes (section 25.3), Crop and Cut boxes (`cropCut`, v0.11.0, section 26) |
 | Model: scenes | the `.skp`, dictionary `Na__PointCloudViewer__Scenes` (schema 2 since v0.10.0) | point cloud scenes, each holding every cloud's settings by cloud id (sections 23, 25.6) |
 | Model: v0.9 records | `Na__PointCloudViewer__ModelLink` / `..._Placement` / `..._ClipState` (v0.4.0 to v0.9.1) | a v0.9 model's one cloud: read as they are, converted by the first change (section 25.8) |
 | Local backup | `91__UserConfig__LocalOnly/Na__PointCloudViewer__ModelBackups/<modelId>.json` (per PC), schema 2 since v0.10.0 | every point cloud record of the model by dictionary name, model path and title (sections 14, 25.4) |
@@ -630,8 +641,21 @@ destroys every live export job, then every cleaning context (each joins its work
 every native cloud, clearing each one's GC free function first, calls `napc_shutdown` (which also
 stops any worker still alive before the pools go), unloads the old copy and loads the new one;
 sessions see the generation change and upload again. Reload Plugin is refused while a job (an
-import or a Clean & Export) is running. The ABI (7 since v0.10.0) is checked before any function is
-bound. A session from before v0.10.0 (one cloud held on the session itself) is adopted on first
+import or a Clean & Export) is running. The ABI (8 since v0.11.0) is checked before any function is
+bound, and (since v0.11.0) BEFORE the running engine is touched: a build on disk with another ABI is
+refused once and remembered (not copied and tried again every frame), and an engine that is the
+right one keeps running with its clouds, with a note that a build waits for Reload Plugin. Before,
+the old engine was unloaded first, so a newer build placed while SketchUp ran an older plugin
+stopped every cloud until the plugin was reloaded (it happened on 25-Oct-2026 during development).
+Only an engine the code cannot use is let go. Reload Plugin says when it swapped the engine, and
+that the clouds then need Reload All. Shadow copies are named by a digest of the build's bytes
+(since v0.11.0; before, by the file's time), so an update can keep the old file's time: the code
+running sees nothing newer and keeps its engine, and Reload Plugin brings the code that swaps it
+(the v0.10.0 to v0.11.0 upgrade test proves both halves). A cloud whose engine was swapped out now
+counts as needing a reload (its row offers Reload, and Reload All includes it); before, it counted
+as loaded, and only Unload then Reload brought it back.
+
+A session from before v0.10.0 (one cloud held on the session itself) is adopted on first
 use: its loaded cloud, placement and clip box move into the slot of that LAS
 (`na_adopt_legacy_session`), and the reloader ends our tool first, so a tool bound to an old slot
 never outlives it.
@@ -700,6 +724,7 @@ measurements (tests only; not bound in Ruby).
 | **Clean** (built, v0.8.0) | Clean tab: Remove Noise, Refine Surfaces, Reduce Density with live preview in the clip box; Clean & Export LAS to a NEW file, reloaded and used by the model in one undoable step; cache v2 named by content key; record identity per point | Adam: a complete, non-destructive cleaning system; the original LAS is never touched |
 | **Scenes** (built, v0.9.0) | Point cloud scenes for TrueVision; export to scale; LAZ import (v0.9.1) | TrueVision Sync renders and publishes them |
 | **Several clouds** (built, v0.10.0) | Up to ten clouds per model, one record each; the cloud bar and the active cloud; looks and visibility per cloud; one depth-tested frame with a shared budget; scenes holding every cloud; v0.9 models converted on their first change | Adam: an interior GeoSLAM scan and an exterior photogrammetry scan in one model, switched on and off and saved with scenes |
+| **Crop and Cut** (built, v0.11.0) | The Clean tab's Keep box (Remove Outside) and up to 20 Cut boxes (Remove Inside) captured from the clip box; live Result / Differences preview; exact counts; Remove Points & Export LAS to a NEW file through Clean & Export's path; boxes cleared with the switch (one Undo) | Adam: capture the clip box to remove points outside it, and inner boxes for a tree or noise, physically and without ever touching the original |
 | M4 | Two-point align, set origin, round trip across both computers | Round trip across both computers |
 | M5 | Large-cloud hardening, error wording, docs | |
 
@@ -1259,9 +1284,14 @@ A cloud's record:
   "placement": { "key", "file", "rotation": [9], "translation": [3], "gimbal", "locked" },
   "clip":      { "enabled", "min": [3], "max": [3] },
   "clipScenes": [ { "id", "name", "enabled", "min", "max" } ],
-  "activeClipScene": null
+  "activeClipScene": null,
+  "cropCut":   { "keep": { "min": [3], "max": [3] }, "cuts": [ { "id", "name", "min", "max" } ] }
 }
 ```
+
+`cropCut` (v0.11.0, section 26) is present only while the cloud has Crop and Cut boxes. The record's
+`schemaVersion` stays 1: it is a new optional key, and v0.10.0 carries keys it does not know through
+every save.
 
 - **Which configuration belongs to which cloud** is answered by the dictionary name alone: a cloud's
   link, position, clip box and clip scenes live in its own record, and the scenes record keys every
@@ -1410,3 +1440,142 @@ where a LAS sits (each cloud's `link`), so the two computers' paths never flag a
 - The same LAS twice in one model (importing a file the model holds loads into its cloud).
 - A budget per cloud (one budget is shared, by design).
 - Clouds that move together (each moves alone; align it, then lock it).
+
+---
+
+## 26. Crop and Cut: removing points with boxes (BUILT in v0.11.0)
+
+Ruby: `80__System__Clean/...Clean__Boxes__.rb` (`Na__CleanBoxes`: the record, capture, the render
+parameters, the outlines, the counts, the export start, the card's payload); the job is
+`Na__CleanExportJob`, kind `boxes`, in `...Clean__Export__.rb`; the card in the Clean tab's JS and
+CSS. Engine: `...BoxFilter__.hpp` (the test), the Rasterizer (Result and Differences),
+`napc_box_count` (Api.cpp) and `napc_box_export_start` (CleanContext.cpp, through the LAS writer of
+22.10). ABI 8. Config `clean.boxes`.
+
+### 26.1 What it is for
+
+Adam, 25-Oct-2026: capture the current clip box and use it to remove the points outside it, and
+inner boxes to remove a tree or some noise; physically clean points out of the cloud, without ever
+destroying the original. Two buttons at the bottom of the Clean tab:
+
+- **Remove Outside:** the clip box becomes the cloud's **Keep box**: every point outside it is
+  removed. One per cloud; capturing again replaces it.
+- **Remove Inside:** the clip box becomes a **Cut box**: every point inside it is removed. Up to 20
+  per cloud (`clean.boxes.maxCutBoxes`, the engine's limit).
+
+A point is removed when it is outside the Keep box or inside any Cut box. A box holds its own faces.
+
+### 26.2 How the original is protected
+
+Nothing on the Clean tab edits the loaded cloud, its point cache or the LAS. The filter preview and
+the box preview are pictures. Both exports read the original LAS's own records and write a NEW file
+(Save As, never overwrite, the source refused, a partial file read back by LASzip, published without
+replacing anything; 22.9), which is loaded with its own point cache (the original's stays) and only
+then becomes the cloud of the model, in ONE undoable operation. Undo puts the model's link back; no
+file is ever deleted or changed. The `.napc` cache is never edited in place by anything: an import
+writes it once, and only an import of the same content can replace it.
+
+### 26.3 The record
+
+`cropCut` in the cloud's own record (25.3), in model inches, each box axis-aligned in the model like
+the clip box. One named, undoable operation per change: Set Keep Box or Replace Keep Box, Add Cut
+Box, Update (box), Rename (old) to (new), Delete (box), Delete Crop and Cut Boxes, Clip to (box). It
+is read through a cache keyed by the record object, so Undo, Redo, Restore and every write re-read
+it. A box that does not parse is left out with a log line. Ids are `cut<N>`, names `Cut <N>`
+(renameable, 60 characters). The boxes stay put when the cloud is moved; what they remove follows
+the cloud's placement at the time, and the picture always shows exactly that.
+
+### 26.4 The preview
+
+- Only the ACTIVE cloud's boxes show, and only while the Clean tab is the active tab, like the filter
+  preview. Original, Result or Differences per cloud (a view setting: not saved, no Undo step;
+  Result after a capture).
+- **Result:** the cloud's render block carries mode 1 and the boxes. The engine skips the removed
+  points AND counts only kept points for the budget (the clip count cache keys on the boxes), so the
+  result is drawn as densely as the whole cloud would be. The screen rectangle is cut by the Keep box.
+- **Differences:** mode 2. Removed points in `render.cleanColours.removed`, kept ones blended
+  `tintShare` towards `unchangedTint`: the filters' Differences colours.
+- **Outlines:** drawn by the overlay after the image: the Keep box green, Cut boxes red
+  (`clean.boxes.keepColour`, `cutColour`), each named, the one in the clip box heavier. The extents
+  include them.
+- **One thing shows at a time:** while the boxes show, the filter preview waits (no request; its
+  switch reads Original; a note says why). Cleaned or Differences on the filter card hands the model
+  back; Original on either card shows the cloud as it is.
+
+### 26.5 Working with the clip box
+
+The card repeats the clip box's state (size, on or off) with its own Clip switch and Edit Clip Box,
+so the work stays on one tab. A capture needs the clip box on (or being edited), so what is captured
+is what is seen. Pressing a box's name puts it into the clip box (Clip to (box)); after adjusting it
+with Edit Clip Box the row says "box changed" and Update saves it, the pattern of clip scenes. A Cut
+box put into the clip box in the Result view would look empty (all of it is removed), so the view
+turns to Differences, and the status line says so.
+
+### 26.6 One test, exact counts
+
+`Na__BoxFilter::Verdict` (BoxFilter.hpp): the point's local float coordinates to model inches in
+double precision, then the Keep box, then each Cut box. The count (`napc_box_count`, on the render
+pool) and the export (on the job's thread) are compiled with /fp:precise and agree exactly; the
+renderer's /fp:fast copy could differ only for a point within about 1e-12 inch of a face. The
+engine's copy of a point (float, local) is what is tested, so a point within about a hundredth of a
+millimetre of a face is judged by that copy. Read back from the new file in a new local frame, such
+a point can fall on the other side of the face (the suite saw 1 of 226,290).
+
+### 26.7 The export
+
+`napc_box_export_start(cloud, source, dest, transform + boxes, origin, provenance, software)` starts
+an export job of the cleaning engine without a cleaning context: it shares the cloud's points
+(unloading the cloud meanwhile is safe), marks each point by the verdict (flags `NA_CF_REMOVED_KEEP`
+and `NA_CF_REMOVED_CUT`, both in `NA_CF_REMOVED_ANY`) and hands the flags to the LAS writer of 22.10
+with no displacements: nothing moves. Every rule of 22.9 holds: Save As (`<name>_Cropped_NN.las`),
+the source refused, the engine's own destination check, the partial file, the LASzip read-back,
+publish without replacing, load, then ONE operation "Point Cloud: Use Cropped LAS" that switches
+the link (`derivedFrom.operation` = `cropCut`; the cloud row says "a cropped copy"), carries the
+placement over (the cloud stays exactly where it was) and deletes `cropCut` (the boxes have done
+their work; the same Undo brings back both). The poll adds `removedKeep` and `removedCut`; the
+provenance VLR records the boxes, their frame, the rule and the counts.
+
+The button is blocked, with the reason under it, when there are no boxes, when the boxes remove no
+point or every point, on the source checks of 22.9, and when the engine was reloaded since the
+cloud was loaded.
+
+**Cancel** (both exports, since v0.11.0) asks the engine for its last word before the job is freed:
+if the new file had already been published when Cancel came, it is kept and offered (Load Cropped
+LAS or Load Cleaned LAS) rather than reported as not written. A box export takes seconds, so that
+moment is no longer only theoretical.
+
+### 26.8 Measured (25-Oct-2026)
+
+- JW02 (10.76M points, read only): count 10 to 17 ms; export 3.6 s for 6.25M kept points (marking
+  0.14 s; write, LASzip check and publish 3.4 s). Clean & Export of the same file: 38.6 s (22.15).
+- JW02 frames at a 2M budget: plain 10 ms, Result 17 ms (33 ms for the first, which counts),
+  Differences 12 ms.
+- The synthetic room (380,131 points) through the plugin: 0.28 s from Save As to the model using the
+  new file.
+
+### 26.9 Tests
+
+- `test_native_boxes.py` (65 checks): ABI 7 and ABI 8 byte for byte (synthetic and JW02; 48 and
+  184-number blocks; layered and single); Result frames equal a cloud of only the kept points (full
+  and partial budgets, with the clip box, two layers); Differences equals a hand-recoloured cloud;
+  counts against an independent numpy verdict (faces included; invalid boxes and a 21st box refused);
+  dry-run flags; real exports of the room, two fixtures and JW02, every kept record byte for byte in
+  LAS order, bounds, VLRs, provenance, the source's SHA-256 and time unchanged; refusals; cancel.
+- `pcv_scenario_boxes.rb` (84 checks): the whole card through the dialog actions (see the DEVLOG),
+  ending with the engine refusing an ABI 7 build, then swapping in a matching one, and Reload All.
+- `pcv_runner_upgrade.py` (12 checks): the committed v0.10.0 runs with its ABI 7 engine; the ABI 8
+  DLL is installed keeping the old file's time, and v0.10.0 goes on drawing undisturbed; the v0.11.0
+  files are loaded on top, as Reload Plugin does; the engine swaps, Reload All brings the cloud
+  back, and Crop and Cut runs through to an exported file.
+- The earlier suites pass unchanged on the new code and engine: main 197, scenes 96, clean 59,
+  multi 87, legacy 52.
+- The card in a browser with states the suite dumped (empty, Keep, Keep and Cut, box changed, after
+  export, retry, twenty boxes), at 600 and 440 px wide.
+
+### 26.10 Not built
+
+- Boxes at an angle: they are axis-aligned in the model, like the clip box (a turned box would need
+  its own handles and a turned clip box first).
+- Copy boxes to other clouds; boxes inside Clean & Export (crop first: cleaning the smaller cloud is
+  faster).
+- A Keep box made of several boxes (Cut boxes can carve an L shape out of one Keep box).

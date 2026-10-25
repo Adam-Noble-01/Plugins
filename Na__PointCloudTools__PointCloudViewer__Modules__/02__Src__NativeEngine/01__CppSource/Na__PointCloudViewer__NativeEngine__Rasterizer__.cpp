@@ -11,6 +11,7 @@
 
 #include "Na__PointCloudViewer__NativeEngine__Rasterizer__.hpp"
 #include "Na__PointCloudViewer__NativeEngine__Api__.h"
+#include "Na__PointCloudViewer__NativeEngine__BoxFilter__.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -83,16 +84,82 @@ namespace {
         return test;
     }
 
-    // How many points lie inside the box, per chunk of the point list. The
-    // count runs in parallel over fixed chunks, and is kept until the box or
-    // the placement change.
-    const Na__ClipCountCache& Na__ClipCounts(const Na__PointCloud& cloud, const Na__ClipTest& test, const double* p,
+    // What one layer shows: the points inside its clip box (while it clips)
+    // and, in the Crop and Cut Result view, kept by its boxes. The budget
+    // counts exactly these points. In the Differences view nothing is hidden:
+    // the boxes only colour (colour_boxes).
+    struct Na__LayerTest {
+        bool          clip = false;
+        Na__ClipTest  clip_test = {};
+        bool          hide = false;           // Result: what the boxes remove is not drawn
+        bool          colour_boxes = false;   // Differences: it is drawn in the removed colour
+        Na__BoxFilter boxes;
+        uint32_t      removed_rgb = 0;
+        uint32_t      tint_rgb = 0;
+        int           tint_share = 0;         // 0..256
+
+        bool Limited() const { return clip || hide; }
+        inline bool Shown(float x, float y, float z) const {
+            if (clip && !clip_test.Inside(x, y, z)) return false;
+            return !hide || boxes.Verdict(x, y, z) == NA_BOX_KEPT;
+        }
+    };
+
+    uint32_t Na__ParamRgb(const double* c) {
+        auto ch = [](double v) { return static_cast<uint32_t>(std::clamp(v, 0.0, 255.0)); };
+        return (ch(c[0]) << 16) | (ch(c[1]) << 8) | ch(c[2]);
+    }
+
+    // rgb blended `share` / 256 of the way towards tint.
+    inline uint32_t Na__Tint(uint32_t rgb, uint32_t tint, int share) {
+        uint32_t out = 0;
+        for (int shift = 0; shift < 24; shift += 8) {
+            const int c = static_cast<int>((rgb >> shift) & 0xFFu), t = static_cast<int>((tint >> shift) & 0xFFu);
+            const int v = std::clamp(c + (((t - c) * share + 128) >> 8), 0, 255);
+            out |= static_cast<uint32_t>(v) << shift;
+        }
+        return out;
+    }
+
+    // A layer's tests from its parameters. Boxes are read only from a full
+    // ABI 8 block whose mode asks for them; boxes that are not boxes are left
+    // out rather than stopping the frame (Ruby checks them before sending).
+    Na__LayerTest Na__MakeLayerTest(const Na__RenderLayer& layer) {
+        const double* p = layer.params;
+        Na__LayerTest test;
+        test.clip = p[NAPC_P_CLIP_ENABLED] > 0.5;
+        test.clip_test = Na__MakeClipTest(p);
+        if (layer.param_count >= NAPC_P_COUNT) {
+            const int mode = static_cast<int>(std::lround(p[NAPC_P_BOX_MODE]));
+            if ((mode == 1 || mode == 2) && Na__BoxFilter__Read(p + NAPC_P_M00, p + NAPC_P_BOX_BLOCK, test.boxes) &&
+                test.boxes.Active()) {
+                test.hide = mode == 1;
+                test.colour_boxes = mode == 2;
+                test.removed_rgb = Na__ParamRgb(p + NAPC_P_BOX_REMOVED_R);
+                test.tint_rgb = Na__ParamRgb(p + NAPC_P_BOX_TINT_R);
+                test.tint_share = static_cast<int>(std::lround(std::clamp(p[NAPC_P_BOX_TINT_SHARE], 0.0, 1.0) * 256.0));
+            }
+        }
+        return test;
+    }
+
+    // Everything the count of shown points depends on.
+    std::vector<double> Na__CountKey(const double* p, const Na__LayerTest& test) {
+        std::vector<double> key(p + NAPC_P_M00, p + NAPC_P_M00 + 12);
+        key.insert(key.end(), p + NAPC_P_CLIP_ENABLED, p + NAPC_P_CLIP_ENABLED + 7);
+        key.push_back(test.hide ? 1.0 : 0.0);
+        if (test.hide) key.insert(key.end(), p + NAPC_P_BOX_BLOCK, p + NAPC_P_BOX_BLOCK + NAPC_BOX_BLOCK_COUNT);
+        return key;
+    }
+
+    // How many points are shown, per chunk of the point list. The count runs
+    // in parallel over fixed chunks, and is kept until a box or the placement
+    // change.
+    const Na__ClipCountCache& Na__ClipCounts(const Na__PointCloud& cloud, const Na__LayerTest& test, const double* p,
                                              Na__ThreadPool& pool) {
-        double key[19];
-        for (int k = 0; k < 12; ++k) key[k] = p[NAPC_P_M00 + k];
-        for (int k = 0; k < 7; ++k)  key[12 + k] = p[NAPC_P_CLIP_ENABLED + k];
+        std::vector<double> key = Na__CountKey(p, test);
         Na__ClipCountCache& cache = cloud.clip_cache;
-        if (cache.valid && std::memcmp(cache.key, key, sizeof(key)) == 0) return cache;
+        if (cache.valid && cache.key == key) return cache;
 
         const int64_t count = cloud.count;
         const int64_t chunk_size = (count + NA_CLIP_CHUNKS - 1) / NA_CLIP_CHUNKS;
@@ -105,25 +172,25 @@ namespace {
                 const int64_t end   = std::min(count, begin + chunk_size);
                 int64_t n = 0;
                 for (int64_t i = begin; i < end; ++i) {
-                    if (test.Inside(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2])) ++n;
+                    if (test.Shown(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2])) ++n;
                 }
                 inside[c] = n;
             }
         });
         cache.inside_total = 0;
         for (int64_t c = 0; c < NA_CLIP_CHUNKS; ++c) cache.inside_total += inside[c];
-        std::memcpy(cache.key, key, sizeof(key));
+        cache.key.swap(key);
         cache.valid = true;
         cache.limit_share = -1;
         return cache;
     }
 
     // Smallest prefix of the (randomly ordered) point list that holds `share`
-    // points inside the box, from the counts above: only the chunk where the
-    // share is reached is scanned point by point. The prefix of a random
-    // order is still an even sample of the box. Call with fresh counts and
+    // shown points, from the counts above: only the chunk where the share is
+    // reached is scanned point by point. The prefix of a random order is
+    // still an even sample of what is shown. Call with fresh counts and
     // 0 < share < inside_total.
-    int64_t Na__ClipPrefix(const Na__PointCloud& cloud, const Na__ClipTest& test, int64_t share) {
+    int64_t Na__ClipPrefix(const Na__PointCloud& cloud, const Na__LayerTest& test, int64_t share) {
         Na__ClipCountCache& cache = cloud.clip_cache;
         if (cache.limit_share == share) return cache.limit;
         const int64_t count = cloud.count;
@@ -138,7 +205,7 @@ namespace {
             const int64_t end   = std::min(count, begin + chunk_size);
             limit = end;
             for (int64_t i = begin; i < end; ++i) {
-                if (test.Inside(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]) && ++seen == share) { limit = i + 1; break; }
+                if (test.Shown(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]) && ++seen == share) { limit = i + 1; break; }
             }
             break;
         }
@@ -243,18 +310,16 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
 
     // --- the shared budget: what each layer can draw, its share, its prefix --------
     // With the clip on, a layer's budget counts points INSIDE its box, so a
-    // small box is drawn as densely as the whole cloud would be. A budget that
-    // covers every point of every layer needs no counting at all.
+    // small box is drawn as densely as the whole cloud would be; in the Crop and
+    // Cut Result view, only the points its boxes keep. A budget that covers every
+    // point of every layer needs no counting at all.
     const auto limit_start = std::chrono::steady_clock::now();
-    std::vector<Na__ClipTest> tests(static_cast<size_t>(layer_count));
-    std::vector<char> clips(static_cast<size_t>(layer_count), 0);
+    std::vector<Na__LayerTest> tests(static_cast<size_t>(layer_count));
     std::vector<int64_t> limits(static_cast<size_t>(layer_count), 0);
     layer_stats.assign(static_cast<size_t>(layer_count), Na__LayerStats());
     int64_t all_points = 0;
     for (int li = 0; li < layer_count; ++li) {
-        const double* p = layers[li].params;
-        tests[li] = Na__MakeClipTest(p);
-        clips[li] = p[NAPC_P_CLIP_ENABLED] > 0.5 ? 1 : 0;
+        tests[li] = Na__MakeLayerTest(layers[li]);
         all_points += layers[li].cloud->count;
     }
     const int64_t budget = std::max<int64_t>(0, total_budget);
@@ -269,13 +334,13 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
         std::vector<int64_t> demand(static_cast<size_t>(layer_count), 0);
         for (int li = 0; li < layer_count; ++li) {
             const Na__PointCloud& cloud = *layers[li].cloud;
-            demand[li] = clips[li] ? Na__ClipCounts(cloud, tests[li], layers[li].params, pool).inside_total : cloud.count;
+            demand[li] = tests[li].Limited() ? Na__ClipCounts(cloud, tests[li], layers[li].params, pool).inside_total : cloud.count;
         }
         const std::vector<int64_t> shares = Na__Raster__ShareBudget(demand, budget);
         for (int li = 0; li < layer_count; ++li) {
             const Na__PointCloud& cloud = *layers[li].cloud;
             const int64_t share = shares[li];
-            if (!clips[li])               limits[li] = share;
+            if (!tests[li].Limited())     limits[li] = share;
             else if (share <= 0)          limits[li] = 0;
             else if (share >= demand[li]) limits[li] = cloud.count;     // every point inside the box
             else                          limits[li] = Na__ClipPrefix(cloud, tests[li], share);
@@ -337,10 +402,12 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
         const int splat_low  = -(point_size - 1) / 2;            // row extent of a splat around its centre
         const int splat_high = splat_low + point_size - 1;
 
-        // Clip box in MODEL space: points go through local -> model (M, t) first, so
-        // the box stays level with the model even after the cloud is rotated.
-        const bool clip = clips[li] != 0;
-        const Na__ClipTest& clip_test = tests[li];
+        // Clip box and Crop and Cut boxes in MODEL space: points go through
+        // local -> model (M, t) first, so the boxes stay level with the model even
+        // after the cloud is rotated.
+        const Na__LayerTest& test = tests[li];
+        const bool limited = test.Limited();
+        const bool colour_boxes = test.colour_boxes;
         const int64_t limit = limits[li];
 
         const float*    xyz  = cloud.points->xyz.data();
@@ -361,7 +428,7 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
                 int64_t visible = 0;
                 for (int64_t i = begin; i < end; ++i) {
                     const float x = xyz[i * 3], y = xyz[i * 3 + 1], z = xyz[i * 3 + 2];
-                    if (clip && !clip_test.Inside(x, y, z)) continue;
+                    if (limited && !test.Shown(x, y, z)) continue;
                     const float cx = a[0][0] * x + a[0][1] * y + a[0][2] * z + b[0];
                     const float cy = a[1][0] * x + a[1][1] * y + a[1][2] * z + b[1];
                     const float cz = a[2][0] * x + a[2][1] * y + a[2][2] * z + b[2];
@@ -381,8 +448,13 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
                     const int row_lo = std::max(0, py + splat_low);
                     const int row_hi = std::min(height - 1, py + splat_high);
                     if (row_lo > row_hi) continue;
+                    uint32_t rgb = mono ? mono_rgb : (bgra[i] & 0x00FFFFFFu);
+                    if (colour_boxes) {
+                        rgb = test.boxes.Verdict(x, y, z) != NA_BOX_KEPT ? test.removed_rgb
+                                                                         : Na__Tint(rgb, test.tint_rgb, test.tint_share);
+                    }
                     const Na__BinEntry entry = { static_cast<int16_t>(px), static_cast<int16_t>(py),
-                                                 Na__OrderedDepth(cz), (mono ? mono_rgb : (bgra[i] & 0x00FFFFFFu)) | alpha_bits };
+                                                 Na__OrderedDepth(cz), rgb | alpha_bits };
                     const int band_lo = row_lo / band_h;
                     const int band_hi = row_hi / band_h;
                     for (int band = band_lo; band <= band_hi; ++band) mine[band].push_back(entry);
@@ -450,9 +522,9 @@ bool Na__Raster__RenderLayers(const Na__RenderLayer* layers, int layer_count, in
     return true;
 }
 
-bool Na__Raster__Render(const Na__PointCloud& cloud, const double* p, Na__ThreadPool& pool,
+bool Na__Raster__Render(const Na__PointCloud& cloud, const double* p, int32_t param_count, Na__ThreadPool& pool,
                         Na__FrameBuffers& buffers, Na__RasterStats& stats, std::string& error) {
-    const Na__RenderLayer layer = { &cloud, p };
+    const Na__RenderLayer layer = { &cloud, p, param_count };
     std::vector<Na__LayerStats> layer_stats;
     const double raw_budget = p ? p[NAPC_P_BUDGET] : 0.0;
     const int64_t budget = raw_budget >= 9.0e18 ? std::numeric_limits<int64_t>::max()

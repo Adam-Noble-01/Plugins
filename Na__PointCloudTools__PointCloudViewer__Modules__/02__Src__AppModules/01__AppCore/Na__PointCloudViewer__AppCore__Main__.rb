@@ -14,7 +14,7 @@
 #   4. Viewport  - RenderTypes, RenderSettings, ImageRenderer, RenderController, CloudOverlay
 #   5. AppCore   - ModelRegistry, AsyncJobs
 #   6. CloudSet  - the model's point clouds: Store (records), Slots (active, on show)
-#   7. Systems   - LAS import, clip box, transform, persistence, clean, scenes
+#   7. Systems   - LAS import, clip box, transform, persistence, clean (with Crop and Cut), scenes
 #   8. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager
 #
 # HOT RELOAD:
@@ -110,6 +110,7 @@ require_relative '../70__System__Persistence/Na__PointCloudViewer__Persistence__
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Settings__'
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Preview__'
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Export__'
+require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Boxes__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Store__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Recall__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__ImageExport__'

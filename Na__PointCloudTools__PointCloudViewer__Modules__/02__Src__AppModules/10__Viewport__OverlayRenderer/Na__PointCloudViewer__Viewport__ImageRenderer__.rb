@@ -177,7 +177,7 @@ module Na__PointCloudViewer
                     *self.Na__Image__ColourParams(slot, display['colourMode']),
                     budget, near
                 ] + (slot.cloud.local_to_model || NA_IDENTITY_TRANSFORM) + Na__ClipBox.Na__Clip__RenderParams(slot) +
-                    [full_w, full_h, crop_x, crop_y]
+                    [full_w, full_h, crop_x, crop_y] + Na__CleanBoxes.Na__Boxes__RenderParams(slot)
             end
 
             result = Na__NativeEngine.Na__Native__RenderLayersPng(layers.map { |layer| layer['pointer'] }, params, budget, self.na_png_path(state))
@@ -238,6 +238,8 @@ module Na__PointCloudViewer
             bounds = Na__RenderController.na_visible_bounds(slot)
             whole = [0.0, 0.0, vw, vh]
             return whole unless bounds && !bounds.empty?
+            bounds = Na__CleanBoxes.Na__Boxes__TrimBounds(slot, bounds)   # the Result view keeps only the Keep box
+            return nil unless bounds
             lo = bounds.min.to_a
             hi = bounds.max.to_a
             camera = view.camera
@@ -303,16 +305,18 @@ module Na__PointCloudViewer
         end
 
         # Everything else that changes the picture: the shared budget, and per
-        # cloud on show its points (or preview), look, colour, placement and
-        # clip box. Pointers are compared by Ruby object: the state keeps the
-        # ones last drawn alive (shown_clouds), so a freed preview whose address
-        # the allocator hands out again can never pass for the new one.
+        # cloud on show its points (or preview), look, colour, placement, clip
+        # box and Crop and Cut boxes. Pointers are compared by Ruby object: the
+        # state keeps the ones last drawn alive (shown_clouds), so a freed
+        # preview whose address the allocator hands out again can never pass
+        # for the new one.
         def self.na_settings_key(session, layers)
             [session.settings['pointBudget']] + layers.map do |layer|
                 slot = layer['slot']
                 display = self.na_display(slot)
                 [slot.id, layer['pointer'].object_id, slot.cloud.object_id, display['pointSizePx'], display['opacityPercent'],
-                 display['colourMode'], slot.colour, slot.cloud.local_to_model, Na__ClipBox.Na__Clip__Key(slot)]
+                 display['colourMode'], slot.colour, slot.cloud.local_to_model, Na__ClipBox.Na__Clip__Key(slot),
+                 Na__CleanBoxes.Na__Boxes__Key(slot)]
             end
         end
 

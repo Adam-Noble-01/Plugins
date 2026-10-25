@@ -73,6 +73,15 @@ module Na__PointCloudViewer
             'clean_preview_now'       => :na_clean_preview_now,
             'clean_export'            => :na_clean_export,
             'clean_retry_load'        => :na_clean_retry_load,
+            'boxes_remove_outside'    => :na_boxes_remove_outside,
+            'boxes_remove_inside'     => :na_boxes_remove_inside,
+            'boxes_update'            => :na_boxes_update,
+            'boxes_rename'            => :na_boxes_rename,
+            'boxes_delete'            => :na_boxes_delete,
+            'boxes_delete_all'        => :na_boxes_delete_all,
+            'boxes_show_in_clip'      => :na_boxes_show_in_clip,
+            'boxes_set_view'          => :na_boxes_set_view,
+            'boxes_export'            => :na_boxes_export,
             'scenes_add'              => :na_scenes_add,
             'scenes_update'           => :na_scenes_update,
             'scenes_remove'           => :na_scenes_remove,
@@ -508,6 +517,81 @@ module Na__PointCloudViewer
             return unless slot
             problem = Na__CleanExport.Na__CleanExport__RetryLoad(slot)
             Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Clean Tab: Crop and Cut (the active cloud's boxes)
+    # @delegate: 02__Src__AppModules/80__System__Clean/Na__PointCloudViewer__Clean__Boxes__.rb
+    # -------------------------------------------------------------------------
+
+        def self.na_boxes_remove_outside(_payload)
+            self.na_boxes_capture('outside') { |slot| Na__CleanBoxes.Na__Boxes__RemoveOutside(slot) }
+        end
+
+        def self.na_boxes_remove_inside(_payload)
+            self.na_boxes_capture('inside') { |slot| Na__CleanBoxes.Na__Boxes__RemoveInside(slot) }
+        end
+
+        # A capture says what it did (the clip change handler only warns).
+        def self.na_boxes_capture(kind)
+            captured = nil
+            self.na_clip_change do |slot|
+                problem = yield(slot)
+                captured = slot unless problem
+                problem
+            end
+            Na__DialogManager.Na__Dialog__PushStatus(Na__CleanBoxes.Na__Boxes__CaptureMessage(captured, kind), 'success') if captured
+        end
+
+        def self.na_boxes_update(payload)
+            self.na_clip_change { |slot| Na__CleanBoxes.Na__Boxes__Update(slot, payload['id']) }
+        end
+
+        def self.na_boxes_rename(payload)
+            self.na_clip_change { |slot| Na__CleanBoxes.Na__Boxes__Rename(slot, payload['id'], payload['name']) }
+        end
+
+        def self.na_boxes_delete(payload)
+            self.na_clip_change { |slot| Na__CleanBoxes.Na__Boxes__Delete(slot, payload['id']) }
+        end
+
+        def self.na_boxes_delete_all(_payload)
+            done = false
+            self.na_clip_change do |slot|
+                problem = Na__CleanBoxes.Na__Boxes__DeleteAll(slot)
+                done = problem.nil?
+                problem
+            end
+            Na__DialogManager.Na__Dialog__PushStatus('Every Crop and Cut box of this cloud was deleted. Edit, Undo brings them back.', 'success') if done
+        end
+
+        def self.na_boxes_show_in_clip(payload)
+            note = nil
+            self.na_clip_change do |slot|
+                problem, note = Na__CleanBoxes.Na__Boxes__ShowInClip(slot, payload['id'])
+                problem
+            end
+            Na__DialogManager.Na__Dialog__PushStatus(note, 'info') if note
+        end
+
+        def self.na_boxes_set_view(payload)
+            self.na_clip_change { |slot| slot ? Na__CleanBoxes.Na__Boxes__SetView(slot, payload['view']) : 'There is no point cloud in this model yet.' }
+        end
+
+        # Opens Save As (modal) first, so the page raises no overlay before
+        # calling; the job then reports progress like Clean & Export.
+        def self.na_boxes_export(_payload)
+            slot = self.na_slot_for({}, true)
+            return unless slot
+            problem = Na__CleanBoxes.Na__Boxes__ExportStart(slot)
+            return unless problem
+            if problem == 'cancelled'
+                Na__DialogManager.Na__Dialog__PushStatus('Export cancelled. Nothing was written.', 'info')
+            else
+                Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn')
+            end
         end
 
     # endregion ----------------------------------------------------------------

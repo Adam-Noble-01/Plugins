@@ -78,13 +78,18 @@ module Na__PointCloudViewer
         end
 
         # The native engine is a Fiddle-loaded DLL copy, so unlike a Ruby C
-        # extension it CAN be swapped: only if it was loaded and a newer build
-        # is on disk. Clouds re-upload on their next draw.
+        # extension it CAN be swapped: when a newer build is on disk, or when the
+        # reloaded code expects another ABI than the engine running. Clouds
+        # re-upload on their next draw. A build the code cannot use is refused
+        # and the engine running is kept when it can still serve (Bridge).
         def self.na_reload_native
             status = Na__NativeEngine.Na__Native__Status
             return 'Native engine: not loaded yet.' unless status['isLoaded']
-            return 'Native engine: unchanged.' unless status['isStale']
-            Na__NativeEngine.Na__Native__EnsureLoaded ? 'Native engine: new build swapped in.' : "Native engine swap failed: #{Na__NativeEngine.Na__Native__Status['error']}"
+            before = Na__NativeEngine.Na__Native__Generation
+            loaded = Na__NativeEngine.Na__Native__EnsureLoaded
+            return "Native engine swap failed: #{Na__NativeEngine.Na__Native__Status['error']}" unless loaded
+            return 'Native engine: new build swapped in. Reload the point clouds (View tab, Reload All).' if Na__NativeEngine.Na__Native__Generation != before
+            status['isStale'] ? "Native engine: kept. #{Na__NativeEngine.Na__Native__Status['error']}" : 'Native engine: unchanged.'
         end
 
     # endregion ----------------------------------------------------------------

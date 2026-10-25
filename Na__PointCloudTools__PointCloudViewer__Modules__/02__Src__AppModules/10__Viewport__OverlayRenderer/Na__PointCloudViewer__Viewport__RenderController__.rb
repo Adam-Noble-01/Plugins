@@ -9,7 +9,8 @@
 #
 # DRAW CONTRACT (performance-critical):
 #   Overlay#draw -> Na__Render__Draw: every cloud on show as one textured quad
-#   (see ImageRenderer), then the clip box cage of the cloud being edited,
+#   (see ImageRenderer), then the active cloud's Crop and Cut boxes while the
+#   Clean tab shows them, then the clip box cage of the cloud being edited,
 #   then the Move gimbal or Rotate protractor while one of them is active, then
 #   (with several clouds) the label naming the cloud the tool works on.
 #   Nothing here parses, sorts or allocates points.
@@ -31,6 +32,7 @@ module Na__PointCloudViewer
             return if session.fault
             slots = Na__CloudSet.Na__Slots__All(session)
             Na__ImageRenderer.Na__Image__Draw(session, view) if slots.any? { |slot| slot.visible && slot.cloud }
+            Na__CleanBoxes.Na__Boxes__DrawCages(session, view)
             slots.each { |slot| Na__ClipBox.Na__Clip__DrawCage(slot, view) if slot.clip_editing }
             session.transform_tool.na_draw_overlay(view) if session.transform_tool
             Na__CloudSet.Na__Slots__DrawToolLabel(session, view) if slots.length > 1
@@ -43,9 +45,10 @@ module Na__PointCloudViewer
             session.extents || session.empty_bounds
         end
 
-        # Every cloud on show, plus the clip box while its cage is drawn and the
-        # points a transform tool draws at, so the camera's near and far planes
-        # never cut any of them off.
+        # Every cloud on show, plus the clip box while its cage is drawn, the
+        # Crop and Cut boxes while they are drawn and the points a transform
+        # tool draws at, so the camera's near and far planes never cut any of
+        # them off.
         def self.Na__Render__RefreshExtents(session)
             return unless session
             box = Geom::BoundingBox.new
@@ -54,6 +57,8 @@ module Na__PointCloudViewer
                 if slot.clip_editing && slot.clip
                     box.add(Geom::Point3d.new(*slot.clip['min']), Geom::Point3d.new(*slot.clip['max']))
                 end
+                corners = Na__CleanBoxes.Na__Boxes__ExtentPoints(slot)
+                box.add(*corners) unless corners.empty?
             end
             extra = session.transform_tool ? session.transform_tool.na_extent_points : []
             box.add(*extra) unless extra.empty?

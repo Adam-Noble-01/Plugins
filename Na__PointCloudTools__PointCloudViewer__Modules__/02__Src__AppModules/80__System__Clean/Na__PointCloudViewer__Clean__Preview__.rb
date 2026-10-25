@@ -33,6 +33,12 @@
 #   other clouds on show are drawn as they are. Choosing another cloud cancels
 #   the old one's running preview and starts the new one's.
 #
+# ONE THING SHOWN AT A TIME (v0.11.0): while the model shows what the Crop
+#   and Cut boxes do (Na__CleanBoxes, Result or Differences), this preview
+#   waits (no request, nothing drawn) and the switch here reads Original.
+#   Cleaned or Differences here hands the model back to the filters; Original
+#   on either card shows the cloud as it is.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
@@ -54,10 +60,12 @@ module Na__PointCloudViewer
         # tab_active     : (before v0.10.0; the session's clean_tab_active now)
         # schedule_serial: debounce counter (only the newest timer acts)
         # retry_load     : a published export whose loading failed or was cancelled
-        # last_export    : the last export's summary for the Results card
+        #                  ('kind' says which: 'clean' or 'boxes')
+        # last_export    : the last Clean & Export's summary for its card
+        # last_box_export: the last Remove Points & Export's summary (Crop and Cut)
         attr_accessor :context, :context_cloud, :request_id, :request_key, :requested_ms, :result_id, :result_key,
                       :result_ms, :state, :stats, :error, :display, :preview_clouds, :tab_active, :schedule_serial,
-                      :poll_armed, :note, :retry_load, :last_export
+                      :poll_armed, :note, :retry_load, :last_export, :last_box_export
 
         def initialize
             @state          = 'idle'
@@ -119,6 +127,7 @@ module Na__PointCloudViewer
             elsif !session.clean_tab_active && was
                 Na__CloudSet.Na__Slots__All(session).each { |each_slot| self.na_cancel_running(each_slot) }
             end
+            Na__RenderController.Na__Render__RefreshExtents(session)   # the Crop and Cut outlines come and go with the tab
             Na__CloudSet.na_invalidate(session)
         end
 
@@ -157,12 +166,23 @@ module Na__PointCloudViewer
             state.schedule_serial += 1
         end
 
+        # Any choice here takes the model back from the Crop and Cut boxes
+        # (Original shows the cloud as it is), and a paused preview resumes.
         def self.Na__Clean__SetDisplay(slot, display)
             state = self.Na__Clean__State(slot)
             return 'Unknown view.' unless NA_DISPLAYS.include?(display.to_s)
             state.display = display.to_s
+            if defined?(Na__CleanBoxes) && Na__CleanBoxes.Na__Boxes__Shown?(slot)
+                slot.box_view = 'original'
+                self.Na__Clean__Changed(slot)
+            end
             self.na_invalidate(slot)
             nil
+        end
+
+        # The model shows what the Crop and Cut boxes do: the filter preview waits.
+        def self.na_boxes_shown?(slot)
+            defined?(Na__CleanBoxes) && Na__CleanBoxes.Na__Boxes__Shown?(slot) ? true : false
         end
 
     # endregion ----------------------------------------------------------------
@@ -292,6 +312,7 @@ module Na__PointCloudViewer
         def self.Na__Clean__DisplayCloud(slot)
             state = slot.clean_state
             return nil unless state && self.na_previewing?(slot) && state.result_id && state.display != 'original'
+            return nil if self.na_boxes_shown?(slot)
             return nil unless slot.cloud && state.context_cloud.equal?(slot.cloud)
             return nil unless Na__ClipBox.Na__Clip__IsActive?(slot)
             pointer = state.preview_clouds[state.display]
@@ -307,10 +328,12 @@ module Na__PointCloudViewer
         def self.Na__Clean__Payload(slot, model)
             unless slot
                 return { 'isAvailable' => true, 'hasCloud' => false, 'filters' => Na__CleanSettings.Na__CleanSettings__Payload,
-                         'display' => 'cleaned', 'busy' => Na__AsyncJobs.Na__Jobs__Busy?, 'retryLoad' => nil, 'lastExport' => nil }
+                         'display' => 'cleaned', 'busy' => Na__AsyncJobs.Na__Jobs__Busy?, 'retryLoad' => nil, 'lastExport' => nil,
+                         'boxes' => self.na_boxes_payload(nil) }
             end
             state = self.Na__Clean__State(slot)
             cloud = slot.cloud
+            retry_info = state.retry_load && state.retry_load['kind'] != 'boxes' ? state.retry_load : nil
             payload = {
                 'isAvailable' => true,
                 'cloudId'     => slot.id,
@@ -318,10 +341,12 @@ module Na__PointCloudViewer
                 'inModel'     => true,
                 'hasCloud'    => !cloud.nil?,
                 'filters'     => Na__CleanSettings.Na__CleanSettings__Payload,
-                'display'     => state.display,
+                'display'     => self.na_boxes_shown?(slot) ? 'original' : state.display,
+                'boxesShown'  => self.na_boxes_shown?(slot),
                 'busy'        => Na__AsyncJobs.Na__Jobs__Busy?,
-                'retryLoad'   => state.retry_load ? { 'fileName' => File.basename(state.retry_load['path'].to_s), 'path' => state.retry_load['path'] } : nil,
-                'lastExport'  => state.last_export
+                'retryLoad'   => retry_info ? { 'fileName' => File.basename(retry_info['path'].to_s), 'path' => retry_info['path'] } : nil,
+                'lastExport'  => state.last_export,
+                'boxes'       => self.na_boxes_payload(slot)
             }
             return payload unless cloud
             info = cloud.las_info || {}
@@ -346,6 +371,15 @@ module Na__PointCloudViewer
                 },
                 'recordIdentity' => info['hasRecordIndex'] ? true : false
             )
+        end
+
+        # A fault in the Crop and Cut card must never stop the rest of the tab.
+        def self.na_boxes_payload(slot)
+            return { 'isAvailable' => false } unless defined?(Na__CleanBoxes)
+            Na__CleanBoxes.Na__Boxes__Payload(slot)
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Error('The Crop and Cut card could not be built.', error)
+            { 'isAvailable' => false, 'problem' => "Crop and Cut could not be shown (#{error.message})." }
         end
 
         def self.na_region_payload(slot)
@@ -377,6 +411,10 @@ module Na__PointCloudViewer
             unless cloud.native_cloud && cloud.native_generation == Na__NativeEngine.Na__Native__Generation &&
                    Na__NativeEngine.Na__Native__CloudLive?(cloud.native_cloud)
                 return "The native engine was reloaded after #{slot.name} was loaded. Reload it (View tab) to preview."
+            end
+            if self.na_boxes_shown?(slot)
+                return 'The model shows the Crop and Cut result (at the bottom of this tab), so the filter preview waits. ' \
+                       'Press Cleaned or Differences under Preview Results to preview the filters.'
             end
             return 'Turn the clip box on (Clipping tab) to choose the region to preview. Only the points inside it are previewed; Clean & Export always cleans the whole cloud.' unless Na__ClipBox.Na__Clip__IsActive?(slot)
             return 'Another task is running. The preview resumes when it finishes.' if Na__AsyncJobs.Na__Jobs__Busy?

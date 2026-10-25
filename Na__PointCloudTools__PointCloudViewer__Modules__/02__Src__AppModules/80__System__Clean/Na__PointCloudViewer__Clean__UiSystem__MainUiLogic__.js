@@ -7,12 +7,15 @@
 // PURPOSE    : Clean tab: the preview region, the three filters (on / off,
 //              strength, Advanced Settings), the preview results with the
 //              Original / Cleaned / Differences switch and the surface check,
-//              and Clean & Export LAS.
+//              Clean & Export LAS, and Crop and Cut (v0.11.0): the Keep and Cut
+//              boxes captured from the clip box, their own Original / Result /
+//              Differences switch, exact counts, and Remove Points & Export LAS.
 //
 // STATE: everything shown comes from state.clean (Ruby). The filter cards are
 //   built once from state.clean.filters, then only their values change, so an
 //   open Advanced section, a slider being dragged or a value being typed is
-//   never disturbed by a state push.
+//   never disturbed by a state push. The box list is rebuilt on each push,
+//   except while a box is being renamed (the typing is never disturbed).
 //
 // =============================================================================
 
@@ -38,6 +41,11 @@
     var na_built       = false;    // filter cards exist
     var na_dragging    = {};       // filter -> true while its slider is held
     var na_shown       = {};       // input id -> text last shown
+
+    var NA_CONFIRM_MS   = 3000;
+    var na_box_renaming = null;    // { id, text } while a Cut box is being renamed
+    var na_box_confirm  = null;    // box id (or 'all') waiting for a second Delete click
+    var na_box_timer    = null;
 
     // -------------------------------------------------------------------------
     // REGION | Helpers
@@ -271,7 +279,8 @@
         }
         var preview = clean.preview || {};
         var note = '';
-        if (preview.state === 'failed' && preview.error) note = preview.error;
+        if (clean.boxesShown) note = 'The model shows the Crop and Cut result (at the bottom of this tab), so this preview waits. Press Cleaned or Differences to preview the filters.';
+        else if (preview.state === 'failed' && preview.error) note = preview.error;
         else if (clean.hasCloud && preview.hasResult && preview.showing === 'original' && display !== 'original') note = 'The model shows the original points while this tab is not showing a preview.';
         else if (clean.hasCloud && !preview.hasResult && preview.state !== 'running') note = 'The preview appears here once the clip box is on.';
         Shell.na_text('na-clean-results-note', note);
@@ -390,6 +399,246 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Crop and Cut (state.clean.boxes)
+    // -------------------------------------------------------------------------
+
+    function na_box_summary(boxes) {
+        var cuts = (boxes.cuts || []).length;
+        var parts = [];
+        if (boxes.keep) parts.push('Keep box');
+        if (cuts) parts.push(cuts + ' Cut box' + (cuts === 1 ? '' : 'es'));
+        return parts.join(', ');
+    }
+
+    function na_render_box_clip(boxes) {
+        var clip = boxes.clip || {};
+        var text;
+        if (!boxes.inModel) text = 'Import a point cloud to use Crop and Cut.';
+        else if (!clip.hasBox) text = 'No clip box yet. Press Edit Clip Box and drag its sides round the area.';
+        else if (clip.editing) text = 'Clip box ' + clip.sizeText + ', being edited in the model: drag the square handles, or type a distance.';
+        else if (clip.enabled) text = 'Clip box ' + clip.sizeText + ', on.';
+        else text = 'Clip box ' + clip.sizeText + ', off. Turn Clip on, or press Edit Clip Box, to fit it.';
+        var line = na_el('na-boxes-clip-text');
+        line.textContent = text;
+        line.classList.toggle('na-boxes-clip__text--on', !!(clip.enabled || clip.editing));
+        var toggle = na_el('na-boxes-clip-enabled');
+        toggle.checked = !!clip.enabled;
+        toggle.disabled = !boxes.inModel || !(clip.hasBox || boxes.hasCloud);
+        var edit = na_el('na-boxes-clip-edit');
+        edit.textContent = clip.editing ? 'Finish Editing' : 'Edit Clip Box';
+        edit.classList.toggle('na-boxes-clip__edit--active', !!clip.editing);
+        edit.disabled = !boxes.inModel || !(clip.hasBox || boxes.hasCloud);
+    }
+
+    function na_box_action(label, className, handler) {
+        var button = Shell.na_el('button', 'na-scene-action' + (className ? ' ' + className : ''), label);
+        button.type = 'button';
+        button.addEventListener('click', function (event) { event.stopPropagation(); handler(); });
+        return button;
+    }
+
+    function na_box_ask_delete(id) {
+        if (na_box_confirm === id) {
+            na_box_clear_confirm();
+            Bridge.na_call(id === 'all' ? 'boxes_delete_all' : 'boxes_delete', { id: id });
+            return;
+        }
+        na_box_clear_confirm();
+        na_box_confirm = id;
+        na_box_timer = window.setTimeout(function () {
+            na_box_clear_confirm();
+            if (na_clean) na_render_boxes(na_clean);
+        }, NA_CONFIRM_MS);
+        if (na_clean) na_render_boxes(na_clean);
+    }
+
+    function na_box_clear_confirm() {
+        if (na_box_timer) window.clearTimeout(na_box_timer);
+        na_box_timer = null;
+        na_box_confirm = null;
+    }
+
+    function na_box_finish_rename(save) {
+        if (!na_box_renaming) return;
+        var renaming = na_box_renaming;
+        na_box_renaming = null;
+        if (save && renaming.text.trim()) {
+            Bridge.na_call('boxes_rename', { id: renaming.id, name: renaming.text.trim() });
+        } else if (na_clean) {
+            na_render_boxes(na_clean);
+        }
+    }
+
+    function na_box_rename_row(box) {
+        var row = Shell.na_el('div', 'na-scene na-scene--renaming');
+        row.appendChild(Shell.na_el('span', 'na-box-chip na-box-chip--cut', 'CUT'));
+        var input = Shell.na_el('input', 'naInput na-scene__rename');
+        input.type = 'text';
+        input.id = 'na-box-rename-input';
+        input.maxLength = 60;
+        input.value = na_box_renaming.text;
+        input.addEventListener('input', function () { na_box_renaming.text = input.value; });
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter')  { na_box_finish_rename(true); }
+            if (event.key === 'Escape') { na_box_finish_rename(false); }
+        });
+        row.appendChild(input);
+        var actions = Shell.na_el('div', 'na-scene__actions');
+        actions.appendChild(na_box_action('Save', 'na-scene-action--primary', function () { na_box_finish_rename(true); }));
+        actions.appendChild(na_box_action('Cancel', '', function () { na_box_finish_rename(false); }));
+        row.appendChild(actions);
+        window.setTimeout(function () {
+            if (document.activeElement !== input) { input.focus(); input.select(); }
+        }, 0);
+        return row;
+    }
+
+    // kind: 'keep' or 'cut'. A click on the name puts the box into the clip box.
+    function na_box_row(box, kind) {
+        var row = Shell.na_el('div', 'na-scene na-boxes-row' + (box.isShowing ? ' na-scene--active' : ''));
+        row.appendChild(Shell.na_el('span', 'na-box-chip na-box-chip--' + kind, kind === 'keep' ? 'KEEP' : 'CUT'));
+        var name = Shell.na_el('button', 'na-scene__name', box.name);
+        name.type = 'button';
+        name.title = 'Put this box into the clip box, to see it and fit it with Edit Clip Box';
+        name.addEventListener('click', function () { Bridge.na_call('boxes_show_in_clip', { id: box.id }); });
+        row.appendChild(name);
+        row.appendChild(Shell.na_el('span', 'na-scene__tag', box.isChanged ? 'box changed' : box.sizeText));
+        var actions = Shell.na_el('div', 'na-scene__actions');
+        if (box.isChanged) {
+            var update = na_box_action('Update', 'na-scene-action--primary', function () {
+                Bridge.na_call('boxes_update', { id: box.id });
+            });
+            update.title = 'Save the clip box as it is now into ' + box.name;
+            actions.appendChild(update);
+        }
+        if (kind === 'cut') {
+            actions.appendChild(na_box_action('Rename', '', function () {
+                na_box_clear_confirm();
+                na_box_renaming = { id: box.id, text: box.name };
+                if (na_clean) na_render_boxes(na_clean);
+            }));
+        }
+        var confirming = na_box_confirm === box.id;
+        actions.appendChild(na_box_action(confirming ? 'Click again to delete' : 'Delete', 'na-scene-action--danger', function () {
+            na_box_ask_delete(box.id);
+        }));
+        row.appendChild(actions);
+        return row;
+    }
+
+    function na_render_box_list(boxes) {
+        var list = na_el('na-boxes-list');
+        var cuts = boxes.cuts || [];
+        if (na_box_renaming && !cuts.some(function (cut) { return cut.id === na_box_renaming.id; })) na_box_renaming = null;
+        // a name being typed is never interrupted by a state push
+        if (na_box_renaming && na_el('na-box-rename-input')) return;
+        list.innerHTML = '';
+        if (boxes.keep) list.appendChild(na_box_row(boxes.keep, 'keep'));
+        cuts.forEach(function (cut) {
+            list.appendChild(na_box_renaming && na_box_renaming.id === cut.id ? na_box_rename_row(cut) : na_box_row(cut, 'cut'));
+        });
+        var count = (boxes.keep ? 1 : 0) + cuts.length;
+        list.classList.toggle('na-hidden', count === 0);
+        na_el('na-boxes-list-foot').classList.toggle('na-hidden', count < 2);
+        na_el('na-boxes-delete-all').textContent = na_box_confirm === 'all' ? 'Click again to delete every box' : 'Delete All Boxes';
+    }
+
+    function na_box_view_note(boxes) {
+        var view = boxes.view || 'result';
+        var note;
+        if (!boxes.hasCloud) return 'Load the cloud (View tab) to see the result and how many points the boxes remove.';
+        if (view === 'original') note = 'The model shows the cloud as it is, with the boxes outlined: green keeps what is inside it, red removes what is inside it.';
+        else if (view === 'differences') note = 'Red: the points the boxes remove. The rest is faded. Nothing is removed until you export.';
+        else note = 'The model shows the cloud as it will be saved: the points the boxes remove are hidden. Nothing is removed until you export.';
+        if (boxes.clip && boxes.clip.enabled) note += ' Clipping is on, so only the part inside the clip box is drawn: turn Clip off to see the whole result.';
+        return note;
+    }
+
+    function na_render_box_results(boxes) {
+        var count = (boxes.keep ? 1 : 0) + (boxes.cuts || []).length;
+        na_el('na-boxes-results').classList.toggle('na-hidden', count === 0);
+        if (!count) return;
+        var view = boxes.view || 'result';
+        Array.prototype.forEach.call(document.querySelectorAll('#na-boxes-view-switch .na-switch__option'), function (button) {
+            button.classList.toggle('na-switch__option--active', button.getAttribute('data-na-value') === view);
+            button.disabled = !boxes.hasCloud;
+        });
+        Shell.na_text('na-boxes-view-note', na_box_view_note(boxes));
+        var counts = boxes.counts;
+        if (!counts) { Shell.na_stat_grid('na-boxes-stats', []); return; }
+        var removed = counts.points - counts.kept;
+        var rows = [];
+        if (boxes.keep) rows.push(['Outside the Keep box', Shell.na_format_int(counts.outside) + ' (' + na_pct(counts.outside, counts.points) + ')']);
+        if ((boxes.cuts || []).length) rows.push(['Inside the Cut boxes', Shell.na_format_int(counts.inside) + ' (' + na_pct(counts.inside, counts.points) + ')']);
+        rows.push(['Removed', Shell.na_format_int(removed) + ' of ' + Shell.na_format_int(counts.points) + ' (' + na_pct(removed, counts.points) + ')']);
+        rows.push(['Kept', Shell.na_format_int(counts.kept) + ' (' + na_pct(counts.kept, counts.points) + ')']);
+        Shell.na_stat_grid('na-boxes-stats', rows);
+    }
+
+    function na_render_box_export(boxes) {
+        var count = (boxes.keep ? 1 : 0) + (boxes.cuts || []).length;
+        var blocker = boxes.exportBlocker;
+        var button = na_el('na-boxes-export');
+        button.disabled = !!blocker || !!boxes.busy;
+        button.title = boxes.suggestedName ? 'Suggested name: ' + boxes.suggestedName : '';
+        var note = na_el('na-boxes-export-blocker');
+        note.textContent = count ? (blocker || '') : '';
+        note.classList.toggle('na-hidden', !(count && blocker));
+
+        var retry = boxes.retryLoad;
+        na_el('na-boxes-retry').classList.toggle('na-hidden', !retry);
+        if (retry) {
+            Shell.na_text('na-boxes-retry-text', retry.fileName + ' was written and checked but is not loaded yet. The model still uses the original.');
+            na_el('na-boxes-retry-load').disabled = !!boxes.busy;
+        }
+
+        var last = boxes.lastExport;
+        na_el('na-boxes-last').classList.toggle('na-hidden', !last);
+        if (!last) return;
+        Shell.na_text('na-boxes-last-title', 'Last export: ' + last.fileName);
+        var parts = [];
+        if (last.removedKeep) parts.push(Shell.na_format_int(last.removedKeep) + ' outside the Keep box');
+        if (last.removedCut) parts.push(Shell.na_format_int(last.removedCut) + ' inside the Cut boxes');
+        Shell.na_stat_grid('na-boxes-last-stats', [
+            ['Points written', Shell.na_format_int(last.written) + ' of ' + Shell.na_format_int(last.sourcePoints)],
+            ['Removed', Shell.na_format_int(last.removed) + ' (' + na_pct(last.removed, last.sourcePoints) + ')' + (parts.length ? ': ' + parts.join(', ') : '')],
+            ['File size', (last.bytes / 1048576).toFixed(1) + ' MB'],
+            ['Time', last.seconds + ' s']
+        ]);
+        Shell.na_text('na-boxes-last-notes', (last.notes || []).join('. ') + ((last.notes || []).length ? '.' : ''));
+    }
+
+    function na_render_boxes(clean) {
+        var boxes = clean.boxes || {};
+        var card = na_el('na-boxes-card');
+        card.classList.toggle('na-hidden', !boxes.isAvailable);
+        if (!boxes.isAvailable) return;
+        Shell.na_text('na-boxes-summary', na_box_summary(boxes));
+        na_render_box_clip(boxes);
+        var blocked = !!boxes.captureBlocker || !!boxes.busy;
+        var outside = na_el('na-boxes-remove-outside');
+        var inside = na_el('na-boxes-remove-inside');
+        var full = (boxes.cuts || []).length >= boxes.maxCuts;
+        outside.disabled = blocked;
+        inside.disabled = blocked || full;
+        outside.title = boxes.keep ? 'The clip box replaces the Keep box: every point outside it is removed'
+                                   : 'The clip box becomes the Keep box: every point outside it is removed';
+        inside.title = full ? 'This cloud has the most Cut boxes it can have (' + boxes.maxCuts + ')'
+                            : 'The clip box becomes a Cut box: every point inside it is removed';
+        // The clip box line above the buttons already says what to do when they
+        // cannot capture, so the reason shows as their tooltip only.
+        if (boxes.captureBlocker) {
+            outside.title = boxes.captureBlocker;
+            if (!full) inside.title = boxes.captureBlocker;
+        }
+        na_render_box_list(boxes);
+        na_render_box_results(boxes);
+        na_render_box_export(boxes);
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Render From State
     // -------------------------------------------------------------------------
 
@@ -403,6 +652,7 @@
         na_render_stats(na_clean);
         na_render_section(na_clean);
         na_render_export(na_clean);
+        na_render_boxes(na_clean);
     };
 
     // endregion ----------------------------------------------------------------
@@ -410,6 +660,36 @@
     // -------------------------------------------------------------------------
     // REGION | Wiring
     // -------------------------------------------------------------------------
+
+    function na_wire_boxes() {
+        na_el('na-boxes-remove-outside').addEventListener('click', function () {
+            Bridge.na_call('boxes_remove_outside', {});
+        });
+        na_el('na-boxes-remove-inside').addEventListener('click', function () {
+            Bridge.na_call('boxes_remove_inside', {});
+        });
+        na_el('na-boxes-clip-enabled').addEventListener('change', function (event) {
+            Bridge.na_call('clip_set_enabled', { enabled: event.target.checked });
+        });
+        na_el('na-boxes-clip-edit').addEventListener('click', function () {
+            Bridge.na_call('clip_toggle_edit', {});
+        });
+        na_el('na-boxes-delete-all').addEventListener('click', function () {
+            na_box_ask_delete('all');
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('#na-boxes-view-switch .na-switch__option'), function (button) {
+            button.addEventListener('click', function () {
+                Bridge.na_call('boxes_set_view', { view: button.getAttribute('data-na-value') });
+            });
+        });
+        // Save As is modal; the export reports progress itself once it starts.
+        na_el('na-boxes-export').addEventListener('click', function () {
+            Bridge.na_call('boxes_export', {});
+        });
+        na_el('na-boxes-retry-load').addEventListener('click', function () {
+            Bridge.na_call('clean_retry_load', {});
+        });
+    }
 
     function na_wire() {
         Array.prototype.forEach.call(document.querySelectorAll('#na-clean-display-switch .na-switch__option'), function (button) {
@@ -433,6 +713,7 @@
         na_el('na-clean-retry-load').addEventListener('click', function () {
             Bridge.na_call('clean_retry_load', {});
         });
+        na_wire_boxes();
         if (window.Na_TabRouter) {
             window.Na_TabRouter.na_on_change(function (tabId) {
                 Bridge.na_call('clean_tab_active', { active: tabId === 'clean' });

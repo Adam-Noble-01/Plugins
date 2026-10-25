@@ -31,10 +31,22 @@
 # ABI 7 (v0.10.0): several clouds in one frame (napc_render_layers_png): one
 #   depth buffer, one shared point budget, each cloud with its own placement,
 #   clip box, dot size, opacity and colour.
+# ABI 8 (v0.11.0): the Clean tab's Crop and Cut boxes. A cloud's render block
+#   grows from 48 to 184 numbers (the boxes and how to show them); a 48-number
+#   block still renders, so every caller is padded here. napc_box_count counts
+#   what the boxes remove; napc_box_export_start writes a NEW LAS without it.
+#
+# A BUILD THIS CODE CANNOT USE (v0.11.0): a DLL on disk with another ABI is
+#   checked BEFORE the running engine is touched. If the running engine is the
+#   right one it keeps running (the newer build waits for Reload Plugin, and is
+#   tried once, not every frame); only an engine this code cannot use is let
+#   go. Before, a mismatched build unloaded the working engine first and then
+#   refused the new one, which stopped every cloud until the plugin reloaded.
 #
 # =============================================================================
 
 require 'fiddle'
+require 'zlib'
 
 module Na__PointCloudViewer
     module Na__NativeEngine
@@ -44,8 +56,12 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         NA_DLL_NAME         = 'Na__PointCloudViewer__NativeEngine.dll'.freeze
-        NA_EXPECTED_ABI     = 7
-        NA_PARAM_COUNT      = 48
+        NA_EXPECTED_ABI     = 8
+        NA_PARAM_COUNT      = 48                                  # a cloud's render block without boxes (the ABI 7 layout)
+        NA_MAX_CUT_BOXES    = 20                                  # Api.h NAPC_MAX_CUT_BOXES
+        NA_BOX_BLOCK_COUNT  = 8 + 6 * NA_MAX_CUT_BOXES            # 128: keep flag + box, cut count + boxes
+        NA_BOXES_COUNT      = 12 + NA_BOX_BLOCK_COUNT             # 140: local -> model, then the box block
+        NA_RENDER_PARAM_COUNT = NA_PARAM_COUNT + 8 + NA_BOX_BLOCK_COUNT   # 184: + view mode, removed colour, tint, share
         NA_STAT_COUNT       = 10
         NA_STAT_KEYS        = %w[pointsTested pointsOnScreen threads clearMs rasterMs resolveMs encodeMs writeMs nativeTotalMs pngBytes].freeze
         NA_LAYER_STAT_KEYS  = %w[demand share tested onScreen].freeze
@@ -73,8 +89,9 @@ module Na__PointCloudViewer
         NA_EXPORT_KEYS      = %w[phase done total finished failed cancelled sourcePoints written moved removed heldRange
                                  removedIsolated removedCluster removedBlowout removedDensity doubling candidates
                                  minX minY minZ maxX maxY maxZ bytes keyHi keyLo cleanMs writeMs verifyMs totalMs
-                                 tiles maxTilePoints peakWorkMb byReturnMismatch droppedVlrs droppedEvlrs gridMs].freeze
-        NA_EXPORT_POLL_COUNT = NA_EXPORT_KEYS.length   # 37
+                                 tiles maxTilePoints peakWorkMb byReturnMismatch droppedVlrs droppedEvlrs gridMs
+                                 removedKeep removedCut].freeze
+        NA_EXPORT_POLL_COUNT = NA_EXPORT_KEYS.length   # 39
         NA_PREVIEW_STATES   = { 0 => 'idle', 1 => 'running', 2 => 'done', 3 => 'failed', 4 => 'cancelled' }.freeze
 
         # LAZ to LAS (Api.h Na__LazPollIndex)
@@ -89,6 +106,8 @@ module Na__PointCloudViewer
         @na_functions    = nil  unless defined?(@na_functions)
         @na_generation   = 0    unless defined?(@na_generation)
         @na_loaded_mtime = nil  unless defined?(@na_loaded_mtime)
+        @na_loaded_abi   = nil  unless defined?(@na_loaded_abi)     # nil: loaded by code from before v0.11.0
+        @na_refused      = nil  unless defined?(@na_refused)        # [mtime, expected ABI] of a build already refused
         @na_load_error   = nil  unless defined?(@na_load_error)
         @na_live         = ObjectSpace::WeakMap.new unless defined?(@na_live)
         @na_live_contexts = ObjectSpace::WeakMap.new unless defined?(@na_live_contexts)
@@ -110,8 +129,10 @@ module Na__PointCloudViewer
             @na_generation
         end
 
-        # True when the engine is loaded and current. Loads on first call and
-        # hot-swaps when the binary on disk is newer than the loaded copy.
+        # True when an engine this code can use is loaded. Loads on first call
+        # and hot-swaps when the binary on disk is newer than the loaded copy.
+        # A build on disk with another ABI is refused once (not every frame) and
+        # never stops an engine that is the right one.
         def self.Na__Native__EnsureLoaded
             path = self.Na__Native__BinaryPath
             unless File.exist?(path)
@@ -119,7 +140,9 @@ module Na__PointCloudViewer
                 return false
             end
             mtime = File.mtime(path)
-            return true if @na_handle && @na_loaded_mtime == mtime
+            usable = @na_handle && @na_loaded_abi == NA_EXPECTED_ABI ? true : false
+            return true if usable && @na_loaded_mtime == mtime
+            return usable if @na_refused == [mtime, NA_EXPECTED_ABI]
             self.na_load(path, mtime)
         end
 
@@ -129,21 +152,34 @@ module Na__PointCloudViewer
             false
         end
 
+        # The build on disk is opened and its ABI checked BEFORE the running
+        # engine is touched: a build this code cannot use never takes down one
+        # it can (it is remembered and not tried again until it changes).
         def self.na_load(path, mtime)
-            self.na_unload if @na_handle
             shadow = self.na_shadow_copy(path, mtime)
             handle = Fiddle::Handle.new(shadow)
             abi_function = Fiddle::Function.new(handle['napc_abi_version'], [], Fiddle::TYPE_INT)
             abi = abi_function.call
             if abi != NA_EXPECTED_ABI
                 handle.close
+                @na_refused = [mtime, NA_EXPECTED_ABI]
+                if @na_handle && @na_loaded_abi == NA_EXPECTED_ABI
+                    @na_load_error = "The native engine on disk speaks ABI #{abi}; this plugin expects #{NA_EXPECTED_ABI}. " \
+                                     'The engine already running is kept. Reload Plugin once the plugin\'s files match it, or rebuild it.'
+                    Na__DebugTools.Na__Debug__Warn(@na_load_error)
+                    return true
+                end
+                self.na_unload if @na_handle      # what runs cannot serve this code either
                 @na_load_error = "The native engine binary speaks ABI #{abi}; this plugin expects #{NA_EXPECTED_ABI}. Rebuild it."
                 return false
             end
+            self.na_unload if @na_handle
             functions = self.na_bind(handle)
             @na_handle       = handle
             @na_functions    = functions
             @na_loaded_mtime = mtime
+            @na_loaded_abi   = abi
+            @na_refused      = nil
             @na_generation  += 1
             @na_load_error   = nil
             @na_stats_buffer = Fiddle::Pointer.malloc(8 * NA_STAT_COUNT)
@@ -198,6 +234,8 @@ module Na__PointCloudViewer
                 export_notes:         fn.('napc_clean_export_notes', [voidp, voidp, int], int),
                 export_cancel:        fn.('napc_clean_export_cancel', [voidp], void),
                 export_destroy:       fn.('napc_clean_export_destroy', [voidp], void),
+                box_count:            fn.('napc_box_count', [voidp, voidp, int, voidp, int], int),
+                box_export_start:     fn.('napc_box_export_start', [voidp, voidp, voidp, voidp, int, voidp, voidp, voidp], voidp),
                 laz_start:            fn.('napc_laz_convert_start', [voidp, voidp], voidp),
                 laz_poll:             fn.('napc_laz_convert_poll', [voidp, voidp, int], int),
                 laz_error:            fn.('napc_laz_convert_error', [voidp, voidp, int], int),
@@ -236,14 +274,22 @@ module Na__PointCloudViewer
             @na_handle = nil
             @na_functions = nil
             @na_loaded_mtime = nil
+            @na_loaded_abi = nil
         end
 
         # Windows locks a loaded DLL; loading a copy keeps the build output free.
-        def self.na_shadow_copy(path, mtime)
+        # The copy is named by a digest of the build's bytes (v0.11.0; it was
+        # named by the file's time), so another build can never pass for the
+        # copy already loaded, whatever its time says. An update can then keep
+        # the old file's time: the code running sees no newer build, and nothing
+        # swaps until Reload Plugin brings the code that wants it. (The name
+        # stays well inside the 259 characters SketchUp can open.)
+        def self.na_shadow_copy(path, _mtime)
             folder = File.join(Na__AssetResolver.Na__Paths__CacheFolder, '00__NativeShadowCopies')
             FileUtils.mkdir_p(folder)
             Dir.glob(File.join(folder, '*.dll')).each { |old| File.delete(old) rescue nil }   # loaded ones stay locked
-            shadow = File.join(folder, "Na__PointCloudViewer__NativeEngine__#{mtime.strftime('%Y%m%d-%H%M%S')}__#{Process.pid}.dll")
+            digest = format('%08x', Zlib.crc32(File.binread(path)))
+            shadow = File.join(folder, "Na__PointCloudViewer__NativeEngine__#{digest}__#{Process.pid}.dll")
             FileUtils.cp(path, shadow) unless File.exist?(shadow)
             shadow
         end
@@ -558,6 +604,54 @@ module Na__PointCloudViewer
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
+    # REGION | Crop and Cut (BoxFilter.hpp): count, and the export job
+    # -------------------------------------------------------------------------
+
+        # transform: the cloud's local -> model (12 numbers); block: the boxes
+        # (NA_BOX_BLOCK_COUNT numbers). { 'points', 'outside', 'inside', 'kept' }:
+        # exactly what an export with these boxes removes. A few ms per 10 M points.
+        def self.Na__Native__BoxCount(cloud_pointer, transform, block)
+            raise self.na_unavailable_error unless @na_functions
+            raise 'The point cloud is not loaded in the native engine.' unless self.Na__Native__CloudLive?(cloud_pointer)
+            packed = self.na_boxes_packed(transform, block)
+            out = Fiddle::Pointer.malloc(8 * 4, self.na_ruby_free)
+            code = @na_functions[:box_count].call(cloud_pointer, Fiddle::Pointer[packed], NA_BOXES_COUNT, out, 4)
+            raise "The points could not be counted: #{self.na_last_error}" if code < 0
+            points, outside, inside, kept = out.to_s(32).unpack('d*').map(&:to_i)
+            { 'points' => points, 'outside' => outside, 'inside' => inside, 'kept' => kept }
+        end
+
+        # A NEW LAS of the cloud without the points the boxes remove (dest_path
+        # nil = mark only, for tests). Polled, cancelled and destroyed like a
+        # Clean & Export job (Na__Native__ExportPoll and the rest).
+        def self.Na__Native__BoxExportStart(cloud_pointer, source_path, dest_path, transform, block, origin, provenance_json, software)
+            raise self.na_unavailable_error unless @na_functions
+            raise 'The point cloud is not loaded in the native engine.' unless self.Na__Native__CloudLive?(cloud_pointer)
+            source_c = self.na_cstr(source_path)
+            dest_c   = dest_path ? self.na_cstr(dest_path) : nil
+            prov_c   = self.na_cstr(provenance_json)
+            soft_c   = self.na_cstr(software)
+            packed   = self.na_boxes_packed(transform, block)
+            origin_packed = origin.map(&:to_f).pack('d*')
+            raw = @na_functions[:box_export_start].call(cloud_pointer, Fiddle::Pointer[source_c],
+                                                        dest_c ? Fiddle::Pointer[dest_c] : Fiddle::Pointer.new(0),
+                                                        Fiddle::Pointer[packed], NA_BOXES_COUNT, Fiddle::Pointer[origin_packed],
+                                                        Fiddle::Pointer[prov_c], Fiddle::Pointer[soft_c])
+            raise 'The export could not start (the boxes were not valid, or there are none).' if raw.null?
+            pointer = Fiddle::Pointer.new(raw.to_i, 0, @na_functions[:export_destroy])
+            @na_live_jobs[pointer] = true
+            pointer
+        end
+
+        def self.na_boxes_packed(transform, block)
+            raise 'The transform must have 12 numbers.' unless transform.length == 12
+            raise "The boxes must have #{NA_BOX_BLOCK_COUNT} numbers." unless block.length == NA_BOX_BLOCK_COUNT
+            (transform + block).map(&:to_f).pack('d*')
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
     # REGION | LAZ to LAS (a NEW uncompressed LAS, checked and published)
     # -------------------------------------------------------------------------
 
@@ -607,12 +701,23 @@ module Na__PointCloudViewer
     # REGION | Render
     # -------------------------------------------------------------------------
 
-        # params: Array of NA_PARAM_COUNT numbers. Returns the stats Hash.
+        # A cloud's render block as the engine takes it (NA_RENDER_PARAM_COUNT
+        # numbers). A 48-number block, as the scene export builds, is padded with
+        # zeros: no Crop and Cut boxes.
+        def self.Na__Native__FullParams(params)
+            return params if params.length == NA_RENDER_PARAM_COUNT
+            unless params.length == NA_PARAM_COUNT
+                raise "A render block has #{params.length} numbers; #{NA_PARAM_COUNT} or #{NA_RENDER_PARAM_COUNT} were expected."
+            end
+            params + [0.0] * (NA_RENDER_PARAM_COUNT - NA_PARAM_COUNT)
+        end
+
+        # params: NA_PARAM_COUNT or NA_RENDER_PARAM_COUNT numbers. Returns the stats Hash.
         def self.Na__Native__RenderPng(cloud_pointer, params, png_path)
             raise self.na_unavailable_error unless @na_functions
-            packed = params.pack('d*')
+            packed = self.Na__Native__FullParams(params).map(&:to_f).pack('d*')
             path_c = self.na_cstr(png_path)
-            code = @na_functions[:render].call(cloud_pointer, Fiddle::Pointer[packed], NA_PARAM_COUNT,
+            code = @na_functions[:render].call(cloud_pointer, Fiddle::Pointer[packed], NA_RENDER_PARAM_COUNT,
                                                Fiddle::Pointer[path_c], @na_stats_buffer, NA_STAT_COUNT)
             raise "Native render failed: #{self.na_last_error}" if code < 0
             values = @na_stats_buffer.to_s(8 * NA_STAT_COUNT).unpack('d*')
@@ -622,20 +727,21 @@ module Na__PointCloudViewer
         # Several clouds in ONE image (ABI 7): one depth buffer, so the nearest
         # point wins whichever cloud it belongs to, and total_budget shared
         # between them. pointers: live native clouds; params_list: one Array of
-        # NA_PARAM_COUNT numbers per cloud (the first one's camera and image
-        # fields describe the frame). Returns the stats Hash plus 'layers'
-        # ([{ 'demand', 'share', 'tested', 'onScreen' }] in the same order).
+        # NA_PARAM_COUNT or NA_RENDER_PARAM_COUNT numbers per cloud (the first
+        # one's camera and image fields describe the frame). Returns the stats
+        # Hash plus 'layers' ([{ 'demand', 'share', 'tested', 'onScreen' }] in
+        # the same order).
         def self.Na__Native__RenderLayersPng(pointers, params_list, total_budget, png_path)
             raise self.na_unavailable_error unless @na_functions
             count = pointers.length
             raise 'There is no point cloud to draw.' if count.zero?
             raise "At most #{NA_MAX_LAYERS} point clouds can be drawn at once." if count > NA_MAX_LAYERS
-            raise 'Each point cloud needs its own render parameters.' unless params_list.length == count && params_list.all? { |p| p.length == NA_PARAM_COUNT }
+            raise 'Each point cloud needs its own render parameters.' unless params_list.length == count
             handles = pointers.map { |pointer| pointer.to_i }.pack('Q*')
-            packed  = params_list.flatten.map(&:to_f).pack('d*')
+            packed  = params_list.map { |params| self.Na__Native__FullParams(params) }.flatten.map(&:to_f).pack('d*')
             path_c  = self.na_cstr(png_path)
             layer_buffer = Fiddle::Pointer.malloc(8 * NA_LAYER_STAT_KEYS.length * count, self.na_ruby_free)
-            code = @na_functions[:render_layers].call(Fiddle::Pointer[handles], count, Fiddle::Pointer[packed], NA_PARAM_COUNT,
+            code = @na_functions[:render_layers].call(Fiddle::Pointer[handles], count, Fiddle::Pointer[packed], NA_RENDER_PARAM_COUNT,
                                                       total_budget.to_f, Fiddle::Pointer[path_c], @na_stats_buffer, NA_STAT_COUNT,
                                                       layer_buffer, NA_LAYER_STAT_KEYS.length * count)
             raise "Native render failed: #{self.na_last_error}" if code < 0

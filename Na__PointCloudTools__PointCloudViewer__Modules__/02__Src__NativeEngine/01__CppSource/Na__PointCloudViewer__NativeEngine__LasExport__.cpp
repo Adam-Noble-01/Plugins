@@ -79,7 +79,11 @@ bool Na__LasExport__Run(const Na__LasExportInput& in, std::atomic<int>& phase, s
     result = Na__LasExportResult();
     const Na__CloudPoints& cloud = *in.cloud;
     const std::vector<uint16_t>& flags = *in.flags;
-    const std::vector<float>& delta = *in.delta;
+    const float* delta = in.delta ? in.delta->data() : nullptr;   // null: nothing moves
+    if (flags.size() != static_cast<size_t>(cloud.count) || (in.delta && in.delta->size() != static_cast<size_t>(cloud.count) * 3)) {
+        error = "Internal error: the export was given results for a different number of points. Nothing was written.";
+        return false;
+    }
 
     // --- the source ------------------------------------------------------------------------
     phase.store(NA_EXPORT_PHASE_CHECKING);
@@ -224,7 +228,7 @@ bool Na__LasExport__Run(const Na__LasExportInput& in, std::atomic<int>& phase, s
             if (f & NA_CF_REMOVED_ANY) { ++result.removed_points; continue; }
             uint8_t* o = outbuf.data() + used * rec;
             std::memcpy(o, r, rec);
-            if (f & NA_CF_MOVED) {
+            if ((f & NA_CF_MOVED) && delta) {
                 int32_t moved[3];
                 bool fits = true;
                 for (int a = 0; a < 3; ++a) {

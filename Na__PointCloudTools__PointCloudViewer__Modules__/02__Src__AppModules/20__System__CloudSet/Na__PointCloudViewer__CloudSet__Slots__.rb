@@ -373,6 +373,7 @@ module Na__PointCloudViewer
             link  = slot.record ? slot.record['link'] : nil
             cloud = slot.cloud
             needs = Na__ModelLink.Na__Link__NeedsReload?(slot)
+            stale = Na__ModelLink.Na__Link__StaleEngine?(slot)
             found = needs ? Na__ModelLink.Na__Link__FoundPath(model, slot, backup) : nil
             stats = slot.layer_stats || {}
             display = slot.display || {}
@@ -384,10 +385,12 @@ module Na__PointCloudViewer
                 'visible'     => slot.visible ? true : false,
                 'loaded'      => !cloud.nil?,
                 'needsReload' => needs,
-                'namesOther'  => cloud && needs ? true : false,
+                'namesOther'  => cloud && needs && !stale ? true : false,
+                'staleEngine' => stale,
                 'recordState' => slot.record_state,
                 'fileName'    => link ? link['fileName'].to_s : (cloud ? cloud.label.to_s : ''),
                 'derivedFrom' => link && link['derivedFrom'].is_a?(Hash) ? link['derivedFrom']['fileName'].to_s : nil,
+                'derivedHow'  => link && link['derivedFrom'].is_a?(Hash) && link['derivedFrom']['operation'] == 'cropCut' ? 'cropped' : 'cleaned',
                 'unitLabel'   => Na__UnitContract.Na__Units__SourceUnitLabel(cloud ? cloud.source_unit : (link ? link['sourceUnit'] : nil)),
                 'pointsText'  => Na__PerfStats.Na__Perf__Thousands(cloud ? cloud.total_points : (link ? link['pointCount'] : 0)),
                 'totalPoints' => cloud ? cloud.total_points : (link ? link['pointCount'].to_i : 0),

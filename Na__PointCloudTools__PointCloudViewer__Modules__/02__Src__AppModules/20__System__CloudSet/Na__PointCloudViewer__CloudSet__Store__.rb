@@ -16,9 +16,11 @@
 #         cloudId, name, colour
 #         link             which LAS: file name, last path, path relative to the
 #                          .skp, unit, point count, fingerprint, content key,
-#                          derivedFrom (a cleaned copy), history
+#                          derivedFrom (a cleaned or cropped copy), history
 #         placement        position, rotation, gimbal point, lock
 #         clip, clipScenes, activeClipScene   its own clip box and clip scenes
+#         cropCut          its Crop and Cut boxes while it has any (v0.11.0,
+#                          80__System__Clean/...Clean__Boxes__.rb)
 #     Na__PointCloudViewer__Scenes            the point cloud scenes (90__System__Scenes);
 #                                             each scene keeps every cloud's look
 #                                             and clip box, by cloud id
