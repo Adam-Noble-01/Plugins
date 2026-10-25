@@ -4,6 +4,86 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.10.0 - 25-Oct-2026 - Several Point Clouds in One Model
+
+### Summary
+Adam asked for several point clouds in one model: an interior GeoSLAM scan and an exterior
+photogrammetry scan, registered in completely different places, aligned by hand, switched on and off
+at will and saved with scenes, with every tool working on each cloud on its own and the dialog always
+saying which cloud it works on; up to about ten; each cached separately; the clouds on show sharing
+the point budget; and, above all, clear data separation when everything is serialised, so it is plain
+which configuration belongs to which cloud for recall and for TrueVision. A model now holds up to ten
+clouds, ONE record each. ARCHITECTURE section 25 is the full description.
+
+### Built
+- **One record per cloud** (`20__System__CloudSet/...Store__.rb`): the index
+  `Na__PointCloudViewer__Clouds` (model id, order) and one dictionary per cloud,
+  `Na__PointCloudViewer__Cloud__pc_<8 hex>`, holding its name, colour, LAS link, placement, clip box
+  and clip scenes. A change to one cloud rewrites only its record; every write is one named operation.
+- **Slots and the active cloud** (`...Slots__.rb`, `Na__CloudSlot` in RenderTypes): every tool works on
+  the active cloud, is bound to the cloud it started on, and is ended (with a message) when another
+  cloud is chosen. Clip box, clip scenes, placement, Move, Rotate, the gimbal, Clean preview and Clean
+  & Export all work per cloud. With two or more clouds the Undo names and the gimbal and clip cage name
+  the cloud.
+- **Show / hide and the look per cloud** (size, opacity, colour mode, plus a new Cloud Colour mode in
+  the cloud's own colour, for aligning): view settings, never written to the model and never an Undo
+  step; remembered per cloud on this computer and saved with scenes.
+- **Engine, ABI 7:** `napc_render_layers_png` draws every cloud on show into ONE frame with one depth
+  buffer, each with its own transform, clip, dot size, opacity and colour, and splits ONE budget
+  between them (equal shares, a small or clipped cloud passes on what it does not need). A one-cloud
+  frame is byte-identical to ABI 6.
+- **Scenes schema 2:** a scene holds every cloud by id (shown or hidden, its look, its clip box, which
+  LAS); recall restores them all (a cloud added later is hidden there); clip changes from a recall are
+  one operation; export draws the clouds the scene shows as one picture.
+- **Opening a v0.9 model:** read as it is and nothing written; the first change converts every record
+  inside that change's own operation (the old link id carries on as the model id, so the backup file
+  carries on too); one Undo puts the v0.9 records back byte for byte.
+- **Backup schema 2** (every record by its dictionary name; v1 still read), **configuration export
+  schema 2** (one section per cloud), **scenes API 4** for TrueVision Sync (backward compatible;
+  one-cloud revision keys unchanged; the GLB Builder needs no change).
+- **Dialog:** the cloud bar under the tab strip (eye, colour, name, status per cloud; the active one
+  outlined in its colour; + to add), the View tab's Point Clouds card (reorder by grip, colour palette,
+  rename, Reload, Locate LAS, Zoom To, Unload, Remove; Reload All; Zoom to Clouds; backup and Restore),
+  cloud tags naming the active cloud on the Display, Clip Box, Clip Scenes, Position and Preview Region
+  cards, Copy to Other Clouds on the Clipping tab, cloud chips on each scene card, and an import card
+  that says whether the LAS adds a cloud, loads into one, or cannot (model full).
+
+### Found by the tests during the work
+- The upgrade test ran the COMMITTED v0.9.1 code to build a real v0.9.1 model and then opened it with
+  v0.10.0. It showed v0.9.1 itself keys a scene differently in the session where the cloud was turned
+  than after a Reload (a `+0.0` against a stored `-0.0`): `4b861f2b82`, then `a274dc1348`, same pixels.
+  v0.10.0 matches v0.9.1's after-Reload keys exactly, so TrueVision re-renders nothing it holds from a
+  session after a Reload. Left as it is on purpose (ARCHITECTURE 25.8).
+- In the new code, before release: unloading a cloud whose import had been undone left a row that
+  could never be reloaded (it now leaves the list, with the right message); and Reload All skipped a
+  loaded cloud whose record names another file, after Undo of Use Cleaned LAS (it now reloads it, and
+  its row says Reload to update).
+- The LAZ converter's log line had a dash; now a full stop.
+
+### Tested (25-Oct-2026, all passing)
+- Native: `test_native_layers.py` 28 checks (layers against one-layer and ABI 6 output, the budget
+  split, depth across clouds, opacity and colour per layer).
+- Ruby, SketchUp's own Ruby 3.2 with the real DLL and real LAS files: multi-cloud 87, v0.9.1 upgrade
+  52, main 197, scenes 96, clean 59. 519 checks in all.
+- The dialog in a browser with states dumped from the multi suite: empty, one cloud, two, both
+  unloaded, a recalled scene; every list control sends the right action.
+- Not yet tried in SketchUp itself.
+
+### Checklist for Adam (in SketchUp)
+1. **Update both computers before opening models with v0.10.0.** A model is converted to one record
+   per cloud by its first change; v0.9.1 then sees no point cloud in it.
+2. Settings > Reload Plugin (the engine swaps to the ABI 7 build). Open a v0.9 model: the cloud bar
+   shows its one cloud; Reload brings it back where it was. Nothing is written until you change
+   something; that first change is one Undo step.
+3. Add Point Cloud (or + in the cloud bar): the import card says it adds cloud 2 of 10. Import the
+   exterior; both draw together, the nearer points in front.
+4. Click each chip in turn: the Clipping, Transform and Clean tabs name that cloud. Unlock and move
+   the exterior onto the interior (Cloud Colour on the Display card helps see which is which), lock it.
+5. Turn each cloud off and on with its eye: nothing appears in Edit > Undo.
+6. Set a clip box on the interior only; save a SketchUp scene with the exterior hidden, and another
+   with both; switch between them on the Scenes tab.
+7. TrueVision Sync: export both scenes. The scene showing both clouds should hold both in one picture.
+
 ## Point Cloud Viewer - v0.9.1 - 21-Oct-2026 - LAZ Import: Lossless LAZ to LAS Converter
 
 ### Summary

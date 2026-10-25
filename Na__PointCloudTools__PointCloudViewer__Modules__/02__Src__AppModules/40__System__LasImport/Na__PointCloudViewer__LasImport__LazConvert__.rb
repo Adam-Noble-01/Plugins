@@ -188,7 +188,7 @@ module Na__PointCloudViewer
                 Na__NativeEngine.Na__Native__LazDestroy(@handle)
                 @handle = nil
                 Na__DebugTools.Na__Debug__Info("LAZ converted: #{@dest_path} (#{poll['pointCount'].to_i} points, " \
-                                               "#{poll['convertMs'].round} ms + #{poll['checkMs'].round} ms check)#{notes.empty? ? '' : " - #{notes}"}")
+                                               "#{poll['convertMs'].round} ms + #{poll['checkMs'].round} ms check)#{notes.empty? ? '' : ". #{notes}"}")
 
                 report = Na__LasImport.Na__LazConvert__Report(@laz_path, poll)
                 @summary = { 'kind' => 'laz', 'lasPath' => @dest_path, 'totalPoints' => poll['pointCount'].to_i,

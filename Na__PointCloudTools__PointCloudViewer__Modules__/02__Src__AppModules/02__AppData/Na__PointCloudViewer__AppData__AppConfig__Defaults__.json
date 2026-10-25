@@ -1,11 +1,20 @@
 {
     "schema"        : "Na__PointCloudViewer__AppConfig__Defaults",
-    "schemaVersion" : 2,
-    "_comment"      : "PLUGIN DEFAULT CONFIG: committed, read-only at runtime. Per-user values live in 91__UserConfig__LocalOnly/; the LAS link, the cloud position and the clip box live in each model, with a backup copy per computer (see ARCHITECTURE.md, Config Layers).",
+    "schemaVersion" : 3,
+    "_comment"      : "PLUGIN DEFAULT CONFIG: committed, read-only at runtime. Per-user values live in 91__UserConfig__LocalOnly/; each point cloud's LAS link, position and clip box live in the model, one record per cloud, with a backup copy per computer (see ARCHITECTURE.md, Config Layers).",
 
     "plugin" : {
         "name"    : "Na Point Cloud Viewer",
-        "version" : "0.9.1"
+        "version" : "0.10.0"
+    },
+
+    "clouds" : {
+        "_comment"  : "Several point clouds per model (v0.10.0). maxClouds is the most a model can hold (the engine draws at most 16 at once). Each new cloud takes the first palette colour no other cloud of the model uses: it marks the cloud in the dialog, labels it in the viewport while a tool works on it, and is the colour of its points in the Cloud Colour mode.",
+        "maxClouds" : 10,
+        "palette"   : [
+            [232, 113, 10], [26, 115, 232], [24, 128, 56], [142, 36, 170], [0, 137, 123],
+            [197, 34, 31], [191, 144, 0], [216, 27, 96], [121, 85, 72], [84, 110, 122]
+        ]
     },
 
     "dialog" : {
@@ -22,6 +31,7 @@
     },
 
     "render" : {
+        "_comment" : "pointBudget is shared by every cloud on show; pointSizePx, opacityPercent and colourMode ('rgb', 'black' or 'cloud': the cloud's own colour) are each cloud's own look. These defaults are the look a new cloud starts with.",
         "defaults" : {
             "pointBudget"    : 1000000,
             "pointSizePx"    : 2,

@@ -116,8 +116,9 @@ module Na__PointCloudViewer
 
             attr_reader :state, :axis_id
 
-            def initialize(session)
-                @session   = session
+            # slot: the cloud this tool turns, fixed for the tool's life.
+            def initialize(slot)
+                @slot   = slot
                 @ip        = Sketchup::InputPoint.new
                 @ip_centre = Sketchup::InputPoint.new
                 @axis_id   = 'z'
@@ -127,6 +128,19 @@ module Na__PointCloudViewer
 
             def na_kind
                 'rotate'
+            end
+
+            def na_slot
+                @slot
+            end
+
+            # Where the viewport label naming the cloud sits: by the protractor
+            # (the centre once picked, else the point under the cursor), else
+            # by the gimbal point.
+            def na_label_anchor
+                centre = @centre || @hover_centre
+                return centre if centre
+                @slot.cloud && @slot.placement ? Na__Placement.Na__Placement__GimbalModel(@slot) : nil
             end
 
             def na_extent_points
@@ -147,7 +161,7 @@ module Na__PointCloudViewer
             # -----------------------------------------------------------------
 
             def activate
-                @session.transform_tool = self
+                @slot.session.transform_tool = self
                 self.na_reset_state
                 self.na_status
                 Sketchup.active_model.active_view.invalidate
@@ -156,8 +170,8 @@ module Na__PointCloudViewer
 
             def deactivate(view)
                 self.na_restore_live
-                @session.transform_tool = nil if @session.transform_tool.equal?(self)
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                @slot.session.transform_tool = nil if @slot.session.transform_tool.equal?(self)
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 view.invalidate
                 Na__ModelRegistry.na_notify_dialog
             end
@@ -170,7 +184,7 @@ module Na__PointCloudViewer
             def onCancel(_reason, view)
                 self.na_restore_live
                 self.na_reset_state
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 self.na_status
                 view.invalidate
             end
@@ -220,10 +234,10 @@ module Na__PointCloudViewer
                         @angle = self.na_snap_angle(angle)
                         self.na_apply_angle(@angle)
                         Sketchup.vcb_value = Na__UnitContract.Na__Units__TrimNumber(@angle * 180.0 / Math::PI, 2)
-                        Na__ImageRenderer.Na__Image__NoteInteraction(@session, view)
+                        Na__ImageRenderer.Na__Image__NoteInteraction(@slot.session, view)
                     end
                 end
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 view.invalidate
             end
 
@@ -242,7 +256,7 @@ module Na__PointCloudViewer
                     @start   = point
                     @current = point
                     @angle   = 0.0
-                    @start_placement = { 'rotation' => @session.placement['rotation'].dup, 'translation' => @session.placement['translation'].dup }
+                    @start_placement = { 'rotation' => @slot.placement['rotation'].dup, 'translation' => @slot.placement['translation'].dup }
                     @state = 2
                     Sketchup.vcb_value = ''
                 when 2
@@ -266,8 +280,9 @@ module Na__PointCloudViewer
                     rotation, translation = Na__Placement.Na__Placement__RotatedAbout(
                         @last['start_placement']['rotation'], @last['start_placement']['translation'],
                         Na__Placement.na_axis(@last['axis_id'])['vector'], degrees * Math::PI / 180.0, @last['centre'])
-                    Na__Placement.Na__Placement__SetLive(@session, rotation, translation)
-                    Na__Placement.Na__Placement__Save(@session, 'Point Cloud: Rotate')
+                    Na__Placement.Na__Placement__SetLive(@slot, rotation, translation)
+                    problem = Na__Placement.Na__Placement__Save(@slot, Na__Placement.na_op(@slot, 'Rotate'))
+                    Sketchup.status_text = problem if problem
                     view.invalidate
                     Na__ModelRegistry.na_notify_dialog
                 else
@@ -284,7 +299,7 @@ module Na__PointCloudViewer
             # -----------------------------------------------------------------
 
             def na_ready?
-                @session.cloud && @session.placement && !@session.placement['locked']
+                @slot.cloud && @slot.placement && !@slot.placement['locked']
             end
 
             def na_reset_state
@@ -348,31 +363,33 @@ module Na__PointCloudViewer
             def na_apply_angle(angle)
                 rotation, translation = Na__Placement.Na__Placement__RotatedAbout(
                     @start_placement['rotation'], @start_placement['translation'], self.na_axis_vector, angle, @centre)
-                Na__Placement.Na__Placement__SetLive(@session, rotation, translation)
+                Na__Placement.Na__Placement__SetLive(@slot, rotation, translation)
             end
 
             def na_commit(view)
                 if @angle.abs < 1e-9
                     self.na_restore_live
                 else
-                    Na__Placement.Na__Placement__Save(@session, 'Point Cloud: Rotate')
-                    @last = { 'axis_id' => @axis_id, 'centre' => @centre, 'start_placement' => @start_placement }
+                    problem = Na__Placement.Na__Placement__Save(@slot, Na__Placement.na_op(@slot, 'Rotate'))
+                    Sketchup.status_text = problem if problem
+                    @last = { 'axis_id' => @axis_id, 'centre' => @centre, 'start_placement' => @start_placement } unless problem
                 end
                 self.na_reset_state
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 view.invalidate
                 Na__ModelRegistry.na_notify_dialog
             end
 
             def na_restore_live
-                return unless @state == 2 && @start_placement && @session.placement
-                Na__Placement.Na__Placement__SetLive(@session, @start_placement['rotation'], @start_placement['translation'])
+                return unless @state == 2 && @start_placement && @slot.placement
+                Na__Placement.Na__Placement__SetLive(@slot, @start_placement['rotation'], @start_placement['translation'])
             end
 
             def na_status
                 axis_name = { 'x' => 'red', 'y' => 'green', 'z' => 'blue' }[@axis_id]
                 Sketchup.vcb_label = 'Angle'
-                Sketchup.status_text = case @state
+                prefix = Na__CloudSet.Na__Slots__Prefix(@slot)
+                Sketchup.status_text = prefix + case @state
                                        when 0 then "Rotate about the #{axis_name} axis: click the centre of rotation. " \
                                                    'Arrow keys lock the axis: Right = red, Left = green, Up = blue.'
                                        when 1 then 'Click a point that sets the starting direction, for example along a wall in the cloud.'

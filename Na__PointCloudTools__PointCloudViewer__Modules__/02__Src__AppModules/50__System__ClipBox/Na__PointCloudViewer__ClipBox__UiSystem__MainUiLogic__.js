@@ -8,6 +8,11 @@
 //              the six typed limits and the saved clip scenes, which can be
 //              dragged by their grips into any order (Full Cloud stays first).
 //
+// SEVERAL CLOUDS (v0.10.0): each cloud has its own clip box and clip scenes;
+//   this tab shows the active cloud's (state.clip names it, and the card's
+//   cloud tag shows it). Copy to Other Clouds gives every other cloud the
+//   same box, in one undoable step.
+//
 // STATE: everything shown comes from state.clip (Ruby). This file never keeps
 //   its own copy of the box; it only remembers what the user is typing, so a
 //   state push never wipes a half-typed limit or scene name.
@@ -43,8 +48,11 @@
         if (!clip.isAvailable) return 'Clipping is not available for this model.';
         if (!clip.hasBox && !clip.hasCloud) return 'Import a point cloud to use the clip box.';
         if (!clip.hasBox) return 'Clipping is off. Turn Clip on, or press Edit Clip Box, to start from the cloud\'s bounds.';
-        var text = clip.enabled ? 'Clipping is on. Points outside the box are hidden.' : 'Clipping is off. The whole cloud is shown.';
-        if (!clip.hasCloud) text += ' No cloud is loaded in this session; the box is kept with the model.';
+        var named = clip.otherClouds > 0 && clip.cloudName;
+        var text = clip.enabled
+            ? (named ? 'Clipping is on for ' + clip.cloudName + '. Its points outside the box are hidden; the other clouds keep their own boxes.' : 'Clipping is on. Points outside the box are hidden.')
+            : (named ? 'Clipping is off for ' + clip.cloudName + '. The whole cloud is shown.' : 'Clipping is off. The whole cloud is shown.');
+        if (!clip.hasCloud) text += ' This cloud is not loaded in this session; the box is kept with the model.';
         if (clip.isEditing) text += ' The box is shown in the model for editing.';
         return text;
     }
@@ -64,6 +72,12 @@
         edit.classList.toggle('naButton--active', !!clip.isEditing);
         edit.disabled = !usable;
         document.getElementById('na-clip-reset').disabled = !clip.hasCloud;
+        var copy = document.getElementById('na-clip-copy-others');
+        copy.classList.toggle('na-hidden', !(clip.otherClouds > 0));
+        copy.disabled = !clip.hasBox;
+        copy.title = clip.hasBox
+            ? 'Gives every other point cloud of this model the clip box of ' + (clip.cloudName || 'this cloud') + ' (on or off), in one step that Undo takes back'
+            : 'Turn Clip on first: there is no box to copy yet';
         var hint = document.getElementById('na-clip-edit-hint');
         hint.textContent = clip.isEditing ? NA_HINT_EDITING : NA_HINT_IDLE;
         hint.classList.toggle('na-hint--live', !!clip.isEditing);
@@ -297,6 +311,9 @@
         });
         document.getElementById('na-clip-reset').addEventListener('click', function () {
             Bridge.na_call('clip_reset', {});
+        });
+        document.getElementById('na-clip-copy-others').addEventListener('click', function () {
+            Bridge.na_call('clip_copy_to_others', {});
         });
         document.getElementById('na-scene-save').addEventListener('click', na_save_scene);
         // Full Cloud stays first: it has no grip and no sort id

@@ -29,11 +29,23 @@
 #   Point Cloud tab can drag the scenes into a new order in the same record
 #   the Scenes tab reorders. Callers test respond_to?, for the same reason.
 #
+# API 4 (v0.10.0): several point clouds per model. SceneList gains 'clouds'
+#   (every cloud of the model: id, name, colour, loaded, file, content key) and
+#   'allCloudsLoaded'; each row gains 'cloudIds' and 'cloudNames' (the clouds
+#   the scene shows). 'cloudLoaded' means at least one cloud is loaded, and
+#   'cloudName' joins the names; a scene whose clouds are not all loaded is
+#   refused by PlanSceneExport with a sentence naming them. A plan gains
+#   'cloudIds' and 'layers' (one record per cloud: cloudId, name, cloud,
+#   clip, colourMode, monoRgb, localToModel, opacityPercent); its top-level
+#   'cloud', 'clip' and 'colourMode' still describe the first (for a one-cloud
+#   scene, the only) cloud, exactly as before. ReloadPointCloud reloads every
+#   cloud that is not loaded. Callers test the keys.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
 
-    NA_SCENES_API_VERSION = 3 unless defined?(NA_SCENES_API_VERSION)
+    NA_SCENES_API_VERSION = 4 unless defined?(NA_SCENES_API_VERSION)
 
     # -------------------------------------------------------------------------
     # REGION | Public API
@@ -50,8 +62,8 @@ module Na__PointCloudViewer
         return { 'ok' => false, 'problem' => 'The point cloud viewer is not available for this model.' } unless session
         view = model.active_view
         payload = Na__SceneRecall.Na__Scenes__Payload(session, model, view)
-        cloud = session.cloud
-        link = Na__ModelLink.Na__Link__Read(model)
+        slots = Na__CloudSet.Na__Slots__All(session)
+        loaded = slots.select { |slot| slot.cloud && slot.cloud.native_cloud }
         {
             'ok'            => true,
             'apiVersion'    => NA_SCENES_API_VERSION,
@@ -60,14 +72,19 @@ module Na__PointCloudViewer
             'revision'      => payload['revision'],
             'readonly'      => payload['readonly'],
             'problem'       => payload['problem'],
-            'cloudLoaded'   => cloud && cloud.native_cloud ? true : false,
-            'cloudName'     => cloud ? cloud.label.to_s : (link ? link.dig('cloud', 'fileName').to_s : nil),
-            'cloudLinked'   => link ? true : false,
+            'cloudLoaded'   => !loaded.empty?,
+            'allCloudsLoaded' => !slots.empty? && loaded.length == slots.length,
+            'cloudName'     => slots.empty? ? nil : (loaded.empty? ? slots : loaded).map(&:name).join(' + '),
+            'cloudLinked'   => slots.any? { |slot| %w[saved legacy].include?(slot.record_state) },
+            'clouds'        => slots.map { |slot| self.na_api_cloud(slot) },   # <-- API 4
             'scenes'        => payload['scenes'].map do |row|
                 scene = Na__SceneStore.Na__Scenes__Find(session, row['id'])
-                row.merge('opacityPercent' => scene ? scene.dig('settings', 'opacityPercent') : nil,
+                shown = (row['clouds'] || []).select { |cloud| cloud['visible'] }
+                row.merge('opacityPercent' => scene ? Na__SceneStore.Na__Scenes__DefaultOpacity(scene) : nil,
                           'updatedEpoch'   => scene ? scene['updatedEpoch'] : nil,
-                          'pagePid'        => scene ? scene.dig('page', 'pid') : nil)   # <-- API 2: the SketchUp scene this point cloud scene belongs to
+                          'pagePid'        => scene ? scene.dig('page', 'pid') : nil,   # <-- API 2: the SketchUp scene this point cloud scene belongs to
+                          'cloudIds'       => shown.map { |cloud| cloud['id'] },          # <-- API 4: the clouds the scene shows
+                          'cloudNames'     => shown.map { |cloud| cloud['name'] })
             end,
             'viewTypes'         => payload['viewTypes'],
             'scalePresets'      => payload['scalePresets'],
@@ -137,17 +154,36 @@ module Na__PointCloudViewer
         nil
     end
 
-    # Starts the viewer's own Reload Point Cloud (asynchronous, with its own
-    # progress in the viewer's window). nil = started, else the reason.
+    # Starts the viewer's own Reload (asynchronous, with its own progress in
+    # the viewer's window) for every cloud of the model that is not loaded.
+    # nil = started, else the reason.
     def self.Na__PublicApi__ReloadPointCloud(model = Sketchup.active_model)
         session = self.na_api_session(model)
         return 'The point cloud viewer is not available for this model.' unless session
         return 'A point cloud task is already running.' if Na__AsyncJobs.Na__Jobs__Busy?
+        return 'This model has no point cloud link to reload.' if Na__CloudSet.Na__Slots__All(session).none?(&:record)
         self.Na__PublicApi__OpenDialog
-        Na__ModelLink.Na__Link__Reload(session)
+        Na__ModelLink.Na__Link__ReloadAll(session)
     rescue StandardError => error
         Na__DebugTools.Na__Debug__Error('Public API: Reload Point Cloud could not start.', error)
         "Reload Point Cloud could not start (#{error.message})."
+    end
+
+    # API 4: one cloud of the model, as other plugins see it.
+    def self.na_api_cloud(slot)
+        link = slot.record ? slot.record['link'] : nil
+        {
+            'id'          => slot.id,
+            'name'        => slot.name,
+            'colour'      => Na__CloudSet.Na__Slots__HexColour(slot.colour),
+            'loaded'      => slot.cloud && slot.cloud.native_cloud ? true : false,
+            'visible'     => slot.visible ? true : false,
+            'linked'      => %w[saved legacy].include?(slot.record_state),
+            'fileName'    => link ? link['fileName'] : (slot.cloud ? slot.cloud.label : nil),
+            'contentKey'  => link ? link['contentKey'] : nil,
+            'totalPoints' => slot.cloud ? slot.cloud.total_points : (link ? link['pointCount'] : nil),
+            'sourceUnit'  => slot.cloud ? slot.cloud.source_unit : (link ? link['sourceUnit'] : nil)
+        }
     end
 
     def self.na_api_session(model)

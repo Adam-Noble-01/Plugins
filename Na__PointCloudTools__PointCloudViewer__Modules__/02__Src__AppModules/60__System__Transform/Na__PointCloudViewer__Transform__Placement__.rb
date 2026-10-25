@@ -22,11 +22,15 @@
 #   Move gimbal sits there, the typed X / Y / Z are its model position, and
 #   typed rotations turn the cloud about it.
 #
-# WHERE IT LIVES: JSON in the model's attribute dictionary
-#   'Na__PointCloudViewer__Placement', tagged with the cloud's fingerprint
-#   (file name, point count, local origin). Re-importing the same LAS restores
-#   its position and lock; a different cloud starts at its import position.
-#   Each committed change is one named, undoable operation.
+# WHERE IT LIVES: the 'placement' part of the cloud's own record in the model
+#   (Na__CloudStore), tagged with the cloud's fingerprint (file name, point
+#   count, local origin). Re-importing the same LAS restores its position and
+#   lock; a different cloud starts at its import position. Each committed
+#   change is one named, undoable operation.
+#
+# ONE PLACEMENT PER CLOUD (v0.10.0): every function here is handed the slot of
+#   the cloud it moves; two clouds of one model are placed independently (two
+#   scans registered in different places are aligned by moving one of them).
 #
 # =============================================================================
 
@@ -37,7 +41,7 @@ module Na__PointCloudViewer
     # REGION | Constants
     # -------------------------------------------------------------------------
 
-        NA_DICT           = 'Na__PointCloudViewer__Placement'.freeze
+        NA_DICT           = 'Na__PointCloudViewer__Placement'.freeze   # v0.9 models only (read by Na__CloudStore)
         NA_KEY            = 'json'.freeze
         NA_SCHEMA         = 'Na__PointCloudViewer__Placement'.freeze
         NA_SCHEMA_VERSION = 1
@@ -65,21 +69,21 @@ module Na__PointCloudViewer
 
         # Called once per import, before the cloud is installed. Returns true
         # when a saved position for this same cloud was restored.
-        def self.Na__Placement__AttachCloud(session, cloud)
+        def self.Na__Placement__AttachCloud(slot, cloud)
             key    = self.Na__Placement__CloudKey(cloud)
-            stored = self.na_read(session.model)
-            session.placement_note = nil
+            stored = self.na_stored(slot)
+            slot.placement_note = nil
             restored = stored && self.Na__Placement__SameCloud?(stored['key'], key)
             if restored
-                session.placement = stored.merge('key' => key)
+                slot.placement = stored.merge('key' => key)
             else
-                session.placement = self.na_default(key)
+                slot.placement = self.na_default(key)
                 if stored
-                    session.placement_note = "This model holds a saved position for #{stored['file']}. " \
-                                             'This cloud starts at its import position; unlocking it replaces that record.'
+                    slot.placement_note = "This point cloud's record holds a saved position for #{stored['file']}. " \
+                                          'This cloud starts at its import position; unlocking it replaces that record.'
                 end
             end
-            self.na_apply(session, cloud)
+            self.na_apply(slot, cloud)
             restored ? true : false
         end
 
@@ -92,36 +96,35 @@ module Na__PointCloudViewer
         #     is, with a note. It never jumps to its import position;
         #   - no record and the link still names this cloud (its first saved
         #     change was undone): the import position.
-        def self.Na__Placement__Reload(session)
-            return unless session.cloud && session.placement
-            stored = self.na_read(session.model)
-            key = session.placement['key']
-            other_file = self.na_link_names_other(session)
+        def self.Na__Placement__Reload(slot)
+            return unless slot.cloud && slot.placement
+            stored = self.na_stored(slot)
+            key = slot.placement['key']
+            other_file = self.na_link_names_other(slot)
             if stored && self.Na__Placement__SameCloud?(stored['key'], key)
-                session.placement = stored.merge('key' => key)
-                session.placement_note = nil
+                slot.placement = stored.merge('key' => key)
+                slot.placement_note = nil
             elsif stored || other_file
                 named = stored ? stored['file'] : other_file
-                session.placement_note = "The model now names #{named}. The loaded cloud stays where it is; " \
-                                         'Reload Point Cloud loads the file the model names.'
+                slot.placement_note = "The model now names #{named} for this point cloud. The loaded cloud stays where it is; " \
+                                      'Reload loads the file the model names.'
             else
-                session.placement = self.na_default(key)
+                slot.placement = self.na_default(key)
             end
-            self.na_apply(session, session.cloud)
-            self.Na__Placement__StopTool(session) if session.placement['locked']
+            self.na_apply(slot, slot.cloud)
+            self.Na__Placement__StopTool(slot) if slot.placement['locked']
         end
 
-        # The file name the model's link names, when that is not the loaded
-        # cloud (nil when it is, or when there is no link).
-        def self.na_link_names_other(session)
-            link = Na__ModelLink.Na__Link__Read(session.model)
-            return nil unless link
-            cloud_part = link['cloud']
-            loaded_key = (session.cloud.las_info || {})['contentKey']
+        # The file name the cloud's record names, when that is not the loaded
+        # cloud (nil when it is, or when there is no record).
+        def self.na_link_names_other(slot)
+            cloud_part = slot.record ? slot.record['link'] : nil
+            return nil unless cloud_part.is_a?(Hash)
+            loaded_key = (slot.cloud.las_info || {})['contentKey']
             same = if cloud_part['contentKey'] && loaded_key
                        cloud_part['contentKey'] == loaded_key
                    else
-                       cloud_part['fingerprint'] == Na__ModelLink.Na__Link__FingerprintFromKey(session.placement['key'])
+                       cloud_part['fingerprint'] == Na__ModelLink.Na__Link__FingerprintFromKey(slot.placement['key'])
                    end
             same ? nil : cloud_part['fileName'].to_s
         end
@@ -147,17 +150,13 @@ module Na__PointCloudViewer
             }
         end
 
-        # The record Na__Placement__Save writes, for a placement (the Clean
-        # export writes it together with the link, as one operation).
-        def self.Na__Placement__Record(placement)
-            now = Time.now
+        # The 'placement' part of a cloud's record (Na__Placement__Save writes
+        # it; the Clean export writes it together with the new link, as one
+        # operation).
+        def self.Na__Placement__Part(placement)
             {
-                'schema'        => NA_SCHEMA,
-                'schemaVersion' => NA_SCHEMA_VERSION,
-                'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'updatedEpoch'  => now.to_f,
                 'key'           => placement['key'],
-                'file'          => placement['key'].split('|').first,
+                'file'          => placement['key'].to_s.split('|').first,
                 'rotation'      => self.na_orthonormal(placement['rotation']),
                 'translation'   => placement['translation'],
                 'gimbal'        => placement['gimbal'],
@@ -168,9 +167,10 @@ module Na__PointCloudViewer
         # A cloud imported before placements existed (or before a plugin reload)
         # gets one now. Its unit factor and local box are read back from the
         # plain unit-factor matrix it was installed with.
-        def self.Na__Placement__Ensure(session)
-            cloud = session.cloud
-            return if !cloud || session.placement
+        def self.Na__Placement__Ensure(slot)
+            return unless slot
+            cloud = slot.cloud
+            return if !cloud || slot.placement
             k = cloud.unit_factor || (cloud.local_to_model ? cloud.local_to_model[0].to_f : nil)
             return unless k && k > 0.0
             cloud.unit_factor ||= k
@@ -178,13 +178,13 @@ module Na__PointCloudViewer
                 cloud.local_min = cloud.bounds.min.to_a.map { |v| v / k }
                 cloud.local_max = cloud.bounds.max.to_a.map { |v| v / k }
             end
-            self.Na__Placement__AttachCloud(session, cloud)
+            self.Na__Placement__AttachCloud(slot, cloud)
         end
 
-        def self.Na__Placement__Detach(session)
-            self.Na__Placement__StopTool(session)
-            session.placement = nil
-            session.placement_note = nil
+        def self.Na__Placement__Detach(slot)
+            self.Na__Placement__StopTool(slot)
+            slot.placement = nil
+            slot.placement_note = nil
         end
 
     # endregion ----------------------------------------------------------------
@@ -193,36 +193,38 @@ module Na__PointCloudViewer
     # REGION | Live Changes (tools, mid-drag) + Save
     # -------------------------------------------------------------------------
 
-        def self.Na__Placement__Locked?(session)
-            !session.placement || session.placement['locked'] ? true : false
+        def self.Na__Placement__Locked?(slot)
+            !slot || !slot.placement || slot.placement['locked'] ? true : false
         end
 
         # Unsaved: what a tool shows while it is being dragged.
-        def self.Na__Placement__SetLive(session, rotation, translation)
-            session.placement['rotation']    = rotation
-            session.placement['translation'] = translation
-            self.na_apply(session, session.cloud)
-            Na__RenderController.Na__Render__RefreshExtents(session)
+        def self.Na__Placement__SetLive(slot, rotation, translation)
+            slot.placement['rotation']    = rotation
+            slot.placement['translation'] = translation
+            self.na_apply(slot, slot.cloud)
+            Na__RenderController.Na__Render__RefreshExtents(slot.session)
         end
 
-        # One undoable operation per committed change.
-        def self.Na__Placement__Save(session, operation_name)
-            model = session.model
-            return unless model && session.placement
-            placement = session.placement
+        # One undoable operation per committed change. Returns nil, or why
+        # nothing was written (the cloud then goes back to its saved place).
+        def self.Na__Placement__Save(slot, operation_name)
+            return nil unless slot && slot.model && slot.placement
+            placement = slot.placement
             placement['rotation'] = self.na_orthonormal(placement['rotation'])
-            data = self.Na__Placement__Record(placement)
-            begin
-                model.start_operation(operation_name, true)
-                model.set_attribute(NA_DICT, NA_KEY, JSON.generate(data))
-                model.commit_operation
-            rescue StandardError
-                model.abort_operation
-                raise
+            problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, [slot], operation_name) do |_slot, record|
+                record['placement'] = self.Na__Placement__Part(placement)
             end
-            session.placement_note = nil
-            Na__LocalBackup.Na__Backup__AfterSave(model, session)
-            Na__CleanPreview.Na__Clean__Changed(session) if defined?(Na__CleanPreview)   # the box now covers other points
+            if problem
+                self.Na__Placement__Reload(slot)
+                return problem
+            end
+            slot.placement_note = nil
+            Na__CleanPreview.Na__Clean__Changed(slot) if defined?(Na__CleanPreview)   # the box now covers other points
+            nil
+        end
+
+        def self.na_op(slot, text)
+            Na__CloudSet.Na__Slots__OpName(slot, text)
         end
 
     # endregion ----------------------------------------------------------------
@@ -231,27 +233,26 @@ module Na__PointCloudViewer
     # REGION | Dialog Changes (each returns nil or a plain-English reason)
     # -------------------------------------------------------------------------
 
-        def self.Na__Placement__SetLocked(session, locked)
-            self.Na__Placement__Ensure(session)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return nil if session.placement['locked'] == locked
-            self.Na__Placement__StopTool(session) if locked
-            session.placement['locked'] = locked
-            self.Na__Placement__Save(session, locked ? 'Point Cloud: Lock Position' : 'Point Cloud: Unlock Position')
-            nil
+        def self.Na__Placement__SetLocked(slot, locked)
+            self.Na__Placement__Ensure(slot)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return nil if slot.placement['locked'] == locked
+            self.Na__Placement__StopTool(slot) if locked
+            slot.placement['locked'] = locked
+            self.Na__Placement__Save(slot, self.na_op(slot, locked ? 'Lock Position' : 'Unlock Position'))
         end
 
         # values: { 'x' => '1200', 'y' => '3.5m', 'z' => '0', 'rotZ' => '12.5', 'rotX' => '0', 'rotY' => '0' }
-        def self.Na__Placement__SetValues(session, values, display)
-            self.Na__Placement__Ensure(session)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return NA_LOCKED_TEXT if session.placement['locked']
-            target = self.Na__Placement__GimbalModel(session)
+        def self.Na__Placement__SetValues(slot, values, display)
+            self.Na__Placement__Ensure(slot)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return NA_LOCKED_TEXT if slot.placement['locked']
+            target = self.Na__Placement__GimbalModel(slot)
             { 'x' => 0, 'y' => 1, 'z' => 2 }.each do |key, axis|
                 next unless values.key?(key)
                 target[axis] = Na__UnitContract.Na__Units__ParseDisplayLength(values[key], display)
             end
-            rotation = session.placement['rotation']
+            rotation = slot.placement['rotation']
             if (values.keys & %w[rotZ rotY rotX]).any?
                 angles = self.Na__Placement__EulerDegrees(rotation)
                 angles['z'] = self.Na__Placement__ParseAngle(values['rotZ']) if values.key?('rotZ')
@@ -260,23 +261,27 @@ module Na__PointCloudViewer
                 rotation = self.Na__Placement__FromEulerDegrees(angles)
             end
             # The gimbal point lands on `target` under the (new) rotation.
-            turned = self.na_mul_vec(rotation, self.Na__Placement__GimbalLocal(session))
-            k = session.cloud.unit_factor.to_f
+            turned = self.na_mul_vec(rotation, self.Na__Placement__GimbalLocal(slot))
+            k = slot.cloud.unit_factor.to_f
             translation = (0..2).map { |i| target[i] - turned[i] * k }
-            self.Na__Placement__SetLive(session, rotation, translation)
-            self.Na__Placement__Save(session, 'Point Cloud: Position Values')
-            nil
+            self.Na__Placement__SetLive(slot, rotation, translation)
+            self.Na__Placement__Save(slot, self.na_op(slot, 'Position Values'))
         rescue ArgumentError => error
             error.message
         end
 
-        def self.Na__Placement__Reset(session)
-            self.Na__Placement__Ensure(session)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return NA_LOCKED_TEXT if session.placement['locked']
-            self.Na__Placement__SetLive(session, NA_IDENTITY.dup, [0.0, 0.0, 0.0])
-            self.Na__Placement__Save(session, 'Point Cloud: Reset Position')
-            nil
+        def self.Na__Placement__Reset(slot)
+            self.Na__Placement__Ensure(slot)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return NA_LOCKED_TEXT if slot.placement['locked']
+            self.Na__Placement__SetLive(slot, NA_IDENTITY.dup, [0.0, 0.0, 0.0])
+            self.Na__Placement__Save(slot, self.na_op(slot, 'Reset Position'))
+        end
+
+        # Why a transform cannot start: no cloud in the model, or this one is
+        # not loaded.
+        def self.na_no_cloud_text(slot)
+            slot ? "Load #{slot.name} first (View tab): only a loaded cloud can be moved." : 'Import a point cloud first.'
         end
 
         def self.Na__Placement__ParseAngle(text)
@@ -293,60 +298,58 @@ module Na__PointCloudViewer
     # REGION | Gimbal Point
     # -------------------------------------------------------------------------
 
-        def self.Na__Placement__GimbalLocal(session)
-            custom = session.placement && session.placement['gimbal']
+        def self.Na__Placement__GimbalLocal(slot)
+            custom = slot.placement && slot.placement['gimbal']
             return custom if custom
-            cloud = session.cloud
+            cloud = slot.cloud
             return [0.0, 0.0, 0.0] unless cloud && cloud.local_min && cloud.local_max
             (0..2).map { |i| (cloud.local_min[i] + cloud.local_max[i]) / 2.0 }
         end
 
         # Model inches, for the current placement (or a given one).
-        def self.Na__Placement__GimbalModel(session, rotation = nil, translation = nil)
-            rotation    ||= session.placement['rotation']
-            translation ||= session.placement['translation']
-            k = session.cloud.unit_factor.to_f
-            turned = self.na_mul_vec(rotation, self.Na__Placement__GimbalLocal(session))
+        def self.Na__Placement__GimbalModel(slot, rotation = nil, translation = nil)
+            rotation    ||= slot.placement['rotation']
+            translation ||= slot.placement['translation']
+            k = slot.cloud.unit_factor.to_f
+            turned = self.na_mul_vec(rotation, self.Na__Placement__GimbalLocal(slot))
             (0..2).map { |i| turned[i] * k + translation[i] }
         end
 
-        def self.Na__Placement__GimbalIsCustom?(session)
-            session.placement && session.placement['gimbal'] ? true : false
+        def self.Na__Placement__GimbalIsCustom?(slot)
+            slot.placement && slot.placement['gimbal'] ? true : false
         end
 
         # model_point: [x, y, z] model inches, for example a picked vertex.
-        def self.Na__Placement__SetGimbalPoint(session, model_point)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return NA_LOCKED_TEXT if session.placement['locked']
-            r = session.placement['rotation']
-            t = session.placement['translation']
-            k = session.cloud.unit_factor.to_f
+        def self.Na__Placement__SetGimbalPoint(slot, model_point)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return NA_LOCKED_TEXT if slot.placement['locked']
+            r = slot.placement['rotation']
+            t = slot.placement['translation']
+            k = slot.cloud.unit_factor.to_f
             d = (0..2).map { |i| model_point[i].to_f - t[i] }
-            session.placement['gimbal'] = (0..2).map { |c| (r[c] * d[0] + r[3 + c] * d[1] + r[6 + c] * d[2]) / k }   # R^T d / k
-            self.Na__Placement__Save(session, 'Point Cloud: Set Gimbal Point')
-            nil
+            slot.placement['gimbal'] = (0..2).map { |c| (r[c] * d[0] + r[3 + c] * d[1] + r[6 + c] * d[2]) / k }   # R^T d / k
+            self.Na__Placement__Save(slot, self.na_op(slot, 'Set Gimbal Point'))
         end
 
-        def self.Na__Placement__CentreGimbal(session)
-            self.Na__Placement__Ensure(session)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return NA_LOCKED_TEXT if session.placement['locked']
-            return nil unless session.placement['gimbal']
-            session.placement['gimbal'] = nil
-            self.Na__Placement__Save(session, 'Point Cloud: Centre Gimbal')
-            nil
+        def self.Na__Placement__CentreGimbal(slot)
+            self.Na__Placement__Ensure(slot)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return NA_LOCKED_TEXT if slot.placement['locked']
+            return nil unless slot.placement['gimbal']
+            slot.placement['gimbal'] = nil
+            self.Na__Placement__Save(slot, self.na_op(slot, 'Centre Gimbal'))
         end
 
         # Set Gimbal Point button: the Move tool, waiting for a pick.
-        def self.Na__Placement__PickGimbal(session)
-            self.Na__Placement__Ensure(session)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return NA_LOCKED_TEXT if session.placement['locked']
-            tool = session.transform_tool
-            unless tool && tool.na_kind == 'move'
-                problem = self.Na__Placement__StartTool(session, 'move')
+        def self.Na__Placement__PickGimbal(slot)
+            self.Na__Placement__Ensure(slot)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return NA_LOCKED_TEXT if slot.placement['locked']
+            tool = slot.session.transform_tool
+            unless tool && tool.na_kind == 'move' && tool.na_slot.equal?(slot)
+                problem = self.Na__Placement__StartTool(slot, 'move')
                 return problem if problem
-                tool = session.transform_tool
+                tool = slot.session.transform_tool
             end
             tool.na_start_gimbal_pick if tool
             nil
@@ -358,28 +361,33 @@ module Na__PointCloudViewer
     # REGION | Tools (Move gimbal, Rotate protractor)
     # -------------------------------------------------------------------------
 
-        def self.Na__Placement__StartTool(session, kind)
-            self.Na__Placement__Ensure(session)
-            return 'Import a point cloud first.' unless session.cloud && session.placement
-            return NA_LOCKED_TEXT if session.placement['locked']
-            tool = kind == 'rotate' ? Na__CloudRotateTool.new(session) : Na__CloudMoveTool.new(session)
+        # slot: the cloud the tool moves, fixed for the tool's life.
+        def self.Na__Placement__StartTool(slot, kind)
+            self.Na__Placement__Ensure(slot)
+            return self.na_no_cloud_text(slot) unless slot && slot.cloud && slot.placement
+            return NA_LOCKED_TEXT if slot.placement['locked']
+            tool = kind == 'rotate' ? Na__CloudRotateTool.new(slot) : Na__CloudMoveTool.new(slot)
             Sketchup.active_model.select_tool(tool)
             nil
         end
 
-        def self.Na__Placement__StopTool(session)
-            return nil unless session.transform_tool
+        # Ends the Move or Rotate tool when it works on this cloud.
+        def self.Na__Placement__StopTool(slot)
+            session = slot ? slot.session : nil
+            tool = session ? session.transform_tool : nil
+            return nil unless tool
+            return nil if tool.respond_to?(:na_slot) && !tool.na_slot.equal?(slot)
             Sketchup.active_model.select_tool(nil)
             session.transform_tool = nil
             nil
         end
 
-        def self.Na__Placement__ToggleTool(session, kind)
-            active = session.transform_tool
-            if active && active.na_kind == kind
-                self.Na__Placement__StopTool(session)
+        def self.Na__Placement__ToggleTool(slot, kind)
+            active = slot ? slot.session.transform_tool : nil
+            if active && active.na_kind == kind && active.na_slot.equal?(slot)
+                self.Na__Placement__StopTool(slot)
             else
-                self.Na__Placement__StartTool(session, kind)
+                self.Na__Placement__StartTool(slot, kind)
             end
         end
 
@@ -499,14 +507,16 @@ module Na__PointCloudViewer
     # REGION | Dialog Payload
     # -------------------------------------------------------------------------
 
-        def self.Na__Placement__Payload(session, model)
-            return { 'isAvailable' => false } unless session
-            self.Na__Placement__Ensure(session)
+        def self.Na__Placement__Payload(slot, model)
+            self.Na__Placement__Ensure(slot)
             display = Na__UnitContract.Na__Units__ModelDisplay(model)
             snap = self.Na__Placement__SnapSettings
             payload = {
                 'isAvailable' => true,
-                'hasCloud'    => !(session.cloud.nil? || session.placement.nil?),
+                'cloudId'     => slot ? slot.id : nil,
+                'cloudName'   => slot ? slot.name : nil,
+                'inModel'     => !slot.nil?,
+                'hasCloud'    => !(slot.nil? || slot.cloud.nil? || slot.placement.nil?),
                 'unit'        => display['suffix'],
                 'snap'        => {
                     'moveEnabled'  => snap['moveEnabled'],
@@ -516,16 +526,17 @@ module Na__PointCloudViewer
                 }
             }
             return payload unless payload['hasCloud']
-            placement = session.placement
+            placement = slot.placement
             angles = self.Na__Placement__EulerDegrees(placement['rotation'])
-            g = self.Na__Placement__GimbalModel(session)
-            tool = session.transform_tool
+            g = self.Na__Placement__GimbalModel(slot)
+            tool = slot.session.transform_tool
+            tool = nil if tool && tool.respond_to?(:na_slot) && !tool.na_slot.equal?(slot)
             payload.merge(
                 'locked'           => placement['locked'] ? true : false,
                 'activeTool'       => tool ? tool.na_kind : nil,
                 'pickingGimbal'    => tool && tool.respond_to?(:na_picking_gimbal?) && tool.na_picking_gimbal? ? true : false,
-                'gimbalIsCustom'   => self.Na__Placement__GimbalIsCustom?(session),
-                'gimbalSurvey'     => self.na_survey_text(session.cloud, self.Na__Placement__GimbalLocal(session)),
+                'gimbalIsCustom'   => self.Na__Placement__GimbalIsCustom?(slot),
+                'gimbalSurvey'     => self.na_survey_text(slot.cloud, self.Na__Placement__GimbalLocal(slot)),
                 'position'         => { 'x' => Na__UnitContract.Na__Units__InchesToPreciseText(g[0], display),
                                         'y' => Na__UnitContract.Na__Units__InchesToPreciseText(g[1], display),
                                         'z' => Na__UnitContract.Na__Units__InchesToPreciseText(g[2], display) },
@@ -533,8 +544,8 @@ module Na__PointCloudViewer
                                         'x' => Na__UnitContract.Na__Units__TrimNumber(angles['x'], 3),
                                         'y' => Na__UnitContract.Na__Units__TrimNumber(angles['y'], 3) },
                 'isImportPosition' => self.na_identity?(placement),
-                'surveyPoint'      => self.na_survey_point_text(session.cloud),
-                'note'             => session.placement_note
+                'surveyPoint'      => self.na_survey_point_text(slot.cloud),
+                'note'             => slot.placement_note
             )
         end
 
@@ -549,11 +560,11 @@ module Na__PointCloudViewer
         end
 
         # local_to_model = R * k, then t; the cloud's model bounds follow.
-        def self.na_apply(session, cloud)
-            return unless cloud && session.placement
+        def self.na_apply(slot, cloud)
+            return unless cloud && slot.placement
             k = (cloud.unit_factor || 1.0).to_f
-            rotation    = session.placement['rotation']
-            translation = session.placement['translation']
+            rotation    = slot.placement['rotation']
+            translation = slot.placement['translation']
             cloud.local_to_model = rotation.map { |v| v * k } + translation
             cloud.bounds = self.na_model_bounds(cloud) if cloud.local_min && cloud.local_max
         end
@@ -585,11 +596,16 @@ module Na__PointCloudViewer
             "#{(0..2).map { |i| format('%.3f', origin[i].to_f + local[i].to_f) }.join(', ')} #{cloud.source_unit}"
         end
 
-        def self.na_read(model)
-            raw = model ? model.get_attribute(NA_DICT, NA_KEY) : nil
-            return nil unless raw.is_a?(String) && !raw.empty?
-            data = JSON.parse(raw)
-            return nil unless data.is_a?(Hash) && data['schema'] == NA_SCHEMA && data['schemaVersion'].to_i <= NA_SCHEMA_VERSION
+        # The cloud's saved placement, checked, or nil.
+        def self.na_stored(slot)
+            slot && slot.record ? self.na_valid_part(slot.record['placement']) : nil
+        end
+
+        # A placement part as stored (or a whole v0.9 record), checked: an
+        # orthonormal rotation, a translation, the cloud key. nil when unusable.
+        def self.na_valid_part(data)
+            return nil unless data.is_a?(Hash)
+            return nil if data['schema'] && (data['schema'] != NA_SCHEMA || data['schemaVersion'].to_i > NA_SCHEMA_VERSION)
             rotation    = Array(data['rotation']).map { |v| Float(v) }
             translation = Array(data['translation']).map { |v| Float(v) }
             return nil unless data['key'].is_a?(String) && rotation.length == 9 && translation.length == 3

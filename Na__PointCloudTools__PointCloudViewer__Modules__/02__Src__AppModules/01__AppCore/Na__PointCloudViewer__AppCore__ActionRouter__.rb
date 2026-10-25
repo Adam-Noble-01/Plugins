@@ -12,6 +12,10 @@
 #   The user sees a plain-English line in the status bar; the class, message
 #   and backtrace go to the technical log (Settings > Technical Log).
 #
+# WHICH CLOUD (v0.10.0): the Clipping, Transform and Clean actions work on the
+#   ACTIVE cloud (the one marked in the cloud bar). The cloud_* actions name
+#   the cloud they act on by its id.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
@@ -27,6 +31,16 @@ module Na__PointCloudViewer
             'render_set_visible'      => :na_render_set_visible,
             'view_zoom_to_cloud'      => :na_view_zoom_to_cloud,
             'cloud_unload'            => :na_cloud_unload,
+            'cloud_activate'          => :na_cloud_activate,
+            'cloud_set_visible'       => :na_cloud_set_visible,
+            'cloud_rename'            => :na_cloud_rename,
+            'cloud_set_colour'        => :na_cloud_set_colour,
+            'cloud_reload'            => :na_cloud_reload,
+            'cloud_reload_all'        => :na_cloud_reload_all,
+            'cloud_locate'            => :na_cloud_locate,
+            'cloud_remove'            => :na_cloud_remove,
+            'cloud_reorder'           => :na_cloud_reorder,
+            'cloud_zoom'              => :na_cloud_zoom,
             'las_pick_file'           => :na_las_pick_file,
             'las_import_start'        => :na_las_import_start,
             'clip_set_enabled'        => :na_clip_set_enabled,
@@ -39,6 +53,7 @@ module Na__PointCloudViewer
             'clip_scene_delete'       => :na_clip_scene_delete,
             'clip_scene_activate'     => :na_clip_scene_activate,
             'clip_scene_reorder'      => :na_clip_scene_reorder,
+            'clip_copy_to_others'     => :na_clip_copy_to_others,
             'transform_set_locked'    => :na_transform_set_locked,
             'transform_toggle_tool'   => :na_transform_toggle_tool,
             'transform_set_values'    => :na_transform_set_values,
@@ -103,10 +118,14 @@ module Na__PointCloudViewer
             Na__DialogManager.Na__Dialog__PushState
         end
 
+        # The point budget is shared; the look (size, opacity, colour) is the
+        # active cloud's, or the one named by 'cloudId'.
         def self.na_render_update_settings(payload)
             session = self.na_require_session
             return unless session
-            Na__RenderController.Na__Render__ApplySettings(session, payload, Sketchup.active_model.active_view)
+            slot = payload['cloudId'] ? Na__CloudSet.Na__Slots__Find(session, payload['cloudId']) : Na__CloudSet.Na__Slots__Active(session)
+            settings = payload.reject { |key, _| key == 'cloudId' }
+            Na__RenderController.Na__Render__ApplySettings(session, settings, Sketchup.active_model.active_view, slot)
             Na__DialogManager.Na__Dialog__PushState
         end
 
@@ -115,20 +134,123 @@ module Na__PointCloudViewer
             Na__DialogManager.Na__Dialog__PushState
         end
 
+        # Frames every cloud on show (each one, or only its part inside its clip
+        # box while it clips).
         def self.na_view_zoom_to_cloud(_payload)
             session = self.na_require_session
             return unless session
-            return Na__DialogManager.Na__Dialog__PushStatus('There is no point cloud to zoom to yet.', 'warn') unless session.cloud
+            return Na__DialogManager.Na__Dialog__PushStatus('There is no point cloud on show to zoom to.', 'warn') if Na__CloudSet.Na__Slots__Drawn(session).empty?
             Na__RenderController.Na__Render__ZoomToCloud(session, Sketchup.active_model.active_view)
         end
 
-        def self.na_cloud_unload(_payload)
+        def self.na_cloud_unload(payload)
+            slot = self.na_slot_for(payload)
+            return unless slot
+            return Na__DialogManager.Na__Dialog__PushStatus("#{slot.name} is not loaded.", 'info') unless slot.cloud
+            Na__ClipBox.Na__Clip__StopEditing(slot) if slot.clip_editing
+            prefix = Na__CloudSet.Na__Slots__Prefix(slot)
+            Na__RenderController.Na__Render__ClearCloud(slot, Sketchup.active_model.active_view)
+            forgotten = Na__CloudSet.Na__Slots__ForgetUnsaved(slot)
+            Na__DialogManager.Na__Dialog__PushState
+            text = forgotten ? 'Point cloud unloaded. It was not saved in this model, so it leaves the list. The LAS file is untouched.' :
+                               'Point cloud unloaded and its memory released. The LAS file is untouched; it stays in the model.'
+            Na__DialogManager.Na__Dialog__PushStatus("#{prefix}#{text}", 'success')
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Point Clouds (the cloud bar and the View tab's list)
+    # @delegate: 02__Src__AppModules/20__System__CloudSet/
+    # -------------------------------------------------------------------------
+
+        def self.na_cloud_activate(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            note = Na__CloudSet.Na__Slots__Activate(slot.session, slot)
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(note || "Working on #{slot.name}.", note ? 'warn' : 'info')
+        end
+
+        def self.na_cloud_set_visible(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            Na__CloudSet.Na__Slots__SetVisible(slot, payload['visible'] == true)
+            Na__ModelRegistry.Na__Registry__SetVisible(true) if payload['visible'] == true && !Na__ModelRegistry.Na__Registry__IsVisible?
+            Na__DialogManager.Na__Dialog__PushState
+            unless slot.cloud
+                Na__DialogManager.Na__Dialog__PushStatus("#{slot.name} is not loaded, so there is nothing to show yet. Press Reload on its row.", 'info') if payload['visible'] == true
+            end
+        end
+
+        def self.na_cloud_rename(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            self.na_cloud_change { Na__CloudSet.Na__Slots__Rename(slot, payload['name']) }
+        end
+
+        # colour: '#rrggbb' (one of the palette's).
+        def self.na_cloud_set_colour(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            hex = payload['colour'].to_s
+            rgb = hex.match?(/\A#[0-9a-fA-F]{6}\z/) ? [hex[1, 2], hex[3, 2], hex[5, 2]].map { |part| part.to_i(16) } : nil
+            self.na_cloud_change { Na__CloudSet.Na__Slots__SetColour(slot, rgb) }
+        end
+
+        # The page raised its loading overlay before calling; a refusal must
+        # clear it, so it is reported as a finished (failed) job.
+        def self.na_cloud_reload(payload)
+            slot = self.na_slot_for(payload, true)
+            return Na__DialogManager.Na__Dialog__SendJobFinished('failed', 'That point cloud is no longer in this model.', {}) unless slot
+            problem = Na__ModelLink.Na__Link__Reload(slot)
+            Na__DialogManager.Na__Dialog__SendJobFinished('failed', "#{Na__CloudSet.Na__Slots__Prefix(slot)}#{problem}", {}) if problem
+        end
+
+        def self.na_cloud_reload_all(_payload)
+            session = self.na_require_session
+            return Na__DialogManager.Na__Dialog__SendJobFinished('failed', 'The point cloud overlay is not available.', {}) unless session
+            problem = Na__ModelLink.Na__Link__ReloadAll(session)
+            Na__DialogManager.Na__Dialog__SendJobFinished('failed', problem, {}) if problem
+        end
+
+        def self.na_cloud_locate(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            problem = Na__ModelLink.Na__Link__Locate(slot)
+            Na__DialogManager.Na__Dialog__PushStatus(problem, problem == 'Locate cancelled.' ? 'info' : 'warn') if problem
+        end
+
+        def self.na_cloud_remove(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            name = slot.name
+            problem = Na__CloudSet.Na__Slots__Remove(slot)
+            Na__DialogManager.Na__Dialog__PushState
+            if problem
+                Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn')
+            else
+                Na__DialogManager.Na__Dialog__PushStatus("#{name} was taken out of the model. Its LAS file and point cache are untouched; Edit, Undo puts it back.", 'success')
+            end
+        end
+
+        def self.na_cloud_reorder(payload)
             session = self.na_require_session
             return unless session
-            Na__ClipBox.Na__Clip__StopEditing(session) if session.clip_editing
-            Na__RenderController.Na__Render__ClearCloud(session, Sketchup.active_model.active_view)
+            self.na_cloud_change { Na__CloudSet.Na__Slots__Reorder(session, payload['ids']) }
+        end
+
+        def self.na_cloud_zoom(payload)
+            slot = self.na_slot_for(payload, true)
+            return unless slot
+            return Na__DialogManager.Na__Dialog__PushStatus("#{slot.name} is not loaded, so there is nothing to zoom to.", 'warn') unless slot.cloud
+            Na__RenderController.Na__Render__ZoomToCloud(slot, Sketchup.active_model.active_view)
+        end
+
+        def self.na_cloud_change
+            problem = yield
             Na__DialogManager.Na__Dialog__PushState
-            Na__DialogManager.Na__Dialog__PushStatus('Point cloud unloaded and its memory released. The LAS file is untouched.', 'success')
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
         end
 
         # @delegate: 02__Src__AppModules/40__System__LasImport/Na__PointCloudViewer__LasImport__Controller__.rb
@@ -148,52 +270,76 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         def self.na_clip_set_enabled(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SetEnabled(session, payload['enabled'] == true) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SetEnabled(slot, payload['enabled'] == true) }
         end
 
         def self.na_clip_reset(_payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__ResetToCloud(session) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__ResetToCloud(slot) }
         end
 
         def self.na_clip_set_limits(payload)
             display = Na__UnitContract.Na__Units__ModelDisplay(Sketchup.active_model)
             values  = payload['limits'].is_a?(Hash) ? payload['limits'] : {}
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SetLimits(session, values, display) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SetLimits(slot, values, display) }
         end
 
         def self.na_clip_toggle_edit(_payload)
-            self.na_clip_change do |session|
-                session.clip_editing ? Na__ClipBox.Na__Clip__StopEditing(session) : Na__ClipBox.Na__Clip__StartEditing(session)
+            self.na_clip_change do |slot|
+                slot && slot.clip_editing ? Na__ClipBox.Na__Clip__StopEditing(slot) : Na__ClipBox.Na__Clip__StartEditing(slot)
             end
         end
 
+        def self.na_clip_copy_to_others(_payload)
+            done = false
+            self.na_clip_change do |slot|
+                problem = Na__ClipBox.Na__Clip__CopyToOthers(slot)
+                done = problem.nil?
+                problem
+            end
+            Na__DialogManager.Na__Dialog__PushStatus('Every other point cloud now has this clip box. Edit, Undo puts their own boxes back.', 'success') if done
+        end
+
         def self.na_clip_scene_save(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneSave(session, payload['name']) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SceneSave(slot, payload['name']) }
         end
 
         def self.na_clip_scene_update(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneUpdate(session, payload['id']) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SceneUpdate(slot, payload['id']) }
         end
 
         def self.na_clip_scene_rename(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneRename(session, payload['id'], payload['name']) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SceneRename(slot, payload['id'], payload['name']) }
         end
 
         def self.na_clip_scene_delete(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneDelete(session, payload['id']) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SceneDelete(slot, payload['id']) }
         end
 
         def self.na_clip_scene_activate(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneActivate(session, payload['id']) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SceneActivate(slot, payload['id']) }
         end
 
         def self.na_clip_scene_reorder(payload)
-            self.na_clip_change { |session| Na__ClipBox.Na__Clip__SceneReorder(session, payload['ids']) }
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__SceneReorder(slot, payload['ids']) }
         end
 
-        # Every clip and transform handler returns nil on success or a
-        # plain-English reason, which is shown as a warning.
+        # Every clip and transform handler is handed the ACTIVE cloud's slot (nil
+        # when the model has none) and returns nil on success or a plain-English
+        # reason, which is shown as a warning.
         def self.na_clip_change
+            session = self.na_require_session
+            return unless session
+            slot = Na__CloudSet.Na__Slots__Active(session)
+            problem = yield(slot)
+            Na__RenderController.Na__Render__RefreshExtents(session)
+            Sketchup.active_model.active_view.invalidate
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        # The same, for the handlers that act on the whole model (scenes,
+        # backups): handed the session.
+        def self.na_model_change
             session = self.na_require_session
             return unless session
             problem = yield(session)
@@ -211,35 +357,35 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         def self.na_transform_set_locked(payload)
-            self.na_clip_change { |session| Na__Placement.Na__Placement__SetLocked(session, payload['locked'] == true) }
+            self.na_clip_change { |slot| Na__Placement.Na__Placement__SetLocked(slot, payload['locked'] == true) }
         end
 
         def self.na_transform_toggle_tool(payload)
             kind = payload['tool'] == 'rotate' ? 'rotate' : 'move'
-            self.na_clip_change { |session| Na__Placement.Na__Placement__ToggleTool(session, kind) }
+            self.na_clip_change { |slot| Na__Placement.Na__Placement__ToggleTool(slot, kind) }
         end
 
         def self.na_transform_set_values(payload)
             display = Na__UnitContract.Na__Units__ModelDisplay(Sketchup.active_model)
             values  = payload['values'].is_a?(Hash) ? payload['values'] : {}
-            self.na_clip_change { |session| Na__Placement.Na__Placement__SetValues(session, values, display) }
+            self.na_clip_change { |slot| Na__Placement.Na__Placement__SetValues(slot, values, display) }
         end
 
         def self.na_transform_reset(_payload)
-            self.na_clip_change { |session| Na__Placement.Na__Placement__Reset(session) }
+            self.na_clip_change { |slot| Na__Placement.Na__Placement__Reset(slot) }
         end
 
         def self.na_transform_pick_gimbal(_payload)
-            self.na_clip_change { |session| Na__Placement.Na__Placement__PickGimbal(session) }
+            self.na_clip_change { |slot| Na__Placement.Na__Placement__PickGimbal(slot) }
         end
 
         def self.na_transform_centre_gimbal(_payload)
-            self.na_clip_change { |session| Na__Placement.Na__Placement__CentreGimbal(session) }
+            self.na_clip_change { |slot| Na__Placement.Na__Placement__CentreGimbal(slot) }
         end
 
         def self.na_transform_set_snap(payload)
             display = Na__UnitContract.Na__Units__ModelDisplay(Sketchup.active_model)
-            self.na_clip_change { |_session| Na__Placement.Na__Placement__SetSnap(payload, display) }
+            self.na_clip_change { |_slot| Na__Placement.Na__Placement__SetSnap(payload, display) }
         end
 
         def self.na_config_export(_payload)
@@ -259,23 +405,19 @@ module Na__PointCloudViewer
 
         # The page raised its loading overlay before calling; a refusal must
         # clear it, so it is reported as a finished (failed) job.
+        # Reload: every cloud of the model that is not loaded.
         def self.na_link_reload(_payload)
-            session = self.na_require_session
-            return Na__DialogManager.Na__Dialog__SendJobFinished('failed', 'The point cloud overlay is not available.', {}) unless session
-            problem = Na__ModelLink.Na__Link__Reload(session)
-            Na__DialogManager.Na__Dialog__SendJobFinished('failed', problem, {}) if problem
+            self.na_cloud_reload_all({})
         end
 
+        # Locate: the active cloud's LAS.
         def self.na_link_locate(_payload)
-            session = self.na_require_session
-            return unless session
-            problem = Na__ModelLink.Na__Link__Locate(session)
-            Na__DialogManager.Na__Dialog__PushStatus(problem, problem == 'Locate cancelled.' ? 'info' : 'warn') if problem
+            self.na_cloud_locate({})
         end
 
         def self.na_link_restore_backup(_payload)
             restored = false
-            self.na_clip_change do |session|
+            self.na_model_change do |session|
                 problem = Na__ModelLink.Na__Link__RestoreBackup(session)
                 restored = problem.nil?
                 problem
@@ -284,7 +426,7 @@ module Na__PointCloudViewer
         end
 
         def self.na_link_remove(_payload)
-            self.na_clip_change { |session| Na__ModelLink.Na__Link__RemoveFromModel(session) }
+            self.na_model_change { |session| Na__ModelLink.Na__Link__RemoveFromModel(session) }
         end
 
         # Loaded clouds are unaffected (they live in memory); the next Reload
@@ -316,43 +458,43 @@ module Na__PointCloudViewer
 
         def self.na_clean_set_filter(payload)
             problem = Na__CleanSettings.Na__CleanSettings__Apply(payload)
-            session = Na__ModelRegistry.Na__Registry__ActiveSession
-            Na__CleanPreview.Na__Clean__Changed(session) if session && !problem
+            slot = Na__ModelRegistry.Na__Registry__ActiveSlot
+            Na__CleanPreview.Na__Clean__Changed(slot) if slot && !problem
             Na__DialogManager.Na__Dialog__PushState
             Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
         end
 
         def self.na_clean_reset_defaults(_payload)
             Na__CleanSettings.Na__CleanSettings__Reset
-            session = Na__ModelRegistry.Na__Registry__ActiveSession
-            Na__CleanPreview.Na__Clean__Changed(session) if session
+            slot = Na__ModelRegistry.Na__Registry__ActiveSlot
+            Na__CleanPreview.Na__Clean__Changed(slot) if slot
             Na__DialogManager.Na__Dialog__PushState
             Na__DialogManager.Na__Dialog__PushStatus('The three filters are back to their default settings.', 'success')
         end
 
         def self.na_clean_set_display(payload)
-            session = self.na_require_session
-            return unless session
-            problem = Na__CleanPreview.Na__Clean__SetDisplay(session, payload['display'])
+            slot = self.na_slot_for({}, true)
+            return unless slot
+            problem = Na__CleanPreview.Na__Clean__SetDisplay(slot, payload['display'])
             Na__DialogManager.Na__Dialog__PushState
             Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
         end
 
         def self.na_clean_preview_now(_payload)
-            session = self.na_require_session
-            return unless session
-            state = Na__CleanPreview.Na__Clean__State(session)
+            slot = self.na_slot_for({}, true)
+            return unless slot
+            state = Na__CleanPreview.Na__Clean__State(slot)
             state.request_key = nil        # run it again even if nothing changed
-            problem = Na__CleanPreview.Na__Clean__RequestNow(session)
+            problem = Na__CleanPreview.Na__Clean__RequestNow(slot)
             Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
         end
 
         # Opens Save As (modal) first, so the page raises no overlay before
         # calling; the job then reports progress like an import.
         def self.na_clean_export(_payload)
-            session = self.na_require_session
-            return unless session
-            problem = Na__CleanExport.Na__CleanExport__Start(session)
+            slot = self.na_slot_for({}, true)
+            return unless slot
+            problem = Na__CleanExport.Na__CleanExport__Start(slot)
             return unless problem
             if problem == 'cancelled'
                 Na__DialogManager.Na__Dialog__PushStatus('Export cancelled. Nothing was written.', 'info')
@@ -362,9 +504,9 @@ module Na__PointCloudViewer
         end
 
         def self.na_clean_retry_load(_payload)
-            session = self.na_require_session
-            return unless session
-            problem = Na__CleanExport.Na__CleanExport__RetryLoad(session)
+            slot = self.na_slot_for({}, true)
+            return unless slot
+            problem = Na__CleanExport.Na__CleanExport__RetryLoad(slot)
             Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
         end
 
@@ -377,34 +519,34 @@ module Na__PointCloudViewer
 
         def self.na_scenes_add(payload)
             view = Sketchup.active_model.active_view
-            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Add(session, payload['pid'], view) }
+            self.na_model_change { |session| Na__SceneStore.Na__Scenes__Add(session, payload['pid'], view) }
         end
 
         def self.na_scenes_update(payload)
             view = Sketchup.active_model.active_view
-            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Update(session, payload['id'], view) }
+            self.na_model_change { |session| Na__SceneStore.Na__Scenes__Update(session, payload['id'], view) }
         end
 
         def self.na_scenes_remove(payload)
-            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Remove(session, payload['id']) }
+            self.na_model_change { |session| Na__SceneStore.Na__Scenes__Remove(session, payload['id']) }
         end
 
         def self.na_scenes_relink(payload)
-            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Relink(session, payload['id'], payload['pid']) }
+            self.na_model_change { |session| Na__SceneStore.Na__Scenes__Relink(session, payload['id'], payload['pid']) }
         end
 
         def self.na_scenes_recall(payload)
             view = Sketchup.active_model.active_view
-            self.na_clip_change { |session| Na__SceneRecall.Na__Scenes__Recall(session, payload['id'], view) }
+            self.na_model_change { |session| Na__SceneRecall.Na__Scenes__Recall(session, payload['id'], view) }
         end
 
         def self.na_scenes_set_export(payload)
             values = payload['values'].is_a?(Hash) ? payload['values'] : {}
-            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__SetExport(session, payload['id'], values) }
+            self.na_model_change { |session| Na__SceneStore.Na__Scenes__SetExport(session, payload['id'], values) }
         end
 
         def self.na_scenes_reorder(payload)
-            self.na_clip_change { |session| Na__SceneStore.Na__Scenes__Reorder(session, payload['ids']) }
+            self.na_model_change { |session| Na__SceneStore.Na__Scenes__Reorder(session, payload['ids']) }
         end
 
     # endregion ----------------------------------------------------------------
@@ -444,6 +586,21 @@ module Na__PointCloudViewer
             session = Na__ModelRegistry.Na__Registry__ActiveSession
             return session if session
             Na__DialogManager.Na__Dialog__PushStatus('The point cloud overlay is not available for this model (SketchUp 2023 or newer is required).', 'error')
+            nil
+        end
+
+        # The cloud named by payload['cloudId'] (or 'id'), else the active one.
+        # say: tell the user when there is none.
+        def self.na_slot_for(payload, say = true)
+            session = self.na_require_session
+            return nil unless session
+            id = payload['cloudId'] || payload['id']
+            slot = id ? Na__CloudSet.Na__Slots__Find(session, id) : Na__CloudSet.Na__Slots__Active(session)
+            return slot if slot
+            if say
+                message = id ? 'That point cloud is no longer in this model.' : 'There is no point cloud in this model yet. Import one first.'
+                Na__DialogManager.Na__Dialog__PushStatus(message, 'warn')
+            end
             nil
         end
 

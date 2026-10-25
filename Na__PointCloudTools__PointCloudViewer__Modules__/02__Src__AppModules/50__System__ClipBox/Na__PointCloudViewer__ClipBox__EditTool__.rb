@@ -26,18 +26,21 @@ module Na__PointCloudViewer
     # REGION | Public Surface
     # -------------------------------------------------------------------------
 
-        def self.Na__Clip__StartEditing(session)
-            self.Na__Clip__Ensure(session)
-            unless session.clip
-                return 'Import a point cloud first: the clip box starts at the cloud\'s bounds.' unless session.cloud
-                session.clip = self.na_cloud_box(session)
-                self.Na__Clip__Save(session, 'Point Cloud: Create Clip Box')
+        # slot: the cloud whose box is edited (the active one).
+        def self.Na__Clip__StartEditing(slot)
+            return 'Import a point cloud first: the clip box starts at the cloud\'s bounds.' unless slot
+            self.Na__Clip__Ensure(slot)
+            unless slot.clip
+                return 'Load this point cloud first: the clip box starts at the cloud\'s bounds.' unless slot.cloud
+                slot.clip = self.na_cloud_box(slot)
+                problem = self.Na__Clip__Save(slot, self.na_op(slot, 'Create Clip Box'))
+                return problem if problem
             end
-            Sketchup.active_model.select_tool(Na__ClipBoxTool.new(session))
+            Sketchup.active_model.select_tool(Na__ClipBoxTool.new(slot))
             nil
         end
 
-        def self.Na__Clip__StopEditing(_session)
+        def self.Na__Clip__StopEditing(_slot)
             Sketchup.active_model.select_tool(nil)
             nil
         end
@@ -52,8 +55,8 @@ module Na__PointCloudViewer
         NA_ACTIVE_COLOUR = Sketchup::Color.new(220, 30, 30)   unless defined?(NA_ACTIVE_COLOUR)
         NA_HANDLE_PX     = 6.0
 
-        def self.Na__Clip__DrawCage(session, view)
-            clip = session.clip
+        def self.Na__Clip__DrawCage(slot, view)
+            clip = slot.clip
             return unless clip
             lo = clip['min']
             hi = clip['max']
@@ -66,7 +69,7 @@ module Na__PointCloudViewer
             view.drawing_color = NA_CAGE_COLOUR
             view.draw(GL_LINES, edges.flat_map { |a, b| [corners[a], corners[b]] })
 
-            highlight = session.clip_drag_face || session.clip_hover
+            highlight = slot.clip_drag_face || slot.clip_hover
             if highlight
                 face = self.Na__Clip__Face(highlight)
                 ring = self.na_face_corners(clip, face)
@@ -122,10 +125,14 @@ module Na__PointCloudViewer
             NA_PICK_PX      = 14.0
             NA_DRAG_START_PX = 4.0
 
-            def initialize(session)
-                @session = session
+            def initialize(slot)
+                @slot    = slot   # the cloud whose box this tool edits, fixed for the tool's life
                 @drag    = nil    # { face, start_value, start_param, down_x, down_y, moved }
                 @last    = nil    # { face, start_value } of the last committed move (VCB re-type)
+            end
+
+            def na_slot
+                @slot
             end
 
             # -----------------------------------------------------------------
@@ -133,8 +140,8 @@ module Na__PointCloudViewer
             # -----------------------------------------------------------------
 
             def activate
-                @session.clip_editing = true
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                @slot.clip_editing = true
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 self.na_status
                 Sketchup.active_model.active_view.invalidate
                 Na__ClipBox.na_notify_dialog
@@ -142,10 +149,10 @@ module Na__PointCloudViewer
 
             def deactivate(view)
                 self.na_restore_drag
-                @session.clip_editing   = false
-                @session.clip_hover     = nil
-                @session.clip_drag_face = nil
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                @slot.clip_editing   = false
+                @slot.clip_hover     = nil
+                @slot.clip_drag_face = nil
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 view.invalidate
                 Na__ClipBox.na_notify_dialog
             end
@@ -176,8 +183,8 @@ module Na__PointCloudViewer
                     self.na_follow_mouse(x, y, view)
                 else
                     hover = self.na_pick_face(x, y, view)
-                    if hover != @session.clip_hover
-                        @session.clip_hover = hover
+                    if hover != @slot.clip_hover
+                        @slot.clip_hover = hover
                         view.invalidate
                     end
                 end
@@ -191,12 +198,12 @@ module Na__PointCloudViewer
                 param = self.na_axis_param(face, x, y, view)
                 return unless param
                 @drag = {
-                    'face' => face, 'start_value' => Na__ClipBox.Na__Clip__FaceValue(@session, face),
+                    'face' => face, 'start_value' => Na__ClipBox.Na__Clip__FaceValue(@slot, face),
                     'start_param' => param, 'down_x' => x, 'down_y' => y, 'moved' => false,
-                    'was_enabled' => @session.clip['enabled']
+                    'was_enabled' => @slot.clip['enabled']
                 }
-                @session.clip_drag_face = face_id
-                @session.clip['enabled'] = true                     # clip live while moving
+                @slot.clip_drag_face = face_id
+                @slot.clip['enabled'] = true                        # clip live while moving
                 Sketchup.vcb_value = ''
                 Sketchup.status_text = "Moving the #{face['label']} side. Move the mouse and click, or type a distance. Esc cancels."
                 view.invalidate
@@ -222,9 +229,9 @@ module Na__PointCloudViewer
                 outward = face['side'] == 'max' ? 1.0 : -1.0
                 if @drag.nil? && @last
                     @drag = { 'face' => face, 'start_value' => @last['start_value'], 'start_param' => 0.0, 'moved' => true,
-                              'was_enabled' => @session.clip['enabled'] }
+                              'was_enabled' => @slot.clip['enabled'] }
                 end
-                Na__ClipBox.Na__Clip__SetFaceLive(@session, face, target['start_value'] + outward * distance)
+                Na__ClipBox.Na__Clip__SetFaceLive(@slot, face, target['start_value'] + outward * distance)
                 self.na_commit(view)
             rescue ArgumentError
                 UI.beep
@@ -239,10 +246,10 @@ module Na__PointCloudViewer
                 face  = @drag['face']
                 param = self.na_axis_param(face, x, y, view)
                 return unless param
-                value = Na__ClipBox.Na__Clip__SetFaceLive(@session, face, @drag['start_value'] + (param - @drag['start_param']))
+                value = Na__ClipBox.Na__Clip__SetFaceLive(@slot, face, @drag['start_value'] + (param - @drag['start_param']))
                 Sketchup.vcb_value = (value - @drag['start_value']).abs.to_l.to_s
-                Na__ImageRenderer.Na__Image__NoteInteraction(@session, view)
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                Na__ImageRenderer.Na__Image__NoteInteraction(@slot.session, view)
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 view.invalidate
             end
 
@@ -250,10 +257,11 @@ module Na__PointCloudViewer
                 face = @drag['face']
                 @last = { 'face' => face, 'start_value' => @drag['start_value'] }
                 @drag = nil
-                @session.clip_drag_face = nil
-                @session.clip['enabled'] = true
-                Na__ClipBox.Na__Clip__Save(@session, "Point Cloud: Move Clip #{face['label']}")
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                @slot.clip_drag_face = nil
+                @slot.clip['enabled'] = true
+                problem = Na__ClipBox.Na__Clip__Save(@slot, Na__ClipBox.na_op(@slot, "Move Clip #{face['label']}"))
+                Sketchup.status_text = problem if problem
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
                 view.invalidate
                 self.na_status
                 Na__ClipBox.na_notify_dialog
@@ -261,23 +269,23 @@ module Na__PointCloudViewer
 
             def na_restore_drag
                 return unless @drag
-                Na__ClipBox.Na__Clip__SetFaceLive(@session, @drag['face'], @drag['start_value'])
-                @session.clip['enabled'] = @drag['was_enabled']
+                Na__ClipBox.Na__Clip__SetFaceLive(@slot, @drag['face'], @drag['start_value'])
+                @slot.clip['enabled'] = @drag['was_enabled']
                 @drag = nil
-                @session.clip_drag_face = nil
-                Na__RenderController.Na__Render__RefreshExtents(@session)
+                @slot.clip_drag_face = nil
+                Na__RenderController.Na__Render__RefreshExtents(@slot.session)
             end
 
             def na_status
                 Sketchup.vcb_label = 'Distance'
-                Sketchup.status_text = 'Clip box: pick a side (the square handles) and drag it, or click, move and click. ' \
+                Sketchup.status_text = "#{Na__CloudSet.Na__Slots__Prefix(@slot)}Clip box: pick a side (the square handles) and drag it, or click, move and click. " \
                                        'Type a distance for precision. Esc cancels. Choose another tool to finish.'
             end
 
             # Handles first (they work from any angle), then the box faces under
             # the cursor (nearest hit along the pick ray).
             def na_pick_face(x, y, view)
-                clip = @session.clip
+                clip = @slot.clip
                 return nil unless clip
                 best = nil
                 best_px = NA_PICK_PX
@@ -295,7 +303,7 @@ module Na__PointCloudViewer
             end
 
             def na_pick_face_by_ray(x, y, view)
-                clip = @session.clip
+                clip = @slot.clip
                 origin, direction = view.pickray(x, y)
                 o = origin.to_a
                 d = direction.to_a
@@ -319,7 +327,7 @@ module Na__PointCloudViewer
             # the grabbed side follows the cursor at any view angle.
             def na_axis_param(face, x, y, view)
                 origin, direction = view.pickray(x, y)
-                centre = Na__ClipBox.na_face_centre(@session.clip, face).to_a
+                centre = Na__ClipBox.na_face_centre(@slot.clip, face).to_a
                 axis = [0.0, 0.0, 0.0]
                 axis[face['axis']] = 1.0
                 p = origin.to_a

@@ -1,0 +1,535 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - CLOUD SET STYLES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__CloudSet__.css
+   PURPOSE    : Several point clouds (v0.10.0): the cloud bar under the tab
+                strip, the Point Clouds list on the View tab, the cloud tags
+                that name the active cloud on other cards, and the cloud chips
+                on the Scenes tab. Every element carries its own cloud's colour
+                in --na-cloud-colour (set by the CloudSet script).
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Shared: Colour Dot, Eye, Title Group */
+/* ----------------------------------------------------------------- */
+
+.na-cloud-dot {
+    flex                : 0 0 auto;
+    width               : 10px;
+    height              : 10px;
+    border-radius       : 50%;
+    background          : var(--na-cloud-colour, #888888);
+    box-shadow          : inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.na-eye {
+    width               : 16px;
+    height              : 16px;
+    fill                : none;
+    stroke              : currentColor;
+    stroke-width        : 1.4;
+    stroke-linecap      : round;
+    stroke-linejoin     : round;
+}
+
+.na-eye circle {
+    fill                : currentColor;
+    stroke              : none;
+}
+
+.na-eye--closed circle {
+    opacity             : 0.35;
+}
+
+.na-eye__stroke {
+    stroke-width        : 1.7;
+}
+
+.na-card__title-group {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    min-width           : 0;
+}
+
+.na-card__count {
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    font-variant-numeric: tabular-nums;
+    white-space         : nowrap;
+}
+
+.na-cloud-tag {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 5px;
+    min-width           : 0;
+    max-width           : 190px;
+    padding             : 1px 8px 1px 6px;
+    border              : 1px solid var(--na-cloud-colour, var(--na-border));
+    border-radius       : 999px;
+    background          : #fff;
+    font-size           : 11.5px;
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.na-cloud-tag__name {
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-note.na-note--top {
+    margin              : 0 0 8px;
+}
+
+/* A note that informs rather than warns (what an import will do) */
+.na-note.na-note--info {
+    border-left-color   : var(--na-accent);
+    background          : #eef3fb;
+    color               : #1d3f73;
+}
+
+.naButton.na-button--small {
+    padding             : 5px 10px;
+    font-size           : 12px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Cloud Bar (under the tab strip, every tab) */
+/* ----------------------------------------------------------------- */
+
+/* Wraps rather than scrolls: every cloud stays in sight, up to the ten a model holds */
+.na-cloud-bar {
+    display             : flex;
+    flex-wrap           : wrap;
+    align-items         : center;
+    gap                 : 6px;
+    padding             : 6px 12px;
+    background          : var(--na-panel);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-cloud-bar__label {
+    margin-right        : 2px;
+    font-size           : 10.5px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+    white-space         : nowrap;
+}
+
+.na-cloud-chip {
+    position            : relative;
+    display             : inline-flex;
+    align-items         : stretch;
+    flex                : 0 0 auto;
+    max-width           : 230px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 999px;
+    background          : #fff;
+}
+
+/* The active chip is tinted with its own colour */
+.na-cloud-chip::before {
+    content             : "";
+    position            : absolute;
+    inset               : 0;
+    border-radius       : inherit;
+    background          : var(--na-cloud-colour, #888888);
+    opacity             : 0;
+    pointer-events      : none;
+    transition          : opacity 0.12s;
+}
+
+.na-cloud-chip--active {
+    border-color        : var(--na-cloud-colour, var(--na-accent));
+    box-shadow          : inset 0 0 0 1px var(--na-cloud-colour, var(--na-accent));
+}
+
+.na-cloud-chip--active::before {
+    opacity             : 0.12;
+}
+
+.na-cloud-chip--unloaded {
+    border-style        : dashed;
+}
+
+.na-cloud-chip__eye {
+    position            : relative;
+    display             : inline-flex;
+    align-items         : center;
+    justify-content     : center;
+    padding             : 0 3px 0 8px;
+    border              : none;
+    border-radius       : 999px 0 0 999px;
+    background          : transparent;
+    color               : var(--na-subtle);
+    cursor              : pointer;
+}
+
+.na-cloud-chip__eye:hover {
+    color               : var(--na-text);
+}
+
+.na-cloud-chip--hidden .na-cloud-chip__eye {
+    color               : #a3aab4;
+}
+
+.na-cloud-chip__main {
+    position            : relative;
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 6px;
+    min-width           : 0;
+    padding             : 4px 11px 4px 4px;
+    border              : none;
+    border-radius       : 0 999px 999px 0;
+    background          : transparent;
+    font-family         : inherit;
+    font-size           : 12px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    cursor              : pointer;
+}
+
+.na-cloud-chip--active .na-cloud-chip__main {
+    cursor              : default;
+}
+
+.na-cloud-chip__name {
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-cloud-chip--hidden .na-cloud-chip__name {
+    color               : var(--na-subtle);
+}
+
+.na-cloud-chip--hidden .na-cloud-dot {
+    background          : transparent;
+    box-shadow          : inset 0 0 0 2px var(--na-cloud-colour, #888888);
+}
+
+.na-cloud-chip__mark {
+    font-size           : 10.5px;
+    font-weight         : 600;
+    color               : var(--na-warn);
+    white-space         : nowrap;
+}
+
+.na-cloud-chip__add {
+    flex                : 0 0 auto;
+    width               : 26px;
+    height              : 26px;
+    padding             : 0;
+    border              : 1px dashed #b9bec6;
+    border-radius       : 50%;
+    background          : #fff;
+    font-family         : inherit;
+    font-size           : 16px;
+    line-height         : 1;
+    color               : var(--na-subtle);
+    cursor              : pointer;
+}
+
+.na-cloud-chip__add:hover:not([disabled]) {
+    color               : var(--na-accent);
+    border-color        : var(--na-accent);
+}
+
+.na-cloud-chip__add[disabled] {
+    opacity             : 0.4;
+    cursor              : default;
+}
+
+.na-cloud-chip button:focus-visible,
+.na-cloud-chip__add:focus-visible {
+    outline             : 2px solid var(--na-accent);
+    outline-offset      : 1px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Point Clouds List (View tab) */
+/* The active cloud's row is open: its file, position and buttons. */
+/* Detail lines start under the colour swatch (grip + eye = 46px). */
+/* ----------------------------------------------------------------- */
+
+.na-cloud-list {
+    display             : flex;
+    flex-direction      : column;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    overflow            : hidden;
+}
+
+.na-cloud-row {
+    position            : relative;
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 1px;
+    padding             : 5px 8px 7px;
+    border-bottom       : 1px solid #eceef1;
+    background          : #fff;
+}
+
+.na-cloud-row:last-child {
+    border-bottom       : none;
+}
+
+.na-cloud-row--active {
+    background          : #f7f9fc;
+    box-shadow          : inset 3px 0 0 var(--na-cloud-colour, var(--na-accent));
+}
+
+.na-cloud-row__main {
+    display             : flex;
+    align-items         : center;
+    gap                 : 6px;
+    min-width           : 0;
+}
+
+.na-cloud-row__eye {
+    display             : inline-flex;
+    align-items         : center;
+    justify-content     : center;
+    flex                : 0 0 auto;
+    width               : 24px;
+    height              : 24px;
+    padding             : 0;
+    border              : none;
+    border-radius       : 4px;
+    background          : transparent;
+    color               : var(--na-subtle);
+    cursor              : pointer;
+}
+
+.na-cloud-row__eye:hover {
+    color               : var(--na-text);
+    background          : var(--na-bg);
+}
+
+.na-cloud-row--hidden .na-cloud-row__eye {
+    color               : #a3aab4;
+}
+
+.na-cloud-row__swatch {
+    flex                : 0 0 auto;
+    width               : 16px;
+    height              : 16px;
+    padding             : 0;
+    border              : 2px solid #fff;
+    border-radius       : 50%;
+    background          : var(--na-cloud-colour, #888888);
+    box-shadow          : 0 0 0 1px rgba(0, 0, 0, 0.22);
+    cursor              : pointer;
+}
+
+.na-cloud-row__swatch:hover:not([disabled]) {
+    box-shadow          : 0 0 0 2px var(--na-cloud-colour, #888888);
+}
+
+.na-cloud-row__swatch[disabled] {
+    cursor              : default;
+}
+
+.na-cloud-row__name {
+    flex                : 1;
+    min-width           : 0;
+    padding             : 3px 2px;
+    border              : none;
+    background          : transparent;
+    text-align          : left;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    cursor              : pointer;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-cloud-row__name:hover {
+    color               : var(--na-accent);
+}
+
+.na-cloud-row--active .na-cloud-row__name {
+    color               : var(--na-text);
+    cursor              : default;
+}
+
+.na-cloud-row--hidden .na-cloud-row__name {
+    color               : var(--na-subtle);
+}
+
+.naInput.na-cloud-row__rename {
+    flex                : 1;
+    min-width           : 0;
+    padding             : 4px 6px;
+}
+
+.na-cloud-row__detail {
+    margin              : 0 0 0 46px;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap       : anywhere;
+}
+
+.na-cloud-row__open {
+    margin              : 4px 0 0 46px;
+}
+
+.na-cloud-row__line {
+    margin              : 2px 0 0;
+    font-size           : 12px;
+    color               : var(--na-text);
+}
+
+.na-cloud-row__open .na-note,
+.na-cloud-row__open .na-path {
+    margin-top          : 6px;
+}
+
+.na-cloud-row__actions {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 6px;
+    margin-top          : 8px;
+}
+
+.na-cloud-status {
+    flex                : 0 0 auto;
+    padding             : 0 7px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 9px;
+    background          : var(--na-bg);
+    font-size           : 10.5px;
+    line-height         : 1.5;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+}
+
+.na-cloud-status--ok {
+    color               : var(--na-success);
+    border-color        : #a7dcc1;
+    background          : #effaf4;
+    font-weight         : 600;
+}
+
+.na-cloud-status--warn {
+    color               : var(--na-warn);
+    border-color        : #e7c38f;
+    background          : #fff7ea;
+}
+
+.na-cloud-status--danger {
+    color               : var(--na-danger);
+    border-color        : #eab4ae;
+    background          : #fdf0ee;
+    font-weight         : 600;
+}
+
+.na-cloud-palette {
+    display             : flex;
+    flex-wrap           : wrap;
+    align-items         : center;
+    gap                 : 6px;
+    margin              : 6px 0 2px 46px;
+}
+
+.na-cloud-palette__label {
+    margin-right        : 2px;
+    font-size           : 11px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-cloud-swatch {
+    width               : 20px;
+    height              : 20px;
+    padding             : 0;
+    border              : 2px solid #fff;
+    border-radius       : 50%;
+    background          : var(--na-cloud-colour, #888888);
+    box-shadow          : 0 0 0 1px rgba(0, 0, 0, 0.22);
+    cursor              : pointer;
+}
+
+.na-cloud-swatch:hover {
+    box-shadow          : 0 0 0 2px var(--na-cloud-colour, #888888);
+}
+
+.na-cloud-swatch--chosen {
+    box-shadow          : 0 0 0 2px var(--na-text);
+}
+
+.na-cloud-palette__note {
+    flex-basis          : 100%;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Scenes Tab: which clouds a scene shows */
+/* ----------------------------------------------------------------- */
+
+.na-pcs-clouds {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 4px;
+    margin-top          : 6px;
+}
+
+.na-pcs-cloud {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 5px;
+    max-width           : 100%;
+    padding             : 0 7px 0 5px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 9px;
+    background          : #fff;
+    font-size           : 11px;
+    line-height         : 1.6;
+    color               : var(--na-text);
+}
+
+.na-pcs-cloud__name {
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+.na-pcs-cloud--hidden {
+    color               : var(--na-subtle);
+}
+
+.na-pcs-cloud--hidden .na-pcs-cloud__name {
+    text-decoration     : line-through;
+}
+
+.na-pcs-cloud--hidden .na-cloud-dot {
+    background          : transparent;
+    box-shadow          : inset 0 0 0 2px var(--na-cloud-colour, #888888);
+}
+
+.na-pcs-cloud--unknown {
+    opacity             : 0.55;
+    border-style        : dashed;
+}
+
+/* endregion ----------------------------------------------------------------- */

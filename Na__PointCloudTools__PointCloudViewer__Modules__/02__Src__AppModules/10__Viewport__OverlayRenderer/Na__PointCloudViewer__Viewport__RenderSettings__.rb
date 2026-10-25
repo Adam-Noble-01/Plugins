@@ -9,10 +9,15 @@
 #              touches the cache or the source LAS.
 #
 # KEYS:
-#   pointBudget     Integer  approx. maximum points drawn per frame
-#   pointSizePx     Integer  logical pixels
-#   opacityPercent  Integer  100 = opaque
-#   colourMode      String   'rgb' | 'black'
+#   pointBudget     Integer  approx. maximum points drawn per frame, SHARED by
+#                            every cloud on show (one per model)
+#   pointSizePx     Integer  logical pixels          } each cloud's own look
+#   opacityPercent  Integer  100 = opaque            } (v0.10.0): its slot's
+#   colourMode      String   'rgb' | 'black' | 'cloud' } display
+#
+# 'cloud' (v0.10.0) draws every point in the cloud's own colour, the one that
+#   marks it in the dialog: with two scans of one building on show, each can
+#   be told apart at a glance while they are aligned.
 #
 # =============================================================================
 
@@ -23,7 +28,9 @@ module Na__PointCloudViewer
     # REGION | Defaults + Limits
     # -------------------------------------------------------------------------
 
-        NA_COLOUR_MODES = %w[rgb black].freeze
+        NA_COLOUR_MODES = %w[rgb black cloud].freeze
+        NA_SHARED_KEYS  = %w[pointBudget].freeze
+        NA_DISPLAY_KEYS = %w[pointSizePx opacityPercent colourMode].freeze
 
         NA_FALLBACK_DEFAULTS = {
             'pointBudget'    => 1_000_000,
@@ -59,6 +66,11 @@ module Na__PointCloudViewer
             NA_FALLBACK_LIMITS.merge(from_config.is_a?(Hash) ? from_config : {})
         end
 
+        # Just the look of one cloud, from a full settings hash.
+        def self.Na__Settings__DisplayPart(settings)
+            NA_DISPLAY_KEYS.each_with_object({}) { |key, part| part[key] = settings[key] }
+        end
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -84,6 +96,13 @@ module Na__PointCloudViewer
             end
             result['colourMode'] = partial['colourMode'].to_s if NA_COLOUR_MODES.include?(partial['colourMode'].to_s)
             result
+        end
+
+        # A valid look for one cloud: the three display keys only.
+        def self.Na__Settings__MergeDisplay(current, partial)
+            base = self.Na__Settings__Defaults.merge(current.is_a?(Hash) ? current.select { |key, _| NA_DISPLAY_KEYS.include?(key) } : {})
+            only = partial.is_a?(Hash) ? partial.select { |key, _| NA_DISPLAY_KEYS.include?(key) } : {}
+            self.Na__Settings__DisplayPart(self.Na__Settings__Merge(base, only))
         end
 
         def self.Na__Settings__ChangedKeys(before, after)

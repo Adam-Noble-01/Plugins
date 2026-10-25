@@ -28,6 +28,11 @@
 #   returns the status message, instead of the usual install, placement and
 #   link (the Clean export loads its new file this way).
 #
+# WHICH CLOUD (v0.10.0): 'slotId' loads into that cloud (Reload, Locate);
+#   without it, the cloud of the model that already names this LAS, else a NEW
+#   cloud of the model. The cloud loaded becomes the active one and is shown.
+#   Na__ReloadSeriesJob (below) loads several clouds one after the other.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
@@ -48,6 +53,7 @@ module Na__PointCloudViewer
             # options: 'cachePath' + 'lasStamp' [bytes, mtime] -> also write the cache;
             #          'fromCache' (+ 'expectCount', 'lasMissing') -> load that cache instead;
             #          'contentKey' -> the LAS content key (recorded in, or required of, the cache);
+            #          'slotId' -> the cloud to load into; 'noZoom' -> keep the camera;
             #          'onCloud' -> see the file header.
             def initialize(session, view, path, source_unit, header_ms, options = {})
                 @session     = session
@@ -118,13 +124,18 @@ module Na__PointCloudViewer
                     @summary = { 'kind' => 'las', 'totalPoints' => cloud.total_points, 'timings' => cloud.timings, 'fromCache' => @from_cache ? true : false }
                     return { 'done' => true, 'status' => message, 'percent' => 100.0 }
                 end
-                restored = Na__Placement.Na__Placement__AttachCloud(@session, cloud)
-                Na__RenderController.Na__Render__InstallCloud(@session, cloud, @view)
-                Na__ModelLink.Na__Link__AfterImport(@session, cloud)
+                slot, is_new = self.na_target_slot(cloud)
+                others_loaded = Na__CloudSet.Na__Slots__Loaded(@session).any? { |other| !other.equal?(slot) }
+                restored = Na__Placement.Na__Placement__AttachCloud(slot, cloud)
+                Na__RenderController.Na__Render__InstallCloud(slot, cloud, @view)
+                Na__ModelLink.Na__Link__AfterImport(slot, cloud)
+                slot.visible = true
+                Na__CloudSet.Na__Slots__Activate(@session, slot)
                 Na__ModelRegistry.Na__Registry__SetVisible(true)
-                Na__RenderController.Na__Render__ZoomToCloud(@session, @view)
+                Na__RenderController.Na__Render__ZoomToCloud(slot, @view) if !@options['noZoom'] && (is_new || !others_loaded)
 
-                @summary = { 'kind' => 'las', 'totalPoints' => cloud.total_points, 'timings' => cloud.timings, 'fromCache' => @from_cache ? true : false }
+                @summary = { 'kind' => 'las', 'totalPoints' => cloud.total_points, 'timings' => cloud.timings, 'fromCache' => @from_cache ? true : false,
+                             'cloudId' => slot.id, 'cloudName' => slot.name, 'newCloud' => is_new }
                 shown = [@session.settings['pointBudget'].to_i, cloud.total_points].min
                 seconds = format('%.1f', cloud.timings['importWallMs'] / 1000.0)
                 message = if @from_cache
@@ -133,11 +144,30 @@ module Na__PointCloudViewer
                               "Imported #{Na__PerfStats.Na__Perf__Thousands(cloud.total_points)} points from #{File.basename(@path)} " \
                                   "(#{Na__UnitContract.Na__Units__SourceUnitLabel(@source_unit)}) in #{seconds} s."
                           end
+                if is_new && Na__CloudSet.Na__Slots__Multi?(@session)
+                    message = "Added #{slot.name} to the model. #{message} It is the cloud the tools work on now."
+                else
+                    message = "#{Na__CloudSet.Na__Slots__Prefix(slot)}#{message}"
+                end
                 message += ' The LAS was not found at its saved location; this computer\'s cached copy of it was used.' if @options['lasMissing']
                 message += ' Its saved position in this model was restored.' if restored
                 message += " #{cache_note}" if cache_note
-                message += " Showing #{Na__PerfStats.Na__Perf__Thousands(shown)}. Raise the Point Budget to see more." if shown < cloud.total_points
+                if Na__CloudSet.Na__Slots__Drawn(@session).length > 1
+                    message += " The point budget (#{Na__PerfStats.Na__Perf__Thousands(@session.settings['pointBudget'])}) is shared by the clouds on show."
+                elsif shown < cloud.total_points
+                    message += " Showing #{Na__PerfStats.Na__Perf__Thousands(shown)}. Raise the Point Budget to see more."
+                end
                 { 'done' => true, 'status' => message, 'percent' => 100.0 }
+            end
+
+            # [slot, new?]: the cloud asked for, else the model's cloud of this
+            # same LAS, else a new cloud of the model.
+            def na_target_slot(cloud)
+                slot = @options['slotId'] ? Na__CloudSet.Na__Slots__Find(@session, @options['slotId']) : nil
+                key = Na__Placement.Na__Placement__CloudKey(cloud)
+                slot ||= Na__CloudSet.Na__Slots__ForFile(@session, (cloud.las_info || {})['contentKey'], Na__ModelLink.Na__Link__FingerprintFromKey(key))
+                return [slot, false] if slot
+                [Na__CloudSet.Na__Slots__New(@session, cloud), true]
             end
 
             def na_build_cloud(pointer, poll)
@@ -226,6 +256,104 @@ module Na__PointCloudViewer
                 when 4 then 90.0 + 9.0 * fraction
                 else 1.0
                 end.round(1)
+            end
+
+        end
+
+        # -------------------------------------------------------------------
+        # Reload All: several clouds, one after the other
+        # -------------------------------------------------------------------
+
+        # Loads every given cloud (Reload All, or TrueVision Sync's Reload) one
+        # after the other with the usual job for each. A cloud whose file cannot
+        # be found, or whose load fails, is listed at the end; the others still
+        # load. Cancel stops after the cloud being loaded is cancelled.
+        class Na__ReloadSeriesJob
+
+            def initialize(session, slots)
+                @session = session
+                @queue   = slots.dup
+                @total   = slots.length
+                @index   = 0
+                @current = nil
+                @slot    = nil
+                @loaded  = []
+                @missed  = []
+                @had_loaded = Na__CloudSet.Na__Slots__Loaded(session).any?
+                @summary = { 'kind' => 'lasSeries' }
+            end
+
+            def na_title
+                "Reloading #{@total} point clouds"
+            end
+
+            def na_step
+                unless @current
+                    return self.na_finish if @queue.empty?
+                    @slot = @queue.shift
+                    @index += 1
+                    return self.na_next_soon if !Na__CloudSet.Na__Slots__All(@session).include?(@slot) || !Na__ModelLink.Na__Link__NeedsReload?(@slot)
+                    plan = Na__ModelLink.Na__Link__ReloadPlan(@slot)
+                    if plan.is_a?(String)
+                        @missed << "#{@slot.name} (#{plan.sub(/\.\z/, '')})"
+                        return self.na_next_soon
+                    end
+                    @current = Na__LasImport.Na__LasImport__JobForPlan(@slot, plan, 'noZoom' => true)
+                end
+                step = @current.na_step
+                if step['done']
+                    @current = nil
+                    @loaded << @slot.name
+                    return self.na_next_soon
+                end
+                fraction = ((@index - 1) + step['percent'].to_f / 100.0) / [@total, 1].max
+                { 'done' => false, 'status' => "#{@slot.name} (#{@index} of #{@total}): #{step['status']}",
+                  'percent' => (100.0 * fraction).round(1), 'delay' => step['delay'] }
+            rescue StandardError => error
+                begin
+                    @current.na_cancel if @current
+                rescue StandardError
+                    nil
+                end
+                @current = nil
+                @missed << "#{@slot ? @slot.name : 'a cloud'} (#{error.message.sub(/\.\z/, '')})"
+                Na__DebugTools.Na__Debug__Warn("Reload All: #{@slot && @slot.name} did not load: #{error.message}")
+                self.na_next_soon
+            end
+
+            def na_cancel
+                @current.na_cancel if @current
+                @current = nil
+                @queue.clear
+            end
+
+            def na_cancel_message
+                @loaded.empty? ? 'Cancelled. No point cloud was loaded.' : "Cancelled. Loaded: #{@loaded.join(', ')}. The others are not loaded."
+            end
+
+            def na_result_summary
+                @summary
+            end
+
+            def na_next_soon
+                return self.na_finish if @queue.empty?
+                { 'done' => false, 'status' => "Next point cloud (#{@index + 1} of #{@total})...", 'percent' => (100.0 * @index / [@total, 1].max).round(1), 'delay' => 0.01 }
+            end
+
+            def na_finish
+                view = Sketchup.active_model.active_view
+                Na__RenderController.Na__Render__ZoomToCloud(@session, view) if !@had_loaded && !@loaded.empty?
+                @summary = { 'kind' => 'lasSeries', 'loaded' => @loaded, 'missed' => @missed }
+                text = @loaded.empty? ? 'No point cloud was loaded.' : "Reloaded #{self.na_list(@loaded)}."
+                text += " Not loaded: #{@missed.join('; ')}. Use Locate LAS on its row." unless @missed.empty?
+                text += " The point budget (#{Na__PerfStats.Na__Perf__Thousands(@session.settings['pointBudget'])}) is shared by the clouds on show." if @loaded.length > 1
+                result = { 'done' => true, 'status' => text, 'percent' => 100.0 }
+                result['outcome'] = 'partial' unless @missed.empty?
+                result
+            end
+
+            def na_list(names)
+                names.length <= 1 ? names.join : "#{names[0..-2].join(', ')} and #{names[-1]}"
             end
 
         end

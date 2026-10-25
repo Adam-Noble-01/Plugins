@@ -133,12 +133,12 @@ module Na__PointCloudViewer
             end
         end
 
-        def self.na_draw_gimbal(view, session, tool)
-            placement = session.placement
-            return unless placement
+        def self.na_draw_gimbal(view, slot, tool)
+            placement = slot.placement
+            return unless placement && slot.cloud
             drag = tool.na_drag
             if drag
-                self.na_draw_axis_guide(view, session, drag['origin'], drag['axis'])
+                self.na_draw_axis_guide(view, slot, drag['origin'], drag['axis'])
             end
             pick = tool.na_pick_marker
             if pick
@@ -149,7 +149,7 @@ module Na__PointCloudViewer
                     self.na_square2d(view, [screen.x, screen.y], 5.0, fill, NA_DARK_COLOUR)
                 end
             end
-            arrows = self.na_gimbal_screen(view, self.Na__Placement__GimbalModel(session))
+            arrows = self.na_gimbal_screen(view, self.Na__Placement__GimbalModel(slot))
             return unless arrows
             hot = tool.na_hot_axis
             arrows.each do |arrow|
@@ -174,8 +174,8 @@ module Na__PointCloudViewer
 
         # Dashed line along the drag axis through where the move started, plus a
         # hollow marker at the start, so the size of the move is easy to read.
-        def self.na_draw_axis_guide(view, session, start, axis)
-            reach = session.cloud && session.cloud.bounds ? [session.cloud.bounds.diagonal.to_f, 100.0].max : 1000.0
+        def self.na_draw_axis_guide(view, slot, start, axis)
+            reach = slot.cloud && slot.cloud.bounds ? [slot.cloud.bounds.diagonal.to_f, 100.0].max : 1000.0
             a = self.na_point((0..2).map { |i| start[i] - axis['vector'][i] * reach })
             b = self.na_point((0..2).map { |i| start[i] + axis['vector'][i] * reach })
             view.line_stipple  = '-'
@@ -202,8 +202,9 @@ module Na__PointCloudViewer
             NA_PICK_PX       = 10.0
             NA_DRAG_START_PX = 4.0
 
-            def initialize(session)
-                @session = session
+            # slot: the cloud this tool moves, fixed for the tool's life.
+            def initialize(slot)
+                @slot = slot
                 @drag    = nil    # { 'axis', 'start' => translation, 'origin' => gimbal, 'start_param', 'down_x', 'down_y', 'moved' }
                 @last    = nil    # { 'axis', 'start', 'origin' } of the last committed move (VCB re-type)
                 @hover   = nil
@@ -236,6 +237,15 @@ module Na__PointCloudViewer
                 'move'
             end
 
+            def na_slot
+                @slot
+            end
+
+            # Where the viewport label naming the cloud sits: by the gimbal.
+            def na_label_anchor
+                @slot.cloud && @slot.placement ? Na__Placement.Na__Placement__GimbalModel(@slot) : nil
+            end
+
             def na_drag
                 @drag
             end
@@ -249,7 +259,7 @@ module Na__PointCloudViewer
             end
 
             def na_draw_overlay(view)
-                Na__Placement.na_draw_gimbal(view, @session, self)
+                Na__Placement.na_draw_gimbal(view, @slot, self)
             end
 
             # -----------------------------------------------------------------
@@ -257,7 +267,7 @@ module Na__PointCloudViewer
             # -----------------------------------------------------------------
 
             def activate
-                @session.transform_tool = self
+                @slot.session.transform_tool = self
                 self.na_status
                 Sketchup.active_model.active_view.invalidate
                 Na__ModelRegistry.na_notify_dialog
@@ -265,7 +275,7 @@ module Na__PointCloudViewer
 
             def deactivate(view)
                 self.na_restore_drag
-                @session.transform_tool = nil if @session.transform_tool.equal?(self)
+                @slot.session.transform_tool = nil if @slot.session.transform_tool.equal?(self)
                 view.invalidate
                 Na__ModelRegistry.na_notify_dialog
             end
@@ -322,8 +332,8 @@ module Na__PointCloudViewer
                 axis_id = self.na_pick_axis(x, y, view)
                 return unless axis_id
                 axis   = Na__Placement.na_axis(axis_id)
-                start  = @session.placement['translation'].dup
-                origin = Na__Placement.Na__Placement__GimbalModel(@session)
+                start  = @slot.placement['translation'].dup
+                origin = Na__Placement.Na__Placement__GimbalModel(@slot)
                 param  = Na__Placement.na_axis_param(origin, axis['vector'], x, y, view)
                 return unless param
                 @drag = { 'axis' => axis, 'start' => start, 'origin' => origin, 'start_param' => param,
@@ -368,7 +378,7 @@ module Na__PointCloudViewer
             # -----------------------------------------------------------------
 
             def na_ready?
-                @session.cloud && @session.placement && !@session.placement['locked']
+                @slot.cloud && @slot.placement && !@slot.placement['locked']
             end
 
             def na_follow_mouse(x, y, view)
@@ -378,14 +388,14 @@ module Na__PointCloudViewer
                 distance = Na__Placement.na_snap_distance(param - @drag['start_param'])
                 self.na_set_offset(distance)
                 Sketchup.vcb_value = distance.to_l.to_s
-                Na__ImageRenderer.Na__Image__NoteInteraction(@session, view)
+                Na__ImageRenderer.Na__Image__NoteInteraction(@slot.session, view)
                 view.invalidate
             end
 
             def na_set_offset(distance)
                 vector = @drag['axis']['vector']
                 translation = (0..2).map { |i| @drag['start'][i] + vector[i] * distance }
-                Na__Placement.Na__Placement__SetLive(@session, @session.placement['rotation'], translation)
+                Na__Placement.Na__Placement__SetLive(@slot, @slot.placement['rotation'], translation)
             end
 
             def na_commit(view)
@@ -393,10 +403,11 @@ module Na__PointCloudViewer
                 start  = @drag['start']
                 origin = @drag['origin']
                 @drag  = nil
-                moved = (0..2).any? { |i| (@session.placement['translation'][i] - start[i]).abs > 1e-9 }
+                moved = (0..2).any? { |i| (@slot.placement['translation'][i] - start[i]).abs > 1e-9 }
                 if moved
                     @last = { 'axis' => axis, 'start' => start, 'origin' => origin }
-                    Na__Placement.Na__Placement__Save(@session, "Point Cloud: Move Along #{axis['label']}")
+                    problem = Na__Placement.Na__Placement__Save(@slot, Na__Placement.na_op(@slot, "Move Along #{axis['label']}"))
+                    Sketchup.status_text = problem if problem
                 end
                 view.invalidate
                 self.na_status
@@ -405,14 +416,14 @@ module Na__PointCloudViewer
 
             def na_restore_drag
                 return unless @drag
-                Na__Placement.Na__Placement__SetLive(@session, @session.placement['rotation'], @drag['start']) if @session.placement
+                Na__Placement.Na__Placement__SetLive(@slot, @slot.placement['rotation'], @drag['start']) if @slot.placement
                 @drag = nil
             end
 
             def na_place_gimbal(x, y, view)
                 @ip.pick(view, x, y)
                 return unless @ip.valid?
-                problem = Na__Placement.Na__Placement__SetGimbalPoint(@session, @ip.position.to_a)
+                problem = Na__Placement.Na__Placement__SetGimbalPoint(@slot, @ip.position.to_a)
                 @picking = false
                 @pick = nil
                 Sketchup.status_text = problem if problem
@@ -436,12 +447,12 @@ module Na__PointCloudViewer
                                 'Snapping is off.'
                             end
                 Sketchup.vcb_label = 'Distance'
-                Sketchup.status_text = "Move: drag a red, green or blue arrow to slide the cloud along that axis, or click an arrow, move and click. #{snap_text} " \
+                Sketchup.status_text = "#{Na__CloudSet.Na__Slots__Prefix(@slot)}Move: drag a red, green or blue arrow to slide the cloud along that axis, or click an arrow, move and click. #{snap_text} " \
                                        'Type a distance for precision. Esc cancels.'
             end
 
             def na_pick_axis(x, y, view)
-                arrows = Na__Placement.na_gimbal_screen(view, Na__Placement.Na__Placement__GimbalModel(@session))
+                arrows = Na__Placement.na_gimbal_screen(view, Na__Placement.Na__Placement__GimbalModel(@slot))
                 return nil unless arrows
                 best = nil
                 best_px = NA_PICK_PX

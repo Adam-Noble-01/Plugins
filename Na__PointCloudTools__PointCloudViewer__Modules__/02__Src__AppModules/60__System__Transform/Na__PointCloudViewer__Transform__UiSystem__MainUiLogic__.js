@@ -8,6 +8,10 @@
 //              gimbal point, typed position and rotation, snapping preferences
 //              and the configuration export.
 //
+// SEVERAL CLOUDS (v0.10.0): every cloud has its own position and lock; this
+//   tab moves the active one (state.transform names it). Choosing another
+//   cloud in the cloud bar ends a Move or Rotate working on the old one.
+//
 // STATE: everything shown comes from state.transform (Ruby). This file only
 //   remembers what the user is typing, so a state push (for example while
 //   the cloud is being dragged in the model) never wipes a half-typed value.
@@ -73,18 +77,26 @@
     // REGION | Render From State
     // -------------------------------------------------------------------------
 
-    function na_render_position_card(xf) {
+    function na_render_position_card(xf, multi) {
         var hasCloud = !!xf.hasCloud;
         var locked   = !hasCloud || !!xf.locked;
+        var name     = multi && xf.cloudName ? xf.cloudName : null;
 
         var badge = na_el('na-xform-badge');
         badge.textContent = !hasCloud ? 'No cloud' : (locked ? 'Locked' : 'Unlocked');
         badge.className = 'na-lock-badge' + (hasCloud && !locked ? ' na-lock-badge--open' : '');
 
-        Shell.na_text('na-xform-status', !hasCloud
-            ? 'Import a point cloud to position it.'
-            : (locked ? 'Position locked. The cloud cannot be moved or rotated until you unlock it.'
-                      : 'Unlocked. Move or rotate the cloud, or type values below, then lock it again.'));
+        var status;
+        if (!hasCloud) {
+            status = xf.cloudName ? xf.cloudName + ' is not loaded. Reload it on the View tab to position it.' : 'Import a point cloud to position it.';
+        } else if (name) {
+            status = locked ? name + ' is locked. It cannot be moved or rotated until you unlock it; every other cloud keeps its own lock.'
+                            : name + ' is unlocked. Move or rotate it, or type values below, then lock it again. Only this cloud moves.';
+        } else {
+            status = locked ? 'Position locked. The cloud cannot be moved or rotated until you unlock it.'
+                            : 'Unlocked. Move or rotate the cloud, or type values below, then lock it again.';
+        }
+        Shell.na_text('na-xform-status', status);
 
         var note = na_el('na-xform-note');
         note.textContent = xf.note || '';
@@ -148,7 +160,7 @@
     TransformTab.na_render = function (state) {
         if (!state || !state.transform || !state.transform.isAvailable) return;
         na_xform = state.transform;
-        na_render_position_card(na_xform);
+        na_render_position_card(na_xform, !!(state.clouds && state.clouds.count > 1));
         na_render_values(na_xform);
         na_render_snap(na_xform);
     };

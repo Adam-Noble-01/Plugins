@@ -9,6 +9,12 @@
 #              any change (settings, overlay panel toggle, undo, model switch)
 #              is a repaint, never a set_html.
 #
+# SEVERAL CLOUDS (v0.10.0): 'clouds' lists every cloud of the model (the cloud
+#   bar and the View tab's list); 'cloud', 'render' (the look), 'units',
+#   'clip', 'transform' and 'clean' describe the ACTIVE cloud, the one the
+#   tabs work on, and each names it (cloudId, cloudName). The point budget in
+#   'render' is the shared one.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
@@ -21,18 +27,20 @@ module Na__PointCloudViewer
         def self.Na__State__Build
             model   = Sketchup.active_model
             session = Na__ModelRegistry.Na__Registry__ActiveSession
-            source_unit = session && session.cloud ? session.cloud.source_unit : nil
+            slot    = session ? Na__CloudSet.Na__Slots__Active(session) : nil
+            source_unit = slot && slot.cloud ? slot.cloud.source_unit : (slot && slot.record ? slot.record.dig('link', 'sourceUnit') : nil)
             {
                 'plugin'       => { 'name' => Na__ConfigLoader.Na__Config__GetOr('Na Point Cloud Viewer', 'plugin', 'name'),
                                     'version' => Na__PointCloudViewer.Na__PublicApi__Version },
                 'units'        => Na__UnitContract.Na__Units__SummaryPayload(model, source_unit),
                 'overlay'      => self.na_overlay_payload(model),
-                'cloud'        => self.na_cloud_payload(session),
-                'render'       => self.na_render_payload(session),
-                'clip'         => Na__ClipBox.Na__Clip__Payload(session, model),
-                'transform'    => Na__Placement.Na__Placement__Payload(session, model),
+                'clouds'       => Na__CloudSet.Na__Slots__Payload(session, model),
+                'cloud'        => self.na_cloud_payload(slot),
+                'render'       => self.na_render_payload(session, slot),
+                'clip'         => Na__ClipBox.Na__Clip__Payload(slot, model),
+                'transform'    => Na__Placement.Na__Placement__Payload(slot, model),
                 'link'         => Na__ModelLink.Na__Link__Payload(session, model),
-                'clean'        => Na__CleanPreview.Na__Clean__Payload(session, model),
+                'clean'        => Na__CleanPreview.Na__Clean__Payload(slot, model),
                 'scenes'       => self.na_scenes_payload(session, model),
                 'job'          => { 'isRunning' => Na__AsyncJobs.Na__Jobs__Busy?, 'title' => Na__AsyncJobs.Na__Jobs__ActiveTitle },
                 'paths'        => {
@@ -61,10 +69,14 @@ module Na__PointCloudViewer
             }
         end
 
-        def self.na_cloud_payload(session)
-            cloud = session ? session.cloud : nil
-            return { 'isLoaded' => false } unless cloud
-            {
+        # The active cloud.
+        def self.na_cloud_payload(slot)
+            return { 'isLoaded' => false, 'inModel' => false } unless slot
+            cloud = slot.cloud
+            base = { 'inModel' => true, 'id' => slot.id, 'name' => slot.name, 'colour' => Na__CloudSet.Na__Slots__HexColour(slot.colour),
+                     'visible' => slot.visible ? true : false }
+            return base.merge('isLoaded' => false) unless cloud
+            base.merge(
                 'isLoaded'    => true,
                 'label'       => cloud.label,
                 'totalPoints' => cloud.total_points,
@@ -73,15 +85,27 @@ module Na__PointCloudViewer
                 'sourceUnit'  => Na__UnitContract.Na__Units__SourceUnitLabel(cloud.source_unit),
                 'colourBits'  => cloud.las_info ? cloud.las_info['colourBits'] : nil,
                 'timings'     => cloud.timings
-            }
+            )
         end
 
-        def self.na_render_payload(session)
+        # The shared budget, the active cloud's look, and how the budget is
+        # spread over the clouds on show in the last frame.
+        def self.na_render_payload(session, slot)
+            settings = session ? session.settings.dup : Na__RenderSettings.Na__Settings__Defaults
+            settings.merge!(slot.display) if slot && slot.display
+            drawn = session ? Na__CloudSet.Na__Slots__Drawn(session) : []
             {
-                'settings'      => session ? session.settings : Na__RenderSettings.Na__Settings__Defaults,
+                'settings'      => settings,
                 'limits'        => Na__RenderSettings.Na__Settings__Limits,
                 'budgetPresets' => Na__ConfigLoader.Na__Config__GetOr([], 'render', 'budgetPresets'),
-                'fault'         => session ? session.fault : nil
+                'fault'         => session ? session.fault : nil,
+                'shownPoints'   => drawn.sum { |each_slot| each_slot.cloud.total_points.to_i },
+                'shownCount'    => drawn.length,
+                'layers'        => drawn.map do |each_slot|
+                    stats = each_slot.layer_stats || {}
+                    { 'id' => each_slot.id, 'name' => each_slot.name, 'colour' => Na__CloudSet.Na__Slots__HexColour(each_slot.colour),
+                      'totalPoints' => each_slot.cloud.total_points, 'share' => stats['share'], 'drawn' => stats['onScreen'] }
+                end
             }
         end
 

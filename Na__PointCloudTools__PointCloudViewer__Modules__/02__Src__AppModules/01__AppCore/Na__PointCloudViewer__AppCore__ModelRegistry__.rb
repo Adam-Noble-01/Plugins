@@ -131,17 +131,20 @@ module Na__PointCloudViewer
             overlay.instance_variable_set(:@na_model_observer, observer)
         end
 
-        # The model's stored clip state and cloud placement, read again.
+        # Every point cloud record of the model read again (Undo / Redo,
+        # Restore, Remove): each cloud's clip box and position, the list of
+        # clouds itself, the point cloud scenes.
         def self.Na__Registry__ReloadModelState(model)
             overlay = self.Na__Registry__FindOverlay(model)
             return unless overlay && overlay.respond_to?(:na_session)
             session = overlay.na_session
-            Na__ClipBox.Na__Clip__Load(session)
+            session.slots ? Na__CloudSet.Na__Slots__Sync(session) : Na__CloudSet.Na__Slots__Ensure(session)
             Na__SceneStore.Na__Scenes__Load(session) if defined?(Na__SceneStore)
-            Na__Placement.Na__Placement__Reload(session)
+            session.slots.each { |slot| Na__Placement.Na__Placement__Reload(slot) if slot.cloud }
             Na__LocalBackup.Na__Backup__AfterReload(model, session)
             Na__RenderController.Na__Render__RefreshExtents(session)
-            Na__CleanPreview.Na__Clean__Changed(session) if defined?(Na__CleanPreview)
+            active = Na__CloudSet.Na__Slots__Active(session)
+            Na__CleanPreview.Na__Clean__Changed(active) if active && defined?(Na__CleanPreview)
             model.active_view.invalidate
             Na__DialogManager.Na__Dialog__PushState if Na__DialogManager.Na__Dialog__Visible?
         end
@@ -153,6 +156,13 @@ module Na__PointCloudViewer
         def self.Na__Registry__ActiveSession
             overlay = self.Na__Registry__ActiveOverlay
             overlay && overlay.respond_to?(:na_session) ? overlay.na_session : nil
+        end
+
+        # The point cloud the Clipping, Transform and Clean tabs work on, or nil
+        # when the model has none.
+        def self.Na__Registry__ActiveSlot
+            session = self.Na__Registry__ActiveSession
+            session ? Na__CloudSet.Na__Slots__Active(session) : nil
         end
 
     # endregion ----------------------------------------------------------------

@@ -27,6 +27,7 @@ module Na__PointCloudViewer
                          'statusMessage' => 'Reload skipped: a task is still running. Cancel it or wait for it to finish.' }
             end
 
+            self.na_end_our_tool
             rb_files = Dir.glob(File.join(Na__PointCloudViewer::NA_SRC_ROOT, '**', '*.rb')).sort
             issues   = []
             loaded   = 0
@@ -61,6 +62,19 @@ module Na__PointCloudViewer
             }
         ensure
             $VERBOSE = previous_verbose if defined?(previous_verbose) && !previous_verbose.nil?
+        end
+
+        # A clip box, Move or Rotate tool made by the code being replaced holds
+        # what that code held (before v0.10.0, the session rather than the
+        # cloud's slot): it is finished before the files load again.
+        def self.na_end_our_tool
+            model = Sketchup.active_model
+            tool = model && model.respond_to?(:tools) ? model.tools.active_tool : nil
+            return unless tool
+            return unless tool.class.name.to_s.start_with?('Na__PointCloudViewer::')
+            model.select_tool(nil)
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Warn("The point cloud tool could not be finished before the reload: #{error.message}")
         end
 
         # The native engine is a Fiddle-loaded DLL copy, so unlike a Ruby C

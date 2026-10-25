@@ -28,6 +28,9 @@
 #   its GPS time, caches are named by the LAS content key, and the cleaning
 #   engine (preview context + export job) is exposed.
 # ABI 6 (v0.9.1): the LAZ to LAS converter job (napc_laz_convert_*).
+# ABI 7 (v0.10.0): several clouds in one frame (napc_render_layers_png): one
+#   depth buffer, one shared point budget, each cloud with its own placement,
+#   clip box, dot size, opacity and colour.
 #
 # =============================================================================
 
@@ -41,10 +44,12 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         NA_DLL_NAME         = 'Na__PointCloudViewer__NativeEngine.dll'.freeze
-        NA_EXPECTED_ABI     = 6
+        NA_EXPECTED_ABI     = 7
         NA_PARAM_COUNT      = 48
         NA_STAT_COUNT       = 10
         NA_STAT_KEYS        = %w[pointsTested pointsOnScreen threads clearMs rasterMs resolveMs encodeMs writeMs nativeTotalMs pngBytes].freeze
+        NA_LAYER_STAT_KEYS  = %w[demand share tested onScreen].freeze
+        NA_MAX_LAYERS       = 16
         NA_LAS_INFO_COUNT   = 22
         NA_JOB_POLL_COUNT   = 27
         NA_CACHE_INFO_COUNT = 18
@@ -167,6 +172,7 @@ module Na__PointCloudViewer
                 destroy:  fn.('napc_cloud_destroy', [voidp], void),
                 info:     fn.('napc_cloud_info', [voidp, voidp, int], int),
                 render:   fn.('napc_render_png', [voidp, voidp, int, voidp, voidp, int], int),
+                render_layers: fn.('napc_render_layers_png', [voidp, int, voidp, int, double, voidp, voidp, int, voidp, int], int),
                 shutdown: fn.('napc_shutdown', [], void),
                 las_header:   fn.('napc_las_read_header', [voidp, voidp, int, voidp, int], int),
                 las_key:      fn.('napc_las_content_key', [voidp, voidp, int], int),
@@ -611,6 +617,35 @@ module Na__PointCloudViewer
             raise "Native render failed: #{self.na_last_error}" if code < 0
             values = @na_stats_buffer.to_s(8 * NA_STAT_COUNT).unpack('d*')
             NA_STAT_KEYS.each_with_index.to_h { |key, index| [key, values[index]] }
+        end
+
+        # Several clouds in ONE image (ABI 7): one depth buffer, so the nearest
+        # point wins whichever cloud it belongs to, and total_budget shared
+        # between them. pointers: live native clouds; params_list: one Array of
+        # NA_PARAM_COUNT numbers per cloud (the first one's camera and image
+        # fields describe the frame). Returns the stats Hash plus 'layers'
+        # ([{ 'demand', 'share', 'tested', 'onScreen' }] in the same order).
+        def self.Na__Native__RenderLayersPng(pointers, params_list, total_budget, png_path)
+            raise self.na_unavailable_error unless @na_functions
+            count = pointers.length
+            raise 'There is no point cloud to draw.' if count.zero?
+            raise "At most #{NA_MAX_LAYERS} point clouds can be drawn at once." if count > NA_MAX_LAYERS
+            raise 'Each point cloud needs its own render parameters.' unless params_list.length == count && params_list.all? { |p| p.length == NA_PARAM_COUNT }
+            handles = pointers.map { |pointer| pointer.to_i }.pack('Q*')
+            packed  = params_list.flatten.map(&:to_f).pack('d*')
+            path_c  = self.na_cstr(png_path)
+            layer_buffer = Fiddle::Pointer.malloc(8 * NA_LAYER_STAT_KEYS.length * count, self.na_ruby_free)
+            code = @na_functions[:render_layers].call(Fiddle::Pointer[handles], count, Fiddle::Pointer[packed], NA_PARAM_COUNT,
+                                                      total_budget.to_f, Fiddle::Pointer[path_c], @na_stats_buffer, NA_STAT_COUNT,
+                                                      layer_buffer, NA_LAYER_STAT_KEYS.length * count)
+            raise "Native render failed: #{self.na_last_error}" if code < 0
+            values = @na_stats_buffer.to_s(8 * NA_STAT_COUNT).unpack('d*')
+            stats = NA_STAT_KEYS.each_with_index.to_h { |key, index| [key, values[index]] }
+            per = layer_buffer.to_s(8 * NA_LAYER_STAT_KEYS.length * count).unpack('d*')
+            stats['layers'] = (0...count).map do |layer|
+                NA_LAYER_STAT_KEYS.each_with_index.to_h { |key, index| [key, per[layer * NA_LAYER_STAT_KEYS.length + index].to_i] }
+            end
+            stats
         end
 
     # endregion ----------------------------------------------------------------

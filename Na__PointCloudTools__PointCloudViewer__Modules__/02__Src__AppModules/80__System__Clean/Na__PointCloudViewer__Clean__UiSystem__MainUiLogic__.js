@@ -226,7 +226,7 @@
         Shell.na_text('na-clean-region-size', region.clipOn ? region.sizeText : '');
         var status;
         var measured = preview.stats && preview.isCurrent ? preview.stats.corePoints : null;
-        if (!clean.hasCloud) status = 'Load a point cloud to clean it.';
+        if (!clean.hasCloud) status = clean.cloudName ? clean.cloudName + ' is not loaded. Reload it on the View tab to clean it.' : 'Load a point cloud to clean it.';
         else if (!region.clipOn) status = 'Clipping is off, so there is no region to preview.';
         else if (measured !== null) status = 'The clip box holds ' + Shell.na_format_int(measured) + ' points.';
         else status = 'The clip box holds roughly ' + Shell.na_format_int(region.estimatePoints) + ' points (an estimate until the preview has run)' +

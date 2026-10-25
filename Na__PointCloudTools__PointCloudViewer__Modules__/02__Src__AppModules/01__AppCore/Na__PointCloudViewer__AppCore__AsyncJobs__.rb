@@ -112,7 +112,8 @@ module Na__PointCloudViewer
             Na__DialogManager.Na__Dialog__SendJobFinished(outcome, message.to_s, summary)
             Na__DialogManager.Na__Dialog__PushState
             # the Clean tab's preview waits while a job runs
-            Na__CleanPreview.Na__Clean__Changed(Na__ModelRegistry.Na__Registry__ActiveSession) if defined?(Na__CleanPreview)
+            slot = Na__ModelRegistry.Na__Registry__ActiveSlot
+            Na__CleanPreview.Na__Clean__Changed(slot) if slot && defined?(Na__CleanPreview)
             nil
         end
 

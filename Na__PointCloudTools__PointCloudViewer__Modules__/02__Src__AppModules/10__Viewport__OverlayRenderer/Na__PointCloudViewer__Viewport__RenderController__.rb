@@ -8,10 +8,11 @@
 #              it draws (install/clear a cloud, apply settings, zoom, extents).
 #
 # DRAW CONTRACT (performance-critical):
-#   Overlay#draw -> Na__Render__Draw: the cloud as one textured quad (see
-#   ImageRenderer), then the clip box cage while it is being edited, then the
-#   Move gimbal or Rotate protractor while one of them is active. Nothing here
-#   parses, sorts or allocates points.
+#   Overlay#draw -> Na__Render__Draw: every cloud on show as one textured quad
+#   (see ImageRenderer), then the clip box cage of the cloud being edited,
+#   then the Move gimbal or Rotate protractor while one of them is active, then
+#   (with several clouds) the label naming the cloud the tool works on.
+#   Nothing here parses, sorts or allocates points.
 #
 # NO SNAPPING:
 #   Overlays are not pickable and do not feed the inference engine. Nothing
@@ -28,9 +29,11 @@ module Na__PointCloudViewer
 
         def self.Na__Render__Draw(session, view)
             return if session.fault
-            Na__ImageRenderer.Na__Image__Draw(session, view) if session.cloud
-            Na__ClipBox.Na__Clip__DrawCage(session, view) if session.clip_editing
+            slots = Na__CloudSet.Na__Slots__All(session)
+            Na__ImageRenderer.Na__Image__Draw(session, view) if slots.any? { |slot| slot.visible && slot.cloud }
+            slots.each { |slot| Na__ClipBox.Na__Clip__DrawCage(slot, view) if slot.clip_editing }
             session.transform_tool.na_draw_overlay(view) if session.transform_tool
+            Na__CloudSet.Na__Slots__DrawToolLabel(session, view) if slots.length > 1
         rescue StandardError => error
             session.fault = "#{error.class}: #{error.message}"
             Na__DebugTools.Na__Debug__Error('Point cloud drawing failed and has been paused. Change a setting or reload the plugin to retry.', error)
@@ -40,14 +43,17 @@ module Na__PointCloudViewer
             session.extents || session.empty_bounds
         end
 
-        # Cloud bounds, plus the clip box while its cage is drawn and the
-        # points a transform tool draws at, so the camera's near and far
-        # planes never cut any of them off.
+        # Every cloud on show, plus the clip box while its cage is drawn and the
+        # points a transform tool draws at, so the camera's near and far planes
+        # never cut any of them off.
         def self.Na__Render__RefreshExtents(session)
+            return unless session
             box = Geom::BoundingBox.new
-            box.add(session.cloud.bounds.min, session.cloud.bounds.max) if session.cloud && session.cloud.bounds
-            if session.clip_editing && session.clip
-                box.add(Geom::Point3d.new(*session.clip['min']), Geom::Point3d.new(*session.clip['max']))
+            Na__CloudSet.Na__Slots__All(session).each do |slot|
+                box.add(slot.cloud.bounds.min, slot.cloud.bounds.max) if slot.visible && slot.cloud && slot.cloud.bounds
+                if slot.clip_editing && slot.clip
+                    box.add(Geom::Point3d.new(*slot.clip['min']), Geom::Point3d.new(*slot.clip['max']))
+                end
             end
             extra = session.transform_tool ? session.transform_tool.na_extent_points : []
             box.add(*extra) unless extra.empty?
@@ -60,43 +66,58 @@ module Na__PointCloudViewer
     # REGION | State Changes (outside draw)
     # -------------------------------------------------------------------------
 
-        def self.Na__Render__InstallCloud(session, cloud, view)
-            Na__CleanPreview.Na__Clean__Reset(session) if defined?(Na__CleanPreview)
-            self.na_release_native(session, view)
-            session.cloud = cloud
+        def self.Na__Render__InstallCloud(slot, cloud, view)
+            Na__CleanPreview.Na__Clean__Reset(slot) if defined?(Na__CleanPreview)
+            self.na_release_native(slot)
+            slot.cloud = cloud
+            slot.session.fault = nil
+            self.Na__Render__RefreshExtents(slot.session)
+            view.invalidate if view
+        end
+
+        def self.Na__Render__ClearCloud(slot, view)
+            Na__CleanPreview.Na__Clean__Reset(slot) if defined?(Na__CleanPreview)
+            Na__Placement.Na__Placement__Detach(slot)
+            self.na_release_native(slot)
+            slot.cloud = nil
+            slot.layer_stats = nil
+            session = slot.session
             session.fault = nil
+            Na__ImageRenderer.Na__Image__Release(session, view) if Na__CloudSet.Na__Slots__Loaded(session).empty?
             self.Na__Render__RefreshExtents(session)
             view.invalidate if view
         end
 
-        def self.Na__Render__ClearCloud(session, view)
-            Na__CleanPreview.Na__Clean__Reset(session) if defined?(Na__CleanPreview)
-            Na__Placement.Na__Placement__Detach(session)
-            self.na_release_native(session, view)
-            session.cloud = nil
-            session.fault = nil
-            self.Na__Render__RefreshExtents(session)
-            view.invalidate if view
-        end
-
-        # Returns the list of keys that actually changed.
-        def self.Na__Render__ApplySettings(session, partial, view)
+        # The shared point budget goes to the session; the look (size, opacity,
+        # colour) to `slot`, the cloud being set up (the active one). Both are
+        # remembered for this user. Returns the list of keys that changed.
+        def self.Na__Render__ApplySettings(session, partial, view, slot = nil)
+            partial = {} unless partial.is_a?(Hash)
             before = session.settings
             after  = Na__RenderSettings.Na__Settings__Merge(before, partial)
             session.settings = after
             session.fault    = nil
-            view.invalidate if view
             changed = Na__RenderSettings.Na__Settings__ChangedKeys(before, after)
+            changed &= Na__RenderSettings::NA_SHARED_KEYS if slot
+            if slot
+                display_part = partial.select { |key, _| Na__RenderSettings::NA_DISPLAY_KEYS.include?(key) }
+                changed |= Na__CloudSet.Na__Slots__ApplyDisplay(slot, display_part) unless display_part.empty?
+            end
             Na__UserConfigStore.Na__UserConfig__Set('render', 'lastSettings', after) unless changed.empty?
+            view.invalidate if view
             changed
         end
 
         # Keeps the current view direction and frames what is visible: the
-        # cloud, or only the part inside the clip box while clipping is on.
-        def self.Na__Render__ZoomToCloud(session, view)
-            return false unless session && session.cloud && session.cloud.bounds
+        # cloud, or only the part inside its clip box while clipping is on.
+        # slots: the clouds to frame (one, or every cloud on show).
+        def self.Na__Render__ZoomToCloud(session_or_slot, view, slots = nil)
+            slots ||= session_or_slot.is_a?(Na__CloudSlot) ? [session_or_slot] : Na__CloudSet.Na__Slots__Drawn(session_or_slot)
+            boxes = Array(slots).select { |slot| slot && slot.cloud && slot.cloud.bounds }.map { |slot| self.na_visible_bounds(slot) }.compact
+            return false if boxes.empty?
+            bounds = Geom::BoundingBox.new
+            boxes.each { |box| bounds.add(box.min, box.max) }
             camera = view.camera
-            bounds = self.na_visible_bounds(session)
             centre = bounds.center
             radius = bounds.diagonal.to_f / 2.0
             back   = camera.direction.reverse
@@ -113,22 +134,22 @@ module Na__PointCloudViewer
             true
         end
 
-        def self.na_visible_bounds(session)
-            bounds = session.cloud.bounds
-            return bounds unless Na__ClipBox.Na__Clip__IsActive?(session)
+        # The cloud's model box, cut by its clip box while clipping is on.
+        def self.na_visible_bounds(slot)
+            bounds = slot.cloud.bounds
+            return bounds unless Na__ClipBox.Na__Clip__IsActive?(slot)
             cloud_min = bounds.min.to_a
             cloud_max = bounds.max.to_a
-            lo = (0..2).map { |i| [cloud_min[i], session.clip['min'][i]].max }
-            hi = (0..2).map { |i| [cloud_max[i], session.clip['max'][i]].min }
+            lo = (0..2).map { |i| [cloud_min[i], slot.clip['min'][i]].max }
+            hi = (0..2).map { |i| [cloud_max[i], slot.clip['max'][i]].min }
             return bounds unless (0..2).all? { |i| hi[i] > lo[i] }
             Geom::BoundingBox.new.add(Geom::Point3d.new(*lo), Geom::Point3d.new(*hi))
         end
 
-        # Texture + engine memory of the outgoing cloud, freed now rather than
-        # whenever Ruby's GC gets round to it (a LAS cloud is hundreds of MB).
-        def self.na_release_native(session, view)
-            Na__ImageRenderer.Na__Image__Release(session, view)
-            old = session.cloud
+        # Engine memory of the outgoing cloud, freed now rather than whenever
+        # Ruby's GC gets round to it (a LAS cloud is hundreds of MB).
+        def self.na_release_native(slot)
+            old = slot.cloud
             Na__NativeEngine.Na__Native__CloudRelease(old.native_cloud) if old && old.native_cloud
         end
 

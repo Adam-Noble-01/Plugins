@@ -4,11 +4,16 @@
 #
 # FILE       : Na__PointCloudViewer__Transform__ConfigExport__.rb
 # NAMESPACE  : Na__PointCloudViewer::Na__ConfigExport
-# PURPOSE    : Writes everything that defines how the cloud appears in this
-#              model to one readable JSON file: the source LAS, its unit
-#              choice and local origin, the placement (position, rotation,
-#              lock, full matrix), the clip box, the clip scenes, the display
-#              settings and the snap preferences. No point data.
+# PURPOSE    : Writes everything that defines how the model's point clouds
+#              appear to one readable JSON file, one section per cloud: the
+#              source LAS, its unit choice and local origin, the placement
+#              (position, rotation, lock, full matrix), its clip box and clip
+#              scenes, how it is shown now, and the point cloud scenes with
+#              what each one holds for every cloud. No point data.
+#
+# SCHEMA 2 (v0.10.0): 'clouds' is a list, one entry per cloud, each keyed by
+#   its permanent cloudId (the id the scenes and TrueVision use). Schema 1 had
+#   one cloud at the top level.
 #
 # The survey relationship is spelled out in the file, so a placement can be
 # checked or rebuilt by hand:  model = R * (k * (source - localOrigin)) + t
@@ -19,7 +24,7 @@ module Na__PointCloudViewer
     module Na__ConfigExport
 
         NA_SCHEMA         = 'Na__PointCloudViewer__ConfigExport'.freeze
-        NA_SCHEMA_VERSION = 1
+        NA_SCHEMA_VERSION = 2
 
     # -------------------------------------------------------------------------
     # REGION | Public Surface
@@ -39,17 +44,20 @@ module Na__PointCloudViewer
 
         def self.Na__Export__Build(session, model)
             display = Na__UnitContract.Na__Units__ModelDisplay(model)
+            slots   = Na__CloudSet.Na__Slots__All(session)
+            active  = Na__CloudSet.Na__Slots__Active(session)
             {
                 'schema'        => NA_SCHEMA,
                 'schemaVersion' => NA_SCHEMA_VERSION,
                 'exportedAt'    => Time.now.strftime('%Y-%m-%dT%H:%M:%S%z'),
                 'plugin'        => { 'name' => 'Na Point Cloud Viewer', 'version' => Na__PointCloudViewer.Na__PublicApi__Version },
                 'model'         => { 'title' => model.title.to_s, 'path' => model.path.to_s, 'displayUnit' => display['suffix'],
-                                     'internalUnit' => 'inches' },
-                'cloud'         => self.na_cloud(session),
-                'placement'     => self.na_placement(session, display),
-                'clip'          => self.na_clip(session, display),
-                'display'       => session.settings,
+                                     'internalUnit' => 'inches', 'modelId' => Na__CloudStore.Na__Store__ModelId(session) },
+                'activeCloudId' => active ? active.id : nil,
+                'pointBudget'   => { 'points' => session.settings['pointBudget'].to_i,
+                                     'sharing' => 'Shared by every cloud on show: equal shares, a cloud that holds fewer points (all of them, or all inside its clip box) passes the rest to the others.' },
+                'clouds'        => slots.map { |slot| self.na_cloud_section(slot, active, display) },
+                'scenes'        => self.na_scenes(session),
                 'snap'          => self.na_snap(display)
             }
         end
@@ -60,8 +68,24 @@ module Na__PointCloudViewer
     # REGION | Sections
     # -------------------------------------------------------------------------
 
-        def self.na_cloud(session)
-            cloud = session.cloud
+        def self.na_cloud_section(slot, active, display)
+            {
+                'cloudId'     => slot.id,
+                'name'        => slot.name,
+                'colour'      => Na__CloudSet.Na__Slots__HexColour(slot.colour),
+                'isActive'    => slot.equal?(active),
+                'recordState' => slot.record_state,
+                'visible'     => slot.visible ? true : false,
+                'display'     => slot.display,
+                'link'        => slot.record ? slot.record['link'] : nil,
+                'cloud'       => self.na_cloud(slot),
+                'placement'   => self.na_placement(slot, display),
+                'clip'        => self.na_clip(slot, display)
+            }
+        end
+
+        def self.na_cloud(slot)
+            cloud = slot.cloud
             return { 'isLoaded' => false } unless cloud
             info = cloud.las_info || {}
             {
@@ -75,17 +99,20 @@ module Na__PointCloudViewer
                 'localOriginSource'   => info['localOriginSource'],
                 'localBoxSource'      => { 'min' => cloud.local_min, 'max' => cloud.local_max },
                 'colourBits'          => info['colourBits'],
-                'fingerprint'         => session.placement ? session.placement['key'] : nil
+                'contentKey'          => info['contentKey'],
+                'fingerprint'         => slot.placement ? slot.placement['key'] : nil
             }
         end
 
-        def self.na_placement(session, display)
-            placement = session.placement
+        # The loaded cloud's placement, else the one saved in its record.
+        def self.na_placement(slot, display)
+            placement = slot.placement || (slot.record ? Na__Placement.na_valid_part(slot.record['placement']) : nil)
             return nil unless placement
             r = placement['rotation']
             t = placement['translation']
             angles = Na__Placement.Na__Placement__EulerDegrees(r)
             {
+                'source'                 => slot.placement ? 'loaded cloud' : 'saved record (the cloud is not loaded)',
                 'locked'                 => placement['locked'] ? true : false,
                 'isImportPosition'       => Na__Placement.na_identity?(placement),
                 'positionInches'         => t,
@@ -94,40 +121,58 @@ module Na__PointCloudViewer
                 'rotationDegrees'        => { 'aboutZ' => angles['z'], 'aboutY' => angles['y'], 'aboutX' => angles['x'],
                                               'order' => 'R = Rz * Ry * Rx' },
                 'rotationMatrix'         => [r[0, 3], r[3, 3], r[6, 3]],
-                'gimbal'                 => self.na_gimbal(session, display),
-                'localToModelInches'     => session.cloud ? { 'matrix' => session.cloud.local_to_model[0, 9].each_slice(3).to_a,
-                                                              'translation' => session.cloud.local_to_model[9, 3] } : nil,
+                'gimbal'                 => slot.cloud && slot.placement ? self.na_gimbal(slot, display) : { 'localSource' => placement['gimbal'] },
+                'localToModelInches'     => slot.cloud ? { 'matrix' => slot.cloud.local_to_model[0, 9].each_slice(3).to_a,
+                                                           'translation' => slot.cloud.local_to_model[9, 3] } : nil,
                 'surveyRelationship'     => 'model_inches = R * (inchesPerSourceUnit * (source - localOriginSource)) + positionInches; ' \
                                             'no scale is ever applied beyond the unit factor'
             }
         end
 
-        def self.na_gimbal(session, display)
-            model_point = Na__Placement.Na__Placement__GimbalModel(session)
+        def self.na_gimbal(slot, display)
+            model_point = Na__Placement.Na__Placement__GimbalModel(slot)
             {
-                'isCustom'      => Na__Placement.Na__Placement__GimbalIsCustom?(session),
-                'localSource'   => Na__Placement.Na__Placement__GimbalLocal(session),
+                'isCustom'      => Na__Placement.Na__Placement__GimbalIsCustom?(slot),
+                'localSource'   => Na__Placement.Na__Placement__GimbalLocal(slot),
                 'modelInches'   => model_point,
                 'model'         => { 'x' => model_point[0] / display['inchesPerUnit'], 'y' => model_point[1] / display['inchesPerUnit'],
                                      'z' => model_point[2] / display['inchesPerUnit'], 'unit' => display['suffix'] }
             }
         end
 
-        def self.na_clip(session, display)
-            Na__ClipBox.Na__Clip__Ensure(session)
-            box = session.clip
+        def self.na_clip(slot, display)
+            Na__ClipBox.Na__Clip__Ensure(slot)
+            box = slot.clip
             to_display = ->(values) { values.map { |v| v / display['inchesPerUnit'] } }
             {
                 'enabled'     => box ? box['enabled'] : false,
                 'box'         => box ? { 'minInches' => box['min'], 'maxInches' => box['max'],
                                          'min' => to_display.call(box['min']), 'max' => to_display.call(box['max']),
                                          'unit' => display['suffix'] } : nil,
-                'activeScene' => session.clip_active_scene,
-                'scenes'      => session.clip_scenes.map do |scene|
+                'activeScene' => slot.clip_active_scene,
+                'scenes'      => slot.clip_scenes.map do |scene|
                     { 'id' => scene['id'], 'name' => scene['name'], 'minInches' => scene['min'], 'maxInches' => scene['max'],
                       'min' => to_display.call(scene['min']), 'max' => to_display.call(scene['max']) }
                 end
             }
+        end
+
+        # Each point cloud scene with what it holds for every cloud, by id.
+        def self.na_scenes(session)
+            Na__SceneStore.Na__Scenes__Ensure(session)
+            session.scenes.map do |scene|
+                {
+                    'id'          => scene['id'],
+                    'sketchUpScene' => scene['page'],
+                    'viewType'    => scene['viewType'],
+                    'export'      => scene['export'],
+                    'pointBudget' => scene.dig('settings', 'pointBudget'),
+                    'clouds'      => scene['clouds']
+                }
+            end
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Warn("The point cloud scenes were left out of the configuration: #{error.message}")
+            []
         end
 
         def self.na_snap(display)

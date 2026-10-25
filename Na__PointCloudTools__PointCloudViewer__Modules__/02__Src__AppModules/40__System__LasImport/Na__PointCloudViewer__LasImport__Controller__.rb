@@ -10,6 +10,10 @@
 #              NEW LAS (LazConvert.rb), whose report is then shown.
 #              Step 2 - start the threaded import with the unit they chose.
 #
+# WHICH CLOUD (v0.10.0): a LAS the model already holds (the same content)
+#   loads into that cloud; any other LAS becomes a NEW cloud of the model, up
+#   to clouds.maxClouds. Reload and Locate load into the cloud they belong to.
+#
 # UNITS (the rule): LAS files do not reliably state their units, so the user
 #   must choose. A unit is only pre-selected when the file's own coordinate
 #   system (WKT) names it - and even then it is shown as "from the file".
@@ -67,6 +71,8 @@ module Na__PointCloudViewer
     # REGION | Step 2 - Start
     # -------------------------------------------------------------------------
 
+        # payload: 'path', 'sourceUnit', 'headerMs', optional 'slotId' (load into
+        # that cloud) and 'extraOptions'.
         def self.Na__LasImport__Start(payload)
             path = payload['path'].to_s
             unit = payload['sourceUnit'].to_s
@@ -78,8 +84,43 @@ module Na__PointCloudViewer
             return refuse.('Another task is still running.') if Na__AsyncJobs.Na__Jobs__Busy?
 
             options = self.Na__LasImport__CacheOptions(path).merge(payload['extraOptions'].is_a?(Hash) ? payload['extraOptions'] : {})
+            options['slotId'] = payload['slotId'].to_s if payload['slotId']
+            problem = self.na_room_for(session, path, options)
+            return refuse.(problem) if problem
             job = Na__LasImportJob.new(session, Sketchup.active_model.active_view, path, unit, payload['headerMs'], options)
             refuse.('Another task is still running.') unless Na__AsyncJobs.Na__Jobs__Start(job)
+        end
+
+        # The job that loads one cloud from a reload plan (Na__ModelLink):
+        # its LAS (or this computer's cache of it), into that cloud's slot.
+        # extra: more job options (for example 'noZoom').
+        def self.Na__LasImport__JobForPlan(slot, plan, extra = {})
+            view = Sketchup.active_model.active_view
+            if plan['kind'] == 'cache'
+                cached = plan['cached']
+                options = { 'fromCache' => cached['path'], 'expectCount' => cached['pointCount'].to_i, 'lasMissing' => true,
+                            'contentKey' => cached['contentKey'], 'slotId' => slot.id }.merge(extra)
+                return Na__LasImportJob.new(slot.session, view, plan['lasPath'], plan['unit'], 0, options)
+            end
+            options = self.Na__LasImport__CacheOptions(plan['path']).merge('slotId' => slot.id).merge(extra)
+            Na__LasImportJob.new(slot.session, view, plan['path'], plan['unit'], plan['headerMs'], options)
+        end
+
+        # nil, or why a NEW cloud cannot be added: the model already holds
+        # clouds.maxClouds. A file the model already holds always loads.
+        def self.na_room_for(session, path, options)
+            return nil if options['slotId'] || options['onCloud']
+            slots = Na__CloudSet.Na__Slots__All(session)
+            max = Na__CloudStore.Na__Store__MaxClouds
+            return nil if slots.length < max
+            key = options['contentKey']
+            header = Na__NativeEngine.Na__Native__LasReadHeader(path)
+            fingerprint = Na__ModelLink.Na__Link__FingerprintFromHeader(header)
+            return nil if Na__CloudSet.Na__Slots__ForFile(session, key, fingerprint)
+            "This model holds #{max} point clouds, the most it can hold. Remove one (View tab) before importing another."
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Warn("The point cloud count could not be checked: #{error.message}")
+            nil
         end
 
         # The cache of this exact LAS when there is one (same content key, and
@@ -96,15 +137,6 @@ module Na__PointCloudViewer
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Warn("Point cache skipped for this import: #{error.message}")
             {}
-        end
-
-        # A cache load with no LAS on disk (the model link found only the cache).
-        def self.Na__LasImport__StartFromCache(session, las_path, unit, cached)
-            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
-            options = { 'fromCache' => cached['path'], 'expectCount' => cached['pointCount'].to_i, 'lasMissing' => true,
-                        'contentKey' => cached['contentKey'] }
-            job = Na__LasImportJob.new(session, Sketchup.active_model.active_view, las_path, unit, 0, options)
-            Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
         end
 
     # endregion ----------------------------------------------------------------
@@ -129,8 +161,35 @@ module Na__PointCloudViewer
                 'suggestedUnit' => suggested,
                 'unitNote'      => suggested ?
                     "The file's coordinate system names its unit as #{Na__UnitContract.Na__Units__SourceUnitLabel(suggested)}. Check it below." :
-                    'This file does not state its units. Choose the unit its coordinates are in. Each option shows the size it would give.'
+                    'This file does not state its units. Choose the unit its coordinates are in. Each option shows the size it would give.',
+                'target'        => self.na_target_payload(path, info)
             }
+        end
+
+        # What importing this LAS does to the model, said before Import is
+        # pressed: 'first' (the model's first cloud), 'new' (one more cloud),
+        # 'existing' (a cloud the model already holds: it loads into that
+        # cloud) or 'full' (refused: the model holds clouds.maxClouds).
+        def self.na_target_payload(path, info)
+            session = Na__ModelRegistry.Na__Registry__ActiveSession
+            return nil unless session
+            slots = Na__CloudSet.Na__Slots__All(session)
+            key = Na__NativeEngine.Na__Native__LasContentKey(path)
+            slot = Na__CloudSet.Na__Slots__ForFile(session, key, Na__ModelLink.Na__Link__FingerprintFromHeader(info))
+            max = Na__CloudStore.Na__Store__MaxClouds
+            if slot
+                { 'kind' => 'existing', 'cloudId' => slot.id, 'cloudName' => slot.name,
+                  'text' => "This LAS is already a cloud of this model (#{slot.name}). Importing loads it into that cloud, with its saved position and clip box." }
+            elsif slots.empty?
+                { 'kind' => 'first', 'text' => nil }
+            elsif slots.length >= max
+                { 'kind' => 'full', 'text' => "This model holds #{max} point clouds, the most it can hold. Remove one (View tab) before importing another." }
+            else
+                { 'kind' => 'new', 'text' => "Importing adds it to this model as cloud #{slots.length + 1} of #{max}, with its own colour, position and clip box. The clouds already here are not changed." }
+            end
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Warn("Which cloud this LAS becomes could not be worked out: #{error.message}")
+            nil
         end
 
         def self.na_report_rows(path, info, extent)

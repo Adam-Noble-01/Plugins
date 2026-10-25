@@ -28,7 +28,17 @@
 #   scene's image width and saved aspect ratio. It lines up only with the same
 #   camera, which the record carries (SketchUp and three.js forms).
 #
-# BAKED AT 100 % OPACITY. The scene's opacity travels as TrueVision's default.
+# SEVERAL CLOUDS (v0.10.0): every cloud the scene shows is one layer of the
+#   same picture (one depth buffer: the nearest point wins whichever cloud it
+#   comes from; one shared budget), each with its own placement, clip box and
+#   colour, all at the scene's one dot size. The plan lists the layers
+#   ('layers', 'cloudIds'); its top-level 'cloud', 'clip', 'colourMode' and
+#   'localToModel' describe the first layer, as they described the one cloud
+#   before. A scene of ONE cloud plans, keys and renders exactly as in v0.9, so
+#   an unchanged scene is never exported again just because of the update.
+#
+# BAKED AT 100 % OPACITY. The scene's opacity (the highest of its clouds')
+#   travels as TrueVision's default.
 # DOT CENTRING: the engine puts an even-sized dot half a pixel right and down
 #   of its point; the render shifts the projection half a pixel the other way
 #   for even sizes, so every dot is centred on its point to within half a pixel.
@@ -69,8 +79,9 @@ module Na__PointCloudViewer
             name = page ? page.name.to_s : scene.dig('page', 'name').to_s
             return self.na_refuse("The SketchUp scene \"#{name}\" no longer exists. Relink or remove this point cloud scene.") unless page
             return self.na_refuse("\"#{name}\" does not save a camera position, so it cannot be exported.") unless page.use_camera?
-            cloud = session.cloud
-            return self.na_refuse('No point cloud is loaded. Reload Point Cloud in the viewer, then export again.') unless cloud && cloud.native_cloud && cloud.bounds
+            layers, problem = self.na_layers(session, scene, name)
+            return self.na_refuse(problem) if problem
+            cloud = layers.first['slot'].cloud
 
             camera = page.camera
             perspective = camera.perspective? ? true : false
@@ -81,15 +92,18 @@ module Na__PointCloudViewer
             frame = if perspective
                         self.na_perspective_frame(scene, camera, config)
                     else
-                        bounds = self.na_visible_bounds(session, scene)
-                        return self.na_refuse("The clip box saved with \"#{name}\" does not overlap the point cloud.") unless bounds
+                        bounds = self.na_visible_bounds(layers)
+                        return self.na_refuse(layers.length == 1 ? "The clip box saved with \"#{name}\" does not overlap the point cloud." :
+                                                                   "The clip boxes saved with \"#{name}\" do not overlap their point clouds.") unless bounds
                         self.Na__Export__OrthoFrame(basis, bounds, (scene.dig('export', 'scale') || 50).to_f, config, point_size)
                     end
             return self.na_refuse(frame['problem']) if frame['problem']
             point_size = [(point_size * frame['pointSizeFactor'].to_f).round, 1].max if frame['pointSizeFactor']
 
-            settings = scene['settings']
-            clip = scene['clip'] && scene['clip']['enabled'] ? scene['clip'] : nil
+            settings = scene['settings'] || {}
+            budget = settings['pointBudget'].to_i
+            layer_records = layers.map { |layer| self.na_layer_record(layer) }
+            first = layer_records.first
             plan = {
                 'sceneId'      => scene['id'],
                 'sceneName'    => name,
@@ -100,15 +114,17 @@ module Na__PointCloudViewer
                 'frame'        => frame,
                 'tileSizePx'   => config['tileSizePx'],
                 'pointSizePx'  => point_size,
-                'colourMode'   => settings['colourMode'] == 'black' ? 'black' : 'rgb',
-                'monoRgb'      => Na__ConfigLoader.Na__Config__GetOr([0, 0, 0], 'render', 'monochromeRgb'),
-                'pointBudget'  => [settings['pointBudget'].to_i, cloud.total_points.to_i].min,
-                'opacityPercent' => settings['opacityPercent'].to_i,
-                'clip'         => clip ? { 'min' => clip['min'], 'max' => clip['max'] } : nil,
-                'localToModel' => cloud.local_to_model,
+                'colourMode'   => first['colourMode'],
+                'monoRgb'      => first['monoRgb'],
+                'pointBudget'  => layers.length == 1 ? [budget, cloud.total_points.to_i].min : budget,
+                'opacityPercent' => layer_records.map { |record| record['opacityPercent'] }.max,
+                'clip'         => first['clip'],
+                'localToModel' => first['localToModel'],
                 'nativeGeneration' => cloud.native_generation,
                 'camera'       => self.Na__Export__CameraRecord(camera, frame, scene),
-                'cloud'        => self.na_cloud_record(session, cloud),
+                'cloud'        => first['cloud'],
+                'cloudIds'     => layer_records.map { |record| record['cloudId'] },
+                'layers'       => layer_records,
                 'tiles'        => self.Na__Export__Tiles(frame['widthPx'], frame['heightPx'], config['tileSizePx'])
             }
             plan['revisionKey'] = self.Na__Export__RevisionKey(plan)
@@ -138,10 +154,10 @@ module Na__PointCloudViewer
             started = Na__PerfStats.Na__Perf__NowMs
             results = []
             plan['tiles'].each_with_index do |tile, index|
-                return self.na_refuse('The point cloud was unloaded, reloaded or moved during the export. Nothing from this scene was kept. Export again.') unless self.na_plan_current?(session, plan)
-                cloud = session.cloud
+                return self.na_refuse('A point cloud was unloaded, reloaded or moved during the export. Nothing from this scene was kept. Export again.') unless self.na_plan_current?(session, plan)
+                pointers = self.na_plan_slots(session, plan).map { |slot| slot.cloud.native_cloud }
                 path = File.join(out_dir, self.Na__Export__TileStem(tile) + '.png')
-                stats = Na__NativeEngine.Na__Native__RenderPng(cloud.native_cloud, self.Na__Export__TileParams(plan, tile), path)
+                stats = Na__NativeEngine.Na__Native__RenderLayersPng(pointers, self.Na__Export__TileLayerParams(plan, tile), plan['pointBudget'], path)
                 on_tile = stats['pointsOnScreen'].to_i
                 results << tile.merge('file' => File.basename(path), 'pointsOnTile' => on_tile, 'empty' => on_tile.zero?)
                 yield(index + 1, plan['tiles'].length) if block_given?
@@ -156,9 +172,21 @@ module Na__PointCloudViewer
             format('PointCloud__Tile__R%02d__C%02d__', tile['row'], tile['col'])
         end
 
-        # The 48 native render parameters for one tile (see the engine's
-        # Na__RenderParamIndex). Pure: the same plan and tile give the same list.
+        # The 48 native render parameters of every layer for one tile (see the
+        # engine's Na__RenderParamIndex), first layer first. Pure: the same plan
+        # and tile give the same lists.
+        def self.Na__Export__TileLayerParams(plan, tile)
+            layers = plan['layers'] || [{ 'clip' => plan['clip'], 'colourMode' => plan['colourMode'], 'monoRgb' => plan['monoRgb'],
+                                          'localToModel' => plan['localToModel'] }]
+            layers.map { |layer| self.na_tile_params(plan, tile, layer) }
+        end
+
+        # The first layer's parameters (a one-cloud scene's whole render).
         def self.Na__Export__TileParams(plan, tile)
+            self.Na__Export__TileLayerParams(plan, tile).first
+        end
+
+        def self.na_tile_params(plan, tile, layer)
             basis = plan['basis']
             frame = plan['frame']
             size  = plan['pointSizePx'].to_i
@@ -177,13 +205,13 @@ module Na__PointCloudViewer
                 crop_x = 0.5 * full_w + frame['cx0'].to_f / pixel + tile['x'] + even
                 crop_y = 0.5 * full_h - frame['cy1'].to_f / pixel + tile['y'] + even
             end
-            clip = plan['clip'] ? [1] + plan['clip']['min'] + plan['clip']['max'] : [0, 0, 0, 0, 0, 0, 0]
+            clip = layer['clip'] ? [1] + layer['clip']['min'] + layer['clip']['max'] : [0, 0, 0, 0, 0, 0, 0]
             near = Na__ConfigLoader.Na__Config__GetOr(0.5, 'render', 'nativeImage', 'nearInches').to_f
             basis['eye'] + basis['xaxis'] + basis['yaxis'] + basis['zaxis'] +
                 [plan['projection'] == 'perspective' ? 1 : 0, scale_x, scale_y,
-                 tile['w'], tile['h'], size, 1.0, plan['colourMode'] == 'black' ? 1 : 0,
-                 *plan['monoRgb'], plan['pointBudget'], near] +
-                plan['localToModel'] + clip + [full_w, full_h, crop_x, crop_y]
+                 tile['w'], tile['h'], size, 1.0, %w[black cloud].include?(layer['colourMode']) ? 1 : 0,
+                 *layer['monoRgb'], plan['pointBudget'], near] +
+                layer['localToModel'] + clip + [full_w, full_h, crop_x, crop_y]
         end
 
     # endregion ----------------------------------------------------------------
@@ -278,7 +306,9 @@ module Na__PointCloudViewer
         end
 
         # 10 hex digits over everything that changes the pixels. Same inputs,
-        # same key, so an unchanged scene is never rendered or uploaded twice.
+        # same key, so an unchanged scene is never rendered or uploaded twice. A
+        # one-cloud scene keys exactly as in v0.9; with several clouds every
+        # layer's cloud, placement, clip box and colour are in the key.
         def self.Na__Export__RevisionKey(plan)
             inputs = {
                 'v' => NA_FORMAT_VERSION, 'projection' => plan['projection'], 'basis' => plan['basis'],
@@ -286,6 +316,13 @@ module Na__PointCloudViewer
                 'colour' => plan['colourMode'], 'mono' => plan['monoRgb'], 'budget' => plan['pointBudget'],
                 'clip' => plan['clip'], 'm' => plan['localToModel'], 'cloud' => plan.dig('cloud', 'contentKey') || plan.dig('cloud', 'fingerprint')
             }
+            layers = plan['layers'] || []
+            if layers.length > 1
+                inputs['layers'] = layers.map do |layer|
+                    { 'cloud' => layer.dig('cloud', 'contentKey') || layer.dig('cloud', 'fingerprint'), 'm' => layer['localToModel'],
+                      'clip' => layer['clip'], 'colour' => layer['colourMode'], 'mono' => layer['monoRgb'] }
+                end
+            end
             Digest::SHA256.hexdigest(JSON.generate(self.na_rounded(inputs)))[0, 10]
         end
 
@@ -384,13 +421,62 @@ module Na__PointCloudViewer
             { 'ok' => false, 'problem' => text.to_s }
         end
 
-        # The loaded cloud is still the one, in the place, the plan was made for.
+        # Every cloud of the plan is still loaded, the same one, in the place the
+        # plan was made for.
         def self.na_plan_current?(session, plan)
-            cloud = session.cloud
-            cloud && cloud.native_cloud && Na__NativeEngine.Na__Native__CloudLive?(cloud.native_cloud) &&
-                cloud.native_generation == plan['nativeGeneration'] &&
-                cloud.native_generation == Na__NativeEngine.Na__Native__Generation &&
-                cloud.local_to_model == plan['localToModel'] ? true : false
+            slots = self.na_plan_slots(session, plan)
+            layers = plan['layers'] || []
+            return false if slots.empty? || slots.length != layers.length
+            slots.each_with_index.all? do |slot, index|
+                cloud = slot.cloud
+                cloud && cloud.native_cloud && Na__NativeEngine.Na__Native__CloudLive?(cloud.native_cloud) &&
+                    cloud.native_generation == plan['nativeGeneration'] &&
+                    cloud.native_generation == Na__NativeEngine.Na__Native__Generation &&
+                    cloud.local_to_model == layers[index]['localToModel']
+            end
+        end
+
+        # The slots of the plan's layers, in its order (nil ones left out).
+        def self.na_plan_slots(session, plan)
+            Array(plan['cloudIds']).map { |id| Na__CloudSet.Na__Slots__Find(session, id) }.compact
+        end
+
+        # [[{ 'slot', 'entry' }], nil] for every cloud the scene shows, in the
+        # model's order, or [nil, why the scene cannot be exported].
+        def self.na_layers(session, scene, name)
+            entries = scene['clouds'] || {}
+            shown = Na__CloudSet.Na__Slots__All(session).select { |slot| entries[slot.id] && entries[slot.id]['visible'] != false }
+            return [nil, "No point cloud is shown in \"#{name}\". Switch one on in the viewer, update the scene, then export again."] if shown.empty?
+            missing = shown.reject { |slot| slot.cloud && slot.cloud.native_cloud && slot.cloud.bounds }
+            unless missing.empty?
+                names = missing.map(&:name)
+                single = Na__CloudSet.Na__Slots__All(session).length == 1
+                return [nil, single ? 'No point cloud is loaded. Reload Point Cloud in the viewer, then export again.' :
+                                      "#{names.join(' and ')} #{names.length == 1 ? 'is' : 'are'} not loaded. Reload in the viewer (View tab), then export again."]
+            end
+            return [nil, "\"#{name}\" shows #{shown.length} point clouds; at most #{Na__NativeEngine::NA_MAX_LAYERS} can be drawn at once."] if shown.length > Na__NativeEngine::NA_MAX_LAYERS
+            [shown.map { |slot| { 'slot' => slot, 'entry' => entries[slot.id] } }, nil]
+        end
+
+        # What the plan keeps about one layer.
+        def self.na_layer_record(layer)
+            slot  = layer['slot']
+            entry = layer['entry']
+            cloud = slot.cloud
+            clip  = entry['clip'] && entry['clip']['enabled'] ? entry['clip'] : nil
+            mode  = (entry['display'] || {})['colourMode'].to_s
+            mode  = 'rgb' unless %w[black cloud].include?(mode)
+            colour = Na__ImageRenderer.Na__Image__ColourParams(slot, mode)
+            {
+                'cloudId'        => slot.id,
+                'name'           => slot.name,
+                'colourMode'     => mode,
+                'monoRgb'        => colour[1, 3],
+                'opacityPercent' => (entry['display'] || {})['opacityPercent'].to_i,
+                'clip'           => clip ? { 'min' => clip['min'], 'max' => clip['max'] } : nil,
+                'localToModel'   => cloud.local_to_model,
+                'cloud'          => self.na_cloud_record(slot, cloud)
+            }
         end
 
         def self.na_config(options)
@@ -433,33 +519,38 @@ module Na__PointCloudViewer
             frame
         end
 
-        # The cloud's box, cut by the scene's clip box when it clips. nil when
-        # the two do not overlap.
-        def self.na_visible_bounds(session, scene)
-            box = session.cloud.bounds
-            lo = box.min.to_a.map(&:to_f)
-            hi = box.max.to_a.map(&:to_f)
-            clip = scene['clip']
-            if clip && clip['enabled']
-                lo = (0..2).map { |i| [lo[i], clip['min'][i].to_f].max }
-                hi = (0..2).map { |i| [hi[i], clip['max'][i].to_f].min }
-                return nil unless (0..2).all? { |i| hi[i] > lo[i] }
-            end
-            [lo, hi]
+        # Each layer's cloud box, cut by its clip box in the scene when it clips,
+        # joined. nil when no layer's box and clip box overlap.
+        def self.na_visible_bounds(layers)
+            boxes = layers.map do |layer|
+                box = layer['slot'].cloud.bounds
+                lo = box.min.to_a.map(&:to_f)
+                hi = box.max.to_a.map(&:to_f)
+                clip = layer['entry']['clip']
+                if clip && clip['enabled']
+                    lo = (0..2).map { |i| [lo[i], clip['min'][i].to_f].max }
+                    hi = (0..2).map { |i| [hi[i], clip['max'][i].to_f].min }
+                    next nil unless (0..2).all? { |i| hi[i] > lo[i] }
+                end
+                [lo, hi]
+            end.compact
+            return nil if boxes.empty?
+            [(0..2).map { |i| boxes.map { |box| box[0][i] }.min }, (0..2).map { |i| boxes.map { |box| box[1][i] }.max }]
         end
 
-        def self.na_cloud_record(session, cloud)
-            link = Na__ModelLink.Na__Link__Read(session.model)
-            part = link ? link['cloud'] : {}
+        def self.na_cloud_record(slot, cloud)
+            part = slot.record && slot.record['link'].is_a?(Hash) ? slot.record['link'] : {}
             {
+                'cloudId'     => slot.id,
+                'name'        => slot.name,
                 'fileName'    => part['fileName'] || File.basename(cloud.source_path.to_s),
-                'contentKey'  => part['contentKey'],
+                'contentKey'  => part['contentKey'] || (cloud.las_info || {})['contentKey'],
                 'fingerprint' => part['fingerprint'],
                 'totalPoints' => cloud.total_points.to_i,
                 'sourceUnit'  => cloud.source_unit
             }
         rescue StandardError
-            { 'fileName' => File.basename(cloud.source_path.to_s), 'totalPoints' => cloud.total_points.to_i }
+            { 'cloudId' => slot.id, 'fileName' => File.basename(cloud.source_path.to_s), 'totalPoints' => cloud.total_points.to_i }
         end
 
         # Floats rounded so float noise never changes a revision key.

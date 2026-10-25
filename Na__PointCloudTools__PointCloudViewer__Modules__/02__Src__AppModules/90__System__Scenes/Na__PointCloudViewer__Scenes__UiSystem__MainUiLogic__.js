@@ -5,10 +5,16 @@
 // FILE       : Na__PointCloudViewer__Scenes__UiSystem__MainUiLogic__.js
 // NAMESPACE  : window.Na__PointCloudViewer__Scenes
 // PURPOSE    : Scenes tab: point cloud settings saved for SketchUp scenes.
-//              Press a scene to go to it (SketchUp's scene plus the cloud's
-//              budget, size, opacity, colour and clip box); Update, Relink,
-//              Remove; and the export settings TrueVision Sync reads (type,
-//              scale or image width, dot size).
+//              Press a scene to go to it (SketchUp's scene, plus which clouds
+//              are shown and each one's size, opacity, colour and clip box,
+//              with the budget); Update, Relink, Remove; and the export
+//              settings TrueVision Sync reads (type, scale or image width,
+//              dot size).
+//
+// SEVERAL CLOUDS (v0.10.0): a scene holds every cloud by its id. With more
+//   than one cloud each card shows a chip per cloud: shown, hidden (struck
+//   through), or added since the scene was saved (faded: the scene hides it
+//   until it is updated).
 //
 // SAFETY: Update and Remove sit together at the right of each card, away from
 //   Go To Scene, and each asks "Are you sure?" in a dialog first. Update shows
@@ -214,6 +220,20 @@
         return tags;
     }
 
+    function na_cloud_chips(scene) {
+        var row = Shell.na_el('div', 'na-pcs-clouds');
+        (scene.clouds || []).forEach(function (cloud) {
+            var chip = Shell.na_el('span', 'na-pcs-cloud' + (cloud.visible ? '' : ' na-pcs-cloud--hidden') + (cloud.known ? '' : ' na-pcs-cloud--unknown'));
+            chip.style.setProperty('--na-cloud-colour', cloud.colour || '#888888');
+            chip.title = !cloud.known ? cloud.name + ' was added after this scene was saved, so the scene hides it. Update the scene to include it.'
+                                      : (cloud.visible ? cloud.name + ' is shown in this scene' : cloud.name + ' is hidden in this scene');
+            chip.appendChild(Shell.na_el('span', 'na-cloud-dot'));
+            chip.appendChild(Shell.na_el('span', 'na-pcs-cloud__name', cloud.name));
+            row.appendChild(chip);
+        });
+        return row;
+    }
+
     function na_relink_controls(scene) {
         var wrap = Shell.na_el('div', 'na-pcs-relink');
         var select = Shell.na_el('select', 'naInput na-pcs-select');
@@ -313,7 +333,7 @@
         var name = scene.name || '(unnamed scene)';
         var now = na_state.currentSummary || 'The settings the viewer shows now.';
         var paragraphs = [
-            'The point cloud settings and clip box saved for "' + name + '" will be replaced by what the viewer shows now. ' +
+            'The point cloud settings saved for "' + name + '" (which clouds are shown, each one\'s look and clip box, and the budget) will be replaced by what the viewer shows now. ' +
             'Type, Scale and Dot Size stay as they are, and the SketchUp scene itself is not changed.'
         ];
         if (now === scene.summary) paragraphs.push('These look the same as the saved settings.');
@@ -375,6 +395,7 @@
         header.appendChild(tags);
         card.appendChild(header);
 
+        if ((na_state.cloudCount || 0) > 1 && (scene.clouds || []).length) card.appendChild(na_cloud_chips(scene));
         card.appendChild(Shell.na_el('p', 'na-pcs-card__summary', scene.summary || ''));
         (scene.warnings || []).forEach(function (text) {
             card.appendChild(Shell.na_el('p', 'na-pcs-card__warning', text));

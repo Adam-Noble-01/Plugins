@@ -4,8 +4,14 @@
 //
 // FILE       : Na__PointCloudViewer__ViewTab__UiSystem__MainUiLogic__.js
 // NAMESPACE  : window.Na__PointCloudViewer__ViewTab
-// PURPOSE    : The loaded cloud, Point Budget, Point Size, Point Opacity,
-//              Colour Mode, the Show switch and the units summary.
+// PURPOSE    : The Show switch, Point Budget, Point Size, Point Opacity,
+//              Colour Mode and the units summary. The clouds themselves (the
+//              Point Clouds list, the cloud bar) are the CloudSet script's.
+//
+// SEVERAL CLOUDS (v0.10.0): the point budget is ONE budget shared by every
+//   cloud on show (the hint says how it is spread). Size, opacity and colour
+//   mode belong to the active cloud: state.render.settings already holds its
+//   look, and Ruby applies a change to it.
 //
 // INTERACTION:
 //   Size and opacity stream while dragging (trailing throttle). Point Budget
@@ -71,9 +77,9 @@
         return Math.round(Math.log(clamped / min) / Math.log(max / min) * NA_SLIDER_STEPS);
     }
 
-    // With a cloud loaded, presets at or above its size are replaced by one
-    // "All" preset: a budget above the cloud's own point count draws nothing
-    // more, so the cloud's size IS the top of the scale.
+    // With clouds on show, presets at or above their points together are
+    // replaced by one "All" preset: a budget above that draws nothing more,
+    // so it IS the top of the scale.
     function na_render_presets(presets, activeBudget, totalPoints) {
         var row = document.getElementById('na-view-budget-presets');
         row.innerHTML = '';
@@ -82,7 +88,7 @@
         shown.forEach(function (preset) {
             var button = Shell.na_el('button', 'na-preset', preset.label);
             button.type = 'button';
-            button.title = Shell.na_format_int(preset.points) + ' points' + (preset.isAll ? ' (every point in the cloud)' : '');
+            button.title = Shell.na_format_int(preset.points) + ' points' + (preset.isAll ? ' (every point on show)' : '');
             var active = preset.isAll ? activeBudget >= totalPoints : preset.points === activeBudget;
             if (active) button.classList.add('na-preset--active');
             button.addEventListener('click', function () { na_send({ pointBudget: preset.points }); });
@@ -96,37 +102,34 @@
     // REGION | Render From State
     // -------------------------------------------------------------------------
 
-    function na_render_cloud(state) {
-        var summary = document.getElementById('na-view-cloud-summary');
-        var cloud   = state.cloud || {};
-        summary.classList.toggle('na-cloud-summary--empty', !cloud.isLoaded);
-        summary.innerHTML = '';
-        if (cloud.isLoaded) {
-            summary.appendChild(Shell.na_el('div', 'na-cloud-summary__name', cloud.label));
-            summary.appendChild(Shell.na_el('div', 'na-cloud-summary__detail',
-                Shell.na_format_int(cloud.totalPoints) + ' points, ' + cloud.sizeText + ', source in ' + String(cloud.sourceUnit || '').toLowerCase()));
-        } else {
-            summary.textContent = 'No point cloud loaded. Press Import LAS to choose a file.';
-        }
+    function na_render_show(state) {
         document.getElementById('na-view-visible').checked = !!(state.overlay && state.overlay.isVisible);
-        document.getElementById('na-view-zoom').disabled   = !cloud.isLoaded;
-        document.getElementById('na-view-unload').disabled = !cloud.isLoaded;
-
         var fault = document.getElementById('na-view-fault');
         var message = state.render && state.render.fault;
         fault.textContent = message ? 'Drawing stopped after an error: ' + message + '. Change any setting to try again.' : '';
         fault.classList.toggle('na-hidden', !message);
     }
 
+    // How the shared budget fell in the last frame: "room_source 260,000 of
+    // 380,131, exterior_shell all 240,000".
+    function na_split_text(layers) {
+        return layers.filter(function (layer) { return layer.share !== null && layer.share !== undefined; }).map(function (layer) {
+            return layer.share >= layer.totalPoints
+                ? layer.name + ' all ' + Shell.na_format_int(layer.totalPoints)
+                : layer.name + ' ' + Shell.na_format_int(layer.share) + ' of ' + Shell.na_format_int(layer.totalPoints);
+        }).join(', ');
+    }
+
     function na_render_budget(state) {
         var render   = state.render;
         var settings = render.settings;
         var limits   = render.limits;
-        var cloud    = state.cloud || {};
-        var cap      = cloud.isLoaded ? Math.min(limits.pointBudgetMax, cloud.totalPoints) : limits.pointBudgetMax;
+        var shown    = render.shownPoints || 0;          // every point of the clouds on show
+        var count    = render.shownCount || 0;
+        var cap      = shown ? Math.min(limits.pointBudgetMax, shown) : limits.pointBudgetMax;
 
         na_budget_range = { min: Math.min(limits.pointBudgetMin, cap), max: cap };
-        var showsAll = cloud.isLoaded && settings.pointBudget >= cloud.totalPoints;
+        var showsAll = shown > 0 && settings.pointBudget >= shown;
         Shell.na_text('na-view-budget-value', (showsAll ? 'All ' : '') + Shell.na_format_int(Math.min(settings.pointBudget, cap)));
         if (!na_dragging.budget) {
             document.getElementById('na-view-budget-slider').value = na_slider_from_budget(settings.pointBudget);
@@ -134,15 +137,25 @@
                 document.getElementById('na-view-budget-input').value = settings.pointBudget;
             }
         }
-        na_render_presets(render.budgetPresets || [], settings.pointBudget, cloud.isLoaded ? cloud.totalPoints : 0);
+        na_render_presets(render.budgetPresets || [], settings.pointBudget, shown);
 
-        Shell.na_text('na-view-budget-hint', cloud.isLoaded
-            ? (showsAll
-                ? 'Every point in the cloud is drawn (' + Shell.na_format_int(cloud.totalPoints) + '). This is the top of the scale for this cloud.'
-                : 'Up to ' + Shell.na_format_int(settings.pointBudget) + ' of ' + Shell.na_format_int(cloud.totalPoints) +
-                  ' points are drawn, spread evenly over the cloud. With clipping on, the budget counts points inside the clip box.')
-            : 'The most points drawn at once. The top of the scale is the loaded cloud\'s own point count (up to ' +
-              Shell.na_format_int(limits.pointBudgetMax) + ').');
+        var hint;
+        if (!shown) {
+            hint = 'The most points drawn at once. The top of the scale is the point count of the clouds on show (up to ' +
+                   Shell.na_format_int(limits.pointBudgetMax) + ').';
+        } else if (count === 1) {
+            hint = showsAll
+                ? 'Every point in the cloud is drawn (' + Shell.na_format_int(shown) + '). This is the top of the scale for this cloud.'
+                : 'Up to ' + Shell.na_format_int(settings.pointBudget) + ' of ' + Shell.na_format_int(shown) +
+                  ' points are drawn, spread evenly over the cloud. With clipping on, the budget counts points inside the clip box.';
+        } else {
+            var split = na_split_text(render.layers || []);
+            hint = (showsAll
+                ? 'Every point of the ' + count + ' clouds on show is drawn (' + Shell.na_format_int(shown) + ').'
+                : 'One budget, shared by the ' + count + ' clouds on show: each gets an equal part, and a small or clipped cloud passes what it does not need to the others.') +
+                (split ? ' Now: ' + split + '.' : '');
+        }
+        Shell.na_text('na-view-budget-hint', hint);
     }
 
     function na_render_appearance(settings, limits) {
@@ -169,7 +182,7 @@
 
     ViewTab.na_render = function (state) {
         if (!state || !state.render) return;
-        na_render_cloud(state);
+        na_render_show(state);
         na_render_budget(state);
         na_render_appearance(state.render.settings, state.render.limits);
         na_render_units(state.units || {});
@@ -226,12 +239,6 @@
 
         document.getElementById('na-view-visible').addEventListener('change', function (event) {
             Bridge.na_call('render_set_visible', { isVisible: event.target.checked });
-        });
-        document.getElementById('na-view-zoom').addEventListener('click', function () {
-            Bridge.na_call('view_zoom_to_cloud', {});
-        });
-        document.getElementById('na-view-unload').addEventListener('click', function () {
-            Bridge.na_call('cloud_unload', {});
         });
     }
 

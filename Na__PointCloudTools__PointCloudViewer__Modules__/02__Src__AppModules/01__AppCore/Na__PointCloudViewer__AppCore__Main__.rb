@@ -13,8 +13,9 @@
 #   3. Native    - NativeEngine bridge (Fiddle; DLL loaded on first use)
 #   4. Viewport  - RenderTypes, RenderSettings, ImageRenderer, RenderController, CloudOverlay
 #   5. AppCore   - ModelRegistry, AsyncJobs
-#   6. Systems   - LAS import, clip box, transform, persistence, clean, scenes
-#   7. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager
+#   6. CloudSet  - the model's point clouds: Store (records), Slots (active, on show)
+#   7. Systems   - LAS import, clip box, transform, persistence, clean, scenes
+#   8. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager
 #
 # HOT RELOAD:
 #   Settings > Reload Plugin re-`load`s every .rb under 02__Src__AppModules.
@@ -82,6 +83,13 @@ require_relative '../10__Viewport__OverlayRenderer/Na__PointCloudViewer__Viewpor
 
 require_relative 'Na__PointCloudViewer__AppCore__ModelRegistry__'
 require_relative 'Na__PointCloudViewer__AppCore__AsyncJobs__'
+
+# -----------------------------------------------------------------------------
+# REGION | Cloud Set - the model's point clouds (v0.10.0)
+# -----------------------------------------------------------------------------
+
+require_relative '../20__System__CloudSet/Na__PointCloudViewer__CloudSet__Store__'
+require_relative '../20__System__CloudSet/Na__PointCloudViewer__CloudSet__Slots__'
 
 # -----------------------------------------------------------------------------
 # REGION | Systems - LAS Import + Clip Box + Transform + Persistence

@@ -31,7 +31,12 @@
 //   5 (v0.8.0): source record identity + time in clouds, cache v2, LAS content
 //               key, the cleaning engine (preview context + export job).
 //   6 (v0.9.1): the LAZ to LAS converter (napc_laz_convert_*).
-#define NAPC_ABI_VERSION 6
+//   7 (v0.10.0): several clouds in one frame (napc_render_layers_png): one depth
+//               buffer, one shared point budget, opacity per cloud.
+#define NAPC_ABI_VERSION 7
+
+// The most clouds one frame can hold (the plugin allows 10 per model).
+#define NAPC_MAX_LAYERS 16
 
 // Render parameter layout (doubles), shared with the Ruby bridge.
 enum Na__RenderParamIndex {
@@ -59,12 +64,21 @@ enum Na__RenderParamIndex {
     NAPC_P_COUNT
 };
 
-// Render stats layout (doubles) written by napc_render_png.
+// Render stats layout (doubles) written by napc_render_png and napc_render_layers_png.
 enum Na__RenderStatIndex {
     NAPC_S_POINTS_TESTED = 0, NAPC_S_POINTS_ON_SCREEN, NAPC_S_THREADS,
     NAPC_S_CLEAR_MS, NAPC_S_RASTER_MS, NAPC_S_RESOLVE_MS, NAPC_S_ENCODE_MS, NAPC_S_WRITE_MS, NAPC_S_TOTAL_MS,
     NAPC_S_PNG_BYTES,
     NAPC_S_COUNT
+};
+
+// Per layer stats (doubles, NAPC_LS_COUNT per layer) written by napc_render_layers_png.
+enum Na__LayerStatIndex {
+    NAPC_LS_DEMAND = 0,    // points it could draw: all, or all inside its clip box
+    NAPC_LS_SHARE,         // its part of the shared budget
+    NAPC_LS_TESTED,        // prefix of its point list walked
+    NAPC_LS_ON_SCREEN,     // points that landed in the image
+    NAPC_LS_COUNT
 };
 
 // LAS header facts (napc_las_read_header) - doubles.
@@ -120,6 +134,19 @@ NAPC_API int32_t     napc_cloud_read(void* cloud, int64_t first, int64_t count, 
 // Renders the cloud for one camera into an uncompressed RGBA PNG at path_utf8.
 NAPC_API int32_t     napc_render_png(void* cloud, const double* params, int32_t param_count,
                                      const char* path_utf8, double* stats, int32_t stat_count);
+
+// Renders several clouds into ONE image (ABI 7): one depth buffer, so the nearest
+// point wins whichever cloud it belongs to, and one point budget, total_budget,
+// split equally between the layers (a layer that holds fewer points, all of them
+// or all inside its clip box, passes the rest to the others).
+// params: layer_count blocks of param_stride doubles, each in the Na__RenderParamIndex
+// layout. The FIRST block's camera and image fields describe the frame; each
+// block's transform, clip box, point size, opacity, colour mode and monochrome
+// colour apply to its own cloud; NAPC_P_BUDGET is not read.
+// layer_stats: null, or layer_count * NAPC_LS_COUNT doubles.
+NAPC_API int32_t     napc_render_layers_png(void* const* clouds, int32_t layer_count, const double* params,
+                                            int32_t param_stride, double total_budget, const char* path_utf8,
+                                            double* stats, int32_t stat_count, double* layer_stats, int32_t layer_stat_count);
 
 // --- LAS (LASzip) ------------------------------------------------------------
 // Header + VLR facts. text receives "system_id\tgenerating_software\twkt" (truncated to text_cap).

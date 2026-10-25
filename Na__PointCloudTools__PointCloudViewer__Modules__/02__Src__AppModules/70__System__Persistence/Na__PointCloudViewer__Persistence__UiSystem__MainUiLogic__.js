@@ -4,11 +4,12 @@
 //
 // FILE       : Na__PointCloudViewer__Persistence__UiSystem__MainUiLogic__.js
 // NAMESPACE  : window.Na__PointCloudViewer__LinkCard
-// PURPOSE    : The "Saved With This Model" card on the View tab (Reload Point
-//              Cloud, Locate LAS, Restore Newer Backup) and the matching
-//              section on the Settings tab (backups folder, Remove Point Cloud
-//              Data From Model). Everything here is an explicit button press;
-//              nothing loads on its own.
+// PURPOSE    : What the model has saved, and this computer's backup of it:
+//              the backup note and Restore on the View tab's Point Clouds card,
+//              and the Settings tab's section (backups folder, Remove Point
+//              Cloud Data From Model). Everything here is an explicit button
+//              press; nothing loads on its own. Reload and Locate LAS are on
+//              each cloud's own row (the CloudSet script).
 //
 // =============================================================================
 
@@ -27,50 +28,34 @@
     function na_el(id) { return document.getElementById(id); }
 
     // -------------------------------------------------------------------------
-    // REGION | View Tab Card
+    // REGION | Backup Note (View tab, Point Clouds card)
     // -------------------------------------------------------------------------
 
+    function na_names_text(names) {
+        if (!names || !names.length) return 'its point clouds';
+        if (names.length === 1) return names[0];
+        return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    }
+
     function na_render_card(link) {
-        var card = na_el('na-link-card');
-        var show = link.state === 'backupOnly' || (link.state === 'linked' && !link.loaded);
-        card.classList.toggle('na-hidden', !show);
-        if (!show) return;
-
-        var cloudText = link.fileName + ' (' + link.unitLabel + ', ' + link.pointsText + ' points)';
-        var summary;
-        if (link.state === 'backupOnly') {
-            summary = (link.unreadable ? 'The point cloud record in this model could not be read. ' : 'No point cloud link is saved in this model. ') +
-                      'This computer has a backup of its setup for ' + cloudText + ', saved ' + link.backup.savedText + '.';
+        var backup = link.backup || {};
+        var only   = link.state === 'backupOnly';
+        var newer  = link.state === 'linked' && backup.newer;
+        var note   = na_el('na-link-backup-note');
+        note.classList.toggle('na-hidden', !(only || newer));
+        if (only) {
+            note.textContent = (link.unreadable ? 'The point cloud records in this model could not be read. ' : 'No point cloud is saved in this model. ') +
+                               'This computer has a backup of its setup for ' + na_names_text(backup.cloudNames) + ', saved ' + backup.savedText + '. ' +
+                               'Restore writes it into the model; Undo takes it out again.';
+        } else if (newer) {
+            note.textContent = 'This computer holds later changes to the clouds\' positions or clip boxes (saved ' + backup.savedText + ') than the copy in the model. ' +
+                               'That happens when SketchUp closes without saving. Restore them first, or carry on with the model\'s copy.';
         } else {
-            summary = 'This model is linked to ' + cloudText + '.';
-            if (link.derivedFrom) summary += ' It is a cleaned copy of ' + link.derivedFrom + ', which is kept unchanged.';
-            if (link.otherLoaded) summary += ' A different point cloud is loaded now; Reload replaces it.';
+            note.textContent = '';
         }
-        Shell.na_text('na-link-summary', summary);
-        Shell.na_text('na-link-position', link.state === 'linked' ? link.positionText : 'Restore writes the backup into the model; Undo takes it out again.');
-
-        var path = na_el('na-link-path');
-        path.classList.toggle('na-hidden', link.state !== 'linked');
-        path.classList.toggle('na-link-path--missing', !link.foundPath);
-        path.textContent = link.foundPath ? 'Found: ' + link.foundPath : 'Not found at: ' + (link.lastPath || '') + '. Use Locate LAS to point to it.';
-
-        var note = na_el('na-link-backup-note');
-        var newer = link.state === 'linked' && link.backup && link.backup.newer;
-        note.classList.toggle('na-hidden', !newer);
-        note.textContent = newer
-            ? 'This computer holds later changes to the position or clip box (saved ' + link.backup.savedText + ') than the copy in the model. ' +
-              'That happens when SketchUp closes without saving. Restore them first, or Reload to use the model\'s copy.'
-            : '';
-
-        var reload = na_el('na-link-reload');
-        reload.classList.toggle('na-hidden', link.state !== 'linked');
-        reload.disabled = !link.foundPath;
-        na_el('na-link-locate').classList.toggle('na-hidden', link.state !== 'linked');
-
         var restore = na_el('na-link-restore');
-        var offerRestore = link.state === 'backupOnly' || newer;
-        restore.classList.toggle('na-hidden', !offerRestore);
-        restore.textContent = link.state === 'backupOnly' ? 'Restore From Backup' : 'Restore Newer Backup';
+        restore.classList.toggle('na-hidden', !(only || newer));
+        restore.textContent = only ? 'Restore From Backup' : 'Restore Newer Backup';
     }
 
     // endregion ----------------------------------------------------------------
@@ -90,11 +75,18 @@
         var hasData = link.state === 'linked';
         if (!hasData) na_disarm_remove();
         remove.disabled = !hasData;
-        remove.textContent = na_remove_armed ? 'Click again to remove (Undo restores it)' : 'Remove Point Cloud Data From Model';
+        remove.textContent = na_remove_armed ? 'Click again to remove every cloud (Undo restores them)' : 'Remove Point Cloud Data From Model';
         remove.classList.toggle('na-button--danger', na_remove_armed);
-        Shell.na_text('na-settings-link-status', hasData
-            ? 'This model is linked to ' + link.fileName + '. ' + (link.backup && link.backup.exists ? 'A backup is on this computer.' : 'No backup on this computer yet; one is made with the next change.')
-            : (link.state === 'backupOnly' ? 'This model has no readable link, but a backup for it is on this computer.' : 'This model holds no point cloud data.'));
+        var count = link.cloudCount || 0;
+        var text;
+        if (hasData) {
+            text = (count === 1 ? 'This model holds one point cloud. ' : 'This model holds ' + count + ' point clouds, each in its own record. ') +
+                   (link.backup && link.backup.exists ? 'A backup is on this computer.' : 'No backup on this computer yet; one is made with the next change.');
+            if (link.legacy) text += ' Its records were saved by an earlier version of the viewer. They are read as they are, and take the new form (one record per cloud) with the next change you make, in that same Undo step.';
+        } else {
+            text = link.state === 'backupOnly' ? 'This model has no readable point cloud records, but a backup for it is on this computer.' : 'This model holds no point cloud data.';
+        }
+        Shell.na_text('na-settings-link-status', text);
     }
 
     // endregion ----------------------------------------------------------------
@@ -111,13 +103,6 @@
     // -------------------------------------------------------------------------
 
     function na_wire() {
-        na_el('na-link-reload').addEventListener('click', function () {
-            if (!na_link) return;
-            Bridge.na_call_after_paint('link_reload', {}, 'Reloading ' + na_link.fileName, 'Checking the LAS file...');
-        });
-        na_el('na-link-locate').addEventListener('click', function () {
-            Bridge.na_call('link_locate', {});
-        });
         na_el('na-link-restore').addEventListener('click', function () {
             Bridge.na_call('link_restore_backup', {});
         });

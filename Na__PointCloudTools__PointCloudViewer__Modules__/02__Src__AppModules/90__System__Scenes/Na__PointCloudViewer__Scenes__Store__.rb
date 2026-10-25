@@ -31,6 +31,16 @@
 #   (schemaVersion above ours) is shown read-only and never rewritten. Keys this
 #   version does not know are carried through every save untouched.
 #
+# EVERY CLOUD, BY ID (schema 2, v0.10.0): a scene holds the shared point
+#   budget and whether the overlay is on ('settings'), and for EVERY cloud of
+#   the model, by its permanent cloud id ('clouds'): shown or hidden, its look
+#   (dot size, opacity, colour) and its clip box, with its name and file as a
+#   hint. Recalling the scene gives each cloud back exactly that; a cloud the
+#   scene does not know (added later) is hidden, and the card says so. The
+#   picture TrueVision Sync exports draws the clouds the scene shows.
+#   A schema 1 scene (v0.9: one cloud) reads as a scene of the model's one
+#   cloud, and is written in schema 2 with the model's first change.
+#
 # =============================================================================
 
 require 'json'
@@ -46,10 +56,11 @@ module Na__PointCloudViewer
         NA_DICT           = 'Na__PointCloudViewer__Scenes'.freeze
         NA_KEY            = 'json'.freeze
         NA_SCHEMA         = 'Na__PointCloudViewer__Scenes'.freeze
-        NA_SCHEMA_VERSION = 1
+        NA_SCHEMA_VERSION = 2
         NA_ID_PATTERN     = /\Apcs_[0-9a-f]{8,32}\z/.freeze
         NA_STORE_ID_PATTERN = /\Apcss_[0-9a-f]{8,32}\z/.freeze
-        NA_SETTING_KEYS   = %w[pointBudget pointSizePx opacityPercent colourMode].freeze
+        NA_SETTING_KEYS   = %w[pointBudget pointSizePx opacityPercent colourMode].freeze   # schema 1 (one cloud)
+        NA_DISPLAY_KEYS   = %w[pointSizePx opacityPercent colourMode].freeze
         NA_MAX_SCENES     = 200
 
         NA_FALLBACK_VIEW_TYPES = [
@@ -113,6 +124,14 @@ module Na__PointCloudViewer
             "1:#{text}"
         end
 
+        # The opacity TrueVision starts the scene's picture at: the highest of
+        # the clouds the scene shows (the picture itself is baked at 100 %).
+        def self.Na__Scenes__DefaultOpacity(scene)
+            shown = (scene['clouds'] || {}).values.select { |entry| entry['visible'] != false }
+            values = shown.map { |entry| (entry['display'] || {})['opacityPercent'].to_i }.select(&:positive?)
+            values.empty? ? 100 : values.max
+        end
+
         # The dot size an export bakes in: the scene's own choice, else the
         # scale preset's, else round(factor / denominator). Perspective scenes
         # have no scale and use their own default.
@@ -139,6 +158,18 @@ module Na__PointCloudViewer
             self.Na__Scenes__Load(session)
         end
 
+        # The cloud a schema 1 scene (one cloud, v0.9) belongs to: the model's
+        # v0.9 cloud (its id comes from the old link id, before and after the
+        # model is converted), else the first cloud, else nil.
+        def self.na_v1_cloud_id(session)
+            slots = Na__CloudSet.Na__Slots__All(session)
+            index = session.store_index
+            migrated = index.is_a?(Hash) && index['migratedFrom'].is_a?(Hash) ? index['migratedFrom']['cloudId'] : nil
+            return migrated if migrated && slots.any? { |slot| slot.id == migrated }
+            legacy = slots.find { |slot| slot.record_state == 'legacy' }
+            (legacy || slots.first) ? (legacy || slots.first).id : nil
+        end
+
         # Never raises: a record that cannot be read is ignored with a log line
         # and the tab says so (the escape hatch is Remove Point Cloud Data).
         def self.Na__Scenes__Load(session)
@@ -163,11 +194,13 @@ module Na__PointCloudViewer
             session.scenes_meta = {
                 'storeId'  => store_id.match?(NA_STORE_ID_PATTERN) ? store_id : nil,
                 'revision' => data['revision'].to_i,
+                'schemaVersion' => data['schemaVersion'].to_i,
                 'extra'    => data.reject { |key, _| %w[schema schemaVersion storeId revision updatedAt updatedEpoch scenes].include?(key) }
             }
+            v1_cloud = data['schemaVersion'].to_i <= 1 ? self.na_v1_cloud_id(session) : nil
             seen = {}
             Array(data['scenes']).each do |raw_scene|
-                scene = self.na_valid_scene(raw_scene)
+                scene = self.na_valid_scene(raw_scene, v1_cloud)
                 next unless scene && !seen[scene['id']]
                 seen[scene['id']] = true
                 session.scenes << scene
@@ -179,15 +212,37 @@ module Na__PointCloudViewer
         end
 
         # One undoable operation per committed change. Returns nil, or a plain
-        # reason nothing was written.
+        # reason nothing was written. A model saved before v0.10.0 takes the
+        # new form of every record inside the same operation.
         def self.Na__Scenes__Save(session, operation_name)
             model = session.model
             return 'There is no model.' unless model
             return session.scenes_problem || 'These scenes are read-only.' if session.scenes_readonly
-            meta = session.scenes_meta || {}
+            return Na__CloudStore.na_readonly_text if session.store_readonly
+            now = Time.now
+            data, meta = self.na_record(session, now)
+            migrated = nil
+            begin
+                model.start_operation(operation_name, true)
+                migrated = Na__CloudStore.Na__Store__MigrateInOperation(session, now)
+                model.set_attribute(NA_DICT, NA_KEY, JSON.generate(data))
+                model.commit_operation
+            rescue StandardError
+                model.abort_operation
+                raise
+            end
+            Na__CloudStore.Na__Store__AfterMigration(session, migrated)
+            session.scenes_meta = meta
+            Na__LocalBackup.Na__Backup__AfterSave(model, session)
+            nil
+        end
+
+        # [the record to write, the meta it leaves] for the scenes held now.
+        def self.na_record(session, now)
+            meta = Marshal.load(Marshal.dump(session.scenes_meta || {}))
             meta['storeId'] ||= "pcss_#{SecureRandom.hex(6)}"
             meta['revision'] = meta['revision'].to_i + 1
-            now = Time.now
+            meta['schemaVersion'] = NA_SCHEMA_VERSION
             data = (meta['extra'] || {}).merge(
                 'schema'        => NA_SCHEMA,
                 'schemaVersion' => NA_SCHEMA_VERSION,
@@ -197,18 +252,24 @@ module Na__PointCloudViewer
                 'updatedEpoch'  => now.to_f,
                 'scenes'        => session.scenes
             )
-            begin
-                model.start_operation(operation_name, true)
-                model.set_attribute(NA_DICT, NA_KEY, JSON.generate(data))
-                model.commit_operation
-            rescue StandardError
-                model.abort_operation
-                session.scenes_meta['revision'] -= 1
-                raise
-            end
-            session.scenes_meta = meta
-            Na__LocalBackup.Na__Backup__AfterSave(model, session)
-            nil
+            [data, meta]
+        end
+
+        # Inside the operation that converts a v0.9 model (Na__CloudStore): a
+        # schema 1 record is written again in schema 2. Returns the meta to
+        # keep once the operation commits, or nil when there is nothing to do.
+        def self.Na__Scenes__MigrateInOperation(session, now)
+            self.Na__Scenes__Ensure(session)
+            return nil if session.scenes_readonly
+            return nil unless session.model.get_attribute(NA_DICT, NA_KEY).is_a?(String)
+            return nil if (session.scenes_meta || {})['schemaVersion'].to_i >= NA_SCHEMA_VERSION
+            data, meta = self.na_record(session, now)
+            session.model.set_attribute(NA_DICT, NA_KEY, JSON.generate(data))
+            meta
+        end
+
+        def self.Na__Scenes__AfterMigration(session, meta)
+            session.scenes_meta = meta if meta
         end
 
     # endregion ----------------------------------------------------------------
@@ -277,27 +338,47 @@ module Na__PointCloudViewer
     # REGION | Capture (what a binding remembers)
     # -------------------------------------------------------------------------
 
-        # The viewer's current state, as a scene stores it.
+        # The viewer's current state, as a scene stores it: the shared budget
+        # and the overlay switch, then every cloud of the model by its id.
         def self.Na__Scenes__Capture(session, view)
-            settings = NA_SETTING_KEYS.each_with_object({}) { |key, hash| hash[key] = session.settings[key] }
-            settings['visible'] = Na__ModelRegistry.Na__Registry__IsVisible?
-            Na__ClipBox.Na__Clip__Ensure(session)
-            clip = session.clip ? { 'enabled' => session.clip['enabled'] ? true : false,
-                                    'min' => session.clip['min'].map(&:to_f), 'max' => session.clip['max'].map(&:to_f) } : nil
+            clouds = Na__CloudSet.Na__Slots__All(session).each_with_object({}) do |slot, hash|
+                hash[slot.id] = self.na_capture_cloud(slot)
+            end
             {
-                'settings' => settings,
+                'settings' => { 'pointBudget' => session.settings['pointBudget'].to_i,
+                                'overlayOn'   => Na__ModelRegistry.Na__Registry__IsVisible? },
+                'clouds'   => clouds,
+                'view'     => { 'aspect' => self.na_view_aspect(view) }
+            }
+        end
+
+        def self.na_capture_cloud(slot)
+            Na__ClipBox.Na__Clip__Ensure(slot)
+            clip = slot.clip ? { 'enabled' => slot.clip['enabled'] ? true : false,
+                                 'min' => slot.clip['min'].map(&:to_f), 'max' => slot.clip['max'].map(&:to_f) } : nil
+            link = slot.record ? slot.record['link'] : nil
+            {
+                'visible'  => slot.visible ? true : false,
+                'display'  => Na__RenderSettings.Na__Settings__MergeDisplay(slot.display, {}),
                 'clip'     => clip,
-                'view'     => { 'aspect' => self.na_view_aspect(view) },
-                'cloud'    => self.na_cloud_identity(session)
+                'identity' => { 'name' => slot.name, 'fileName' => link ? link['fileName'] : (slot.cloud ? slot.cloud.label : nil),
+                                'contentKey' => link ? link['contentKey'] : nil, 'fingerprint' => link ? link['fingerprint'] : nil }
             }
         end
 
         # True when the viewer shows something other than what the scene holds.
         def self.Na__Scenes__Differs?(session, scene, view)
             now = self.Na__Scenes__Capture(session, view)
-            return true if NA_SETTING_KEYS.any? { |key| now['settings'][key] != scene['settings'][key] }
-            return true if !scene['settings']['visible'].nil? && now['settings']['visible'] != scene['settings']['visible']
-            !self.na_same_clip?(now['clip'], scene['clip'])
+            return true if now['settings']['pointBudget'] != scene.dig('settings', 'pointBudget').to_i
+            return true if now['settings']['overlayOn'] != (scene.dig('settings', 'overlayOn') != false)
+            saved = scene['clouds'] || {}
+            now['clouds'].any? do |id, current|
+                entry = saved[id]
+                next current['visible'] unless entry           # a cloud the scene does not know shows now
+                next true if current['visible'] != entry['visible']
+                next true if NA_DISPLAY_KEYS.any? { |key| current['display'][key] != (entry['display'] || {})[key] }
+                !self.na_same_clip?(current['clip'], entry['clip'])
+            end
         end
 
     # endregion ----------------------------------------------------------------
@@ -503,15 +584,6 @@ module Na__PointCloudViewer
             1.0
         end
 
-        def self.na_cloud_identity(session)
-            link = Na__ModelLink.Na__Link__Read(session.model)
-            cloud = link ? link['cloud'] : nil
-            return nil unless cloud.is_a?(Hash)
-            { 'fileName' => cloud['fileName'], 'contentKey' => cloud['contentKey'], 'fingerprint' => cloud['fingerprint'] }
-        rescue StandardError
-            nil
-        end
-
         def self.na_same_clip?(a, b)
             return a.nil? && b.nil? if a.nil? || b.nil?
             return false unless (a['enabled'] ? true : false) == (b['enabled'] ? true : false)
@@ -536,11 +608,14 @@ module Na__PointCloudViewer
         end
 
         # Validates one stored scene; unknown keys are carried through.
-        def self.na_valid_scene(raw)
+        # v1_cloud: the cloud id a schema 1 scene (one cloud) belongs to, or nil
+        # for a schema 2 record.
+        def self.na_valid_scene(raw, v1_cloud = nil)
             return nil unless raw.is_a?(Hash) && raw['id'].is_a?(String) && raw['id'].match?(NA_ID_PATTERN)
             page = raw['page']
             return nil unless page.is_a?(Hash) && page['pid'].to_i > 0
             scene = Marshal.load(Marshal.dump(raw))
+            scene = self.na_scene_from_v1(scene, v1_cloud) unless scene['clouds'].is_a?(Hash)
             scene['page'] = page.merge('pid' => page['pid'].to_i, 'name' => page['name'].to_s[0, 200], 'index' => page['index'].to_i)
             scene['viewType'] = 'view3d' unless self.Na__Scenes__ViewTypes.any? { |type| type['id'] == scene['viewType'] }
             export = scene['export'].is_a?(Hash) ? scene['export'] : {}
@@ -550,15 +625,40 @@ module Na__PointCloudViewer
                 'pointSizePx'  => export['pointSizePx'] ? export['pointSizePx'].to_i : nil
             )
             stored = scene['settings'].is_a?(Hash) ? scene['settings'] : {}
-            merged = Na__RenderSettings.Na__Settings__Merge(Na__RenderSettings.Na__Settings__Defaults, stored)
-            scene['settings'] = stored.merge(merged)
-            scene['settings']['visible'] = stored['visible'] == false ? false : true
-            scene['clip'] = self.na_valid_clip(scene['clip'])
+            budget = Na__RenderSettings.Na__Settings__Merge(Na__RenderSettings.Na__Settings__Defaults, stored.slice('pointBudget'))['pointBudget']
+            scene['settings'] = stored.merge('pointBudget' => budget, 'overlayOn' => stored['overlayOn'] != false)
+            scene['clouds'] = scene['clouds'].each_with_object({}) do |(id, entry), out|
+                next unless id.to_s.match?(Na__CloudStore::NA_ID_PATTERN) && entry.is_a?(Hash)
+                out[id.to_s] = entry.merge(
+                    'visible'  => entry['visible'] != false,
+                    'display'  => Na__RenderSettings.Na__Settings__MergeDisplay(entry['display'], {}),
+                    'clip'     => self.na_valid_clip(entry['clip']),
+                    'identity' => entry['identity'].is_a?(Hash) ? entry['identity'] : {}
+                )
+            end
             aspect = scene.dig('view', 'aspect').to_f
             scene['view'] = (scene['view'].is_a?(Hash) ? scene['view'] : {}).merge('aspect' => aspect > 0.05 && aspect < 20 ? aspect : 1.0)
             scene
         rescue StandardError
             nil
+        end
+
+        # A schema 1 scene (v0.9: one cloud's settings, visibility and clip box)
+        # as a schema 2 scene of that one cloud. The cloud was always drawn in
+        # its exported picture; 'visible' was the overlay switch.
+        def self.na_scene_from_v1(scene, cloud_id)
+            settings = scene['settings'].is_a?(Hash) ? scene['settings'] : {}
+            merged = Na__RenderSettings.Na__Settings__Merge(Na__RenderSettings.Na__Settings__Defaults, settings)
+            entry = {
+                'visible'  => true,
+                'display'  => Na__RenderSettings.Na__Settings__DisplayPart(merged),
+                'clip'     => scene['clip'],
+                'identity' => scene['cloud'].is_a?(Hash) ? scene['cloud'] : {}
+            }
+            scene.reject { |key, _| %w[settings clip cloud].include?(key) }.merge(
+                'settings' => { 'pointBudget' => merged['pointBudget'], 'overlayOn' => settings['visible'] != false },
+                'clouds'   => cloud_id ? { cloud_id => entry } : {}
+            )
         end
 
         def self.na_valid_clip(raw)

@@ -4,18 +4,23 @@
 #
 # FILE       : Na__PointCloudViewer__ClipBox__State__.rb
 # NAMESPACE  : Na__PointCloudViewer::Na__ClipBox
-# PURPOSE    : The clip box and the saved clip scenes: what they are, how
-#              they are stored, and every change the dialog or the edit tool
-#              can make to them.
+# PURPOSE    : The clip box and the saved clip scenes of ONE point cloud: what
+#              they are, how they are stored, and every change the dialog or
+#              the edit tool can make to them.
 #
 # WHAT CLIPPING IS: six limits in MODEL coordinates (left/right = x,
 #   front/back = y, bottom/top = z). Points outside are simply not drawn. The
 #   LAS and the engine's copy of the points are never touched.
 #
-# WHERE IT LIVES: JSON in the model's attribute dictionary
-#   'Na__PointCloudViewer__ClipState' (a few hundred bytes), so the clip box
-#   and its scenes travel with the .skp to any computer. Each committed change
-#   is one named, undoable operation; Undo/Redo re-read it (ModelRegistry).
+# ONE BOX PER CLOUD (v0.10.0): every cloud of the model has its own clip box
+#   and its own clip scenes; every function here is handed that cloud's slot.
+#   Copy to Other Clouds gives every other cloud the same box in one undoable
+#   step (one slice through two scans while they are aligned).
+#
+# WHERE IT LIVES: the cloud's own record in the model (Na__CloudStore: 'clip',
+#   'clipScenes', 'activeClipScene'), a few hundred bytes, so the clip box and
+#   its scenes travel with the .skp to any computer. Each committed change is
+#   one named, undoable operation; Undo/Redo re-read it (ModelRegistry).
 #   No point data is ever stored here.
 #
 # =============================================================================
@@ -27,10 +32,7 @@ module Na__PointCloudViewer
     # REGION | Constants
     # -------------------------------------------------------------------------
 
-        NA_DICT           = 'Na__PointCloudViewer__ClipState'.freeze
-        NA_KEY            = 'json'.freeze
-        NA_SCHEMA         = 'Na__PointCloudViewer__ClipState'.freeze
-        NA_SCHEMA_VERSION = 1
+        NA_DICT           = 'Na__PointCloudViewer__ClipState'.freeze   # v0.9 models only (read by Na__CloudStore)
         NA_FULL_CLOUD_ID  = 'full'.freeze
         NA_MIN_GAP_INCHES = 0.5
 
@@ -49,86 +51,91 @@ module Na__PointCloudViewer
     # REGION | Read (used by the renderer every frame, so keep it cheap)
     # -------------------------------------------------------------------------
 
-        def self.Na__Clip__IsActive?(session)
-            self.Na__Clip__Ensure(session)
-            clip = session.clip
+        def self.Na__Clip__IsActive?(slot)
+            return false unless slot
+            self.Na__Clip__Ensure(slot)
+            clip = slot.clip
             clip && clip['enabled'] ? true : false
         end
 
         # Appended to the native render parameters.
-        def self.Na__Clip__RenderParams(session)
-            return [0, 0, 0, 0, 0, 0, 0] unless self.Na__Clip__IsActive?(session)
-            [1] + session.clip['min'] + session.clip['max']
+        def self.Na__Clip__RenderParams(slot)
+            return [0, 0, 0, 0, 0, 0, 0] unless self.Na__Clip__IsActive?(slot)
+            [1] + slot.clip['min'] + slot.clip['max']
         end
 
         # Part of the image renderer's cache key: any change re-renders.
-        def self.Na__Clip__Key(session)
-            self.Na__Clip__IsActive?(session) ? (session.clip['min'] + session.clip['max']) : nil
+        def self.Na__Clip__Key(slot)
+            self.Na__Clip__IsActive?(slot) ? (slot.clip['min'] + slot.clip['max']) : nil
         end
 
         def self.Na__Clip__Face(face_id)
             NA_FACES.find { |face| face['id'] == face_id.to_s }
         end
 
-        def self.Na__Clip__FaceValue(session, face)
-            session.clip[face['side']][face['axis']]
+        def self.Na__Clip__FaceValue(slot, face)
+            slot.clip[face['side']][face['axis']]
         end
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Load + Save (model attribute dictionary)
+    # REGION | Load + Save (the cloud's record)
     # -------------------------------------------------------------------------
 
-        def self.Na__Clip__Ensure(session)
-            return if session.clip_loaded
-            self.Na__Clip__Load(session)
+        def self.Na__Clip__Ensure(slot)
+            return if slot.clip_loaded
+            self.Na__Clip__Load(slot)
         end
 
-        def self.Na__Clip__Load(session)
-            session.clip_loaded = true
-            session.clip, session.clip_scenes, session.clip_active_scene = nil, [], nil
-            raw = session.model ? session.model.get_attribute(NA_DICT, NA_KEY) : nil
-            return unless raw.is_a?(String) && !raw.empty?
-            data = JSON.parse(raw)
-            return unless data.is_a?(Hash) && data['schema'] == NA_SCHEMA && data['schemaVersion'].to_i <= NA_SCHEMA_VERSION
-            session.clip              = self.na_valid_box(data['clip'], data.dig('clip', 'enabled') == true)
-            session.clip_scenes       = Array(data['scenes']).map { |scene| self.na_valid_scene(scene) }.compact
-            session.clip_active_scene = data['activeScene'].is_a?(String) ? data['activeScene'] : nil
-        rescue JSON::ParserError => error
-            Na__DebugTools.Na__Debug__Warn("Stored clip state could not be read and was ignored: #{error.message}")
+        # From the cloud's record as the model holds it. A part that cannot be
+        # read is ignored with a log line.
+        def self.Na__Clip__Load(slot)
+            slot.clip_loaded = true
+            record = slot.record
+            unless record
+                slot.clip_scenes ||= []
+                return
+            end
+            slot.clip              = self.na_valid_box(record['clip'], record['clip'].is_a?(Hash) && record['clip']['enabled'] == true)
+            slot.clip_scenes       = Array(record['clipScenes']).map { |scene| self.na_valid_scene(scene) }.compact
+            slot.clip_active_scene = record['activeClipScene'].is_a?(String) ? record['activeClipScene'] : nil
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Warn("The stored clip box of #{slot.name} could not be read and was ignored: #{error.message}")
+        end
+
+        # The record's clip parts for the box and scenes the slot holds now.
+        def self.Na__Clip__Part(slot)
+            {
+                'clip'            => slot.clip ? { 'enabled' => slot.clip['enabled'] ? true : false, 'min' => slot.clip['min'], 'max' => slot.clip['max'] } : nil,
+                'clipScenes'      => slot.clip_scenes || [],
+                'activeClipScene' => slot.clip_active_scene
+            }
         end
 
         # One undoable operation per committed change.
-        def self.Na__Clip__Save(session, operation_name)
-            model = session.model
-            return unless model
-            now = Time.now
-            data = {
-                'schema'        => NA_SCHEMA,
-                'schemaVersion' => NA_SCHEMA_VERSION,
-                'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'updatedEpoch'  => now.to_f,
-                'clip'          => session.clip,
-                'scenes'        => session.clip_scenes,
-                'activeScene'   => session.clip_active_scene
-            }
-            begin
-                model.start_operation(operation_name, true)
-                model.set_attribute(NA_DICT, NA_KEY, JSON.generate(data))
-                model.commit_operation
-            rescue StandardError
-                model.abort_operation
-                raise
+        # Returns nil, or why nothing was written (the box then goes back to
+        # what the model holds, so memory never runs ahead of the model).
+        def self.Na__Clip__Save(slot, operation_name)
+            problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, [slot], operation_name) do |_slot, record|
+                record.merge!(self.Na__Clip__Part(slot))
             end
-            Na__LocalBackup.Na__Backup__AfterSave(model, session)
-            Na__CleanPreview.Na__Clean__Changed(session) if defined?(Na__CleanPreview)   # the box is the preview region
+            if problem
+                self.Na__Clip__Load(slot)
+                return problem
+            end
+            Na__CleanPreview.Na__Clean__Changed(slot) if defined?(Na__CleanPreview)   # the box is the preview region
+            nil
         end
 
         # Undo / Redo: see Na__ModelRegistry.Na__Registry__ReloadModelState, which
-        # re-reads this and the cloud placement together.
+        # re-reads every cloud's clip box and placement together.
         def self.Na__Clip__ReloadFromModel(model)
             Na__ModelRegistry.Na__Registry__ReloadModelState(model)
+        end
+
+        def self.na_op(slot, text)
+            Na__CloudSet.Na__Slots__OpName(slot, text)
         end
 
     # endregion ----------------------------------------------------------------
@@ -137,31 +144,32 @@ module Na__PointCloudViewer
     # REGION | Box Changes
     # -------------------------------------------------------------------------
 
-        def self.Na__Clip__SetEnabled(session, enabled)
-            self.Na__Clip__Ensure(session)
-            unless session.clip
-                return 'Import a point cloud first: the clip box starts at the cloud\'s bounds.' unless session.cloud
-                session.clip = self.na_cloud_box(session)
+        def self.Na__Clip__SetEnabled(slot, enabled)
+            return 'Import a point cloud first: the clip box starts at the cloud\'s bounds.' unless slot
+            self.Na__Clip__Ensure(slot)
+            unless slot.clip
+                return 'Load this point cloud first: the clip box starts at the cloud\'s bounds.' unless slot.cloud
+                slot.clip = self.na_cloud_box(slot)
             end
-            session.clip['enabled'] = enabled ? true : false
-            self.Na__Clip__Save(session, enabled ? 'Point Cloud: Clip On' : 'Point Cloud: Clip Off')
-            nil
+            slot.clip['enabled'] = enabled ? true : false
+            self.Na__Clip__Save(slot, self.na_op(slot, enabled ? 'Clip On' : 'Clip Off'))
         end
 
-        def self.Na__Clip__ResetToCloud(session)
-            self.Na__Clip__Ensure(session)
-            return 'Import a point cloud first: there are no bounds to reset to.' unless session.cloud
-            session.clip = self.na_cloud_box(session)
-            self.Na__Clip__Save(session, 'Point Cloud: Reset Clip Box')
-            nil
+        def self.Na__Clip__ResetToCloud(slot)
+            return 'Import a point cloud first: there are no bounds to reset to.' unless slot
+            self.Na__Clip__Ensure(slot)
+            return 'Load this point cloud first: there are no bounds to reset to.' unless slot.cloud
+            slot.clip = self.na_cloud_box(slot)
+            self.Na__Clip__Save(slot, self.na_op(slot, 'Reset Clip Box'))
         end
 
         # values: { 'left' => '3500', 'top' => '2.4m', ... } in the model's display
         # unit. Returns nil or a plain-English reason nothing changed.
-        def self.Na__Clip__SetLimits(session, values, display)
-            self.Na__Clip__Ensure(session)
-            return 'There is no clip box yet. Turn clipping on or press Edit Clip Box first.' unless session.clip
-            box = { 'enabled' => session.clip['enabled'], 'min' => session.clip['min'].dup, 'max' => session.clip['max'].dup }
+        def self.Na__Clip__SetLimits(slot, values, display)
+            return 'Import a point cloud first.' unless slot
+            self.Na__Clip__Ensure(slot)
+            return 'There is no clip box yet. Turn clipping on or press Edit Clip Box first.' unless slot.clip
+            box = { 'enabled' => slot.clip['enabled'], 'min' => slot.clip['min'].dup, 'max' => slot.clip['max'].dup }
             values.each do |face_id, text|
                 face = self.Na__Clip__Face(face_id)
                 next unless face
@@ -172,23 +180,52 @@ module Na__PointCloudViewer
                     return "#{%w[Left Front Bottom][axis]} must be below #{%w[Right Back Top][axis]}."
                 end
             end
-            session.clip = box
-            self.Na__Clip__Save(session, 'Point Cloud: Clip Limits')
-            nil
+            slot.clip = box
+            self.Na__Clip__Save(slot, self.na_op(slot, 'Clip Limits'))
         rescue ArgumentError => error
             error.message
         end
 
         # Live, unsaved change from the edit tool (one face). Keeps the box valid.
-        def self.Na__Clip__SetFaceLive(session, face, value)
+        def self.Na__Clip__SetFaceLive(slot, face, value)
             axis = face['axis']
             value = if face['side'] == 'min'
-                        [value, session.clip['max'][axis] - NA_MIN_GAP_INCHES].min
+                        [value, slot.clip['max'][axis] - NA_MIN_GAP_INCHES].min
                     else
-                        [value, session.clip['min'][axis] + NA_MIN_GAP_INCHES].max
+                        [value, slot.clip['min'][axis] + NA_MIN_GAP_INCHES].max
                     end
-            session.clip[face['side']][axis] = value
+            slot.clip[face['side']][axis] = value
             value
+        end
+
+        # Every other cloud of the model takes this cloud's box (and whether it
+        # clips), in ONE undoable operation. Their own clip scenes are kept.
+        def self.Na__Clip__CopyToOthers(slot)
+            return 'Import a point cloud first.' unless slot
+            self.Na__Clip__Ensure(slot)
+            return 'There is no clip box to copy yet.' unless slot.clip
+            others = Na__CloudSet.Na__Slots__All(slot.session).reject { |other| other.equal?(slot) }
+            return 'This model has no other point cloud to copy the box to.' if others.empty?
+            box = { 'enabled' => slot.clip['enabled'] ? true : false, 'min' => slot.clip['min'].dup, 'max' => slot.clip['max'].dup }
+            before = others.map { |other| [other, other.clip, other.clip_active_scene] }
+            others.each do |other|
+                self.Na__Clip__Ensure(other)
+                other.clip = Marshal.load(Marshal.dump(box))
+                other.clip_active_scene = nil
+            end
+            begin
+                problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, others, "Point Cloud: Copy Clip Box of #{slot.name} to Other Clouds") do |other, record|
+                    record.merge!(self.Na__Clip__Part(other))
+                end
+            rescue StandardError
+                before.each { |other, clip, active| other.clip = clip; other.clip_active_scene = active }
+                raise
+            end
+            if problem
+                before.each { |other, clip, active| other.clip = clip; other.clip_active_scene = active }
+                return problem
+            end
+            nil
         end
 
     # endregion ----------------------------------------------------------------
@@ -197,83 +234,79 @@ module Na__PointCloudViewer
     # REGION | Clip Scenes
     # -------------------------------------------------------------------------
 
-        def self.Na__Clip__SceneSave(session, name)
-            self.Na__Clip__Ensure(session)
-            return 'There is no clip box to save yet.' unless session.clip
-            scene = { 'id' => self.na_new_scene_id(session), 'name' => self.na_scene_name(session, name) }.merge(self.na_box_copy(session.clip))
-            session.clip_scenes << scene
-            session.clip['enabled'] = true
-            session.clip_active_scene = scene['id']
-            self.Na__Clip__Save(session, 'Point Cloud: Save Clip Scene')
-            nil
+        def self.Na__Clip__SceneSave(slot, name)
+            return 'Import a point cloud first.' unless slot
+            self.Na__Clip__Ensure(slot)
+            return 'There is no clip box to save yet.' unless slot.clip
+            scene = { 'id' => self.na_new_scene_id(slot), 'name' => self.na_scene_name(slot, name) }.merge(self.na_box_copy(slot.clip))
+            slot.clip_scenes << scene
+            slot.clip['enabled'] = true
+            slot.clip_active_scene = scene['id']
+            self.Na__Clip__Save(slot, self.na_op(slot, 'Save Clip Scene'))
         end
 
-        def self.Na__Clip__SceneUpdate(session, scene_id)
-            scene = self.na_scene(session, scene_id)
-            return 'That clip scene no longer exists.' unless scene && session.clip
-            scene.merge!(self.na_box_copy(session.clip))
-            session.clip['enabled'] = true
-            session.clip_active_scene = scene['id']
-            self.Na__Clip__Save(session, 'Point Cloud: Update Clip Scene')
-            nil
+        def self.Na__Clip__SceneUpdate(slot, scene_id)
+            scene = self.na_scene(slot, scene_id)
+            return 'That clip scene no longer exists.' unless scene && slot.clip
+            scene.merge!(self.na_box_copy(slot.clip))
+            slot.clip['enabled'] = true
+            slot.clip_active_scene = scene['id']
+            self.Na__Clip__Save(slot, self.na_op(slot, 'Update Clip Scene'))
         end
 
-        def self.Na__Clip__SceneRename(session, scene_id, name)
-            scene = self.na_scene(session, scene_id)
+        def self.Na__Clip__SceneRename(slot, scene_id, name)
+            scene = self.na_scene(slot, scene_id)
             return 'That clip scene no longer exists.' unless scene
             clean = name.to_s.strip[0, 60]
             return 'Give the scene a name.' if clean.empty?
             scene['name'] = clean
-            self.Na__Clip__Save(session, 'Point Cloud: Rename Clip Scene')
-            nil
+            self.Na__Clip__Save(slot, self.na_op(slot, 'Rename Clip Scene'))
         end
 
-        def self.Na__Clip__SceneDelete(session, scene_id)
-            scene = self.na_scene(session, scene_id)
+        def self.Na__Clip__SceneDelete(slot, scene_id)
+            scene = self.na_scene(slot, scene_id)
             return 'That clip scene no longer exists.' unless scene
-            session.clip_scenes.delete(scene)
-            session.clip_active_scene = nil if session.clip_active_scene == scene_id
-            self.Na__Clip__Save(session, 'Point Cloud: Delete Clip Scene')
-            nil
+            slot.clip_scenes.delete(scene)
+            slot.clip_active_scene = nil if slot.clip_active_scene == scene_id
+            self.Na__Clip__Save(slot, self.na_op(slot, 'Delete Clip Scene'))
         end
 
         # The dialog's drag to reorder: ids is every scene id, top to bottom.
         # Only the order changes, as one undoable step. A list that no longer
         # matches the scenes (one added or deleted meanwhile) changes nothing.
-        def self.Na__Clip__SceneReorder(session, ids)
-            self.Na__Clip__Ensure(session)
+        def self.Na__Clip__SceneReorder(slot, ids)
+            return 'Import a point cloud first.' unless slot
+            self.Na__Clip__Ensure(slot)
             wanted  = Array(ids).map(&:to_s)
-            current = session.clip_scenes.map { |scene| scene['id'] }
+            current = slot.clip_scenes.map { |scene| scene['id'] }
             return 'The clip scenes changed while you were moving one, so nothing was moved. Try again.' unless wanted.sort == current.sort && wanted.uniq.length == wanted.length
             return nil if wanted == current
-            before = session.clip_scenes.dup
+            before = slot.clip_scenes.dup
             by_id  = before.each_with_object({}) { |scene, hash| hash[scene['id']] = scene }
-            session.clip_scenes.replace(wanted.map { |id| by_id[id] })
+            slot.clip_scenes.replace(wanted.map { |id| by_id[id] })
             begin
-                self.Na__Clip__Save(session, 'Point Cloud: Reorder Clip Scenes')
+                self.Na__Clip__Save(slot, self.na_op(slot, 'Reorder Clip Scenes'))
             rescue StandardError
-                session.clip_scenes.replace(before)
+                slot.clip_scenes.replace(before)
                 raise
             end
-            nil
         end
 
         # 'full' = Full Cloud: clipping off. The box and the scene it came from
         # are kept, so turning Clip back on returns to them.
-        def self.Na__Clip__SceneActivate(session, scene_id)
-            self.Na__Clip__Ensure(session)
+        def self.Na__Clip__SceneActivate(slot, scene_id)
+            return 'Import a point cloud first.' unless slot
+            self.Na__Clip__Ensure(slot)
             if scene_id.to_s == NA_FULL_CLOUD_ID
-                return nil unless session.clip && session.clip['enabled']
-                session.clip['enabled'] = false
-                self.Na__Clip__Save(session, 'Point Cloud: Full Cloud')
-                return nil
+                return nil unless slot.clip && slot.clip['enabled']
+                slot.clip['enabled'] = false
+                return self.Na__Clip__Save(slot, self.na_op(slot, 'Full Cloud'))
             end
-            scene = self.na_scene(session, scene_id)
+            scene = self.na_scene(slot, scene_id)
             return 'That clip scene no longer exists.' unless scene
-            session.clip = self.na_box_copy(scene)
-            session.clip_active_scene = scene['id']
-            self.Na__Clip__Save(session, "Point Cloud: Clip Scene #{scene['name']}")
-            nil
+            slot.clip = self.na_box_copy(scene)
+            slot.clip_active_scene = scene['id']
+            self.Na__Clip__Save(slot, self.na_op(slot, "Clip Scene #{scene['name']}"))
         end
 
     # endregion ----------------------------------------------------------------
@@ -282,25 +315,31 @@ module Na__PointCloudViewer
     # REGION | Dialog Payload
     # -------------------------------------------------------------------------
 
-        def self.Na__Clip__Payload(session, model)
-            return { 'isAvailable' => false } unless session
-            self.Na__Clip__Ensure(session)
+        def self.Na__Clip__Payload(slot, model)
+            return { 'isAvailable' => true, 'hasCloud' => false, 'hasBox' => false, 'enabled' => false, 'isEditing' => false,
+                     'unit' => Na__UnitContract.Na__Units__ModelDisplay(model)['suffix'], 'fullCloudActive' => true, 'scenes' => [],
+                     'limits' => NA_FACES.map { |face| { 'id' => face['id'], 'label' => face['label'], 'value' => '' } },
+                     'otherClouds' => 0 } unless slot
+            self.Na__Clip__Ensure(slot)
             display = Na__UnitContract.Na__Units__ModelDisplay(model)
-            clip = session.clip
+            clip = slot.clip
             {
                 'isAvailable'  => true,
-                'hasCloud'     => !session.cloud.nil?,
+                'cloudId'      => slot.id,
+                'cloudName'    => slot.name,
+                'hasCloud'     => !slot.cloud.nil?,
                 'hasBox'       => !clip.nil?,
                 'enabled'      => clip ? clip['enabled'] : false,
-                'isEditing'    => session.clip_editing ? true : false,
+                'isEditing'    => slot.clip_editing ? true : false,
                 'unit'         => display['suffix'],
+                'otherClouds'  => Na__CloudSet.Na__Slots__All(slot.session).length - 1,
                 'limits'       => NA_FACES.map do |face|
                     value = clip ? Na__UnitContract.Na__Units__InchesToDisplayText(clip[face['side']][face['axis']], display) : ''
                     { 'id' => face['id'], 'label' => face['label'], 'value' => value }
                 end,
                 'fullCloudActive' => !(clip && clip['enabled']),
-                'scenes'       => session.clip_scenes.map do |scene|
-                    active = clip && clip['enabled'] && scene['id'] == session.clip_active_scene ? true : false
+                'scenes'       => slot.clip_scenes.map do |scene|
+                    active = clip && clip['enabled'] && scene['id'] == slot.clip_active_scene ? true : false
                     {
                         'id'         => scene['id'],
                         'name'       => scene['name'],
@@ -318,8 +357,8 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         # The cloud's own bounds: exactly what "Reset to Cloud" means.
-        def self.na_cloud_box(session)
-            bounds = session.cloud.bounds
+        def self.na_cloud_box(slot)
+            bounds = slot.cloud.bounds
             { 'enabled' => true, 'min' => bounds.min.to_a.map(&:to_f), 'max' => bounds.max.to_a.map(&:to_f) }
         end
 
@@ -349,22 +388,23 @@ module Na__PointCloudViewer
             { 'id' => raw['id'], 'name' => raw['name'].to_s.strip[0, 60] }.merge(box)
         end
 
-        def self.na_scene(session, scene_id)
-            self.Na__Clip__Ensure(session)
-            session.clip_scenes.find { |scene| scene['id'] == scene_id.to_s }
+        def self.na_scene(slot, scene_id)
+            return nil unless slot
+            self.Na__Clip__Ensure(slot)
+            slot.clip_scenes.find { |scene| scene['id'] == scene_id.to_s }
         end
 
-        def self.na_new_scene_id(session)
-            used = session.clip_scenes.map { |scene| scene['id'] }
-            index = session.clip_scenes.length + 1
+        def self.na_new_scene_id(slot)
+            used = slot.clip_scenes.map { |scene| scene['id'] }
+            index = slot.clip_scenes.length + 1
             index += 1 while used.include?("scene#{index}")
             "scene#{index}"
         end
 
-        def self.na_scene_name(session, name)
+        def self.na_scene_name(slot, name)
             clean = name.to_s.strip[0, 60]
             return clean unless clean.empty?
-            "Clip scene #{session.clip_scenes.length + 1}"
+            "Clip scene #{slot.clip_scenes.length + 1}"
         end
 
     # endregion ----------------------------------------------------------------

@@ -10,6 +10,9 @@
 //              assumed. Each unit option shows the real size it would give.
 //              A LAS just decompressed from a LAZ arrives with the converter's
 //              rows first and its own status line (statusText / statusLevel).
+//              header.target says what the import does to a model that holds
+//              clouds already (v0.10.0): adds one, loads into one, or cannot
+//              (the model is full, and Import stays disabled).
 //
 // =============================================================================
 
@@ -22,6 +25,7 @@
 
     var na_header = null;
     var na_unit   = null;
+    var na_full   = false;     // the model holds as many clouds as it can
 
     // -------------------------------------------------------------------------
     // REGION | Render
@@ -35,7 +39,16 @@
         Array.prototype.forEach.call(options, function (option) {
             option.classList.toggle('na-unit-option--active', option.getAttribute('data-na-unit') === key);
         });
-        document.getElementById('na-las-import-go').disabled = !key;
+        document.getElementById('na-las-import-go').disabled = !key || na_full;
+    }
+
+    function na_render_target(header) {
+        var target = header.target || null;
+        var text = target && target.text ? target.text : '';
+        na_full = !!(target && target.kind === 'full');
+        var note = document.getElementById('na-las-target-note');
+        note.textContent = text;
+        note.className = 'na-note na-note--top' + (na_full ? '' : ' na-note--info') + (text ? '' : ' na-hidden');
     }
 
     function na_render_units(header) {
@@ -56,6 +69,7 @@
         na_header = header;
         Shell.na_text('na-las-file-name', header.fileName);
         Shell.na_stat_grid('na-las-report', header.rows || []);
+        na_render_target(header);
         na_render_units(header);
         Shell.na_text('na-las-unit-note', header.unitNote || '');
         na_select_unit(header.suggestedUnit || null);
@@ -69,6 +83,7 @@
         na_card().classList.add('na-hidden');
         na_header = null;
         na_unit = null;
+        na_full = false;
     };
 
     // endregion ----------------------------------------------------------------

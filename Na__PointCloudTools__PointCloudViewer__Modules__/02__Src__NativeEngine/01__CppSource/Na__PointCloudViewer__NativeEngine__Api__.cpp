@@ -30,11 +30,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <new>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace {
 
@@ -146,6 +148,36 @@ NAPC_API int32_t napc_cloud_read(void* cloud_handle, int64_t first, int64_t coun
 // REGION | Render
 // -----------------------------------------------------------------------------
 
+namespace {
+
+    // The PNG and the stats every render writes. Caller holds the render mutex.
+    int32_t Na__FinishRender(const double* frame, const char* path_utf8, const Na__RasterStats& raster,
+                             std::chrono::steady_clock::time_point total_start, double* stats, int32_t stat_count) {
+        Na__PngTimings png;
+        std::string error;
+        const int width = static_cast<int>(frame[NAPC_P_WIDTH]);
+        const int height = static_cast<int>(frame[NAPC_P_HEIGHT]);
+        if (!Na__Png__WriteStored(Na__Utf8ToWide(path_utf8), g_buffers->raw.data(), g_buffers->raw.size(),
+                                  width, height, Na__Pool(), g_buffers->file, png, error)) {
+            return Na__Fail(error.c_str(), -5);
+        }
+        if (stats && stat_count >= NAPC_S_COUNT) {
+            stats[NAPC_S_POINTS_TESTED]    = static_cast<double>(raster.points_tested);
+            stats[NAPC_S_POINTS_ON_SCREEN] = static_cast<double>(raster.points_on_screen);
+            stats[NAPC_S_THREADS]          = static_cast<double>(Na__Pool().Size());
+            stats[NAPC_S_CLEAR_MS]         = raster.clear_ms;
+            stats[NAPC_S_RASTER_MS]        = raster.raster_ms;
+            stats[NAPC_S_RESOLVE_MS]       = raster.resolve_ms;
+            stats[NAPC_S_ENCODE_MS]        = png.encode_ms;
+            stats[NAPC_S_WRITE_MS]         = png.write_ms;
+            stats[NAPC_S_TOTAL_MS]         = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - total_start).count();
+            stats[NAPC_S_PNG_BYTES]        = static_cast<double>(png.bytes);
+        }
+        return 0;
+    }
+
+} // namespace
+
 NAPC_API int32_t napc_render_png(void* cloud_handle, const double* params, int32_t param_count,
                                  const char* path_utf8, double* stats, int32_t stat_count) {
     if (!cloud_handle) return Na__Fail("No point cloud is loaded in the native engine.", -1);
@@ -161,26 +193,52 @@ NAPC_API int32_t napc_render_png(void* cloud_handle, const double* params, int32
         Na__RasterStats raster;
         std::string error;
         if (!Na__Raster__Render(cloud, params, Na__Pool(), *g_buffers, raster, error)) return Na__Fail(error.c_str(), -4);
+        return Na__FinishRender(params, path_utf8, raster, total_start, stats, stat_count);
+    } catch (const std::bad_alloc&) {
+        return Na__Fail("Not enough memory for the render image.", -6);
+    } catch (...) {
+        return Na__Fail("The native renderer failed unexpectedly.", -7);
+    }
+}
 
-        Na__PngTimings png;
-        const int width = static_cast<int>(params[NAPC_P_WIDTH]);
-        const int height = static_cast<int>(params[NAPC_P_HEIGHT]);
-        if (!Na__Png__WriteStored(Na__Utf8ToWide(path_utf8), g_buffers->raw.data(), g_buffers->raw.size(),
-                                  width, height, Na__Pool(), g_buffers->file, png, error)) {
-            return Na__Fail(error.c_str(), -5);
+NAPC_API int32_t napc_render_layers_png(void* const* clouds, int32_t layer_count, const double* params,
+                                        int32_t param_stride, double total_budget, const char* path_utf8,
+                                        double* stats, int32_t stat_count, double* layer_stats, int32_t layer_stat_count) {
+    if (!clouds || layer_count < 1) return Na__Fail("No point clouds were given to render.", -1);
+    if (layer_count > NAPC_MAX_LAYERS) return Na__Fail("Too many point clouds for one frame.", -1);
+    for (int32_t i = 0; i < layer_count; ++i) {
+        if (!clouds[i]) return Na__Fail("A point cloud to render is not loaded in the native engine.", -1);
+    }
+    if (!params || param_stride < NAPC_P_COUNT) return Na__Fail("Render parameters are missing.", -2);
+    if (!path_utf8) return Na__Fail("No output path was given.", -3);
+
+    const auto total_start = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(g_render_mutex);
+    try {
+        if (!g_buffers) g_buffers = new Na__FrameBuffers();
+        std::vector<Na__RenderLayer> layers(static_cast<size_t>(layer_count));
+        for (int32_t i = 0; i < layer_count; ++i) {
+            layers[i].cloud  = static_cast<const Na__PointCloud*>(clouds[i]);
+            layers[i].params = params + static_cast<size_t>(i) * static_cast<size_t>(param_stride);
         }
-
-        if (stats && stat_count >= NAPC_S_COUNT) {
-            stats[NAPC_S_POINTS_TESTED]    = static_cast<double>(raster.points_tested);
-            stats[NAPC_S_POINTS_ON_SCREEN] = static_cast<double>(raster.points_on_screen);
-            stats[NAPC_S_THREADS]          = static_cast<double>(Na__Pool().Size());
-            stats[NAPC_S_CLEAR_MS]         = raster.clear_ms;
-            stats[NAPC_S_RASTER_MS]        = raster.raster_ms;
-            stats[NAPC_S_RESOLVE_MS]       = raster.resolve_ms;
-            stats[NAPC_S_ENCODE_MS]        = png.encode_ms;
-            stats[NAPC_S_WRITE_MS]         = png.write_ms;
-            stats[NAPC_S_TOTAL_MS]         = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - total_start).count();
-            stats[NAPC_S_PNG_BYTES]        = static_cast<double>(png.bytes);
+        const int64_t budget = total_budget >= 9.0e18 ? std::numeric_limits<int64_t>::max()
+                                                      : (total_budget > 0.0 ? static_cast<int64_t>(total_budget) : 0);
+        Na__RasterStats raster;
+        std::vector<Na__LayerStats> per_layer;
+        std::string error;
+        if (!Na__Raster__RenderLayers(layers.data(), layer_count, budget, Na__Pool(), *g_buffers, raster, per_layer, error)) {
+            return Na__Fail(error.c_str(), -4);
+        }
+        const int32_t code = Na__FinishRender(params, path_utf8, raster, total_start, stats, stat_count);
+        if (code < 0) return code;
+        if (layer_stats && layer_stat_count >= layer_count * NAPC_LS_COUNT) {
+            for (int32_t i = 0; i < layer_count; ++i) {
+                double* out = layer_stats + static_cast<size_t>(i) * NAPC_LS_COUNT;
+                out[NAPC_LS_DEMAND]    = static_cast<double>(per_layer[i].demand);
+                out[NAPC_LS_SHARE]     = static_cast<double>(per_layer[i].share);
+                out[NAPC_LS_TESTED]    = static_cast<double>(per_layer[i].tested);
+                out[NAPC_LS_ON_SCREEN] = static_cast<double>(per_layer[i].on_screen);
+            }
         }
         return 0;
     } catch (const std::bad_alloc&) {

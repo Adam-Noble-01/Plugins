@@ -22,10 +22,12 @@
 #   3. The new file is loaded like any LAS (a new point cache, named by its
 #      own content key; the original's cache is kept).
 #   4. Only when export, check and load have all succeeded does the model
-#      change: the link names the new file (what it was made from is kept)
-#      and the cloud's position is carried over exactly, as ONE undoable
+#      change: the cloud's link names the new file (what it was made from is
+#      kept) and its position is carried over exactly, as ONE undoable
 #      operation "Point Cloud: Use Cleaned LAS". The clip box and scenes are
-#      in model coordinates and need no change.
+#      in model coordinates and need no change. It is the same cloud of the
+#      model (the same id), now made from the cleaned file; the model's other
+#      clouds are not touched.
 #   5. Export done but loading failed or cancelled: the file stays, the model
 #      keeps the original, and Load Cleaned LAS tries again.
 #   SketchUp's Undo can put the model's link back to the earlier file; Undo
@@ -46,9 +48,9 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         # nil, or why Clean & Export cannot start (shown on the button).
-        def self.Na__CleanExport__Blocker(session)
-            cloud = session ? session.cloud : nil
-            return 'Load a point cloud first.' unless cloud
+        def self.Na__CleanExport__Blocker(slot)
+            cloud = slot ? slot.cloud : nil
+            return slot ? "Load #{slot.name} first (View tab)." : 'Load a point cloud first.' unless cloud
             info = cloud.las_info || {}
             unless info['hasRecordIndex']
                 return 'This cloud came from a point cache made before v0.8.0, which does not record where each point is in the LAS. ' \
@@ -98,10 +100,10 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         # Returns nil when the job has started, 'cancelled', or a reason.
-        def self.Na__CleanExport__Start(session)
-            problem = self.Na__CleanExport__Blocker(session)
+        def self.Na__CleanExport__Start(slot)
+            problem = self.Na__CleanExport__Blocker(slot)
             return problem if problem
-            cloud  = session.cloud
+            cloud  = slot.cloud
             source = cloud.source_path.to_s
             info   = cloud.las_info || {}
             header = Na__NativeEngine.Na__Native__LasReadHeader(source)
@@ -121,10 +123,10 @@ module Na__PointCloudViewer
             settings = Na__CleanSettings.Na__CleanSettings__Current
             mm_per_unit = Na__CleanSettings.Na__CleanSettings__MmPerUnit(cloud)
             params = Na__CleanSettings.Na__CleanSettings__EngineParams(mm_per_unit, settings)
-            provenance = self.na_provenance(session, cloud, key, settings, params)
-            Na__Placement.Na__Placement__Ensure(session)
-            return 'The loaded cloud has no position record; Reload Point Cloud first.' unless session.placement
-            job = Na__CleanExportJob.new(session, Sketchup.active_model.active_view, {
+            provenance = self.na_provenance(slot, cloud, key, settings, params)
+            Na__Placement.Na__Placement__Ensure(slot)
+            return 'The loaded cloud has no position record; Reload it first.' unless slot.placement
+            job = Na__CleanExportJob.new(slot, Sketchup.active_model.active_view, {
                 'source' => source, 'dest' => dest, 'params' => params, 'provenance' => provenance,
                 'origin' => info['localOriginSource'], 'sourceKey' => key, 'settings' => settings
             })
@@ -132,13 +134,13 @@ module Na__PointCloudViewer
         end
 
         # Retry after an export whose loading failed or was cancelled.
-        def self.Na__CleanExport__RetryLoad(session)
-            state = Na__CleanPreview.Na__Clean__State(session)
+        def self.Na__CleanExport__RetryLoad(slot)
+            state = Na__CleanPreview.Na__Clean__State(slot)
             retry_info = state.retry_load
             return 'There is no cleaned LAS waiting to be loaded.' unless retry_info
             return "The cleaned LAS is no longer at #{retry_info['path']}." unless File.file?(retry_info['path'])
             return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
-            job = Na__CleanExportJob.new(session, Sketchup.active_model.active_view, retry_info.merge('reloadOnly' => true))
+            job = Na__CleanExportJob.new(slot, Sketchup.active_model.active_view, retry_info.merge('reloadOnly' => true))
             Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
         end
 
@@ -160,8 +162,8 @@ module Na__PointCloudViewer
             nil
         end
 
-        def self.na_provenance(session, cloud, source_key, settings, params)
-            model = session.model
+        def self.na_provenance(slot, cloud, source_key, settings, params)
+            model = slot.model
             JSON.generate(
                 'tool'        => Na__ConfigLoader.Na__Config__GetOr('Na Point Cloud Viewer', 'plugin', 'name'),
                 'version'     => Na__PointCloudViewer.Na__PublicApi__Version,
@@ -185,45 +187,45 @@ module Na__PointCloudViewer
         # Called with the freshly loaded cleaned cloud. Writes the model's link
         # and position (one undoable operation), then installs the cloud.
         # Raises (and leaves the original installed) when the model write fails.
-        def self.na_use_cleaned(session, new_cloud, view, job_info)
-            model = session.model
+        def self.na_use_cleaned(slot, new_cloud, view, job_info)
+            model = slot.model
             raise 'The model this cloud belongs to was closed.' unless model && model.valid?
-            base = self.na_base(session, job_info)
+            raise "#{slot.name} was removed from the model during the export." unless Na__CloudSet.Na__Slots__All(slot.session).include?(slot)
+            base = self.na_base(slot, job_info)
             new_key = Na__Placement.Na__Placement__CloudKey(new_cloud)
             placement = Na__Placement.Na__Placement__ForNewOrigin(base['placement'], base['unitFactor'], base['origin'],
                                                                    new_cloud.las_info['localOriginSource'], new_key)
-            previous = Na__ModelLink.Na__Link__Read(model)
+            now = Time.now.strftime('%Y-%m-%dT%H:%M:%S%z')
+            previous = slot.record ? slot.record['link'] : nil
             part = Na__ModelLink.Na__Link__CloudPart(model, new_cloud, new_key)
-            part['derivedFrom'] = base['derivedFrom'].merge('cleanedAt' => Time.now.strftime('%Y-%m-%dT%H:%M:%S%z'))
-            history = (previous && previous['history'].is_a?(Array) ? previous['history'] : []) + [previous ? previous['cloud'] : base['derivedFrom']]
-            record = Na__ModelLink.Na__Link__BuildRecord(previous, part, history.last(20))
-            begin
-                model.start_operation('Point Cloud: Use Cleaned LAS', true)
-                model.set_attribute(Na__ModelLink::NA_DICT, Na__ModelLink::NA_KEY, JSON.generate(record))
-                model.set_attribute(Na__Placement::NA_DICT, Na__Placement::NA_KEY, JSON.generate(Na__Placement.Na__Placement__Record(placement)))
-                model.commit_operation
-            rescue StandardError
-                model.abort_operation
-                raise
+            part['derivedFrom'] = base['derivedFrom'].merge('cleanedAt' => now)
+            history = (previous && previous['history'].is_a?(Array) ? previous['history'] : []) +
+                      [previous ? previous.reject { |key, _| key == 'history' } : base['derivedFrom']]
+            part['history'] = history.last(20)
+            part['linkedAt'] = now
+            problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, [slot], Na__CloudSet.Na__Slots__OpName(slot, 'Use Cleaned LAS')) do |_slot, record|
+                record['link'] = part
+                record['placement'] = Na__Placement.Na__Placement__Part(placement)
             end
+            raise problem if problem
             # the model names the new file now: show it where the old one was
-            Na__Placement.Na__Placement__StopTool(session)
-            session.placement = placement
-            session.placement_note = nil
-            Na__Placement.na_apply(session, new_cloud)
-            Na__RenderController.Na__Render__InstallCloud(session, new_cloud, view)
-            Na__LocalBackup.Na__Backup__AfterSave(model, session)
+            Na__Placement.Na__Placement__StopTool(slot)
+            slot.placement = placement
+            slot.placement_note = nil
+            Na__Placement.na_apply(slot, new_cloud)
+            Na__RenderController.Na__Render__InstallCloud(slot, new_cloud, view)
+            slot.visible = true
             Na__ModelRegistry.Na__Registry__SetVisible(true)
         end
 
         # What the new cloud's position is carried over from: the original
         # cloud as it is placed now if it is still loaded, else as it was when
         # the export started.
-        def self.na_base(session, job_info)
-            cloud = session.cloud
-            if cloud && cloud.equal?(job_info['sourceCloud']) && session.placement
+        def self.na_base(slot, job_info)
+            cloud = slot.cloud
+            if cloud && cloud.equal?(job_info['sourceCloud']) && slot.placement
                 return {
-                    'placement'   => session.placement,
+                    'placement'   => slot.placement,
                     'unitFactor'  => cloud.unit_factor,
                     'origin'      => cloud.las_info['localOriginSource'],
                     'derivedFrom' => job_info['derivedFrom']
@@ -256,15 +258,15 @@ module Na__PointCloudViewer
 
         # info: 'source', 'dest', 'params', 'provenance', 'origin', 'sourceKey', 'settings';
         #       or a retry: 'path' + 'unit' + 'base' + 'reloadOnly'.
-        def initialize(session, view, info)
-            @session = session
+        def initialize(slot, view, info)
+            @slot = slot
             @view    = view
             @info    = info
             @handle  = nil
             @reload  = nil
             @result  = nil
             @cancel_message = nil
-            cloud = session.cloud
+            cloud = slot.cloud
             if info['reloadOnly']
                 @stage    = :reload
                 @dest     = info['path']
@@ -285,7 +287,7 @@ module Na__PointCloudViewer
                     'sourceCloud' => cloud,
                     'derivedFrom' => derived,
                     'base' => {
-                        'placement'   => Marshal.load(Marshal.dump(session.placement)),
+                        'placement'   => Marshal.load(Marshal.dump(slot.placement)),
                         'unitFactor'  => cloud.unit_factor,
                         'origin'      => (cloud.las_info || {})['localOriginSource'],
                         'derivedFrom' => derived
@@ -333,9 +335,9 @@ module Na__PointCloudViewer
 
         def na_step_export
             unless @handle
-                state = Na__CleanPreview.Na__Clean__State(@session)
+                state = Na__CleanPreview.Na__Clean__State(@slot)
                 Na__NativeEngine.Na__Native__CleanCancel(state.context) if state.context
-                Na__CleanPreview.na_ensure_context(@session)
+                Na__CleanPreview.na_ensure_context(@slot)
                 software = "#{Na__ConfigLoader.Na__Config__GetOr('Na Point Cloud Viewer', 'clean', 'export', 'software')} #{Na__PointCloudViewer.Na__PublicApi__Version}"
                 @handle = Na__NativeEngine.Na__Native__ExportStart(state.context, @info['source'], @dest, @info['params'],
                                                                    @info['origin'], @info['provenance'], software)
@@ -361,7 +363,7 @@ module Na__PointCloudViewer
             @result = poll
             @notes = notes
             @summary = self.na_export_summary(poll, notes)
-            Na__CleanPreview.Na__Clean__State(@session).last_export = @summary
+            Na__CleanPreview.Na__Clean__State(@slot).last_export = @summary
             Na__DebugTools.Na__Debug__Info("Clean & Export wrote #{@dest} (#{poll['written'].to_i} points, #{(poll['totalMs'].to_f / 1000).round(1)} s). #{notes}")
             @stage = :reload
             { 'done' => false, 'status' => "Written and checked. Loading #{File.basename(@dest)}...", 'percent' => 90.0, 'delay' => 0.01 }
@@ -375,14 +377,14 @@ module Na__PointCloudViewer
             unless @reload
                 options = Na__LasImport.Na__LasImport__CacheOptions(@dest)
                 options['onCloud'] = lambda do |cloud|
-                    Na__CleanExport.na_use_cleaned(@session, cloud, @view, @job_info)
+                    Na__CleanExport.na_use_cleaned(@slot, cloud, @view, @job_info)
                     self.na_final_message(cloud)
                 end
-                @reload = Na__LasImport::Na__LasImportJob.new(@session, @view, @dest, @unit, 0, options)
+                @reload = Na__LasImport::Na__LasImportJob.new(@slot.session, @view, @dest, @unit, 0, options)
             end
             step = @reload.na_step
             if step['done']
-                Na__CleanPreview.Na__Clean__State(@session).retry_load = nil
+                Na__CleanPreview.Na__Clean__State(@slot).retry_load = nil
                 return step
             end
             percent = step['percent'] ? 90.0 + step['percent'].to_f * 0.1 : nil
@@ -404,7 +406,7 @@ module Na__PointCloudViewer
         end
 
         def na_offer_retry
-            Na__CleanPreview.Na__Clean__State(@session).retry_load = {
+            Na__CleanPreview.Na__Clean__State(@slot).retry_load = {
                 'path' => @dest, 'unit' => @unit, 'base' => @job_info['base'], 'derivedFrom' => @job_info['derivedFrom'],
                 'sourceCloud' => @job_info['sourceCloud']
             }

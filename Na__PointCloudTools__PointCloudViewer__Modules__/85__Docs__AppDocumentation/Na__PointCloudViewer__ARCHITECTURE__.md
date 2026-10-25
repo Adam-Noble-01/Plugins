@@ -1,13 +1,15 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.9.1: native image renderer (binned raster, screen crop, orbit budget), LAS import
-with the `.napc` point cache (v2, named by the LAS content key), the clip box with clip scenes,
-the Transform tab, model persistence (LAS link + local backup, explicit Reload), the Clean tab
-(Remove Noise, Refine Surfaces, Reduce Density; live preview in the clip box; Clean & Export LAS
-to a NEW file, section 22), the Scenes tab (point cloud scenes for TrueVision, section 23) and
-LAZ import through a lossless LAZ to LAS converter (section 24) are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026, cleaning added
-12-Oct-2026, scenes 19-Oct-2026, LAZ 21-Oct-2026. Keep this file true: when a design decision changes,
-change it here and say why in the DEVLOG.
+Status: **v0.10.0: native image renderer (binned raster, screen crop, orbit budget, several clouds
+in one depth-tested frame), LAS import with the `.napc` point cache (v2, named by the LAS content
+key), the clip box with clip scenes, the Transform tab, model persistence (one record per cloud +
+local backup, explicit Reload), the Clean tab (Remove Noise, Refine Surfaces, Reduce Density; live
+preview in the clip box; Clean & Export LAS to a NEW file, section 22), the Scenes tab (point cloud
+scenes for TrueVision, section 23), LAZ import through a lossless LAZ to LAS converter (section 24)
+and up to ten point clouds per model, each with its own position, clip box and look (section 25)
+are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026, cleaning added
+12-Oct-2026, scenes 19-Oct-2026, LAZ 21-Oct-2026, several clouds 25-Oct-2026. Keep this file true:
+when a design decision changes, change it here and say why in the DEVLOG.
 
 **The decisive finding (M1):** SketchUp's View API costs ~2.3 us per drawn point (100k points =
 3 fps). So points are never handed to SketchUp. The C++ engine rasterises them into an image and
@@ -76,6 +78,7 @@ for the SketchUp session. The synthetic test cloud, the benchmark and the Ruby p
 | Async job ticks, progress polling | Import worker thread with atomic progress + cancel [BUILT] |
 | Clean tab: settings -> physical parameters, preview requests, display switch [BUILT v0.8.0] | Cleaning engine: preview worker per cloud, full-cloud tiling, LAS export with verify + publish [BUILT v0.8.0] |
 | Save As, destination checks, model association (one operation) [BUILT v0.8.0] | LAS content key, record identity and GPS time per point [BUILT v0.8.0] |
+| Cloud set: slots, the active cloud, one record per cloud, looks and visibility per cloud [BUILT v0.10.0] | Layered render: several clouds in one depth-tested frame, one budget shared between them, per-layer stats [BUILT v0.10.0, ABI 7] |
 
 **Bridge = Fiddle, not a Ruby C extension** (`08__NativeEngine/...Bridge__.rb`). Ruby passes
 packed binary Strings and a numeric parameter array; the DLL returns status codes and fills a
@@ -254,6 +257,10 @@ v0.6.0, PNGs fully validated):
 
 Not solvable from the overlay: points are drawn over SketchUp faces (no depth from the model).
 
+**Several clouds (v0.10.0, ABI 7):** every cloud on show is a layer of the SAME frame, with its own
+transform, clip box, dot size, opacity and colour, one depth buffer and one shared budget (section
+25.5). The settings key covers every layer. A one-cloud frame is byte-identical to ABI 6.
+
 ---
 
 ## 8. Point budget and LOD (_Designed: M3_)
@@ -278,7 +285,9 @@ costs anything when the image is re-rendered, never on a still camera.
 Off-screen and clipped regions consume no budget by construction.
 
 **Top of the scale (v0.6.0):** the slider and presets stop at the loaded cloud's own point count,
-shown as an **All** preset (a budget above it cannot draw more). The plugin ceiling is
+shown as an **All** preset (a budget above it cannot draw more). With several clouds (v0.10.0) the
+top is the points of the clouds on show together, and the one budget is shared between them
+(section 25.5). The plugin ceiling is
 `render.limits.pointBudgetMax` = 50 M for larger scans. The display settings (budget, size,
 opacity, colour) are remembered per user (`render.lastSettings` in the user config), so a new
 session starts where the last one finished.
@@ -439,11 +448,12 @@ puts every wall you trace in the wrong place. So:
 | Layer | Where | Holds |
 |---|---|---|
 | Plugin defaults | `02__AppData/...AppConfig__Defaults__.json` (committed, read-only) | limits, presets, defaults, image render scales, overlay id, paths |
-| User config | `91__UserConfig__LocalOnly/Na__PointCloudViewer__UserConfig__.json` (git-ignored, per PC, schema v3) | last tab, last LAS folder, move and angle snap, last display settings, the Clean tab's filter settings (`clean.filters`) |
-| Model: clip | the `.skp`, dictionary `Na__PointCloudViewer__ClipState` - BUILT v0.4.0 | clip box, clip scenes, active scene (section 10) |
-| Model: placement | the `.skp`, dictionary `Na__PointCloudViewer__Placement` - BUILT v0.5.0 | cloud fingerprint, rotation, translation, gimbal point, locked (section 15) |
-| Model: LAS link | the `.skp`, dictionary `Na__PointCloudViewer__ModelLink` - BUILT v0.6.0 | link id, file name, last path, path relative to the .skp, unit key, point count, fingerprint (section 14) |
-| Local backup | `91__UserConfig__LocalOnly/Na__PointCloudViewer__ModelBackups/<linkId>.json` (per PC) - BUILT v0.6.0 | a copy of the three model records, model path and title (section 14) |
+| User config | `91__UserConfig__LocalOnly/Na__PointCloudViewer__UserConfig__.json` (git-ignored, per PC, schema v3) | last tab, last LAS folder, move and angle snap, the point budget (`render.lastSettings`), each cloud's look by cloud id (`render.cloudLooks`, v0.10.0), the Clean tab's filter settings (`clean.filters`) |
+| Model: the clouds | the `.skp`, dictionary `Na__PointCloudViewer__Clouds` - BUILT v0.10.0 | model id (names the backup file), the clouds' order, where a converted v0.9 model came from (section 25.3) |
+| Model: one cloud | the `.skp`, dictionary `Na__PointCloudViewer__Cloud__pc_<8 hex>`, one per cloud - BUILT v0.10.0 | name, colour, LAS link, placement, clip box, clip scenes (section 25.3) |
+| Model: scenes | the `.skp`, dictionary `Na__PointCloudViewer__Scenes` (schema 2 since v0.10.0) | point cloud scenes, each holding every cloud's settings by cloud id (sections 23, 25.6) |
+| Model: v0.9 records | `Na__PointCloudViewer__ModelLink` / `..._Placement` / `..._ClipState` (v0.4.0 to v0.9.1) | a v0.9 model's one cloud: read as they are, converted by the first change (section 25.8) |
+| Local backup | `91__UserConfig__LocalOnly/Na__PointCloudViewer__ModelBackups/<modelId>.json` (per PC), schema 2 since v0.10.0 | every point cloud record of the model by dictionary name, model path and title (sections 14, 25.4) |
 
 All JSON carries `schema` + `schemaVersion`. No point data is ever stored in JSON or in the model.
 
@@ -457,6 +467,11 @@ The cache stays per PC and is rebuilt from the LAS if missing.
 ## 14. Model association and recovery (BUILT in v0.6.0, cache still M2b)
 
 `70__System__Persistence/` (ModelLink, LocalBackup, link card JS).
+
+**v0.10.0:** the link, placement and clip box below are now parts of each cloud's OWN record, and
+the backup is named by the model id (section 25). Everything else here still holds, per cloud: the
+Reload search order and its checks, Locate LAS, Restore, and Remove Point Cloud Data From Model
+(which now removes every cloud's record, the index and the scenes in one operation).
 
 **Why it is careful:** Adam saw Undet's point cloud links make SketchUp files unopenable. So:
 
@@ -578,11 +593,11 @@ origin". The protractor's inference covers most alignment; they can follow if ne
 
 ---
 
-## 16. Multiple clouds
+## 16. Multiple clouds (BUILT in v0.10.0)
 
-V1 = one cloud per model. The boundary is `Na__CloudSession`: a session holding a list of clouds
-(each with its own transform, cache handle and frame) is the only change needed; the overlay, the
-draw loop (iterate clouds) and the dialog's state payload are the touch points.
+V1 to v0.9.1 held one cloud per model. As designed, `Na__CloudSession` became the boundary: it now
+holds a list of cloud slots, each with its own record, transform, clip box, look and native cloud.
+Section 25 describes what was built.
 
 ---
 
@@ -615,7 +630,11 @@ destroys every live export job, then every cleaning context (each joins its work
 every native cloud, clearing each one's GC free function first, calls `napc_shutdown` (which also
 stops any worker still alive before the pools go), unloads the old copy and loads the new one;
 sessions see the generation change and upload again. Reload Plugin is refused while a job (an
-import or a Clean & Export) is running. ABI 5 (v0.8.0) is checked before any function is bound.
+import or a Clean & Export) is running. The ABI (7 since v0.10.0) is checked before any function is
+bound. A session from before v0.10.0 (one cloud held on the session itself) is adopted on first
+use: its loaded cloud, placement and clip box move into the slot of that LAS
+(`na_adopt_legacy_session`), and the reloader ends our tool first, so a tool bound to an old slot
+never outlives it.
 After a swap the cloud must be loaded again (Reload Point Cloud reads the point cache, so this is
 quick).
 
@@ -679,6 +698,8 @@ measurements (tests only; not bound in Ruby).
 | **Persistence** (built, v0.6.0) | LAS link in the model, local backup, explicit Reload / Locate / Restore / Remove, settable gimbal point, All budget preset, display settings per user | Adam: "positions all messed up the next day" must never happen |
 | **Speed + cache** (built, v0.7.0) | Binned raster, screen crop, parallel PNG, orbit budget, `.napc` point cache; cold-start crash fixed | Reload in ~0.1 s; no crash on restart |
 | **Clean** (built, v0.8.0) | Clean tab: Remove Noise, Refine Surfaces, Reduce Density with live preview in the clip box; Clean & Export LAS to a NEW file, reloaded and used by the model in one undoable step; cache v2 named by content key; record identity per point | Adam: a complete, non-destructive cleaning system; the original LAS is never touched |
+| **Scenes** (built, v0.9.0) | Point cloud scenes for TrueVision; export to scale; LAZ import (v0.9.1) | TrueVision Sync renders and publishes them |
+| **Several clouds** (built, v0.10.0) | Up to ten clouds per model, one record each; the cloud bar and the active cloud; looks and visibility per cloud; one depth-tested frame with a shared budget; scenes holding every cloud; v0.9 models converted on their first change | Adam: an interior GeoSLAM scan and an exterior photogrammetry scan in one model, switched on and off and saved with scenes |
 | M4 | Two-point align, set origin, round trip across both computers | Round trip across both computers |
 | M5 | Large-cloud hardening, error wording, docs | |
 
@@ -1066,8 +1087,8 @@ perspective scene, and a dot size (Auto or 1 to 16 px).
 
 ### 23.2 Where it is kept, and why nothing touches the scene
 
-One JSON record in the MODEL's dictionary `Na__PointCloudViewer__Scenes` (key `json`, schema 1),
-never on the Page:
+One JSON record in the MODEL's dictionary `Na__PointCloudViewer__Scenes` (key `json`; schema 1,
+schema 2 since v0.10.0 with every cloud's settings by cloud id, section 25.6), never on the Page:
 - Attributes on Pages have a reported crash path in SketchUp (reproduced in the SketchUp developer
   community), and SketchUp staff have described scene data that left files unopenable. The bug
   Adam remembered from Undet (renaming a scene made models unopenable) is of that family.
@@ -1113,6 +1134,7 @@ calls to list the scenes, render them into its project store and record the datu
 API 2 adds each row's `pagePid`; API 3 adds `ReorderScenes(model, ids)` (every id, top to bottom,
 one undoable step), so TrueVision Sync's Point Cloud tab can drag the same record the Scenes tab
 drags. The version constant is guarded for hot reload: callers test the key or respond_to?.
+API 4 (v0.10.0, several clouds) is in section 25.9.
 
 ### 23.6 Tests
 
@@ -1178,3 +1200,213 @@ failure deletes the partial file; nothing else is ever deleted, and the LAZ is o
   written by the vendored LASzip both compressed and uncompressed: every converted record is
   byte-identical to LASzip's own uncompressed output; compatibility mode is refused.
 
+---
+
+## 25. Several point clouds in one model (BUILT in v0.10.0)
+
+Ruby: `20__System__CloudSet/` (`...CloudSet__Store__.rb`: the records; `...CloudSet__Slots__.rb`:
+the slots, the active cloud, view settings, words, the dialog payload, the viewport label;
+`...CloudSet__UiSystem__MainUiLogic__.js`: the cloud bar, the Point Clouds list, the cloud tags);
+style `...UiFeature__Styles__CloudSet__.css`; engine: the layered render (`Rasterizer`,
+`napc_render_layers_png`, ABI 7); config `clouds` (`maxClouds` 10, a `palette` of ten colours).
+
+### 25.1 What it is for
+
+Adam's case: an interior scan (GeoSLAM, black and white) and an exterior scan (photogrammetry, RGB),
+registered in completely different places, in one model, aligned by hand, each switched on and off
+at will and saved with scenes. Up to ten clouds per model (`clouds.maxClouds`; the engine takes 16).
+Every tool works on one cloud at a time, the **active cloud**, and the dialog always says which.
+
+### 25.2 Slots and the active cloud
+
+- `Na__CloudSlot` (RenderTypes), one per cloud: `id` (`pc_` + 8 hex), name, colour, its model
+  record and `record_state` (`saved`, `legacy`, `unsaved`), `visible`, `display` (its look), the
+  loaded `cloud` and `placement`, its clip box, clip scenes and clip edit state, its Clean state,
+  and its share of the last frame (`layer_stats`).
+- `Na__CloudSession` holds the slots in the model's order and `active_slot_id`. The overlay, the
+  dialog and the tools reach a cloud only through its slot.
+- Slots come from the model (`Na__Slots__Sync`: open, Undo, Redo, Restore). A cloud the model holds
+  is a slot even when not loaded. A loaded cloud the model no longer holds (its import was undone)
+  stays on screen as `unsaved`; unloading it takes it off the list.
+- **The active cloud** is a view choice: not saved, no Undo step. The Display card, Clipping,
+  Transform and Clean work on it, and every payload section names it (`cloudId`, `cloudName`).
+- **Tools are bound to the cloud they start on** (Move, Rotate, Set Gimbal Point, Edit Clip Box).
+  Choosing another cloud ends a tool working on the old one and says so; a tool never jumps clouds.
+  With two or more clouds the gimbal and the clip cage carry the cloud's name in its colour
+  (`Na__Slots__DrawToolLabel`).
+- **Undo names:** a one-cloud model's operations are named exactly as before; with two or more
+  clouds the cloud's name is added ("Point Cloud: Clip On (room_source)").
+
+### 25.3 What the model holds: one record per cloud
+
+Model-level attribute dictionaries, key `json`, each one small JSON string:
+
+| Dictionary | Holds |
+|---|---|
+| `Na__PointCloudViewer__Clouds` | the index: `schema`, `schemaVersion` 1, `modelId` (names this computer's backup file), `createdAt`, `order` (cloud ids, top to bottom), `migratedFrom` (a converted v0.9 model: its link id, the cloud's id, when) |
+| `Na__PointCloudViewer__Cloud__pc_<8 hex>` | everything about ONE cloud (below) |
+| `Na__PointCloudViewer__Scenes` | the point cloud scenes; each holds every cloud's settings by cloud id (25.6) |
+
+A cloud's record:
+
+```json
+{
+  "schema": "Na__PointCloudViewer__Cloud", "schemaVersion": 1,
+  "cloudId": "pc_080cd2ca", "name": "Exterior Photogrammetry", "colour": [26, 115, 232],
+  "createdAt": "...", "updatedAt": "...", "updatedEpoch": 1792938000.0, "pluginVersion": "0.10.0",
+  "link":      { "fileName", "lastPath", "relativePath", "sourceUnit", "pointCount", "fingerprint",
+                 "contentKey", "derivedFrom", "history", "linkedAt" },
+  "placement": { "key", "file", "rotation": [9], "translation": [3], "gimbal", "locked" },
+  "clip":      { "enabled", "min": [3], "max": [3] },
+  "clipScenes": [ { "id", "name", "enabled", "min", "max" } ],
+  "activeClipScene": null
+}
+```
+
+- **Which configuration belongs to which cloud** is answered by the dictionary name alone: a cloud's
+  link, position, clip box and clip scenes live in its own record, and the scenes record keys every
+  per-cloud setting by the same id. The configuration export (`...ConfigExport`, schema 2) has one
+  section per cloud with the same split.
+- **Separation:** a change to one cloud rewrites only that cloud's record (and the index when the
+  order changes). The tests compare the other clouds' records byte for byte across every kind of
+  change. A record that cannot be read hides only that cloud, with a sentence saying so; a record
+  from a newer viewer is shown and never rewritten. Unknown keys are carried through every save.
+- **Ids:** `pc_` + 8 random hex, never reused within a model. A v0.9 model's one cloud is
+  `pc_` + the first 8 hex of SHA-256 of `Na__PointCloudViewer|<its old link id>`: the same on every
+  read and on both computers, so its scenes find it before and after the model is converted.
+- **Colours:** a new cloud takes the first palette colour no cloud uses. Rename, Colour, Reorder and
+  Remove are undoable, named steps.
+- **Every write** is ONE named operation, aborted on error (`Na__Store__WriteSlots`, `RemoveSlot`,
+  `WriteOrder`), then the local backup.
+- **View settings, not model records:** whether a cloud is shown, and its look (size, opacity,
+  colour mode). They change no record and add no Undo step (they are toggled constantly); each
+  cloud's look is remembered on this computer (`render.cloudLooks`), and scenes save both. The point
+  budget is one budget for the view, remembered per user (`render.lastSettings`).
+
+### 25.4 Local backup (schema 2)
+
+`<modelId>.json` = `{ schema, schemaVersion 2, modelId, writtenAt, modelPath, modelTitle, records }`
+with `records` = every point cloud record of the model by its dictionary name, so Restore writes
+back exactly what was there. A v0.9 backup (schema 1, three records) is still read, as records under
+the old dictionary names: restoring it puts back a v0.9 model, converted again by its next change. A
+converted model keeps its v0.9 link id as `modelId`, so its backup file carries on. Compare ignores
+where a LAS sits (each cloud's `link`), so the two computers' paths never flag a difference.
+
+### 25.5 One frame for every cloud (engine, ABI 7)
+
+`napc_render_layers_png(clouds, layer_count, params, param_stride, total_budget, path, stats, stat_count, layer_stats, layer_stat_count)`:
+
+- **One depth buffer:** each layer has its own transform, clip box, dot size, opacity (carried in
+  the colour's top byte to the PNG), colour mode and mono colour; the nearest point wins, whatever
+  cloud it belongs to, so an interior and an exterior scan interleave correctly where they meet.
+- **One budget, shared by water-filling:** each cloud on show gets an equal share; a cloud that needs
+  less (it is small, or its clip box holds fewer points) passes the rest on; a remainder goes to the
+  first cloud in the list. Demand inside a clip box is counted over 256 chunks and cached by
+  placement and box, so it costs nothing until either changes; with a budget above every point the
+  counting is skipped.
+- **One cloud, same pixels:** a one-layer render is byte-identical to ABI 6 (tested on 8 JW02 views).
+- **Per-layer stats** (demand, share, tested, on screen) come back to Ruby; the View tab says how
+  the budget is spread.
+- **Colour modes:** `rgb`, `black` (monochrome) and `cloud` (every point in the cloud's own colour,
+  to tell clouds apart while aligning them).
+- Ruby builds the layers from `Na__Slots__Drawn` (shown and loaded, in the list's order). The
+  pointers of the clouds drawn are held until the next frame, so a cloud unloaded meanwhile is never
+  freed under the engine.
+
+### 25.6 Scenes hold every cloud (scenes schema 2)
+
+```json
+{ "id": "pcs_...", "page": { "pid", "name", "index" }, "viewType": "plan", "export": { },
+  "settings": { "pointBudget": 5000000, "overlayOn": true },
+  "clouds": {
+    "pc_56f593e0": { "visible": true,
+                     "display": { "pointSizePx": 2, "opacityPercent": 100, "colourMode": "rgb" },
+                     "clip": { "enabled": true, "min": [3], "max": [3] },
+                     "identity": { "fileName", "contentKey", "fingerprint" } },
+    "pc_080cd2ca": { "visible": false, "display": { }, "clip": null, "identity": { } } } }
+```
+
+- **Save** captures every cloud of the model: shown or hidden, its look, its clip box, and which LAS
+  it was (`identity`).
+- **Recall** puts every cloud back. A cloud the scene does not know (added later) is hidden there
+  until the scene is updated. The clip boxes that change are written in ONE operation named after
+  the scene; visibility and looks write nothing.
+- **Export** draws the clouds the scene shows, as layers of one picture. A scene showing a cloud
+  that is not loaded is refused with a sentence naming it. The plan's top-level fields describe the
+  first cloud as in v0.9 (`cloud`, `clip`, `localToModel`, `colourMode`, `monoRgb`), and add
+  `cloudIds` and `layers`.
+- **Revision keys:** a one-cloud scene keys exactly as in v0.9 (same inputs, same hash); with several
+  clouds every layer's cloud, placement, clip box and colour are in the key.
+- A schema 1 (v0.9) scene is read as a scene of the model's v0.9 cloud and written in schema 2 by
+  the next save, inside the operation that converts the model.
+
+### 25.7 The dialog
+
+- **Cloud bar** under the tab strip, on every tab: a chip per cloud (eye, colour dot, name, and a
+  `not loaded`, `not found`, `not saved` or `reload` mark). The active chip is outlined and tinted
+  in its colour; a click makes a cloud active; `+` adds one. It wraps, so all ten stay in sight.
+- **View tab, Point Clouds card:** a row per cloud (grip to reorder, eye, colour swatch with the
+  palette, name, status). The active cloud's row opens: its share of the budget, its lock (or what
+  Reload will do), its LAS path, and Reload, Locate LAS, Zoom To, Unload, Rename and Remove (two
+  clicks; Undo restores). Below: Add Point Cloud, Reload All, Zoom to Clouds, and the backup note
+  with Restore. The master Show switch hides every cloud (the Overlays panel entry).
+- **Cloud tags:** Display, Clip Box, Clip Scenes, Position and Preview Region carry the active
+  cloud's name in its colour once the model holds two clouds. A one-cloud model looks as in v0.9.
+- **Import card:** says before Import whether the LAS adds a cloud, loads into one the model
+  already holds, or cannot (the model is full; Import is disabled).
+- **Clipping:** Copy to Other Clouds gives every other cloud this box, in one undoable step.
+- **Scenes:** each card shows its clouds: shown, hidden (struck through) or added since (faded).
+
+### 25.8 Opening a v0.9 model
+
+- **Read as it is, nothing written:** the three v0.9 records read as one cloud with the derived id
+  (`record_state` `legacy`). Opening, listing, Reload and exports write nothing.
+- **Converted by the first change, inside that change's own operation:** the index (`modelId` = the
+  old link id, `migratedFrom`), the cloud's record, the scenes in schema 2, and the three old
+  records deleted. One Undo puts the v0.9 records back byte for byte; the cloud keeps its id.
+- **Proven against the real v0.9.1:** the committed v0.9.1 code (git HEAD) ran in the same harness
+  (`pcv_runner_v091.py`) to build an aligned, clipped model with clip scenes and two scenes, and its
+  records, backup and API answers were opened with v0.10.0. Every field of v0.9.1's export plans is
+  reproduced, and the scene list says everything v0.9.1 said.
+- **A v0.9.1 quirk found on the way:** v0.9.1 keys a scene differently in the session where the
+  cloud was turned (`+0.0` in the live transform) than after any Reload (the stored rotation holds
+  `-0.0`): `4b861f2b82`, then `a274dc1348`, for the same scene and the same pixels. v0.10.0 gives
+  exactly v0.9.1's after-Reload keys, so what TrueVision holds from any session after a Reload is not
+  rendered again. The rounding is left as it is on purpose: making `-0.0` equal `0.0` would re-key
+  every scene exported after a Reload instead.
+- **Both computers:** a v0.9.1 install opening a converted model sees no point cloud (it reads only
+  the old records). Update both computers before working on the same models.
+
+### 25.9 Downstream: TrueVision Sync (GLB Builder)
+
+- **Scenes API 4**, backward compatible: `SceneList` adds `clouds` (id, name, colour, loaded) and
+  `allCloudsLoaded`; each scene row adds `cloudIds` and `cloudNames`. `cloudLoaded` means a cloud is
+  loaded; `cloudName` is the loaded clouds' names joined with " + " (the GLB Builder shows it as
+  text). `ReloadPointCloud` reloads every cloud.
+- `PlanSceneExport` and `RenderSceneTiles` take one cloud or several; a multi-cloud scene is ONE
+  picture holding every cloud it shows. The GLB Builder needs no change: it reports a refused scene
+  (a cloud not loaded) and carries on with the rest.
+- Not built (offered): per-cloud facts in TrueVision's manifest (which clouds a revision holds, each
+  one's opacity), and showing the clouds separately in TrueVision.
+
+### 25.10 Tests (25-Oct-2026)
+
+- `test_native_layers.py` (28 checks): the layered render against one-layer renders and ABI 6
+  output; the budget split; depth across clouds; opacity and colour per layer.
+- `pcv_scenario_multi.rb` (87 checks): two real LAS files (the synthetic room, 380,131 points; an
+  exterior shell, 240,000 RGB points far away in grid coordinates) and a third small one: the
+  records and their separation byte for byte, the budget split, show and hide with nothing written,
+  clip per cloud and Copy to Other Clouds, placement and tools per cloud, looks per cloud checked in
+  the PNG's pixels, scenes, a two-cloud export, remove / Undo / Reload, reorder, rename, colour,
+  Reload All, the model limit, the import card's target, the backup, the configuration export,
+  hot reload adoption, no dashes.
+- `pcv_scenario_legacy.rb` (52 checks): the real v0.9.1 model, as in 25.8.
+- The earlier suites, updated for one record per cloud: main 197, scenes 96, clean 59.
+- The dialog rendered in a browser with states the multi suite dumped (empty, one cloud, two, both
+  unloaded, a recalled scene); every list control checked to send the right action.
+
+### 25.11 Not built
+
+- The same LAS twice in one model (importing a file the model holds loads into its cloud).
+- A budget per cloud (one budget is shared, by design).
+- Clouds that move together (each moves alone; align it, then lock it).

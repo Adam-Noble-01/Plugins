@@ -5,9 +5,14 @@
      NA POINT CLOUD VIEWER - UI LAYOUT
      =============================================================================
      FILE       : Na__PointCloudViewer__UiLayout__.html
-     PURPOSE    : HtmlDialog layout: brand header, tab strip, tab panels,
-                  shared status bar and the full-dialog loading overlay.
-     TABS       : View (default) | Clipping | Transform | Clean | Scenes | Settings
+     PURPOSE    : HtmlDialog layout: brand header, tab strip, the cloud bar,
+                  tab panels, shared status bar and the full-dialog loading
+                  overlay.
+     TABS       : View (default) | Scenes | Clipping | Transform | Clean | Settings
+     CLOUDS     : A model can hold several point clouds (v0.10.0). The cloud bar
+                  under the tab strip shows them all and which one the tabs work
+                  on; cards that work on that one cloud carry a cloud tag
+                  (data-na-cloud-tag) naming it when there is more than one.
      DATA       : None in the markup. Ruby pushes state as JSON through
                   window.Na__PointCloudViewer__Receive; the tab scripts render it.
      ============================================================================= -->
@@ -53,6 +58,15 @@
     </div>
     <!-- endregion ============================================================== -->
 
+    <!-- ==========================================================================
+         REGION | Cloud Bar (which point cloud the tabs work on)
+         One chip per cloud: its eye shows or hides it, a click makes it the
+         cloud every tab works on, + adds one. Built by
+         20__System__CloudSet/...CloudSet__UiSystem__MainUiLogic__.js
+         ========================================================================== -->
+    <div class="na-cloud-bar na-hidden" id="na-cloud-bar" role="toolbar" aria-label="Point clouds"></div>
+    <!-- endregion ============================================================== -->
+
     <div class="na-tab-panels-container">
 
         <!-- ======================================================================
@@ -61,39 +75,31 @@
         <div id="na-tab-view" class="na-tab-panel na-tab-active" role="tabpanel" data-na-tab-id="view">
             <div class="na-panel-body">
 
+                <!-- Every cloud of the model (CloudSet script); the backup note
+                     and Restore are the Persistence script's. -->
                 <section class="na-card" id="na-view-cloud-card">
                     <div class="na-card__header">
-                        <h3 class="na-card__title">Point Cloud</h3>
-                        <label class="na-toggle" title="Same switch as this cloud's entry in SketchUp's Overlays panel">
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Point Clouds</h3>
+                            <span class="na-card__count" id="na-clouds-count"></span>
+                        </div>
+                        <label class="na-toggle" title="Shows or hides every point cloud at once. Same switch as the viewer's entry in SketchUp's Overlays panel">
                             <input type="checkbox" id="na-view-visible">
                             <span class="na-toggle__track"></span>
                             <span class="na-toggle__label">Show</span>
                         </label>
                     </div>
-                    <div id="na-view-cloud-summary" class="na-cloud-summary na-cloud-summary--empty">No point cloud loaded.</div>
+                    <p class="na-note na-note--top na-hidden" id="na-clouds-problem"></p>
+                    <div class="na-cloud-list na-hidden" id="na-cloud-list"></div>
                     <p class="na-fault na-hidden" id="na-view-fault"></p>
-                    <div class="na-button-row">
-                        <button type="button" class="naButton" id="na-view-import-las" title="A LAZ (from Polycam and others) is first decompressed, losslessly, into a new LAS next to it">Import LAS / LAZ&hellip;</button>
-                        <button type="button" class="naButtonSecondary" id="na-view-zoom" title="Frames the cloud, or only the clipped part while clipping is on">Zoom to Cloud</button>
-                        <button type="button" class="naButtonSecondary" id="na-view-unload">Unload</button>
-                    </div>
-                    <p class="na-hint">The LAS file is only ever read, never changed. A LAZ is first decompressed into a new LAS, checked point by point, and that LAS is imported. The model remembers which LAS it uses, where the cloud sits and the clip box; Reload Point Cloud brings the points back next time.</p>
-                </section>
-
-                <section class="na-card na-card--link na-hidden" id="na-link-card">
-                    <div class="na-card__header">
-                        <h3 class="na-card__title">Saved With This Model</h3>
-                    </div>
-                    <p class="na-link-summary" id="na-link-summary"></p>
-                    <p class="na-hint na-hint--top" id="na-link-position"></p>
-                    <p class="na-path na-link-path" id="na-link-path"></p>
                     <p class="na-note na-hidden" id="na-link-backup-note"></p>
                     <div class="na-button-row">
-                        <button type="button" class="naButton" id="na-link-reload">Reload Point Cloud</button>
-                        <button type="button" class="naButtonSecondary" id="na-link-locate">Locate LAS&hellip;</button>
+                        <button type="button" class="naButton" id="na-view-import-las">Import LAS / LAZ&hellip;</button>
+                        <button type="button" class="naButtonSecondary na-hidden" id="na-clouds-reload-all" title="Reads each cloud's LAS (or its point cache) and puts it back where the model says">Reload All</button>
+                        <button type="button" class="naButtonSecondary" id="na-view-zoom" title="Frames every cloud on show, or only their clipped parts while clipping is on">Zoom to Cloud</button>
                         <button type="button" class="naButtonSecondary na-hidden" id="na-link-restore">Restore Newer Backup</button>
                     </div>
-                    <p class="na-hint">Nothing loads until you press Reload. The file is checked against the model's record (point count and survey position) before it is used.</p>
+                    <p class="na-hint" id="na-clouds-hint">The LAS file is only ever read, never changed.</p>
                 </section>
 
                 <section class="na-card na-card--import na-hidden" id="na-las-import-card">
@@ -101,6 +107,7 @@
                         <h3 class="na-card__title">Import LAS</h3>
                         <span class="na-card__value na-las-file-name" id="na-las-file-name"></span>
                     </div>
+                    <p class="na-note na-note--info na-note--top na-hidden" id="na-las-target-note"></p>
                     <div class="na-stat-grid" id="na-las-report"></div>
                     <p class="na-unit-question">What units are this file's coordinates in?</p>
                     <div class="na-unit-options" id="na-las-unit-options"></div>
@@ -124,7 +131,13 @@
                     <p class="na-hint" id="na-view-budget-hint">The most points drawn at once. Raise it for more detail.</p>
                 </section>
 
-                <section class="na-card">
+                <section class="na-card" id="na-view-display-card">
+                    <div class="na-card__header na-hidden" data-na-multi-only>
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Display</h3>
+                            <span class="na-cloud-tag na-hidden" data-na-cloud-tag></span>
+                        </div>
+                    </div>
                     <div class="na-control-pair">
                         <div>
                             <div class="na-card__header">
@@ -143,11 +156,13 @@
                     </div>
                     <div class="na-switch-field na-switch-field--spaced">
                         <span class="na-switch-field__label">Colour Mode</span>
-                        <div class="na-switch" id="na-view-colour-switch">
-                            <button type="button" class="na-switch__option" data-na-value="rgb">RGB</button>
-                            <button type="button" class="na-switch__option" data-na-value="black">Monochrome Black</button>
+                        <div class="na-switch na-switch--three" id="na-view-colour-switch">
+                            <button type="button" class="na-switch__option" data-na-value="rgb" title="The colours stored in the LAS">RGB</button>
+                            <button type="button" class="na-switch__option" data-na-value="black" title="Every point in black">Monochrome</button>
+                            <button type="button" class="na-switch__option" data-na-value="cloud" title="Every point in this cloud's own colour (its dot in the cloud bar), to tell clouds apart while aligning them">Cloud Colour</button>
                         </div>
                     </div>
+                    <p class="na-hint na-hidden" data-na-multi-only>Size, opacity and colour belong to the cloud named above, so each cloud can look different. Choose another cloud in the bar at the top to set it up. The point budget is shared.</p>
                 </section>
 
                 <section class="na-card na-card--quiet">
@@ -171,8 +186,11 @@
 
                 <section class="na-card">
                     <div class="na-card__header">
-                        <h3 class="na-card__title">Clip Box</h3>
-                        <label class="na-toggle" title="Hide every point outside the box">
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Clip Box</h3>
+                            <span class="na-cloud-tag na-hidden" data-na-cloud-tag></span>
+                        </div>
+                        <label class="na-toggle" title="Hide every point of this cloud outside the box">
                             <input type="checkbox" id="na-clip-enabled">
                             <span class="na-toggle__track"></span>
                             <span class="na-toggle__label">Clip</span>
@@ -182,6 +200,7 @@
                     <div class="na-button-row">
                         <button type="button" class="naButton" id="na-clip-edit">Edit Clip Box</button>
                         <button type="button" class="naButtonSecondary" id="na-clip-reset">Reset to Cloud</button>
+                        <button type="button" class="naButtonSecondary na-hidden" id="na-clip-copy-others" title="Gives every other point cloud of this model the same clip box (on or off), in one step that Undo takes back">Copy to Other Clouds</button>
                     </div>
                     <p class="na-hint" id="na-clip-edit-hint">Edit Clip Box shows the box in the model so you can move its sides with the mouse.</p>
                     <div class="na-clip-limits" id="na-clip-limits"></div>
@@ -189,13 +208,18 @@
                 </section>
 
                 <section class="na-card">
-                    <h3 class="na-card__title">Clip Scenes</h3>
+                    <div class="na-card__header">
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Clip Scenes</h3>
+                            <span class="na-cloud-tag na-hidden" data-na-cloud-tag></span>
+                        </div>
+                    </div>
                     <div class="na-scene-list" id="na-scene-list"></div>
                     <div class="na-scene-add">
                         <input type="text" class="naInput" id="na-scene-name" maxlength="60" placeholder="Name, for example Ground Floor">
                         <button type="button" class="naButton" id="na-scene-save">Save Current Clip</button>
                     </div>
-                    <p class="na-hint">A scene remembers the clip box. Click a name to switch to it. Drag a scene by its grip to reorder the list. Scenes are saved in this SketchUp model.</p>
+                    <p class="na-hint">A clip scene remembers this cloud's clip box. Click a name to switch to it. Drag a scene by its grip to reorder the list. Clip scenes are saved in this SketchUp model, with the cloud they belong to.</p>
                 </section>
 
             </div>
@@ -210,7 +234,10 @@
 
                 <section class="na-card">
                     <div class="na-card__header">
-                        <h3 class="na-card__title">Position</h3>
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Position</h3>
+                            <span class="na-cloud-tag na-hidden" data-na-cloud-tag></span>
+                        </div>
                         <span class="na-lock-badge" id="na-xform-badge">Locked</span>
                     </div>
                     <p class="na-clip-status" id="na-xform-status"></p>
@@ -291,7 +318,7 @@
 
                 <section class="na-card">
                     <h3 class="na-card__title">Export</h3>
-                    <p class="na-hint na-hint--top">Saves the cloud file, units, position, rotation, lock, clip box, clip scenes and display settings to one JSON file. No point data.</p>
+                    <p class="na-hint na-hint--top">Saves every point cloud of the model to one JSON file, each in its own section: file, units, position, rotation, lock, clip box, clip scenes and look, with the point cloud scenes. No point data.</p>
                     <div class="na-button-row">
                         <button type="button" class="naButtonSecondary" id="na-xform-export">Export Configuration&hellip;</button>
                     </div>
@@ -311,7 +338,10 @@
 
                 <section class="na-card" id="na-clean-region-card">
                     <div class="na-card__header">
-                        <h3 class="na-card__title">Preview Region</h3>
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Preview Region</h3>
+                            <span class="na-cloud-tag na-hidden" data-na-cloud-tag></span>
+                        </div>
                         <span class="na-card__value na-clean-region-size" id="na-clean-region-size"></span>
                     </div>
                     <p class="na-clip-status" id="na-clean-region-status"></p>
@@ -349,7 +379,7 @@
 
                 <section class="na-card na-card--export" id="na-clean-export-card">
                     <h3 class="na-card__title">Clean &amp; Export</h3>
-                    <p class="na-hint na-hint--top">Cleans the whole cloud with the settings above and saves it as a NEW LAS file that you name. The original LAS is never changed, renamed or replaced, and nothing is ever overwritten. The new file is checked point by point, then loaded in the same position and used by this model.</p>
+                    <p class="na-hint na-hint--top">Cleans the whole of the cloud this tab works on with the settings above and saves it as a NEW LAS file that you name. The original LAS is never changed, renamed or replaced, and nothing is ever overwritten. The new file is checked point by point, then loaded in the same position and used by this model.</p>
                     <button type="button" class="naButton na-clean-export-button" id="na-clean-export">Clean &amp; Export LAS&hellip;</button>
                     <p class="na-note na-hidden" id="na-clean-export-blocker"></p>
                     <div class="na-clean-retry na-hidden" id="na-clean-retry">
@@ -385,12 +415,12 @@
                     </div>
                     <p class="na-note na-hidden" id="na-pcs-problem"></p>
                     <div class="na-pcs-list" id="na-pcs-list"></div>
-                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene and the cloud takes back its point budget, size, opacity, colour and clip box. Drag a scene by its grip to reorder the list.</p>
+                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene, and every point cloud takes back whether it is shown, its size, opacity, colour and clip box, with the point budget. A cloud added after the scene was saved stays hidden there until you update the scene. Drag a scene by its grip to reorder the list.</p>
                 </section>
 
                 <section class="na-card">
                     <h3 class="na-card__title">Add A SketchUp Scene</h3>
-                    <p class="na-hint na-hint--top">Go to the SketchUp scene, set the cloud up for it (clip box, budget, size, opacity), then pick the scene here and press Save Settings For Scene.</p>
+                    <p class="na-hint na-hint--top">Go to the SketchUp scene, set the clouds up for it (which are shown, each one's clip box, size, opacity and colour, the budget), then pick the scene here and press Save Settings For Scene.</p>
                     <div class="na-pcs-add">
                         <select class="naInput na-pcs-add__select" id="na-pcs-add-select"></select>
                         <button type="button" class="naButton" id="na-pcs-add-go">Save Settings For Scene</button>
@@ -430,7 +460,7 @@
 
                 <section class="na-settings-section">
                     <h3 class="na-settings-heading">Saved With This Model</h3>
-                    <p class="na-settings-description">The model keeps four small text records: which LAS it uses, where the cloud sits (position, rotation, gimbal point, lock), the clip box with its clip scenes, and the point cloud settings saved for SketchUp scenes. They never load anything by themselves and never stop a model from opening; use Reload Point Cloud on the View tab. A copy of the same records is kept on this computer, so a day's alignment survives SketchUp closing without saving.</p>
+                    <p class="na-settings-description">The model keeps one small text record per point cloud (its name and colour, which LAS it uses, where it sits with its rotation, gimbal point and lock, its clip box and clip scenes), a list of the clouds in order, and the point cloud scenes, which hold each cloud's settings by its id. They never load anything by themselves and never stop a model from opening; use Reload on the View tab. A copy of the same records is kept on this computer, so a day's alignment survives SketchUp closing without saving.</p>
                     <div class="na-button-row">
                         <button type="button" class="naButtonSecondary" id="na-settings-open-backups">Open Backups Folder</button>
                         <button type="button" class="naButtonSecondary" id="na-settings-remove-link">Remove Point Cloud Data From Model</button>
@@ -506,13 +536,15 @@
      REGION | JavaScript Includes (load order matters)
        1. BridgeBase  - window.sketchup wrapper
        2. MainShell   - receive dispatcher, status bar, loading overlay
-          DragReorder - drag a row by its grip (clip scenes, point cloud scenes)
-       3. Tab logic   - View, LAS import, Clipping, Transform, model link, Settings
-       4. TabRouter   - last: activates the remembered tab on first state
+          DragReorder - drag a row by its grip (clouds, clip scenes, point cloud scenes)
+       3. CloudSet    - the cloud bar, the Point Clouds list, the cloud tags
+       4. Tab logic   - View, LAS import, Clipping, Transform, model link, Settings
+       5. TabRouter   - last: activates the remembered tab on first state
      ========================================================================== -->
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__BridgeBase__.js"></script>
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__MainShell__.js"></script>
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__DragReorder__.js"></script>
+<script src="02__Src__AppModules/20__System__CloudSet/Na__PointCloudViewer__CloudSet__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/30__System__ViewTab/Na__PointCloudViewer__ViewTab__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/40__System__LasImport/Na__PointCloudViewer__LasImport__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/50__System__ClipBox/Na__PointCloudViewer__ClipBox__UiSystem__MainUiLogic__.js"></script>

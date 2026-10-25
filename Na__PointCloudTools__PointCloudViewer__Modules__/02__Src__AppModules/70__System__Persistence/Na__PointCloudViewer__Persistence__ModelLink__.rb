@@ -4,33 +4,29 @@
 #
 # FILE       : Na__PointCloudViewer__Persistence__ModelLink__.rb
 # NAMESPACE  : Na__PointCloudViewer::Na__ModelLink
-# PURPOSE    : Tells a model which point cloud belongs to it, and brings that
-#              cloud back when the user asks.
+# PURPOSE    : Tells a model which LAS each of its point clouds uses, and brings
+#              those clouds back when the user asks.
 #
-# WHAT IS STORED IN THE MODEL (three model-level attribute dictionaries, each
-#   one small JSON string; no entities, no file references SketchUp follows,
-#   nothing that runs on open, so a model opens normally with or without this
-#   plugin and whether or not the LAS exists):
-#     Na__PointCloudViewer__ModelLink  which LAS: file name, last path, path
-#                                      relative to the .skp, unit, point count,
-#                                      fingerprint, content key, link id, and
-#                                      for a cleaned copy what it was made from
-#     Na__PointCloudViewer__Placement  position, rotation, gimbal point, lock
-#     Na__PointCloudViewer__ClipState  clip box and clip scenes
-#   A copy of all three is kept on this computer (Na__LocalBackup).
+# WHAT IS STORED IN THE MODEL: each cloud's own record (Na__CloudStore) holds,
+#   with its position and clip box, the 'link' part: file name, last path, path
+#   relative to the .skp, unit, point count, fingerprint, content key, and for
+#   a cleaned copy what it was made from, with the files it named before. No
+#   entities, no file references SketchUp follows, nothing that runs on open,
+#   so a model opens normally with or without this plugin and whether or not
+#   the LAS files exist. A copy of every record is kept on this computer
+#   (Na__LocalBackup).
 #
-# NOTHING HAPPENS ON OPEN. The View tab shows the link and a Reload Point
-#   Cloud button. Reload finds the LAS (last path, then beside the .skp, then
-#   this computer's backup path, then the last import folder), reads only its
-#   header, and loads it only if the header matches the link's fingerprint
-#   (point count + survey origin) AND, when the link records one, its content
-#   key (v0.8.0): a cleaned copy with the same count and position is never
-#   taken for its original, nor the other way round. A moved or renamed LAS
-#   can be pointed to with Locate LAS; the same checks apply. A link written
-#   before v0.8.0 has no content key; its next load records one.
+# NOTHING HAPPENS ON OPEN. The View tab lists the clouds with a Reload button
+#   each (and Reload All). Reload finds the LAS (last path, then relative to
+#   and beside the .skp, then this computer's backup path, then the last import
+#   folder), reads only its header, and loads it only if the header matches the
+#   link's fingerprint (point count + survey origin) AND, when the link records
+#   one, its content key: a cleaned copy with the same count and position is
+#   never taken for its original, nor the other way round. A moved or renamed
+#   LAS can be pointed to with Locate LAS; the same checks apply.
 #
-# CLEANED COPIES: after Clean & Export LAS, the link points to the NEW file
-#   (cloud.derivedFrom names the file it was made from; history keeps every
+# CLEANED COPIES: after Clean & Export LAS, the cloud's link points to the NEW
+#   file (derivedFrom names the file it was made from; history keeps every
 #   earlier file). It is one undoable operation, so SketchUp's Undo can put
 #   the link back to the earlier file. Undo never deletes or changes a file.
 #
@@ -43,38 +39,10 @@ module Na__PointCloudViewer
     # REGION | Constants
     # -------------------------------------------------------------------------
 
-        NA_DICT           = 'Na__PointCloudViewer__ModelLink'.freeze
+        NA_DICT           = 'Na__PointCloudViewer__ModelLink'.freeze   # v0.9 models only (read by Na__CloudStore)
         NA_KEY            = 'json'.freeze
         NA_SCHEMA         = 'Na__PointCloudViewer__ModelLink'.freeze
         NA_SCHEMA_VERSION = 1
-        NA_ALL_DICTS      = [NA_DICT, 'Na__PointCloudViewer__Placement', 'Na__PointCloudViewer__ClipState',
-                             'Na__PointCloudViewer__Scenes'].freeze
-
-    # endregion ----------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # REGION | Read
-    # -------------------------------------------------------------------------
-
-        def self.Na__Link__Read(model)
-            raw = model ? model.get_attribute(NA_DICT, NA_KEY) : nil
-            return nil unless raw.is_a?(String) && !raw.empty?
-            data = JSON.parse(raw)
-            return nil unless data.is_a?(Hash) && data['schema'] == NA_SCHEMA && data['schemaVersion'].to_i <= NA_SCHEMA_VERSION
-            cloud = data['cloud']
-            return nil unless data['linkId'].is_a?(String) && cloud.is_a?(Hash) && cloud['fingerprint'].is_a?(String)
-            return nil unless Na__UnitContract.Na__Units__IsSupportedSourceUnit?(cloud['sourceUnit'])
-            data
-        rescue JSON::ParserError => error
-            Na__DebugTools.Na__Debug__Warn("The point cloud link saved in this model could not be read: #{error.message}")
-            nil
-        end
-
-        # Something is stored but it cannot be read (as opposed to no link).
-        def self.Na__Link__Unreadable?(model)
-            raw = model ? model.get_attribute(NA_DICT, NA_KEY) : nil
-            raw.is_a?(String) && !raw.empty? && self.Na__Link__Read(model).nil?
-        end
 
     # endregion ----------------------------------------------------------------
 
@@ -101,30 +69,54 @@ module Na__PointCloudViewer
     # REGION | After an Import (record the link; no write if nothing changed)
     # -------------------------------------------------------------------------
 
-        def self.Na__Link__AfterImport(session, cloud)
-            model = session.model
-            return unless model && session.placement
-            current = self.Na__Link__Read(model)
-            cloud_part = self.Na__Link__CloudPart(model, cloud, session.placement['key'])
-            same_cloud = current && self.na_same_cloud_part?(current['cloud'], cloud_part)
-            # a cleaned copy loaded again keeps what it was made from
+        # slot: the cloud the import loaded. A new cloud (no record yet) is
+        # added to the model; a known one is only written when its file moved.
+        # A plain reload writes nothing (a v0.9 model stays exactly as it is).
+        def self.Na__Link__AfterImport(slot, cloud)
+            model = slot.model
+            return unless model && slot.placement
+            current = slot.record ? slot.record['link'] : nil
+            part = self.Na__Link__CloudPart(model, cloud, slot.placement['key'])
+            same_cloud = current && self.na_same_cloud_part?(current, part)
             if same_cloud
-                cloud_part['derivedFrom'] = current['cloud']['derivedFrom'] if current['cloud']['derivedFrom']
-                cloud_part['contentKey'] ||= current['cloud']['contentKey'] if current['cloud']['contentKey']
+                # a cleaned copy loaded again keeps what it was made from, and its history
+                part['derivedFrom'] = current['derivedFrom'] if current['derivedFrom']
+                part['contentKey'] ||= current['contentKey'] if current['contentKey']
+                part['history'] = current['history'] if current['history']
+                part['linkedAt'] = current['linkedAt'] if current['linkedAt']
             end
-            changed = !(same_cloud && current['cloud'] == cloud_part)
-            if changed
-                record = self.Na__Link__BuildRecord(same_cloud ? current : nil, cloud_part)
-                self.na_write(model, same_cloud ? 'Point Cloud: Update LAS Location' : 'Point Cloud: Link LAS to Model') do
-                    model.set_attribute(NA_DICT, NA_KEY, JSON.generate(record))
+            part['linkedAt'] ||= Time.now.strftime('%Y-%m-%dT%H:%M:%S%z')
+            changed = !(same_cloud && self.na_link_core(current) == self.na_link_core(part))
+            new_cloud = slot.record.nil?
+            if changed || new_cloud
+                name = if new_cloud
+                           saved_before = Na__CloudSet.Na__Slots__All(slot.session).count { |other| %w[saved legacy].include?(other.record_state) }
+                           saved_before.zero? ? 'Point Cloud: Link LAS to Model' : "Point Cloud: Add #{slot.name}"
+                       else
+                           Na__CloudSet.Na__Slots__OpName(slot, same_cloud ? 'Update LAS Location' : 'Link LAS to Model')
+                       end
+                problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, [slot], name) do |_slot, record|
+                    record['link'] = part
+                    record['name'] = slot.name
+                    record['colour'] = slot.colour
+                    record['placement'] ||= Na__Placement.Na__Placement__Part(slot.placement)
+                    record.merge!(Na__ClipBox.Na__Clip__Part(slot)) unless record.key?('clip')
                 end
+                Na__DebugTools.Na__Debug__Warn("The point cloud link was not saved: #{problem}") if problem
+                return
             end
             # A plain reload changes nothing in the model, and must not replace a
             # backup that may hold newer, unsaved work.
-            first_backup = !File.exist?(Na__LocalBackup.Na__Backup__Path(self.Na__Link__Read(model)['linkId']))
-            Na__LocalBackup.Na__Backup__AfterSave(model, session) if changed || first_backup
+            model_id = Na__CloudStore.Na__Store__ModelId(slot.session)
+            Na__LocalBackup.Na__Backup__AfterSave(model, slot.session) if model_id && !File.exist?(Na__LocalBackup.Na__Backup__Path(model_id))
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Error('The point cloud link could not be saved in the model.', error)
+        end
+
+        # The link without what may legitimately differ between two loads of
+        # the same file.
+        def self.na_link_core(part)
+            part.is_a?(Hash) ? part.reject { |key, _| %w[linkedAt history].include?(key) } : nil
         end
 
     # endregion ----------------------------------------------------------------
@@ -133,42 +125,85 @@ module Na__PointCloudViewer
     # REGION | Reload + Locate (explicit user actions only)
     # -------------------------------------------------------------------------
 
-        # Returns nil when the load has started, or a plain-English reason.
+        # Where this cloud's points will come from: { 'kind' => 'las', 'path',
+        # 'unit', 'headerMs' } or { 'kind' => 'cache', 'lasPath', 'unit', 'cached' },
+        # or a plain-English String when neither can be found.
         # Order: this computer's point cache when the LAS it was made from is
-        # found unchanged (fast); else the LAS itself (writes a fresh cache);
-        # else, with no matching LAS anywhere, the cache alone (with a note).
-        def self.Na__Link__Reload(session)
-            model = session.model
-            link = self.Na__Link__Read(model)
-            return 'This model has no point cloud link to reload.' unless link
-            backup = Na__LocalBackup.Na__Backup__Find(model, link)
-            candidates = self.na_candidates(model, link, backup)
-            match, mismatched = self.na_find_matching_file(candidates, link['cloud'])
-            # the import uses this computer's cache of that exact file when it has one
-            return self.na_start_import(session, match[0], link['cloud']['sourceUnit'], match[1]) if match
-            key = link['cloud']['contentKey']
-            cached = key ? Na__PointCache.Na__Cache__ForKey(key) : Na__PointCache.Na__Cache__LegacyForFingerprint(link['cloud']['fingerprint'])
-            if cached
-                return Na__LasImport.Na__LasImport__StartFromCache(session, link['cloud']['lastPath'], link['cloud']['sourceUnit'], cached)
-            end
-            name = link['cloud']['fileName']
+        # found unchanged (fast; decided by the import); else the LAS itself
+        # (writes a fresh cache); else, with no matching LAS anywhere, the cache
+        # alone (with a note).
+        def self.Na__Link__ReloadPlan(slot)
+            link = slot && slot.record ? slot.record['link'] : nil
+            return 'This point cloud has no saved link to reload.' unless link
+            model = slot.model
+            backup = Na__LocalBackup.Na__Backup__Find(model, slot.session)
+            candidates = self.na_candidates(model, link, self.na_backup_link(backup, slot))
+            match, mismatched = self.na_find_matching_file(candidates, link)
+            return { 'kind' => 'las', 'path' => match[0], 'unit' => link['sourceUnit'], 'headerMs' => match[1] } if match
+            key = link['contentKey']
+            cached = key ? Na__PointCache.Na__Cache__ForKey(key) : Na__PointCache.Na__Cache__LegacyForFingerprint(link['fingerprint'])
+            return { 'kind' => 'cache', 'lasPath' => link['lastPath'], 'unit' => link['sourceUnit'], 'cached' => cached } if cached
+            name = link['fileName']
             return "#{name} is at a different location now. Use Locate LAS to point to it." if mismatched.empty?
             "A file called #{name} was found, but it is not the same scan (different point count or position). Use Locate LAS to choose the right file."
         end
 
-        def self.Na__Link__Locate(session)
-            model = session.model
-            link = self.Na__Link__Read(model)
-            return 'This model has no point cloud link to locate.' unless link
+        # Returns nil when the load has started, or a plain-English reason.
+        def self.Na__Link__Reload(slot)
+            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
+            plan = self.Na__Link__ReloadPlan(slot)
+            return plan if plan.is_a?(String)
+            job = Na__LasImport.Na__LasImport__JobForPlan(slot, plan)
+            Na__UserConfigStore.Na__UserConfig__Set('import', 'lastFolder', File.dirname(plan['path'])) if plan['kind'] == 'las'
+            Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
+        end
+
+        # Every cloud of the model that needs it (Na__Link__NeedsReload?), one
+        # after the other. Returns nil when the loads have started, or a
+        # plain-English reason nothing was started.
+        def self.Na__Link__ReloadAll(session)
+            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
+            slots = Na__CloudSet.Na__Slots__All(session).select { |slot| self.Na__Link__NeedsReload?(slot) }
+            return 'Every point cloud of this model is loaded already.' if slots.empty?
+            return self.Na__Link__Reload(slots.first) if slots.length == 1
+            job = Na__LasImport::Na__ReloadSeriesJob.new(session, slots)
+            Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
+        end
+
+        # The cloud has a record and is not loaded, or what is loaded is not
+        # the file its record names (an Undo of Use Cleaned LAS puts the
+        # original back in the record while the cleaned cloud stays shown).
+        def self.Na__Link__NeedsReload?(slot)
+            return false unless slot.record && slot.record['link']
+            return true unless slot.cloud
+            slot.placement ? !Na__Placement.na_link_names_other(slot).nil? : false
+        end
+
+        def self.Na__Link__Locate(slot)
+            link = slot && slot.record ? slot.record['link'] : nil
+            return 'This point cloud has no saved link to locate.' unless link
+            model = slot.model
             start = model.path.to_s.empty? ? '' : File.dirname(model.path)
-            path = UI.openpanel("Locate #{link['cloud']['fileName']}", start, 'LAS point cloud (*.las)|*.las||')
+            path = UI.openpanel("Locate #{link['fileName']}", start, 'LAS point cloud (*.las)|*.las||')
             return 'Locate cancelled.' unless path
-            match, = self.na_find_matching_file([path], link['cloud'])
+            match, = self.na_find_matching_file([path], link)
             unless match
-                same = link['cloud']['contentKey'] ? ' and the same content' : ''
-                return "That file is not the scan this model was linked to (#{Na__PerfStats.Na__Perf__Thousands(link['cloud']['pointCount'])} points#{same}). Nothing was loaded."
+                same = link['contentKey'] ? ' and the same content' : ''
+                return "That file is not the scan #{slot.name} was linked to (#{Na__PerfStats.Na__Perf__Thousands(link['pointCount'])} points#{same}). Nothing was loaded."
             end
-            self.na_start_import(session, match[0], link['cloud']['sourceUnit'], match[1])
+            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
+            Na__UserConfigStore.Na__UserConfig__Set('import', 'lastFolder', File.dirname(match[0]))
+            job = Na__LasImport.Na__LasImport__JobForPlan(slot, { 'kind' => 'las', 'path' => match[0], 'unit' => link['sourceUnit'], 'headerMs' => match[1] })
+            Na__AsyncJobs.Na__Jobs__Start(job) ? nil : 'Another task is still running.'
+        end
+
+        # The first place this cloud's LAS is found now (for the dialog), or nil.
+        def self.Na__Link__FoundPath(model, slot, backup)
+            link = slot.record ? slot.record['link'] : nil
+            return nil unless link
+            self.na_first_existing(self.na_candidates(model, link, self.na_backup_link(backup, slot)))
+        rescue StandardError
+            nil
         end
 
     # endregion ----------------------------------------------------------------
@@ -177,75 +212,66 @@ module Na__PointCloudViewer
     # REGION | Restore From Backup + Remove (explicit user actions only)
     # -------------------------------------------------------------------------
 
-        # Writes this computer's copy of the link, position and clip records
-        # back into the model as ONE undoable operation.
+        # Writes this computer's copy of every point cloud record back into the
+        # model as ONE undoable operation.
         def self.Na__Link__RestoreBackup(session)
             model = session.model
-            backup = Na__LocalBackup.Na__Backup__Find(model, self.Na__Link__Read(model))
-            return 'There is no backup on this computer for this model.' unless backup
-            self.na_write(model, 'Point Cloud: Restore From Backup') do
-                model.set_attribute(NA_DICT, NA_KEY, JSON.generate(backup['link']))
-                model.set_attribute(Na__Placement::NA_DICT, 'json', JSON.generate(backup['placement'])) if backup['placement']
-                model.set_attribute(Na__ClipBox::NA_DICT, 'json', JSON.generate(backup['clip'])) if backup['clip']
-                model.set_attribute(Na__LocalBackup::NA_SCENES_DICT, 'json', JSON.generate(backup['scenes'])) if backup['scenes']
-            end
+            backup = Na__LocalBackup.Na__Backup__Find(model, session)
+            return 'There is no backup on this computer for this model.' unless backup && !(backup['records'] || {}).empty?
+            Na__ModelLink.na_end_every_tool(session)
+            Na__CloudStore.Na__Store__ReplaceAll(model, backup['records'], 'Point Cloud: Restore From Backup')
             Na__ModelRegistry.Na__Registry__ReloadModelState(model)
             nil
         end
 
         # The escape hatch: removes every point cloud record from the model
-        # (one undoable operation). This computer's backup is kept.
+        # (one undoable operation). Loaded clouds stay in memory, unsaved; this
+        # computer's backup is kept.
         def self.Na__Link__RemoveFromModel(session)
             model = session.model
             return 'There is no model.' unless model
-            Na__Placement.Na__Placement__StopTool(session)
-            Na__ClipBox.Na__Clip__StopEditing(session) if session.clip_editing
-            dictionaries = model.attribute_dictionaries
-            present = NA_ALL_DICTS.select { |name| dictionaries && dictionaries[name] }
-            return 'This model holds no point cloud data.' if present.empty?
-            self.na_write(model, 'Point Cloud: Remove From Model') do
-                present.each { |name| dictionaries.delete(name) }
-            end
+            self.na_end_every_tool(session)
+            problem = Na__CloudStore.Na__Store__RemoveAll(model, 'Point Cloud: Remove From Model')
+            return problem if problem
             Na__ModelRegistry.Na__Registry__ReloadModelState(model)
             nil
+        end
+
+        def self.na_end_every_tool(session)
+            tool = session.transform_tool
+            Sketchup.active_model.select_tool(nil) if tool || Na__CloudSet.Na__Slots__All(session).any?(&:clip_editing)
+            session.transform_tool = nil
         end
 
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
-    # REGION | Dialog Payload
+    # REGION | Dialog Payload (the model's backup)
     # -------------------------------------------------------------------------
 
+        # What the dialog says about the model's records and this computer's
+        # backup of them. Each cloud's own file status is in the clouds list.
         def self.Na__Link__Payload(session, model)
             return { 'state' => 'none' } unless session && model
-            link   = self.Na__Link__Read(model)
-            backup = Na__LocalBackup.Na__Backup__Find(model, link)
-            unreadable = self.Na__Link__Unreadable?(model)
-            return { 'state' => 'none', 'backupsFolder' => Na__LocalBackup.Na__Backup__Folder } unless link || backup
+            slots  = Na__CloudSet.Na__Slots__All(session)
+            backup = Na__LocalBackup.Na__Backup__Find(model, session)
+            saved  = slots.count { |slot| %w[saved legacy].include?(slot.record_state) }
+            return { 'state' => 'none', 'unreadable' => !session.store_problem.nil?, 'problem' => session.store_problem,
+                     'backupsFolder' => Na__LocalBackup.Na__Backup__Folder } unless saved > 0 || backup
             compare = Na__LocalBackup.Na__Backup__Compare(model, backup)
-            source = link || backup['link']
-            cloud  = source['cloud']
-            loaded = session.cloud && session.placement &&
-                     self.Na__Link__FingerprintFromKey(session.placement['key']) == cloud['fingerprint'] ? true : false
-            found = link ? self.na_first_existing(self.na_candidates(model, link, backup)) : nil
-            stored_placement = Na__Placement.na_read(model)
-            derived = cloud['derivedFrom'].is_a?(Hash) ? cloud['derivedFrom'] : nil
+            active = Na__CloudSet.Na__Slots__Active(session)
             {
-                'state'         => link ? 'linked' : 'backupOnly',
-                'derivedFrom'   => derived ? derived['fileName'].to_s : nil,
-                'unreadable'    => unreadable,
-                'loaded'        => loaded,
-                'otherLoaded'   => session.cloud && !loaded ? true : false,
-                'fileName'      => cloud['fileName'],
-                'unitLabel'     => Na__UnitContract.Na__Units__SourceUnitLabel(cloud['sourceUnit']),
-                'pointsText'    => Na__PerfStats.Na__Perf__Thousands(cloud['pointCount']),
-                'lastPath'      => cloud['lastPath'],
-                'foundPath'     => found,
-                'positionText'  => self.na_position_text(stored_placement),
+                'state'         => saved > 0 ? 'linked' : 'backupOnly',
+                'cloudCount'    => saved,
+                'legacy'        => session.store_legacy ? true : false,
+                'unreadable'    => !session.store_problem.nil?,
+                'problem'       => session.store_problem,
+                'fileName'      => active ? (active.record ? active.record.dig('link', 'fileName').to_s : active.name) : '',
                 'backup'        => {
-                    'exists'    => !backup.nil?,
-                    'newer'     => compare['newer'] || (backup && !link) ? true : false,
-                    'savedText' => compare['backupSavedText']
+                    'exists'     => !backup.nil?,
+                    'newer'      => compare['newer'] || (backup && saved.zero?) ? true : false,
+                    'savedText'  => compare['backupSavedText'],
+                    'cloudNames' => Na__LocalBackup.Na__Backup__CloudNames(backup)
                 },
                 'backupsFolder' => Na__LocalBackup.Na__Backup__Folder
             }
@@ -275,24 +301,6 @@ module Na__PointCloudViewer
             part
         end
 
-        # A whole link record. previous: the record it replaces for the same
-        # model link (keeps the link id, creation time and history), or nil.
-        def self.Na__Link__BuildRecord(previous, cloud_part, history = nil)
-            now = Time.now
-            record = {
-                'schema'        => NA_SCHEMA,
-                'schemaVersion' => NA_SCHEMA_VERSION,
-                'linkId'        => previous ? previous['linkId'] : self.na_new_link_id(now),
-                'createdAt'     => previous ? previous['createdAt'] : now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'updatedAt'     => now.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'pluginVersion' => Na__PointCloudViewer.Na__PublicApi__Version,
-                'cloud'         => cloud_part
-            }
-            history ||= previous && previous['history'].is_a?(Array) ? previous['history'] : nil
-            record['history'] = history if history && !history.empty?
-            record
-        end
-
         # Same file: the content keys agree when both are known, else the
         # fingerprints (links from before v0.8.0).
         def self.na_same_cloud_part?(a, b)
@@ -306,21 +314,6 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
     # REGION | Internals
     # -------------------------------------------------------------------------
-
-        # Every model write: one named operation, aborted on any error so a
-        # half-written change never stays in the model.
-        def self.na_write(model, operation_name)
-            model.start_operation(operation_name, true)
-            yield
-            model.commit_operation
-        rescue StandardError
-            model.abort_operation
-            raise
-        end
-
-        def self.na_new_link_id(now)
-            "PCV-#{now.strftime('%Y%m%d-%H%M%S')}-#{format('%06x', rand(0x1000000))}"
-        end
 
         # The LAS path relative to the .skp's folder, or nil (unsaved model, or
         # a different drive). Lets a project folder move between computers.
@@ -338,15 +331,24 @@ module Na__PointCloudViewer
             nil
         end
 
-        def self.na_candidates(model, link, backup)
-            cloud  = link['cloud']
+        # The link this computer's backup holds for the same cloud (its record,
+        # or the v0.9 link), or nil.
+        def self.na_backup_link(backup, slot)
+            records = backup ? backup['records'] || {} : {}
+            record = records[Na__CloudStore.Na__Store__DictName(slot.id)]
+            return record['link'] if record.is_a?(Hash) && record['link'].is_a?(Hash)
+            legacy = records[NA_DICT]
+            legacy.is_a?(Hash) && legacy['cloud'].is_a?(Hash) ? legacy['cloud'] : nil
+        end
+
+        def self.na_candidates(model, link, backup_link)
             folder = model.path.to_s.empty? ? nil : File.dirname(model.path)
-            list = [cloud['lastPath']]
-            list << File.expand_path(cloud['relativePath'], folder) if folder && cloud['relativePath'].is_a?(String)
-            list << File.join(folder, cloud['fileName']) if folder
-            list << backup['link']['cloud']['lastPath'] if backup && backup['link']['cloud'].is_a?(Hash)
+            list = [link['lastPath']]
+            list << File.expand_path(link['relativePath'], folder) if folder && link['relativePath'].is_a?(String)
+            list << File.join(folder, link['fileName']) if folder
+            list << backup_link['lastPath'] if backup_link
             last_folder = Na__UserConfigStore.Na__UserConfig__Get('import', 'lastFolder', '')
-            list << File.join(last_folder, cloud['fileName']) if last_folder.is_a?(String) && !last_folder.empty?
+            list << File.join(last_folder, link['fileName']) if last_folder.is_a?(String) && !last_folder.empty?
             list.compact.map { |path| path.to_s.tr('\\', '/') }.reject(&:empty?).uniq { |path| path.downcase }
         end
 
@@ -376,18 +378,11 @@ module Na__PointCloudViewer
             [nil, mismatched]
         end
 
-        def self.na_start_import(session, path, unit, header_ms)
-            return 'Another task is still running.' if Na__AsyncJobs.Na__Jobs__Busy?
-            Na__UserConfigStore.Na__UserConfig__Set('import', 'lastFolder', File.dirname(path))
-            Na__LasImport.Na__LasImport__Start('path' => path, 'sourceUnit' => unit, 'headerMs' => header_ms)
-            nil
-        end
-
         def self.na_position_text(placement)
-            return 'No position saved yet: the cloud loads at its import position.' unless placement
+            return 'No position is saved yet: Reload puts the cloud at its import position.' unless placement
             moved = !Na__Placement.na_identity?(placement)
             lock  = placement['locked'] ? 'locked' : 'unlocked'
-            moved ? "Its saved position is restored (#{lock})." : "It loads at its import position (#{lock})."
+            moved ? "Reload puts it back in its saved position (#{lock})." : "Reload puts it at its import position (#{lock})."
         end
 
     # endregion ----------------------------------------------------------------
