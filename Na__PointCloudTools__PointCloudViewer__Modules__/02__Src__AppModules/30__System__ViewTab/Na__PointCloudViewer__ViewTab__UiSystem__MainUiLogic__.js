@@ -11,7 +11,9 @@
 // SEVERAL CLOUDS (v0.10.0): the point budget is ONE budget shared by every
 //   cloud on show (the hint says how it is spread). Size, opacity and colour
 //   mode belong to the active cloud: state.render.settings already holds its
-//   look, and Ruby applies a change to it.
+//   look, and Ruby applies a change to it. Primary Colour draws a cloud in its
+//   own solid colour (the first cloud red, the second blue); its option shows
+//   the active cloud's colour.
 //
 // INTERACTION:
 //   Size and opacity stream while dragging (trailing throttle). Point Budget
@@ -174,6 +176,38 @@
         });
     }
 
+    // Relative luminance (WCAG) of '#rrggbb' above 0.215: dark text then has
+    // more contrast on it than white (green, yellow, cyan, pink, orange).
+    function na_is_light(hex) {
+        var value = parseInt(String(hex).slice(1), 16);
+        var lin = [16, 8, 0].map(function (shift) {
+            var c = ((value >> shift) & 255) / 255;
+            return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2] > 0.215;
+    }
+
+    // The Primary Colour option carries the active cloud's colour, and names it.
+    function na_render_primary(cloud) {
+        var option = document.querySelector('#na-view-colour-switch [data-na-value="primary"]');
+        var dot    = document.getElementById('na-view-primary-dot');
+        if (!option || !dot) return;
+        var colour = cloud && cloud.inModel ? cloud.colour : null;
+        dot.classList.toggle('na-hidden', !colour);
+        if (colour) dot.style.setProperty('--na-cloud-colour', colour);
+        // Chosen, the option is filled with the cloud's colour: red for A, blue for B
+        if (colour) {
+            option.style.setProperty('--na-primary-fill', colour);
+            option.style.setProperty('--na-primary-ink', na_is_light(colour) ? '#20242b' : '#ffffff');
+        } else {
+            option.style.removeProperty('--na-primary-fill');
+            option.style.removeProperty('--na-primary-ink');
+        }
+        var named = colour ? cloud.name + ' in ' + (cloud.colourName ? cloud.colourName.toLowerCase() : 'its own colour') + ': ' : '';
+        option.title = named + 'every point in one solid colour, so each cloud stands apart while you align them. ' +
+                       'The first cloud of a model is red, the second blue. Size and opacity still apply.';
+    }
+
     function na_render_units(units) {
         Shell.na_text('na-units-model',    units.modelUnits);
         Shell.na_text('na-units-source',   units.sourceUnits);
@@ -185,6 +219,7 @@
         na_render_show(state);
         na_render_budget(state);
         na_render_appearance(state.render.settings, state.render.limits);
+        na_render_primary(state.cloud);
         na_render_units(state.units || {});
         Shell.na_text('na-brand-version', state.plugin ? 'v' + state.plugin.version + ' by Noble Architecture' : 'by Noble Architecture');
     };

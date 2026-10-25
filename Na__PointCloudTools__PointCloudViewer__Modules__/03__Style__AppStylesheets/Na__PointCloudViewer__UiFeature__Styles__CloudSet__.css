@@ -91,6 +91,30 @@
     color               : #1d3f73;
 }
 
+/* The Primary Colour option's dot: the active cloud's own colour, ringed in
+   white so it shows on the option's blue when chosen */
+.na-switch__dot {
+    display             : inline-block;
+    width               : 9px;
+    height              : 9px;
+    margin-right        : 6px;
+    border-radius       : 50%;
+    vertical-align      : -1px;
+    background          : var(--na-cloud-colour, #888888);
+    box-shadow          : 0 0 0 1.5px rgba(255, 255, 255, 0.95), 0 0 0 2.5px rgba(0, 0, 0, 0.12);
+}
+
+/* Chosen, Primary Colour is filled with the cloud's own colour (its dot then
+   says nothing more); the script picks white or dark text for contrast */
+.na-switch__option--active[data-na-value="primary"] {
+    background          : var(--na-primary-fill, var(--na-accent));
+    color               : var(--na-primary-ink, #fff);
+}
+
+.na-switch__option--active .na-switch__dot {
+    display             : none;
+}
+
 .naButton.na-button--small {
     padding             : 5px 10px;
     font-size           : 12px;

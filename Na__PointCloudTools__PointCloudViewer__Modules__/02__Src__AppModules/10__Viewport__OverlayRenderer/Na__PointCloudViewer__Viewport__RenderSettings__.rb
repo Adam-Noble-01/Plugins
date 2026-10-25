@@ -13,11 +13,13 @@
 #                            every cloud on show (one per model)
 #   pointSizePx     Integer  logical pixels          } each cloud's own look
 #   opacityPercent  Integer  100 = opaque            } (v0.10.0): its slot's
-#   colourMode      String   'rgb' | 'black' | 'cloud' } display
+#   colourMode      String   'rgb' | 'black' | 'primary' } display
 #
-# 'cloud' (v0.10.0) draws every point in the cloud's own colour, the one that
-#   marks it in the dialog: with two scans of one building on show, each can
-#   be told apart at a glance while they are aligned.
+# 'primary' (v0.10.0, Primary Colour) draws every point of a cloud in its one
+#   solid colour, the colour that marks it in the dialog: red for the model's
+#   first cloud, blue for the second, then the colours farthest from those
+#   (clouds.palette). With two scans of one building on show, each is told
+#   apart at a glance while they are aligned; size and opacity still apply.
 #
 # =============================================================================
 
@@ -28,7 +30,10 @@ module Na__PointCloudViewer
     # REGION | Defaults + Limits
     # -------------------------------------------------------------------------
 
-        NA_COLOUR_MODES = %w[rgb black cloud].freeze
+        NA_COLOUR_MODES = %w[rgb black primary].freeze
+        # 'cloud' was Primary Colour's name in the first v0.10.0 build: a look or
+        # scene saved with it still reads.
+        NA_COLOUR_MODE_ALIASES = { 'cloud' => 'primary' }.freeze
         NA_SHARED_KEYS  = %w[pointBudget].freeze
         NA_DISPLAY_KEYS = %w[pointSizePx opacityPercent colourMode].freeze
 
@@ -94,15 +99,19 @@ module Na__PointCloudViewer
             if partial.key?('opacityPercent')
                 result['opacityPercent'] = self.na_clamp_int(partial['opacityPercent'], limits['opacityMinPct'], limits['opacityMaxPct'], current['opacityPercent'])
             end
-            result['colourMode'] = partial['colourMode'].to_s if NA_COLOUR_MODES.include?(partial['colourMode'].to_s)
+            mode = partial['colourMode'].to_s
+            mode = NA_COLOUR_MODE_ALIASES.fetch(mode, mode)
+            result['colourMode'] = mode if NA_COLOUR_MODES.include?(mode)
             result
         end
 
-        # A valid look for one cloud: the three display keys only.
+        # A valid look for one cloud: the three display keys only. The current
+        # look is checked like a change, so a stored value that is out of range,
+        # unknown or an older name never reaches the engine as it is.
         def self.Na__Settings__MergeDisplay(current, partial)
-            base = self.Na__Settings__Defaults.merge(current.is_a?(Hash) ? current.select { |key, _| NA_DISPLAY_KEYS.include?(key) } : {})
+            stored = current.is_a?(Hash) ? current.select { |key, _| NA_DISPLAY_KEYS.include?(key) } : {}
             only = partial.is_a?(Hash) ? partial.select { |key, _| NA_DISPLAY_KEYS.include?(key) } : {}
-            self.Na__Settings__DisplayPart(self.Na__Settings__Merge(base, only))
+            self.Na__Settings__DisplayPart(self.Na__Settings__Merge(self.Na__Settings__Merge(self.Na__Settings__Defaults, stored), only))
         end
 
         def self.Na__Settings__ChangedKeys(before, after)

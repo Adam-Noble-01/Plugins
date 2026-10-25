@@ -273,8 +273,8 @@ module Na__PointCloudViewer
 
         def self.na_colour_label(mode)
             case mode
-            when 'black' then 'Monochrome'
-            when 'cloud' then 'Cloud colour'
+            when 'black'   then 'Monochrome'
+            when 'primary' then 'Primary colour'
             else 'RGB'
             end
         end

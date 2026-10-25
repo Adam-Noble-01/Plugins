@@ -74,7 +74,7 @@ module Na__PointCloudViewer
             return { 'isLoaded' => false, 'inModel' => false } unless slot
             cloud = slot.cloud
             base = { 'inModel' => true, 'id' => slot.id, 'name' => slot.name, 'colour' => Na__CloudSet.Na__Slots__HexColour(slot.colour),
-                     'visible' => slot.visible ? true : false }
+                     'colourName' => Na__CloudStore.Na__Store__ColourName(slot.colour), 'visible' => slot.visible ? true : false }
             return base.merge('isLoaded' => false) unless cloud
             base.merge(
                 'isLoaded'    => true,

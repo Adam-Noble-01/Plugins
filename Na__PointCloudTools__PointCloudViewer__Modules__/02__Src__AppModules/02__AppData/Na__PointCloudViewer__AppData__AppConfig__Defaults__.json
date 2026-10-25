@@ -5,16 +5,17 @@
 
     "plugin" : {
         "name"    : "Na Point Cloud Viewer",
-        "version" : "0.11.0"
+        "version" : "0.11.1"
     },
 
     "clouds" : {
-        "_comment"  : "Several point clouds per model (v0.10.0). maxClouds is the most a model can hold (the engine draws at most 16 at once). Each new cloud takes the first palette colour no other cloud of the model uses: it marks the cloud in the dialog, labels it in the viewport while a tool works on it, and is the colour of its points in the Cloud Colour mode.",
+        "_comment"  : "Several point clouds per model (v0.10.0). maxClouds is the most a model can hold (the engine draws at most 16 at once). Each new cloud takes the first palette colour no other cloud of the model uses, so the first cloud is red and the second blue (Adam, 25-Oct-2026); each next colour is the one farthest (CIEDE2000) from those already taken, readable on light backgrounds and never grey (a LAS without colour is drawn grey). The colour marks the cloud in the dialog, labels it in the viewport while a tool works on it, and is the solid colour of its points in Primary Colour. paletteNames names them, in the same order.",
         "maxClouds" : 10,
         "palette"   : [
-            [232, 113, 10], [26, 115, 232], [24, 128, 56], [142, 36, 170], [0, 137, 123],
-            [197, 34, 31], [191, 144, 0], [216, 27, 96], [121, 85, 72], [84, 110, 122]
-        ]
+            [228, 26, 28], [30, 90, 230], [90, 180, 30], [240, 170, 0], [0, 180, 190],
+            [250, 120, 170], [200, 30, 200], [120, 70, 40], [255, 110, 0], [100, 40, 160]
+        ],
+        "paletteNames" : ["Red", "Blue", "Green", "Yellow", "Cyan", "Pink", "Magenta", "Brown", "Orange", "Violet"]
     },
 
     "dialog" : {
@@ -31,7 +32,7 @@
     },
 
     "render" : {
-        "_comment" : "pointBudget is shared by every cloud on show; pointSizePx, opacityPercent and colourMode ('rgb', 'black' or 'cloud': the cloud's own colour) are each cloud's own look. These defaults are the look a new cloud starts with.",
+        "_comment" : "pointBudget is shared by every cloud on show; pointSizePx, opacityPercent and colourMode ('rgb', 'black' or 'primary': every point in the cloud's own solid colour) are each cloud's own look. These defaults are the look a new cloud starts with.",
         "defaults" : {
             "pointBudget"    : 1000000,
             "pointSizePx"    : 2,

@@ -1,6 +1,6 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.11.0: native image renderer (binned raster, screen crop, orbit budget, several clouds
+Status: **v0.11.1: native image renderer (binned raster, screen crop, orbit budget, several clouds
 in one depth-tested frame), LAS import with the `.napc` point cache (v2, named by the LAS content
 key), the clip box with clip scenes, the Transform tab, model persistence (one record per cloud +
 local backup, explicit Reload), the Clean tab (Remove Noise, Refine Surfaces, Reduce Density; live
@@ -1233,7 +1233,8 @@ Ruby: `20__System__CloudSet/` (`...CloudSet__Store__.rb`: the records; `...Cloud
 the slots, the active cloud, view settings, words, the dialog payload, the viewport label;
 `...CloudSet__UiSystem__MainUiLogic__.js`: the cloud bar, the Point Clouds list, the cloud tags);
 style `...UiFeature__Styles__CloudSet__.css`; engine: the layered render (`Rasterizer`,
-`napc_render_layers_png`, ABI 7); config `clouds` (`maxClouds` 10, a `palette` of ten colours).
+`napc_render_layers_png`, ABI 7); config `clouds` (`maxClouds` 10, a `palette` of ten colours in
+Primary Colour order, with their `paletteNames`; 25.12).
 
 ### 25.1 What it is for
 
@@ -1304,8 +1305,8 @@ every save.
 - **Ids:** `pc_` + 8 random hex, never reused within a model. A v0.9 model's one cloud is
   `pc_` + the first 8 hex of SHA-256 of `Na__PointCloudViewer|<its old link id>`: the same on every
   read and on both computers, so its scenes find it before and after the model is converted.
-- **Colours:** a new cloud takes the first palette colour no cloud uses. Rename, Colour, Reorder and
-  Remove are undoable, named steps.
+- **Colours:** a new cloud takes the first palette colour no cloud uses, so a model's first cloud is
+  red and its second blue (25.12). Rename, Colour, Reorder and Remove are undoable, named steps.
 - **Every write** is ONE named operation, aborted on error (`Na__Store__WriteSlots`, `RemoveSlot`,
   `WriteOrder`), then the local backup.
 - **View settings, not model records:** whether a cloud is shown, and its look (size, opacity,
@@ -1337,8 +1338,8 @@ where a LAS sits (each cloud's `link`), so the two computers' paths never flag a
 - **One cloud, same pixels:** a one-layer render is byte-identical to ABI 6 (tested on 8 JW02 views).
 - **Per-layer stats** (demand, share, tested, on screen) come back to Ruby; the View tab says how
   the budget is spread.
-- **Colour modes:** `rgb`, `black` (monochrome) and `cloud` (every point in the cloud's own colour,
-  to tell clouds apart while aligning them).
+- **Colour modes:** `rgb`, `black` (monochrome) and `primary` (Primary Colour: every point in the
+  cloud's own solid colour, to tell clouds apart while aligning them; 25.12).
 - Ruby builds the layers from `Na__Slots__Drawn` (shown and loaded, in the list's order). The
   pointers of the clouds drawn are held until the next frame, so a cloud unloaded meanwhile is never
   freed under the engine.
@@ -1440,6 +1441,35 @@ where a LAS sits (each cloud's `link`), so the two computers' paths never flag a
 - The same LAS twice in one model (importing a file the model holds loads into its cloud).
 - A budget per cloud (one budget is shared, by design).
 - Clouds that move together (each moves alone; align it, then lock it).
+
+### 25.12 Primary Colour (BUILT in v0.11.1)
+
+Adam, 25-Oct-2026: a colour mode beside RGB and Monochrome that gives each cloud one solid colour,
+for alignment; the first cloud always red, the second always blue, then on through colours as
+opposite as practical; point size and opacity still apply.
+
+- **The order** (`clouds.palette`, named in `clouds.paletteNames`): red, blue, green, yellow, cyan,
+  pink, magenta, brown, orange, violet. After red and blue each next colour is the one farthest
+  (CIEDE2000) from every colour already taken, picked from one candidate per colour name so each can
+  be said aloud, all readable on SketchUp's light backgrounds and none grey (a LAS without colour is
+  drawn grey in RGB). Green is 67 units from both red and blue; yellow is blue's opposite and cyan
+  red's; the closest pair of the ten (magenta, violet) is 18.6 apart.
+- **Who gets which:** a new cloud takes the first colour no other cloud of the model uses, so a
+  model's first cloud is red and its second blue. A colour stays with its cloud when clouds are
+  reordered or removed, and can be changed on the cloud's row. A cloud coloured by the first v0.10.0
+  build (orange, then its blue, from that build's palette) reads as the colour in the same place of
+  this order (`Na__Store__ColourName`, `na_current_colour`); its record takes it with its next change.
+- **The mode** (`colourMode` `primary`): every point of that cloud in its colour at its own dot size
+  and opacity, through the layered render's per-layer mono colour (no engine change). It is part of
+  each cloud's look like the other modes: set per cloud, not undoable, saved with scenes. The first
+  v0.10.0 build named it `cloud`; that name still reads as `primary` (`NA_COLOUR_MODE_ALIASES`), and
+  stored looks are checked like changes, so an old or unknown value never reaches the engine.
+- **The dialog:** chosen, the option is filled with the active cloud's own colour (red for A, blue for
+  B), with dark or white text by contrast; otherwise a dot in that colour shows what it will be. Colour
+  names appear on the palette swatches, each cloud's swatch and the option's tooltip.
+- **Tests:** the multi-cloud suite (96) checks the order and names, both clouds drawn solid red and
+  solid blue with no other colour left, the old name in a look and in a saved scene, and the first
+  build's colours read as red and blue.
 
 ---
 

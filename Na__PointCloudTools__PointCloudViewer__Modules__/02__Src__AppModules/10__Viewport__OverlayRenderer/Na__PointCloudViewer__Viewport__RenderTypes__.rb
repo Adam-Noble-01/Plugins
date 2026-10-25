@@ -71,7 +71,7 @@ module Na__PointCloudViewer
         # session      : the Na__CloudSession it belongs to
         # name, colour : what the user calls it and the colour that marks it
         #                ([r, g, b]: the cloud bar, the viewport label, the
-        #                Cloud Colour mode). Both saved in its record.
+        #                Primary Colour mode). Both saved in its record.
         # record       : its record exactly as last read from or written to the
         #                model (Na__CloudStore), or nil before the first write
         # record_state : 'saved'   its record is in the model

@@ -199,11 +199,11 @@ module Na__PointCloudViewer
         end
 
         # [colour mode flag, r, g, b] for the engine: RGB as recorded, black
-        # (the configured monochrome colour), or the cloud's own colour.
+        # (the configured monochrome colour), or the cloud's primary colour.
         def self.Na__Image__ColourParams(slot, mode)
             case mode.to_s
-            when 'black' then [1, *Na__ConfigLoader.Na__Config__GetOr([0, 0, 0], 'render', 'monochromeRgb')]
-            when 'cloud' then [1, *Array(slot.colour).first(3)]
+            when 'black'   then [1, *Na__ConfigLoader.Na__Config__GetOr([0, 0, 0], 'render', 'monochromeRgb')]
+            when 'primary' then [1, *Array(slot.colour).first(3)]
             else [0, *Na__ConfigLoader.Na__Config__GetOr([0, 0, 0], 'render', 'monochromeRgb')]
             end
         end

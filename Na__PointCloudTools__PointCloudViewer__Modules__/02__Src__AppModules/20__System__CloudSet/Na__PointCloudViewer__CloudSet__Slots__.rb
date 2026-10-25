@@ -362,6 +362,7 @@ module Na__PointCloudViewer
                 'readonly'      => session.store_readonly ? true : false,
                 'problem'       => session.store_problem,
                 'palette'       => Na__CloudStore.Na__Store__Palette.map { |rgb| self.Na__Slots__HexColour(rgb) },
+                'paletteNames'  => Na__CloudStore.Na__Store__PaletteNames,
                 'list'          => slots.map { |slot| self.na_slot_payload(slot, active, model, backup) }
             }
         rescue StandardError => error
@@ -381,6 +382,7 @@ module Na__PointCloudViewer
                 'id'          => slot.id,
                 'name'        => slot.name,
                 'colour'      => self.Na__Slots__HexColour(slot.colour),
+                'colourName'  => Na__CloudStore.Na__Store__ColourName(slot.colour),
                 'isActive'    => slot.equal?(active),
                 'visible'     => slot.visible ? true : false,
                 'loaded'      => !cloud.nil?,

@@ -239,21 +239,24 @@
         return input;
     }
 
+    // The palette in Primary Colour order (red, blue, green, ...), each named.
     function na_palette(row) {
         var strip = Shell.na_el('div', 'na-cloud-palette');
+        var names = (na_clouds && na_clouds.paletteNames) || [];
         strip.appendChild(Shell.na_el('span', 'na-cloud-palette__label', 'Colour'));
-        ((na_clouds && na_clouds.palette) || []).forEach(function (hex) {
+        ((na_clouds && na_clouds.palette) || []).forEach(function (hex, index) {
             var chosen = String(hex).toLowerCase() === String(row.colour).toLowerCase();
+            var name = names[index] || hex;
             var swatch = na_button('', 'na-cloud-swatch' + (chosen ? ' na-cloud-swatch--chosen' : ''), function () {
                 na_palette_id = null;
                 if (!chosen) Bridge.na_call('cloud_set_colour', { id: row.id, colour: hex });
                 na_render_list();
-            }, chosen ? 'The colour of ' + row.name + ' now' : 'Use this colour for ' + row.name);
+            }, chosen ? name + ': the colour of ' + row.name + ' now' : 'Make ' + row.name + ' ' + String(name).toLowerCase());
             swatch.style.setProperty('--na-cloud-colour', hex);
-            swatch.setAttribute('aria-label', 'Colour ' + hex);
+            swatch.setAttribute('aria-label', name);
             strip.appendChild(swatch);
         });
-        strip.appendChild(Shell.na_el('span', 'na-cloud-palette__note', 'Used by Cloud Colour (View tab) and the cloud bar. Saved in the model.'));
+        strip.appendChild(Shell.na_el('span', 'na-cloud-palette__note', 'This cloud\'s solid colour in Primary Colour (Display card) and its mark in the cloud bar. Saved in the model.'));
         return strip;
     }
 
@@ -264,8 +267,8 @@
         var swatch = na_button('', 'na-cloud-row__swatch', function () {
             na_palette_id = na_palette_id === row.id ? null : row.id;
             na_render_list();
-        }, 'Change the colour of ' + row.name);
-        swatch.setAttribute('aria-label', 'Change the colour of ' + row.name);
+        }, (row.colourName ? row.colourName + '. ' : '') + 'Change the colour of ' + row.name);
+        swatch.setAttribute('aria-label', 'Change the colour of ' + row.name + (row.colourName ? ', now ' + row.colourName.toLowerCase() : ''));
         swatch.disabled = !!(na_clouds && na_clouds.readonly) || row.recordState === 'unsaved';
         main.appendChild(swatch);
 

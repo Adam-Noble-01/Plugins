@@ -4,6 +4,43 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.11.1 - 25-Oct-2026 - Primary Colour: Red, Then Blue, Then Opposites
+
+### Summary
+Adam asked for a colour mode beside RGB and Monochrome that gives each point cloud one solid colour, to
+help line clouds up: the first cloud always red, the second always blue, then on through colours as
+opposite as practical, with point size and opacity still working. v0.10.0's third mode (Cloud Colour)
+is now **Primary Colour**, and clouds are given their colours in that order. ARCHITECTURE 25.12.
+
+### Built
+- **The order:** red, blue, green, yellow, cyan, pink, magenta, brown, orange, violet. A model's first
+  cloud is red and its second blue. After those, each next colour is the one that looks most different
+  (CIEDE2000) from every colour already taken, one per colour name so each can be said aloud, readable on
+  SketchUp's light backgrounds and never grey (a LAS without colour is drawn grey in RGB).
+- **Primary Colour** (`colourMode` `primary`): every point of a cloud in its solid colour, at its own dot
+  size and opacity; set per cloud like the other modes and saved with scenes. Chosen, the option is filled
+  with the active cloud's colour (red for A, blue for B); otherwise a dot shows the colour it will use.
+- **Colour names** on the palette swatches, each cloud's swatch and the option's tooltip
+  ("exterior_shell in blue"). A cloud's colour can still be changed on its row.
+- **Models from the first v0.10.0 build:** a cloud it coloured (orange, then its blue) reads as red, then
+  blue; its record takes the new colour with its next change. A look or scene saved with that build's
+  name for the mode (`cloud`) reads as Primary Colour.
+- No engine change (the layered render's per-layer solid colour).
+
+### Tested (25-Oct-2026, on the working tree with v0.11.0's Crop and Cut)
+- Multi-cloud 96 checks (was 87): the order and names, a third cloud green, both clouds in Primary Colour
+  drawn solid red and solid blue at 40 % with no other colour left, the old mode name in a look and a
+  saved scene, the first build's colours read as red and blue, a colour change named Magenta.
+- Main 197, scenes 96, clean 59, v0.9.1 upgrade 52, native layers 28 (on the ABI 8 engine). The option in
+  a browser with a real state: Primary Colour filled blue for the exterior.
+- Not yet tried in SketchUp itself.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin. With two clouds in the model, click the first cloud's chip, then Primary Colour on the
+   Display card: it turns solid red. Click the second cloud's chip, then Primary Colour: solid blue.
+2. Point size and opacity still change each one on its own.
+3. Back to RGB or Monochrome per cloud the same way.
+
 ## Point Cloud Viewer - v0.11.0 - 25-Oct-2026 - Crop and Cut: Remove Points With Boxes
 
 ### Summary

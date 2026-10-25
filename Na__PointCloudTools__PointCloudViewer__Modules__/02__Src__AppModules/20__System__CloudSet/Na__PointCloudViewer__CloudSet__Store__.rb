@@ -64,7 +64,20 @@ module Na__PointCloudViewer
         NA_LEGACY_DICTS          = [NA_LEGACY_LINK_DICT, NA_LEGACY_PLACEMENT_DICT, NA_LEGACY_CLIP_DICT].freeze
         NA_SCENES_DICT           = 'Na__PointCloudViewer__Scenes'.freeze
 
+        # Primary Colour order (Adam, 25-Oct-2026): the first cloud red, the second
+        # blue, then each next colour the one farthest (CIEDE2000) from those
+        # already taken, all readable on SketchUp's light backgrounds and none
+        # grey (a LAS without colour is drawn grey in RGB).
         NA_FALLBACK_PALETTE = [
+            [228, 26, 28], [30, 90, 230], [90, 180, 30], [240, 170, 0], [0, 180, 190],
+            [250, 120, 170], [200, 30, 200], [120, 70, 40], [255, 110, 0], [100, 40, 160]
+        ].freeze
+        NA_FALLBACK_PALETTE_NAMES = %w[Red Blue Green Yellow Cyan Pink Magenta Brown Orange Violet].freeze
+        # The first v0.10.0 build's palette, in its order. A cloud that build
+        # coloured reads as the colour at the same place in today's order, so a
+        # model's first cloud is red and its second blue whichever build added
+        # them; its record takes the new colour with its next change.
+        NA_FIRST_BUILD_PALETTE = [
             [232, 113, 10], [26, 115, 232], [24, 128, 56], [142, 36, 170], [0, 137, 123],
             [197, 34, 31], [191, 144, 0], [216, 27, 96], [121, 85, 72], [84, 110, 122]
         ].freeze
@@ -91,7 +104,23 @@ module Na__PointCloudViewer
             list.select { |rgb| self.na_valid_rgb(rgb) }.map { |rgb| rgb.map(&:to_i) }
         end
 
-        # The first palette colour no cloud of the session uses yet.
+        # The palette's colour names, in the same order ('Red', 'Blue', ...). A
+        # palette edited without its names has none, rather than wrong ones.
+        def self.Na__Store__PaletteNames
+            palette = self.Na__Store__Palette
+            names = Na__ConfigLoader.Na__Config__GetOr(nil, 'clouds', 'paletteNames')
+            return names.map(&:to_s) if names.is_a?(Array) && names.length == palette.length
+            palette == NA_FALLBACK_PALETTE ? NA_FALLBACK_PALETTE_NAMES.dup : Array.new(palette.length)
+        end
+
+        # 'Red' for a palette colour; nil for any other colour.
+        def self.Na__Store__ColourName(rgb)
+            index = self.Na__Store__Palette.index(Array(rgb).map(&:to_i))
+            index ? self.Na__Store__PaletteNames[index] : nil
+        end
+
+        # The first palette colour no cloud of the session uses yet: the model's
+        # first cloud is red and its second blue (Primary Colour).
         def self.Na__Store__NextColour(session)
             used = Array(session && session.slots).map(&:colour)
             palette = self.Na__Store__Palette
@@ -183,7 +212,7 @@ module Na__PointCloudViewer
             return nil unless link.is_a?(Hash) && link['fingerprint'].is_a?(String) && Na__UnitContract.Na__Units__IsSupportedSourceUnit?(link['sourceUnit'])
             record = Marshal.load(Marshal.dump(data))
             record['name'] = self.na_clean_name(record['name'], link['fileName'])
-            record['colour'] = self.na_valid_rgb(record['colour']) ? record['colour'].map(&:to_i) : nil
+            record['colour'] = self.na_valid_rgb(record['colour']) ? self.na_current_colour(record['colour'].map(&:to_i)) : nil
             record['clipScenes'] = [] unless record['clipScenes'].is_a?(Array)
             record
         rescue StandardError
@@ -525,6 +554,13 @@ module Na__PointCloudViewer
             JSON.parse(raw)
         rescue JSON::ParserError
             nil
+        end
+
+        # A colour the first v0.10.0 build gave, as today's colour in its place.
+        def self.na_current_colour(rgb)
+            index = NA_FIRST_BUILD_PALETTE.index(rgb)
+            palette = self.Na__Store__Palette
+            index && index < palette.length ? palette[index] : rgb
         end
 
         def self.na_valid_rgb(rgb)

@@ -209,7 +209,7 @@ module Na__PointCloudViewer
             near = Na__ConfigLoader.Na__Config__GetOr(0.5, 'render', 'nativeImage', 'nearInches').to_f
             basis['eye'] + basis['xaxis'] + basis['yaxis'] + basis['zaxis'] +
                 [plan['projection'] == 'perspective' ? 1 : 0, scale_x, scale_y,
-                 tile['w'], tile['h'], size, 1.0, %w[black cloud].include?(layer['colourMode']) ? 1 : 0,
+                 tile['w'], tile['h'], size, 1.0, %w[black primary].include?(layer['colourMode']) ? 1 : 0,
                  *layer['monoRgb'], plan['pointBudget'], near] +
                 layer['localToModel'] + clip + [full_w, full_h, crop_x, crop_y]
         end
@@ -465,7 +465,7 @@ module Na__PointCloudViewer
             cloud = slot.cloud
             clip  = entry['clip'] && entry['clip']['enabled'] ? entry['clip'] : nil
             mode  = (entry['display'] || {})['colourMode'].to_s
-            mode  = 'rgb' unless %w[black cloud].include?(mode)
+            mode  = 'rgb' unless %w[black primary].include?(mode)
             colour = Na__ImageRenderer.Na__Image__ColourParams(slot, mode)
             {
                 'cloudId'        => slot.id,
