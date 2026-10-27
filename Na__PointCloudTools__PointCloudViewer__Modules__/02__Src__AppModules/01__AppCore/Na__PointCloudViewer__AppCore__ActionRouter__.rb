@@ -14,7 +14,8 @@
 #
 # WHICH CLOUD (v0.10.0): the Clipping, Transform and Clean actions work on the
 #   ACTIVE cloud (the one marked in the cloud bar). The cloud_* actions name
-#   the cloud they act on by its id.
+#   the cloud they act on by its id. Draw Clip Box and Clip Box Around
+#   Selection (v0.13.0) give their box to every cloud on show.
 #
 # =============================================================================
 
@@ -54,6 +55,11 @@ module Na__PointCloudViewer
             'clip_scene_activate'     => :na_clip_scene_activate,
             'clip_scene_reorder'      => :na_clip_scene_reorder,
             'clip_copy_to_others'     => :na_clip_copy_to_others,
+            'clip_draw_toggle'        => :na_clip_draw_toggle,
+            'clip_draw_set_grid'      => :na_clip_draw_set_grid,
+            'clip_set_margin'         => :na_clip_set_margin,
+            'clip_around_selection'   => :na_clip_around_selection,
+            'hotkeys_open_preferences'=> :na_hotkeys_open_preferences,
             'transform_set_locked'    => :na_transform_set_locked,
             'transform_toggle_tool'   => :na_transform_toggle_tool,
             'transform_set_values'    => :na_transform_set_values,
@@ -89,6 +95,7 @@ module Na__PointCloudViewer
             'scenes_recall'           => :na_scenes_recall,
             'scenes_set_export'       => :na_scenes_set_export,
             'scenes_reorder'          => :na_scenes_reorder,
+            'scenes_set_follow'       => :na_scenes_set_follow,
             'open_backups_folder'     => :na_open_backups_folder,
             'cache_clear'             => :na_cache_clear,
             'job_cancel'              => :na_job_cancel,
@@ -306,6 +313,39 @@ module Na__PointCloudViewer
                 problem
             end
             Na__DialogManager.Na__Dialog__PushStatus('Every other point cloud now has this clip box. Edit, Undo puts their own boxes back.', 'success') if done
+        end
+
+        # Draw Clip Box (v0.13.0): the tool, or finish it when it is drawing.
+        # @delegate: 02__Src__AppModules/50__System__ClipBox/Na__PointCloudViewer__ClipBox__DrawTool__.rb
+        def self.na_clip_draw_toggle(_payload)
+            session = self.na_require_session
+            return unless session
+            problem = session.clip_draw_tool ? Na__ClipBox.Na__Clip__StopDrawing(session) : Na__ClipBox.Na__Clip__StartDrawing(session)
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        def self.na_clip_draw_set_grid(payload)
+            problem = Na__ClipBox.Na__Clip__SetDrawGridMm(payload['gridMm'])
+            session = Na__ModelRegistry.Na__Registry__ActiveSession
+            session.clip_draw_tool.na_refresh_texts(true) if session && session.clip_draw_tool
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        def self.na_clip_set_margin(payload)
+            problem = Na__ClipBox.Na__Clip__SetSelectionMarginMm(payload['marginMm'])
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'warn') if problem
+        end
+
+        def self.na_clip_around_selection(_payload)
+            note = nil
+            self.na_model_change do |session|
+                problem, note = Na__ClipBox.Na__Clip__BoxAroundSelection(session, Sketchup.active_model)
+                problem
+            end
+            Na__DialogManager.Na__Dialog__PushStatus(note, 'success') if note
         end
 
         def self.na_clip_scene_save(payload)
@@ -633,6 +673,13 @@ module Na__PointCloudViewer
             self.na_model_change { |session| Na__SceneStore.Na__Scenes__Reorder(session, payload['ids']) }
         end
 
+        # Follow Tabs: pressing a SketchUp scene tab does what Go To Scene does.
+        # Kept for this computer, never in the model.
+        def self.na_scenes_set_follow(payload)
+            Na__SceneFollow.Na__Follow__SetEnabled(payload['on'] == true)
+            Na__DialogManager.Na__Dialog__PushState
+        end
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -653,6 +700,15 @@ module Na__PointCloudViewer
 
         def self.na_open_user_config_folder(_payload)
             Na__AssetResolver.Na__Paths__OpenInExplorer(Na__AssetResolver.Na__Paths__UserConfigFolder)
+        end
+
+        # Settings > Keyboard Shortcuts: SketchUp's own Shortcuts page (modal);
+        # the keys are read again when it closes.
+        # @delegate: 02__Src__AppModules/15__System__Hotkeys/Na__PointCloudViewer__Hotkeys__Manager__.rb
+        def self.na_hotkeys_open_preferences(_payload)
+            problem = Na__HotkeyManager.Na__Hotkeys__OpenPreferences
+            Na__DialogManager.Na__Dialog__PushState
+            Na__DialogManager.Na__Dialog__PushStatus(problem, 'info') if problem
         end
 
         def self.na_ui_remember_tab(payload)

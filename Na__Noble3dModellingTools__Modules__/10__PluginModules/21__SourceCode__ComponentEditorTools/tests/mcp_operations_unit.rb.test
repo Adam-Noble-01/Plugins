@@ -172,7 +172,8 @@ end
 
 def build_library
     $na_fake_model = NaFakeModel.new
-    $na_library_root = File.join(Dir.mktmpdir('na_lib_'), 'Lib').tr('\\', '/')
+    tmp_root = Dir.mktmpdir('na_lib_')
+    $na_library_root = File.join(Dir.glob(tmp_root).first || tmp_root, 'Lib').tr('\\', '/')
     set = File.join($na_library_root, 'Na__CoreLib__3dAssets')
     fake_skp("#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2021__ChimneyPot__Tall__Type-01__.skp", '13_2021__ChimneyPot__Tall__Type-01__')
     fake_skp("#{set}/13__Building__Roof/13_2000__ChimneyPots/13_2025__ChimneyPot__Covered__Type-05__.skp", '13_2025__ChimneyPot__Covered__Type-05__')

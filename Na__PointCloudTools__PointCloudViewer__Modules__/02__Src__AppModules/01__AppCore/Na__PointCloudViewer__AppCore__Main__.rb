@@ -14,8 +14,15 @@
 #   4. Viewport  - RenderTypes, RenderSettings, ImageRenderer, RenderController, CloudOverlay
 #   5. AppCore   - ModelRegistry, AsyncJobs
 #   6. CloudSet  - the model's point clouds: Store (records), Slots (active, on show)
-#   7. Systems   - LAS import, clip box, transform, persistence, clean (with Crop and Cut), scenes
+#   7. Systems   - LAS import, clip box (with Draw Clip Box), transform, persistence,
+#                  clean (with Crop and Cut), scenes (with Follow), the keyboard
+#                  shortcut commands
 #   8. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager
+#
+# SHORTCUTS (v0.13.0): the bootstrap (Na__Registry__InstallOnce) puts the
+#   shortcut commands into Extensions > Na__PointCloudViewer (menu items only,
+#   no model is touched), so SketchUp can give them keys. Reload Plugin calls
+#   it again once the config is read afresh, which adds any that are new.
 #
 # HOT RELOAD:
 #   Settings > Reload Plugin re-`load`s every .rb under 02__Src__AppModules.
@@ -100,6 +107,7 @@ require_relative '../40__System__LasImport/Na__PointCloudViewer__LasImport__Job_
 require_relative '../40__System__LasImport/Na__PointCloudViewer__LasImport__LazConvert__'
 require_relative '../50__System__ClipBox/Na__PointCloudViewer__ClipBox__State__'
 require_relative '../50__System__ClipBox/Na__PointCloudViewer__ClipBox__EditTool__'
+require_relative '../50__System__ClipBox/Na__PointCloudViewer__ClipBox__DrawTool__'
 require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__Placement__'
 require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__MoveTool__'
 require_relative '../60__System__Transform/Na__PointCloudViewer__Transform__RotateTool__'
@@ -113,8 +121,11 @@ require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Export__'
 require_relative '../80__System__Clean/Na__PointCloudViewer__Clean__Boxes__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Store__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Recall__'
+require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__Follow__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__ImageExport__'
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__PublicApi__'
+require_relative '../15__System__Hotkeys/Na__PointCloudViewer__Hotkeys__Commands__'
+require_relative '../15__System__Hotkeys/Na__PointCloudViewer__Hotkeys__Manager__'
 
 # -----------------------------------------------------------------------------
 # REGION | AppCore - Dialog (must load last - depends on all systems above)
@@ -153,7 +164,7 @@ module Na__PointCloudViewer
     def self.Na__Bootstrap__Run
         Na__ModelRegistry.Na__Registry__InstallOnce
     rescue StandardError => error
-        Na__DebugTools.Na__Debug__Error('Bootstrap failed. The overlay may not be registered.', error)
+        Na__DebugTools.Na__Debug__Error('Bootstrap failed. The overlay or the shortcut commands may not be registered.', error)
     end
 
     # endregion ----------------------------------------------------------------

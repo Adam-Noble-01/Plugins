@@ -4,6 +4,140 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.13.0 - 26-Oct-2026 - Keyboard Shortcuts and Draw Clip Box
+
+### Summary
+Adam asked for two things. A hotkey mapper for the main things, above all one key that switches every
+point cloud on and off while he models ("it's kind of a pain in the ass" to give plugins keys); and a
+new form of the clipping tool that puts a clip box in the 3D space quickly, the way Insert Primitives
+draws a volume (drag a rectangle, then the height, on the same 5 mm voxel snapping), on a key of its
+own, to move from one area to the next once the model is roughed out. ARCHITECTURE section 27.
+
+### How keys work, and what was found
+- SketchUp gives keys only to menu items, by menu path, in `SharedPreferences.json`; Ruby can read
+  them (`Sketchup.get_shortcuts`) but never set them. Adam's plugins all put commands in a submenu for
+  this (Noble 3D Tools' JSON command registry, Edge Util, Dev Tools, NaKeys).
+- The pain: a menu built once at start up shows a command added later only after a restart. Insert
+  Primitives already works round it with a registry that a reload tops up; the viewer does the same.
+- Adam's old Undet keys are still in SketchUp's settings (Ctrl+Alt+Shift+P was Hide/Show, Ctrl+Alt+
+  Shift+B New Clipping Box By Selection, Ctrl+Shift+1 RGB colouring, Ctrl+Shift+. and , the density),
+  which is why Clip Box Around Selection, the colour modes and the budget steps are commands too.
+
+### Built
+- **Extensions > Na__PointCloudViewer**: 14 commands (Open Point Cloud Viewer; Show or Hide Point
+  Clouds, Show or Hide the Active Cloud, Next Point Cloud, Zoom to Point Clouds; Draw Clip Box, Clip Box
+  Around Selection, Edit Clip Box, Clip On or Off; Colour Mode RGB, Monochrome, Primary Colour; Fewer
+  Points, More Points), listed in the defaults JSON (`hotkeys`), each working with the window closed and
+  saying what it did on the status line. Checkmarks show the switches that are on. Added once per
+  session and topped up by Reload Plugin, never twice.
+- **Settings > Keyboard Shortcuts**: each command with its key, a key it shares with another command,
+  and Open SketchUp Shortcuts (SketchUp's own page); read again when the window gets the focus back.
+- **Draw Clip Box** (`50__System__ClipBox/...DrawTool__.rb`): drag the base, pull the height, click; the
+  5 mm grid in the model's axes; Ctrl and Ctrl+Shift; Tab, arrows and the right click menu for the plane
+  and the grid; typed sizes as in Insert Primitives, typing over the box just drawn; Backspace, Esc; the
+  preview drawn over the cloud picture in screen space. The box goes to every cloud on show in ONE
+  undoable step, and the tool stays on for the next area. A Draw a Clip Box card on the Clipping tab
+  starts it, shows its key and holds the grid and the selection margin.
+- **Clip Box Around Selection**: the box round what is selected (in an open group too), 100 mm past
+  it, rounded outwards onto the grid.
+- Built on top of v0.12.0 (Follow SketchUp's Scene Tabs, another session, deployed but not committed):
+  merged three ways; ActionRouter, Main, ModelRegistry, the defaults JSON and the layout carry both.
+
+### Decisions (Adam may want them otherwise)
+- Draw Clip Box, Around Selection, Clip On or Off and the colour commands act on **every cloud on show**
+  (the active one when none is), because they look at an area; the tabs' own switches still act on the
+  active cloud. Hide a cloud to leave it out. Edit Clip Box still edits the active cloud's box.
+- The grid is the MODEL's axes, not rotated drawing axes: a clip box is level in the model.
+- Clip On or Off with some clouds clipping and some not turns clipping off first.
+- No toolbar buttons (each would need an icon); no keys given automatically (no API).
+
+### Tested (26-Oct-2026, on the merged tree)
+- New `pcv_scenario_hotkeys.rb`: 134 checks (ARCHITECTURE 27.6).
+- Main 197, boxes 84, scenes 96, clean 59, multi 96, legacy 52, follow 60: all pass.
+- The new card and list in a browser with real states at 600 and 480 px.
+- Not yet tried in SketchUp itself.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings). Extensions now has **Na__PointCloudViewer** with the 14 commands.
+2. Settings > Keyboard Shortcuts > Open SketchUp Shortcuts. Type Na__PointCloudViewer in Filter, choose
+   Show or Hide Point Clouds, click in Add Shortcut, press the keys (Ctrl+Alt+Shift+P was Undet's
+   Hide/Show and is free now), press +, then OK. The same for Draw Clip Box (Undet's Ctrl+Alt+Shift+B,
+   say). Back in the viewer, the list shows the keys.
+3. Press the first key: every point cloud goes off, and on again.
+4. Press the Draw Clip Box key over a modelled floor: drag a rectangle, release, pull up, click. The
+   clouds on show are clipped to the box. Type `3000,3000,3000` and Enter: the box changes. Ctrl+Z puts
+   it back. Esc leaves the tool.
+5. Select a wall, then Extensions > Na__PointCloudViewer > Clip Box Around Selection.
+6. Look for SketchUp's inference marker (the green or red dot) while drawing over the cloud; if it is
+   missing, tell me (27.6).
+
+## Point Cloud Viewer - v0.12.0 - 26-Oct-2026 - Follow SketchUp's Scene Tabs
+
+### Summary
+Adam asked for SketchUp's own scene tabs to do what Go To Scene does, so a configured scene is one
+press away instead of a trip into the Scenes tab; and, before anything was added, to be sure it
+could not hang SketchUp or damage a model (a scene with no match, renamed scenes, file corruption).
+Researched online, measured in a scratch SketchUp 2026, then built: pressing a scene tab now gives
+every cloud that scene's settings (shown or hidden, size, opacity, colour, clip box, the budget).
+A SketchUp scene with no point cloud settings changes nothing. ARCHITECTURE 23.7 holds the measured
+facts, the rules and the risk assessment.
+
+### Research (26-Oct-2026)
+- The hook is `Sketchup::Pages.add_frame_change_observer`: documented since SketchUp 6 and used by
+  Trimble's own Dynamic Components. `PagesObserver` only says "the pages changed" (twice per scene,
+  and for renames and moves too); `ViewObserver` fires on every orbit; there is no scene activated
+  event (api-issue-tracker #237, open).
+- Known problems, each designed out: `from_page` is nil on Windows (#862); model changes inside an
+  observer can crash or corrupt (SketchUp's guidance: defer them); an empty transparent operation can
+  corrupt the undo stack; a one shot timer could fire again while a modal window was open (fixed in
+  2023.1); a 2025/2026 forum crash came from observers whose edits fired more edits.
+
+### Measured in a scratch SketchUp 2026 (never Adam's)
+- A real mouse click on a tab, Ruby `selected_page=` and Next Scene send the same frames, 0.0 to
+  1.0; 0.0 comes inside the click, before SketchUp names the new scene; 1.0 sometimes twice.
+  Transitions off: one 1.0 frame. The same tab again, and a scene without a camera: frames too.
+- Opening a model sends nothing. Selecting a scene is not an undo step and does not mark the model
+  modified.
+- An observer that selects the scene it is told about loops for ever. A model write from a timer
+  does not stop a transition or a playing slideshow. Overlays are not in `View#write_image`.
+
+### Built
+- **`90__System__Scenes/...Scenes__Follow__.rb`** (`Na__SceneFollow`): the observer only notes the
+  scene and books a timer (0.1 s); the timer applies the scene through Go To Scene's own code when it
+  is still the scene shown, has settings and differs from what the viewer shows. One more look when
+  the transition ends catches a scene SketchUp names late and otherwise writes nothing. A newer
+  press replaces a booked look. Never selects a scene, never writes a Page, never a transparent or
+  empty operation; a changed clip box is one named undoable step, as with Go To Scene. Skipped while
+  an import or export runs (the status line says so). Installed with the first model's overlay,
+  after extensions load, once per SketchUp session; Reload Plugin keeps it.
+- **Recall split:** `Na__Scenes__Recall` selects the scene, then `Na__Scenes__Apply`; following a
+  tab calls Apply alone, so the two can never differ. Go To Scene tells the follow module first, so
+  its own transition is not applied twice.
+- **Scenes tab:** a **Follow Tabs** switch in the Point Cloud Scenes card (on by default, kept per
+  computer in the user config, never in the model); the hint and How Scenes Are Kept Safe say what
+  it does.
+
+### Tested (26-Oct-2026, in a staging copy)
+- Harness: new follow suite 60 checks (frames as measured, Go To Scene, the same tab, no settings,
+  no camera, transitions off, quick presses, a scene no longer shown, a scene named late, the
+  switch, a running job, Undo, Reload Plugin, bad frames, a timer firing twice, opening a model;
+  tripwires on Page writes, scene selection and transparent operations). Main 197, scenes 96,
+  clean 59, multi 96, legacy 52, boxes 84 unchanged.
+- Live, in a scratch SketchUp 2026 running the staged code with a real cloud: real clicks on four
+  tabs (each bound scene applied once, about 0.1 s after the press, in 3 to 5 ms; the unbound one
+  and a repeat press changed nothing), Go To Scene (applied once), two quick presses (only the
+  second applied), the switch from the dialog, Undo (the previous clip box back), and a slideshow
+  (every bound scene applied as it came, and the slideshow carried on). Technical log clean.
+
+### Checklist for Adam (in SketchUp)
+1. Settings, Reload Plugin (no engine change).
+2. Press a SketchUp scene tab that has point cloud settings: the clouds take them as the camera
+   starts to move.
+3. Press a scene with no settings: the clouds stay as they are.
+4. Scenes tab, Follow Tabs off: tabs no longer change the clouds; Go To Scene still does.
+5. As with Go To Scene, a scene whose clip box differs adds one undo step and marks the model as
+   changed.
+
 ## Point Cloud Viewer - v0.11.1 - 25-Oct-2026 - Primary Colour: Red, Then Blue, Then Opposites
 
 ### Summary

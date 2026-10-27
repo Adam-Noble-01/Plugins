@@ -446,9 +446,13 @@ module Na__WindowSystem
                                     advanced_glazebar: advanced_glazebar
                                 )
                             else
+                                sizes = na_resolve_casement_sizes_dxf(                                              # <-- V1.8.0 Per Casement Settings
+                                    config, i, cell_index, p,
+                                    { top_rail: cas_top_rail, bottom_rail: cas_bottom_rail, left_stile: cas_left_stile, right_stile: cas_right_stile }
+                                )
                                 entities += na_generate_casement_dxf(
                                     panel_x, cell[:y], panel_width, cell[:height],
-                                    cas_top_rail, cas_bottom_rail, cas_left_stile, cas_right_stile,
+                                    sizes[:top_rail], sizes[:bottom_rail], sizes[:left_stile], sizes[:right_stile],
                                     h_bars, v_bars, bar_width,
                                     opening_index: i, cell_index: cell_index, panel_index: p, sash_index: 0,
                                     removed_glazebars: removed_glazebars,
@@ -483,6 +487,36 @@ module Na__WindowSystem
 # -----------------------------------------------------------------------------
 # REGION | Casement Generation
 # -----------------------------------------------------------------------------
+
+        # FUNCTION | Resolve One Casement's Rails and Stiles (V1.8.0)
+        # ------------------------------------------------------------
+        # Local mirror of the Per Casement Settings resolution (GeometryEngine
+        # na_resolve_panel_casement_sizes / Na__CasementMath), kept here for
+        # the same reason as the other *_dxf helpers: no cross-load of the
+        # geometry modules. Millimetres throughout, like the rest of the DXF
+        # stream. The Casement Frame Inset moves a casement in depth, which an
+        # elevation does not show, so only the four members are resolved.
+        # Called for casement windows only; a sliding sash never reaches it.
+        def self.na_resolve_casement_sizes_dxf(config, opening_index, cell_index, panel_index, base_sizes)
+            overrides = config["casement_overrides"]
+            return base_sizes unless overrides.is_a?(Hash)
+
+            entry = overrides["#{opening_index}:#{cell_index}:#{panel_index}"]
+            return base_sizes unless entry.is_a?(Hash) && entry["enabled"] == true
+
+            sizes = base_sizes.dup
+            {
+                "top_rail_mm"    => :top_rail,
+                "bottom_rail_mm" => :bottom_rail,
+                "left_stile_mm"  => :left_stile,
+                "right_stile_mm" => :right_stile
+            }.each do |field, size_key|
+                value = entry[field]
+                sizes[size_key] = [value.to_f, 0.0].max if value.is_a?(Numeric)
+            end
+            sizes
+        end
+        # ---------------------------------------------------------------
 
         # FUNCTION | Generate DXF for a Single Casement
         # ------------------------------------------------------------
@@ -819,7 +853,12 @@ module Na__WindowSystem
             points = na_clip_polygon_to_aabb(points, clip_rect) if clip_rect
             return "" if points.nil? || points.length < 3
 
-            na_dxf_polygon(points, NA_LAYER_GLAZE_BAR)
+            # The arc and its clipper work in [x, y] pairs, but na_dxf_polygon
+            # takes elevation points as { x:, z: }, the shape the sash horn
+            # profiles hand it. Until V1.9.1 the pairs went straight in and
+            # every DXF of a window with Gothic arch glaze bars failed with
+            # "no implicit conversion of Symbol into Integer".
+            na_dxf_polygon(points.map { |x, y| { x: x, z: y } }, NA_LAYER_GLAZE_BAR)
         end
         # ---------------------------------------------------------------
 

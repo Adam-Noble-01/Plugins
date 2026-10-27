@@ -14,6 +14,7 @@
    - Multi-casement openings (1-6 panels per opening)
    - Individual casement rail/stile sizing
    - Clickable casement removal targets
+   - Window board outline (dashed, inside the room) when Include Window Board is on
    - Dimension annotations
    - Pure rendering functions with no side effects
    - Window-specific markup; door tab uses Door*Generator modules in this folder.
@@ -247,13 +248,21 @@ const Na__Viewport__SvgGenerator = (function() {
             widthMm      : Math.max(2, Number(config.leaded_width_mm || 6)),
             centreLines  : config.leaded_centre_lines_only === true,
             colourId     : na_resolveLeadedColourId(config),
-            disabledCells: na_getDisabledLeadedCellSet(config.leaded_disabled_cells)        // <-- Per-cell opt-out toggled from the preview
+            disabledCells: na_getDisabledLeadedCellSet(config.leaded_disabled_cells),       // <-- Per-cell opt-out toggled from the preview
+            // V1.8.0 - Align Lead Lines Across Casements. Casement windows
+            // only: a sliding sash and a window with no casements already
+            // lay every pane out on its own reference glass.
+            globalAlignment: config.leaded_global_alignment === true && !slidingSashWindow && showCasements
         };
         const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
         const frameColor = na_getMaterialColor(frameMaterialId);
         const showDimensions = config.show_dimensions !== false;
         const hasCill = config.has_cill !== false;
         const removedCasementSet = na_getRemovedCasementSet(config.removed_casements); // <-- Per-panel removal set with legacy support
+        const casementMath = window.Na__CasementMath;
+        const casementOverrides = (casementMath && casementMath.na_supportsCasementOverrides(config))
+            ? (config.casement_overrides || {})                          // <-- Per Casement Settings (V1.8.0), casement windows only
+            : null;
 
         const useIndividualSizes = config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (config.casement_top_rail_mm || casementWidth) : casementWidth;
@@ -350,6 +359,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         bottomSashTopRail: bottomSashTopRail,
                         casLeftStile: casLeftStile,
                         casRightStile: casRightStile,
+                        casementOverrides: casementOverrides,
                         sashHornOptions: sashHornOptions,
                         frameColor: frameColor,
                         hBars: hBars,
@@ -367,9 +377,22 @@ const Na__Viewport__SvgGenerator = (function() {
             });
         }
 
+        // Casement numbers, only while Advanced Casement Controls > Per
+        // Casement Settings is open, so each group there can be matched to
+        // its casement on screen.
+        if (casementOverrides !== null &&
+            config.advanced_casement_controls === true &&
+            config.casement_individual_controls === true) {
+            svg += na_generateCasementNumberBadgesSvg(config);
+        }
+
         if (hasCill && bottomFrameThickness > 0) {
             const cillHeight = config.cill_height_mm || 50;
             svg += na_svgRect(0, -cillHeight, width, cillHeight, '#A0908A', '#000', 1);
+        }
+
+        if (na_isWindowBoardShown(config)) {
+            svg += na_generateWindowBoardSvg(config, width);
         }
 
         if (showDimensions) {
@@ -382,6 +405,63 @@ const Na__Viewport__SvgGenerator = (function() {
         svg += glazebarClickTargetsSvg;
 
         return svg;
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Window Board (Elevation Outline)
+// -----------------------------------------------------------------------------
+
+    // CONSTANT | Board Thickness Until Ruby Pushes the Nosing Assets
+    // ------------------------------------------------------------
+    const NA_WINDOW_BOARD_DEFAULT_THICKNESS_MM = 30;
+
+    // FUNCTION | True When the Window Board Is On and This Is a Window
+    // ------------------------------------------------------------
+    // Ruby builds the board in the window engine only, so the hinged door
+    // products (which fall back to this generator behind their own
+    // viewport) never draw one.
+    function na_isWindowBoardShown(config) {
+        return config.window_board_enabled === true &&
+               config.double_door_mode !== true &&
+               config.ext_single_door_mode !== true &&
+               config.sliding_mode !== true &&
+               config.multifold_mode !== true;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Resolve a Nosing Type's Board Thickness From the Asset Cache
+    // ------------------------------------------------------------
+    // Read off the profile itself (top face less underside), the same way
+    // Na__WindowBoardBuilder sizes the solid.
+    function na_getWindowBoardThickness(type) {
+        const cache    = window.NA_WINDOW_BOARD_ASSET_CACHE || {};
+        const asset    = cache[String(type || '1')];
+        const profile  = asset && asset.Na__Asset__Profile2D;
+        const vertices = profile && Array.isArray(profile.Na__Geometry__Vertices) ? profile.Na__Geometry__Vertices : [];
+        const heights  = vertices.map(vertex => Number(vertex.PosZ_mm)).filter(Number.isFinite);
+        if (heights.length < 2) return NA_WINDOW_BOARD_DEFAULT_THICKNESS_MM;
+
+        const thickness = Math.max(...heights) - Math.min(...heights);
+        return thickness > 0 ? thickness : NA_WINDOW_BOARD_DEFAULT_THICKNESS_MM;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate the Window Board Outline Under the Frame
+    // ------------------------------------------------------------
+    // The board is inside the room, so this front view shows it dashed: top
+    // face flush with the frame underside, one board thickness deep, and one
+    // thickness past each side of the reveal when the nosing is returned.
+    function na_generateWindowBoardSvg(config, width) {
+        const thickness        = na_getWindowBoardThickness(config.window_board_nosing_type);
+        const returnProjection = config.window_board_nosing_returns_enabled === false ? 0 : thickness;
+        const boardX           = -returnProjection;
+        const boardWidth       = width + (2 * returnProjection);
+        return `<rect class="na-window-board-outline" x="${boardX}" y="0" width="${boardWidth}" height="${thickness}"
+                      fill="none" stroke="#606060" stroke-width="1.5" stroke-dasharray="10 6"/>`;
     }
     // ---------------------------------------------------------------
 
@@ -495,6 +575,18 @@ const Na__Viewport__SvgGenerator = (function() {
             );
             const panelHasCasement = showCasements && !panelIsRemoved;    // <-- Final per-panel render decision
 
+            // Align Lead Lines Across Casements (V1.8.0): the glass a casement
+            // built to the window-wide settings would have in this panel. Every
+            // pane lays its lead out on it, whatever its own casement does.
+            const leadReference = (options.leadedGlass && options.leadedGlass.globalAlignment)
+                ? {
+                    x: panelX + options.casLeftStile,
+                    y: cell.y + options.casBottomRail,
+                    width: panelWidth - options.casLeftStile - options.casRightStile,
+                    height: cell.height - options.casTopRail - options.casBottomRail
+                }
+                : null;
+
             if (panelHasCasement) {
                 // V1.5.3: the legacy `door_mode` branch that drew a fielded door leaf
                 // inside a window casement is gone. Exterior single doors preview
@@ -512,11 +604,12 @@ const Na__Viewport__SvgGenerator = (function() {
                         )
                     );
                 } else {
+                    const sizes = na_resolvePanelCasementSizes(options, panelContext);   // <-- Window-wide, or this casement's own (V1.8.0)
                     na_mergeSvgRenderBuckets(
                         renderBucket,
                         na_generateSingleCasementSvg(
                             panelX, cell.y, panelWidth, cell.height,
-                            options.casTopRail, options.casBottomRail, options.casLeftStile, options.casRightStile,
+                            sizes.top_rail_mm, sizes.bottom_rail_mm, sizes.left_stile_mm, sizes.right_stile_mm,
                             options.frameColor, options.hBars, options.vBars, options.barWidth,
                             {
                                 openingIndex: panelContext.openingIndex,
@@ -526,7 +619,8 @@ const Na__Viewport__SvgGenerator = (function() {
                             },
                             options.removedGlazebars,
                             options.advancedGlazebar,
-                            options.leadedGlass
+                            options.leadedGlass,
+                            leadReference
                         )
                     );
                 }
@@ -570,7 +664,8 @@ const Na__Viewport__SvgGenerator = (function() {
                             panelIndex: panelContext.panelIndex,
                             sashIndex: 0
                         },
-                        clickBucket: renderBucket
+                        clickBucket: renderBucket,
+                        referenceGlass: leadReference
                     }
                 );
 
@@ -591,6 +686,63 @@ const Na__Viewport__SvgGenerator = (function() {
         }
 
         return renderBucket;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve One Panel's Rails and Stiles (V1.8.0)
+    // ------------------------------------------------------------
+    // The window-wide sizes, with this casement's Per Casement Settings laid
+    // over them when it has some switched on. options.casementOverrides is
+    // null outside casement windows, which keeps the shared sizes.
+    function na_resolvePanelCasementSizes(options, panelContext) {
+        const globalSizes = {
+            top_rail_mm    : options.casTopRail,
+            bottom_rail_mm : options.casBottomRail,
+            left_stile_mm  : options.casLeftStile,
+            right_stile_mm : options.casRightStile
+        };
+        if (!options.casementOverrides || !window.Na__CasementMath) return globalSizes;
+        return window.Na__CasementMath.na_applyCasementOverride(
+            globalSizes,
+            options.casementOverrides,
+            na_getCasementKey(panelContext.openingIndex, panelContext.cellIndex, panelContext.panelIndex)
+        );
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Generate Casement Number Badges (V1.8.0)
+    // ------------------------------------------------------------
+    // A numbered disc in the middle of each casement's glass, matching the
+    // "Casement N" groups in Per Casement Settings. A casement on its own
+    // settings is drawn filled, one on the window-wide settings outlined.
+    // pointer-events none, so clicks still reach the casement targets.
+    function na_generateCasementNumberBadgesSvg(config) {
+        const casementMath = window.Na__CasementMath;
+        if (!casementMath) return '';
+        const accent = '#4a90d9';
+        let svg = '';
+
+        casementMath.na_enumerateCasements(config).forEach(casement => {
+            if (casement.removed) return;
+            const sizes = casement.sizes;
+            const glassWidth = casement.width - sizes.left_stile_mm - sizes.right_stile_mm;
+            const glassHeight = casement.height - sizes.top_rail_mm - sizes.bottom_rail_mm;
+            if (glassWidth <= 0 || glassHeight <= 0) return;
+
+            const centreX = casement.x + sizes.left_stile_mm + (glassWidth / 2);
+            const centreY = casement.y + sizes.bottom_rail_mm + (glassHeight / 2);
+            const radius = Math.max(22, Math.min(70, Math.min(glassWidth, glassHeight) * 0.12));
+            const fill = sizes.overridden ? accent : '#FFFFFF';
+            const ink = sizes.overridden ? '#FFFFFF' : accent;
+
+            svg += `<g class="na-casement-number-badge" pointer-events="none">` +
+                   `<circle cx="${centreX}" cy="${-centreY}" r="${radius}" fill="${fill}" stroke="${accent}" stroke-width="${Math.max(2, radius * 0.08)}"/>` +
+                   `<text x="${centreX}" y="${-centreY}" text-anchor="middle" dominant-baseline="central" ` +
+                   `font-size="${radius * 1.1}" font-weight="700" fill="${ink}">${casement.number}</text>` +
+                   `</g>`;
+        });
+
+        return svg;
     }
     // ---------------------------------------------------------------
 
@@ -656,7 +808,10 @@ const Na__Viewport__SvgGenerator = (function() {
 
     // FUNCTION | Generate SVG for a Single Casement with Individual Sizes
     // ------------------------------------------------------------
-    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, leadedGlass) {
+    // leadReference (V1.8.0, optional): the glass the lead lines are laid
+    // out on when Align Lead Lines Across Casements is on. Omitted, the
+    // lead divides this casement's own glass.
+    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, leadedGlass, leadReference) {
         const renderBucket = na_createSvgRenderBucket();
 
         renderBucket.svg += na_svgRect(x, y, leftStile, height, frameColor, '#000', 0.5);
@@ -699,7 +854,8 @@ const Na__Viewport__SvgGenerator = (function() {
                 barWidth: barWidth,
                 advancedGlazebar: advancedGlazebar,
                 panelContext: panelContext,
-                clickBucket: renderBucket
+                clickBucket: renderBucket,
+                referenceGlass: leadReference || null
             }
         );
 
@@ -972,7 +1128,13 @@ const Na__Viewport__SvgGenerator = (function() {
     // (opts.disabledCells keyed by na_getLeadedCellKey). Without
     // cellContext the whole pane is treated as one cell (legacy shape).
     // cellContext = { hBars, vBars, barWidth, advancedGlazebar,
-    //                 panelContext, clickBucket }
+    //                 panelContext, clickBucket, referenceGlass }
+    //
+    // referenceGlass (V1.8.0, optional) = { x, y, width, height }: the
+    // Align Lead Lines Across Casements grid is laid out on this glass and
+    // each real glazing cell shows the lines that land inside it, so lead
+    // runs straight through a casement whose own rails differ. A pane that
+    // IS its reference keeps the per-cell layout, line for line.
     function na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedOptions, cellContext) {
         const opts = leadedOptions || {};
         if (!opts.enabled) return '';
@@ -1002,6 +1164,11 @@ const Na__Viewport__SvgGenerator = (function() {
         );
         const columnBounds = math.na_computeCellBounds(glassX, glassWidth, barLayout.vPositions, glazeBarWidth);
         const rowBounds = math.na_computeCellBounds(glassY, barLayout.effectiveGlassHeight, barLayout.hPositions, glazeBarWidth);
+        const referenceLines = na_computeReferenceLeadLines(
+            context.referenceGlass, glassX, glassY, glassWidth, glassHeight,
+            glazeHBars, glazeVBars, glazeBarWidth, context.advancedGlazebar, hLeads, vLeads
+        );
+        const leadMargin = Math.max(1, Math.max(2, Number(opts.widthMm || 6)) / 2);   // <-- Keeps a line's ribbon off rails and bars
 
         let svg = '';
         for (let row = 0; row < rowBounds.length; row++) {
@@ -1019,7 +1186,13 @@ const Na__Viewport__SvgGenerator = (function() {
                     : false;
 
                 if (!cellDisabled) {
-                    svg += na_generateLeadedCellLinesSvg(cellX, cellY, cellW, cellH, hLeads, vLeads, opts);
+                    const linePositions = referenceLines
+                        ? {
+                            h: math.na_filterPositionsInside(referenceLines.h, cellY, cellH, leadMargin),
+                            v: math.na_filterPositionsInside(referenceLines.v, cellX, cellW, leadMargin)
+                        }
+                        : null;
+                    svg += na_generateLeadedCellLinesSvg(cellX, cellY, cellW, cellH, hLeads, vLeads, opts, linePositions);
                 }
 
                 if (panelContext && clickBucket) {
@@ -1036,38 +1209,76 @@ const Na__Viewport__SvgGenerator = (function() {
 
     // FUNCTION | Generate Lead Lines Within One Glazing Cell
     // ------------------------------------------------------------
-    function na_generateLeadedCellLinesSvg(cellX, cellY, cellWidth, cellHeight, hLeads, vLeads, opts) {
+    // linePositions (V1.8.0, optional) = { h: [y...], v: [x...] }: lines
+    // already cut from the aligned grid. Omitted, the cell is divided into
+    // hLeads + 1 by vLeads + 1 equal panes as it always was.
+    function na_generateLeadedCellLinesSvg(cellX, cellY, cellWidth, cellHeight, hLeads, vLeads, opts, linePositions) {
         const math = window.Na__GlazebarMath;
         const stroke = na_leadedColourHex(opts.colourId || opts.colour);
         const centreLines = opts.centreLines === true;
         const widthMm = Math.max(1, Number(opts.widthMm || 6));
         let svg = '';
 
-        if (hLeads > 0) {
-            const hPositions = math.na_computeBarPositions(cellY, cellHeight, hLeads, false, 0);
-            for (let i = 0; i < hLeads; i++) {
-                const cy = hPositions[i];
-                if (centreLines) {
-                    svg += `<line x1="${cellX}" y1="${-cy}" x2="${cellX + cellWidth}" y2="${-cy}" stroke="${stroke}" stroke-width="1" />`;
-                } else {
-                    svg += na_svgRect(cellX, cy - widthMm / 2, cellWidth, widthMm, stroke, stroke, 0.4);
-                }
+        const hPositions = linePositions
+            ? linePositions.h
+            : (hLeads > 0 ? math.na_computeBarPositions(cellY, cellHeight, hLeads, false, 0) : []);
+        hPositions.forEach(function (cy) {
+            if (centreLines) {
+                svg += `<line x1="${cellX}" y1="${-cy}" x2="${cellX + cellWidth}" y2="${-cy}" stroke="${stroke}" stroke-width="1" />`;
+            } else {
+                svg += na_svgRect(cellX, cy - widthMm / 2, cellWidth, widthMm, stroke, stroke, 0.4);
             }
-        }
+        });
 
-        if (vLeads > 0) {
-            const vPositions = math.na_computeBarPositions(cellX, cellWidth, vLeads, false, 0);
-            for (let i = 0; i < vLeads; i++) {
-                const cx = vPositions[i];
-                if (centreLines) {
-                    svg += `<line x1="${cx}" y1="${-cellY}" x2="${cx}" y2="${-(cellY + cellHeight)}" stroke="${stroke}" stroke-width="1" />`;
-                } else {
-                    svg += na_svgRect(cx - widthMm / 2, cellY, widthMm, cellHeight, stroke, stroke, 0.4);
-                }
+        const vPositions = linePositions
+            ? linePositions.v
+            : (vLeads > 0 ? math.na_computeBarPositions(cellX, cellWidth, vLeads, false, 0) : []);
+        vPositions.forEach(function (cx) {
+            if (centreLines) {
+                svg += `<line x1="${cx}" y1="${-cellY}" x2="${cx}" y2="${-(cellY + cellHeight)}" stroke="${stroke}" stroke-width="1" />`;
+            } else {
+                svg += na_svgRect(cx - widthMm / 2, cellY, widthMm, cellHeight, stroke, stroke, 0.4);
             }
-        }
+        });
 
         return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Lay the Aligned Lead Grid Out on a Reference Glass (V1.8.0)
+    // ------------------------------------------------------------
+    // Returns { h: [y...], v: [x...] }, every lead centreline of the grid a
+    // pane of `referenceGlass` would carry: its own glaze bar cells, each
+    // divided evenly, exactly as the per-cell layout divides a pane. Returns
+    // null when there is no reference, or when the pane being drawn is the
+    // reference, so a casement on the window-wide settings draws the same
+    // lines it always did. Ruby mirror: GeometryEngine
+    // na_build_lead_reference_grid + LeadedGlassBuilder
+    // na_compute_reference_lead_lines.
+    function na_computeReferenceLeadLines(referenceGlass, glassX, glassY, glassWidth, glassHeight, glazeHBars, glazeVBars, glazeBarWidth, advancedGlazebar, hLeads, vLeads) {
+        if (!referenceGlass) return null;
+        if (!(referenceGlass.width > 0) || !(referenceGlass.height > 0)) return null;
+
+        const tolerance = 0.01;
+        if (Math.abs(referenceGlass.x - glassX) < tolerance &&
+            Math.abs(referenceGlass.y - glassY) < tolerance &&
+            Math.abs(referenceGlass.width - glassWidth) < tolerance &&
+            Math.abs(referenceGlass.height - glassHeight) < tolerance) {
+            return null;
+        }
+
+        const math = window.Na__GlazebarMath;
+        const referenceLayout = na_computeFinalBarPositions(
+            referenceGlass.x, referenceGlass.y, referenceGlass.width, referenceGlass.height,
+            glazeHBars, glazeVBars, glazeBarWidth, advancedGlazebar
+        );
+        const referenceColumns = math.na_computeCellBounds(referenceGlass.x, referenceGlass.width, referenceLayout.vPositions, glazeBarWidth);
+        const referenceRows = math.na_computeCellBounds(referenceGlass.y, referenceLayout.effectiveGlassHeight, referenceLayout.hPositions, glazeBarWidth);
+
+        return {
+            h: math.na_computeLeadLinePositions(referenceRows, hLeads),
+            v: math.na_computeLeadLinePositions(referenceColumns, vLeads)
+        };
     }
     // ---------------------------------------------------------------
 
@@ -1617,6 +1828,8 @@ const Na__Viewport__SvgGenerator = (function() {
         na_generateSlidingSashPanelSvg: na_generateSlidingSashPanelSvg,
         na_getSashHornElevationData: na_getSashHornElevationData,
         na_buildSashHornLogicalPoints: na_buildSashHornLogicalPoints,
+        na_generateWindowBoardSvg: na_generateWindowBoardSvg,             // <-- Exposed for the window board spec
+        na_getWindowBoardThickness: na_getWindowBoardThickness,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
         na_generateLeadedGlassSvg: na_generateLeadedGlassSvg,
         na_generateGothicArchSvg: na_generateGothicArchSvg,                 // <-- Exposed for ExtFold/ExtSlide elevation parity

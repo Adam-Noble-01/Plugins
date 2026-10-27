@@ -11,8 +11,9 @@
 #   Overlay#draw -> Na__Render__Draw: every cloud on show as one textured quad
 #   (see ImageRenderer), then the active cloud's Crop and Cut boxes while the
 #   Clean tab shows them, then the clip box cage of the cloud being edited,
-#   then the Move gimbal or Rotate protractor while one of them is active, then
-#   (with several clouds) the label naming the cloud the tool works on.
+#   then the box the Draw Clip Box tool is drawing (v0.13.0), then the Move
+#   gimbal or Rotate protractor while one of them is active, then (with
+#   several clouds) the label naming the cloud the tool works on.
 #   Nothing here parses, sorts or allocates points.
 #
 # NO SNAPPING:
@@ -34,6 +35,7 @@ module Na__PointCloudViewer
             Na__ImageRenderer.Na__Image__Draw(session, view) if slots.any? { |slot| slot.visible && slot.cloud }
             Na__CleanBoxes.Na__Boxes__DrawCages(session, view)
             slots.each { |slot| Na__ClipBox.Na__Clip__DrawCage(slot, view) if slot.clip_editing }
+            session.clip_draw_tool.na_draw_overlay(view) if session.clip_draw_tool
             session.transform_tool.na_draw_overlay(view) if session.transform_tool
             Na__CloudSet.Na__Slots__DrawToolLabel(session, view) if slots.length > 1
         rescue StandardError => error
@@ -47,8 +49,8 @@ module Na__PointCloudViewer
 
         # Every cloud on show, plus the clip box while its cage is drawn, the
         # Crop and Cut boxes while they are drawn and the points a transform
-        # tool draws at, so the camera's near and far planes never cut any of
-        # them off.
+        # tool or the Draw Clip Box tool draws at, so the camera's near and far
+        # planes never cut any of them off.
         def self.Na__Render__RefreshExtents(session)
             return unless session
             box = Geom::BoundingBox.new
@@ -61,6 +63,7 @@ module Na__PointCloudViewer
                 box.add(*corners) unless corners.empty?
             end
             extra = session.transform_tool ? session.transform_tool.na_extent_points : []
+            extra += session.clip_draw_tool.na_extent_points if session.clip_draw_tool
             box.add(*extra) unless extra.empty?
             session.extents = box.empty? ? nil : box
         end

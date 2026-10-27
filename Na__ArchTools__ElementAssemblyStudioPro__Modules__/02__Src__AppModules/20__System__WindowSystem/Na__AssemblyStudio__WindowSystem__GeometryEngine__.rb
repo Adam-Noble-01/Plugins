@@ -17,6 +17,8 @@
 # - Delegates actual geometry creation to GeometryBuilders module
 # - Handles multi-casement openings (1-6 panels per opening)
 # - Supports per-opening casement removal
+# - V1.8.0: Per Casement Settings (each casement's own stiles, rails and
+#   Casement Frame Inset) and Align Lead Lines Across Casements
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix
@@ -30,6 +32,7 @@ require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
 require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
+require_relative 'Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -46,7 +49,8 @@ module Na__WindowSystem
         GeometryBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
         LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
         SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
-        InsertionFrame   = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
+        WindowBoardBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__WindowBoardBuilder
+        InsertionFrame  = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
 
 # endregion -------------------------------------------------------------------
 
@@ -82,11 +86,31 @@ module Na__WindowSystem
                 default_transom_1_y: parent::NA_DEFAULT_TRANSOM_1_Y,
                 default_transom_2_y: parent::NA_DEFAULT_TRANSOM_2_Y,
                 default_transom_3_y: parent::NA_DEFAULT_TRANSOM_3_Y,
+                default_window_board_reveal_depth: parent::NA_DEFAULT_WINDOW_BOARD_REVEAL_DEPTH,
+                default_window_board_nosing_overhang: parent::NA_DEFAULT_WINDOW_BOARD_NOSING_OVERHANG,
                 default_frame_material_id: parent::NA_DEFAULT_FRAME_MATERIAL_ID,
                 default_glass_material_id: parent::NA_DEFAULT_GLASS_MATERIAL_ID,
                 default_cill_material_id: parent::NA_DEFAULT_CILL_MATERIAL_ID
             }
         end
+        # ---------------------------------------------------------------
+
+        # CONSTANT | Per Casement Settings Fields (V1.8.0)
+        # ------------------------------------------------------------
+        # Stored field in config["casement_overrides"]["o:c:p"] => the size
+        # key na_resolve_panel_casement_sizes returns. Mirrors
+        # NA_CASEMENT_OVERRIDE_FIELDS (UI config) and Na__CasementMath (JS).
+        NA_CASEMENT_OVERRIDE_FIELDS = {
+            "left_stile_mm"  => :left_stile,
+            "right_stile_mm" => :right_stile,
+            "top_rail_mm"    => :top_rail,
+            "bottom_rail_mm" => :bottom_rail,
+            "inset_mm"       => :casement_inset
+        }.freeze
+
+        # Two glass rectangles closer than this (inches) are the same pane, so
+        # a casement on the window-wide settings keeps its per-cell lead.
+        NA_LEAD_REFERENCE_TOLERANCE = 0.001
         # ---------------------------------------------------------------
 
 
@@ -482,6 +506,37 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Parse Per Casement Settings (V1.8.0)
+        # ------------------------------------------------------------
+        # config["casement_overrides"] is keyed "opening:cell:panel", the key
+        # removed_casements already uses. Only entries switched on survive.
+        # Each keeps just the fields it actually holds, in inches, so a
+        # missing one falls back to the window-wide value when the panel is
+        # resolved. Rails and stiles cannot go below zero; the inset is
+        # signed (negative brings the casement proud of the frame face).
+        #
+        # @param raw_overrides [Hash, nil] Stored override store (mm)
+        # @param mm_to_inch [Float] Unit conversion factor
+        # @return [Hash] { "o:c:p" => { left_stile:, top_rail:, ... } }
+        def self.na_parse_casement_overrides(raw_overrides, mm_to_inch)
+            return {} unless raw_overrides.is_a?(Hash)
+
+            raw_overrides.each_with_object({}) do |(casement_key, entry), parsed|
+                next unless entry.is_a?(Hash) && entry["enabled"] == true
+
+                sizes = {}
+                NA_CASEMENT_OVERRIDE_FIELDS.each do |field, size_key|
+                    value = entry[field]
+                    next unless value.is_a?(Numeric)
+
+                    inches = value.to_f * mm_to_inch
+                    sizes[size_key] = size_key == :casement_inset ? inches : [inches, 0.0].max
+                end
+                parsed[casement_key.to_s] = sizes
+            end
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Parse Configuration
         # ------------------------------------------------------------
         # Extracts and converts all config values from hash to internal units.
@@ -567,11 +622,26 @@ module Na__WindowSystem
             # Leaded glass overlay (outer glass face; does not trim glass)
             leaded_resolved = LeadedGlassBuilder.na_resolve_leaded_params(config)
             leaded_disabled_cells = config["leaded_disabled_cells"].is_a?(Array) ? config["leaded_disabled_cells"].map(&:to_s) : []
-            
+            # V1.8.0 - Align Lead Lines Across Casements. An absent key is a
+            # window saved before the toggle existed, laid out pane by pane.
+            leaded_global_alignment = config["leaded_global_alignment"] == true
+
+            # V1.8.0 - Per Casement Settings, switched-on entries only, in inches
+            casement_overrides = na_parse_casement_overrides(config["casement_overrides"], mm_to_inch)
+
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
             cill_height = (config["cill_height_mm"] || constants[:default_cill_height]).to_f * mm_to_inch
-            
+
+            # Window board. Off unless switched on, so every window saved
+            # before V1.9.0 rebuilds without one. The nosing returns default
+            # on: an absent key reads as returned, as the toggle ships.
+            window_board_enabled = config["window_board_enabled"] == true
+            window_board_reveal_depth = (config["window_board_reveal_depth_mm"] || constants[:default_window_board_reveal_depth]).to_f * mm_to_inch
+            window_board_nosing_overhang = (config["window_board_nosing_overhang_mm"] || constants[:default_window_board_nosing_overhang]).to_f * mm_to_inch
+            window_board_nosing_type = (config["window_board_nosing_type"] || "1").to_s
+            window_board_returns_enabled = config["window_board_nosing_returns_enabled"] != false
+
             # Frame
             frame_depth = (config["frame_depth_mm"] || constants[:default_frame_depth]).to_f * mm_to_inch
             frame_wall_inset = (config["frame_wall_inset_mm"] || constants[:default_frame_wall_inset]).to_f * mm_to_inch
@@ -667,6 +737,7 @@ module Na__WindowSystem
                 show_casements: show_casements,
                 sliding_sash_window: sliding_sash_window,
                 casements_per_opening: casements_per_opening,
+                casement_overrides: casement_overrides,
                 removed_casements: removed_casements,
                 removed_transom_segments: removed_transom_segments,
                 removed_glazebars: removed_glazebars,
@@ -704,9 +775,15 @@ module Na__WindowSystem
                 leaded_centre_lines_only: leaded_resolved[:centre_lines],
                 leaded_mte_id: leaded_resolved[:mte_id],
                 leaded_disabled_cells: leaded_disabled_cells,
+                leaded_global_alignment: leaded_global_alignment,
                 has_cill: has_cill,
                 cill_depth: cill_depth,
-                cill_height: cill_height
+                cill_height: cill_height,
+                window_board_enabled: window_board_enabled,
+                window_board_reveal_depth: window_board_reveal_depth,
+                window_board_nosing_overhang: window_board_nosing_overhang,
+                window_board_nosing_type: window_board_nosing_type,
+                window_board_returns_enabled: window_board_returns_enabled
             }
         end
         # ---------------------------------------------------------------
@@ -759,7 +836,11 @@ module Na__WindowSystem
                 )
             end
 
-            na_apply_cill_lift(entities, params)                                # <-- V1.7.1: shift everything up so the cill sits ON the floor (fixes pre-existing Z bug)
+            # Create the internal window board under the frame, in the frame finish
+            # @delegate: Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__.rb
+            WindowBoardBuilder.na_build_window_board(entities, params, frame_material) if params[:window_board_enabled]
+
+            na_apply_cill_lift(entities, params)                              # <-- V1.7.1: shift everything up so the cill sits ON the floor (fixes pre-existing Z bug)
         end
         # ---------------------------------------------------------------
 
@@ -1069,25 +1150,31 @@ module Na__WindowSystem
         # product now and build through
         # 31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__.rb.
         def self.na_render_opening_panel_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_has_casement, panel_wall_inset, params, frame_material, glass_material)
+            lead_reference = na_resolve_lead_reference_glass(params, panel_x, panel_z, panel_width, panel_height)  # <-- V1.8.0 aligned lead grid (nil = pane by pane)
+
             if panel_has_casement
-                top_rail = na_effective_panel_top_rail(sash_index, params)
-                bottom_rail = na_effective_panel_bottom_rail(sash_index, params)
+                sizes = na_resolve_panel_casement_sizes(params, opening_index, cell_index, panel_index, sash_index)  # <-- V1.8.0 Per Casement Settings
+                top_rail = sizes[:top_rail]
+                bottom_rail = sizes[:bottom_rail]
+                left_stile = sizes[:left_stile]
+                right_stile = sizes[:right_stile]
+                casement_inset = sizes[:casement_inset]
 
                 GeometryBuilders.na_create_casement_geometry_individual(
                     entities, panel_id, panel_width, panel_height,
-                    top_rail, bottom_rail, params[:cas_left_stile], params[:cas_right_stile],
-                    params[:casement_depth], panel_x, panel_z, frame_material, panel_wall_inset, params[:casement_inset]
+                    top_rail, bottom_rail, left_stile, right_stile,
+                    params[:casement_depth], panel_x, panel_z, frame_material, panel_wall_inset, casement_inset
                 )
 
-                glass_offset_x = panel_x + params[:cas_left_stile]
+                glass_offset_x = panel_x + left_stile
                 glass_offset_z = panel_z + bottom_rail
-                glass_w = panel_width - params[:cas_left_stile] - params[:cas_right_stile]
+                glass_w = panel_width - left_stile - right_stile
                 glass_h = panel_height - top_rail - bottom_rail
 
                 GeometryBuilders.na_create_glass_geometry(
                     entities, panel_id, glass_w, glass_h, params[:glass_thickness],
                     glass_offset_x, glass_offset_z, params[:frame_depth], glass_material,
-                    panel_wall_inset, params[:casement_depth], params[:casement_inset]
+                    panel_wall_inset, params[:casement_depth], casement_inset
                 )
 
                 if params[:h_bars] > 0 || params[:v_bars] > 0 || params[:glazebar_gothic_arch_enabled]
@@ -1095,7 +1182,7 @@ module Na__WindowSystem
                         entities, panel_id, glass_w, glass_h, params[:h_bars], params[:v_bars],
                         params[:bar_width], params[:glass_thickness], glass_offset_x, glass_offset_z,
                         params[:frame_depth], frame_material, panel_wall_inset,
-                        params[:casement_depth], params[:casement_inset], params[:glazebar_inset],
+                        params[:casement_depth], casement_inset, params[:glazebar_inset],
                         params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index,
                         na_advanced_glazebar_hash(params)
                     )
@@ -1104,8 +1191,9 @@ module Na__WindowSystem
                 na_create_leaded_for_glass(
                     entities, panel_id, glass_w, glass_h, glass_offset_x, glass_offset_z,
                     panel_wall_inset, params[:glass_thickness], params[:frame_depth],
-                    params[:casement_depth], params[:casement_inset], params,
-                    opening_index, cell_index, panel_index, sash_index
+                    params[:casement_depth], casement_inset, params,
+                    opening_index, cell_index, panel_index, sash_index,
+                    reference_glass: lead_reference
                 )
             else
                 GeometryBuilders.na_create_glass_geometry(
@@ -1128,10 +1216,92 @@ module Na__WindowSystem
                     entities, panel_id, panel_width, panel_height, panel_x, panel_z,
                     panel_wall_inset, params[:glass_thickness], params[:frame_depth],
                     nil, nil, params,
-                    opening_index, cell_index, panel_index, sash_index
+                    opening_index, cell_index, panel_index, sash_index,
+                    reference_glass: lead_reference
                 )
             end
         end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve One Panel's Rails, Stiles and Casement Inset (V1.8.0)
+        # ------------------------------------------------------------
+        # The window-wide sizes first (the sliding sash meeting-rail rules
+        # live in na_effective_panel_top_rail / _bottom_rail), then this
+        # casement's Per Casement Settings on top. Casement windows only: a
+        # sliding sash panel key covers two sashes. Mirrors
+        # Na__CasementMath.na_applyCasementOverride in JS.
+        # @return [Hash] { top_rail:, bottom_rail:, left_stile:, right_stile:, casement_inset: } (inches)
+        def self.na_resolve_panel_casement_sizes(params, opening_index, cell_index, panel_index, sash_index)
+            sizes = {
+                top_rail:       na_effective_panel_top_rail(sash_index, params),
+                bottom_rail:    na_effective_panel_bottom_rail(sash_index, params),
+                left_stile:     params[:cas_left_stile],
+                right_stile:    params[:cas_right_stile],
+                casement_inset: params[:casement_inset]
+            }
+            return sizes if params[:sliding_sash_window]
+
+            override = (params[:casement_overrides] || {})["#{opening_index}:#{cell_index}:#{panel_index}"]
+            override ? sizes.merge(override) : sizes
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Resolve the Glass the Aligned Lead Grid Is Laid Out On (V1.8.0)
+        # ------------------------------------------------------------
+        # With Align Lead Lines Across Casements on, every pane of a casement
+        # window lays its lead out on the glass a casement built to the
+        # window-wide settings would have in this panel. Lines then run
+        # straight through a casement with its own rails and through a panel
+        # with no casement, and a casement's wider rails simply hide the part
+        # of the grid behind them. nil means "lay out on the pane's own
+        # glass": always so for a sliding sash, or with Show Casements off,
+        # where every pane already is its own reference.
+        # @return [Hash, nil] { x:, z:, width:, height: } (inches)
+        def self.na_resolve_lead_reference_glass(params, panel_x, panel_z, panel_width, panel_height)
+            return nil unless params[:leaded_global_alignment]
+            return nil if params[:sliding_sash_window] || !params[:show_casements]
+
+            {
+                x:      panel_x + params[:cas_left_stile],
+                z:      panel_z + params[:cas_bottom_rail],
+                width:  panel_width - params[:cas_left_stile] - params[:cas_right_stile],
+                height: panel_height - params[:cas_top_rail] - params[:cas_bottom_rail]
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Build the Reference Glaze Bar Grid for Aligned Lead (V1.8.0)
+        # ------------------------------------------------------------
+        # The reference glass with its own final glaze bar centrelines, in the
+        # shape LeadedGlassBuilder reads from grid[:reference]. nil when there
+        # is no reference, or when the pane IS the reference, so a casement on
+        # the window-wide settings builds exactly the lead it always did.
+        # Mirrors na_computeReferenceLeadLines in the SVG generator.
+        def self.na_build_lead_reference_grid(reference_glass, offset_x, offset_z, glass_w, glass_h, params)
+            return nil unless reference_glass
+            return nil if reference_glass[:width] <= 0 || reference_glass[:height] <= 0
+
+            tolerance = NA_LEAD_REFERENCE_TOLERANCE
+            same_pane = (reference_glass[:x] - offset_x).abs < tolerance &&
+                        (reference_glass[:z] - offset_z).abs < tolerance &&
+                        (reference_glass[:width] - glass_w).abs < tolerance &&
+                        (reference_glass[:height] - glass_h).abs < tolerance
+            return nil if same_pane
+
+            layout = GeometryBuilders.na_compute_final_bar_positions(
+                reference_glass[:x], reference_glass[:z], reference_glass[:width], reference_glass[:height],
+                params[:h_bars], params[:v_bars], params[:bar_width], na_advanced_glazebar_hash(params)
+            )
+            {
+                offset_x:               reference_glass[:x],
+                offset_z:               reference_glass[:z],
+                glass_width:            reference_glass[:width],
+                h_positions:            layout[:h_positions],
+                v_positions:            layout[:v_positions],
+                effective_glass_height: layout[:effective_glass_height]
+            }
+        end
+        private_class_method :na_build_lead_reference_grid
         # ---------------------------------------------------------------
 
         # FUNCTION | Pack Advanced Glazebar Params Into A Hash
@@ -1161,10 +1331,16 @@ module Na__WindowSystem
         # bar centerlines (offsets included) so lead never crosses a bar.
         # The panel context (opening/cell/panel/sash) keys the per-cell
         # disabled set toggled from the SVG preview.
+        #
+        # reference_glass (V1.8.0): from na_resolve_lead_reference_glass. When
+        # it differs from this pane, the lines come from the grid laid out
+        # on it (grid[:reference]) and each glazing cell keeps the ones that
+        # land inside it.
         def self.na_create_leaded_for_glass(
             entities, panel_id, glass_w, glass_h, offset_x, offset_z,
             wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset, params,
-            opening_index = 0, cell_index = 0, panel_index = 0, sash_index = 0
+            opening_index = 0, cell_index = 0, panel_index = 0, sash_index = 0,
+            reference_glass: nil
         )
             leaded = LeadedGlassBuilder.na_resolve_leaded_params_from_engine(params)
             return unless leaded[:enabled]
@@ -1187,6 +1363,8 @@ module Na__WindowSystem
                 panel_context: { opening: opening_index, cell: cell_index, panel: panel_index, sash: sash_index },
                 disabled_cells: params[:leaded_disabled_cells]
             }
+            reference_grid = na_build_lead_reference_grid(reference_glass, offset_x, offset_z, glass_w, glass_h, params)
+            grid[:reference] = reference_grid if reference_grid
 
             LeadedGlassBuilder.na_create_leaded_glass_geometry(
                 entities, panel_id, glass_w, glass_h, offset_x, offset_z, y_front, leaded, grid: grid

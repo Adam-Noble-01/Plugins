@@ -16,6 +16,11 @@
 #   boxes are model data, so changing them is ONE undoable operation for every
 #   cloud whose box changes; unchanged boxes write nothing.
 #
+# TWO WAYS IN (v0.12.0): Go To Scene (Recall) selects the SketchUp scene and
+#   then applies it; pressing the SketchUp scene tab itself (Na__SceneFollow)
+#   finds the scene already shown and only applies it. Both use
+#   Na__Scenes__Apply, so they can never differ.
+#
 # SEVERAL CLOUDS (v0.10.0): a cloud the scene does not know (added to the
 #   model after the scene was saved) is hidden, so the viewport shows what the
 #   scene's exported picture shows. The card says so and Update adds it.
@@ -44,11 +49,22 @@ module Na__PointCloudViewer
             end
 
             begin
+                Na__SceneFollow.Na__Follow__Expect(scene.dig('page', 'pid')) if defined?(Na__SceneFollow)
                 model.pages.selected_page = page
             rescue StandardError => error
                 return "SketchUp could not show the scene \"#{page.name}\" (#{error.message}). Nothing was changed."
+            ensure
+                Na__SceneFollow.Na__Follow__Expect(nil) if defined?(Na__SceneFollow)
             end
 
+            self.Na__Scenes__Apply(session, scene, page, view)
+        end
+
+        # Everything the scene holds, given back to the viewer, WITHOUT
+        # selecting the SketchUp scene: Recall has just selected it, and
+        # following a scene tab (Na__SceneFollow) finds it already shown.
+        # Returns nil, or a plain-English reason (shown as a warning).
+        def self.Na__Scenes__Apply(session, scene, page, view)
             settings = scene['settings'] || {}
             Na__RenderController.Na__Render__ApplySettings(session, { 'pointBudget' => settings['pointBudget'] }, view)
             entries = scene['clouds'] || {}
@@ -124,6 +140,7 @@ module Na__PointCloudViewer
                 'readonly'          => session.scenes_readonly ? true : false,
                 'problem'           => session.scenes_problem,
                 'activeId'          => session.scene_active_id,
+                'followSceneTabs'   => defined?(Na__SceneFollow) ? Na__SceneFollow.Na__Follow__Enabled? : false,
                 'revision'          => (session.scenes_meta || {})['revision'].to_i,
                 'pages'             => pages.map do |info|
                     info.merge('isBound' => bound_pids.include?(info['pid']), 'isSelected' => info['pid'] == selected_pid)

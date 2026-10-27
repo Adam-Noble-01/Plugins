@@ -33,6 +33,7 @@ module Na__WindowSystem
             'glazebar'      => 'MTE103__LineColour__DarkGrey__L40',
             'leaded'        => 'MTE104__LineColour__MidGrey__L60',
             'fielded_panel' => 'MTE103__LineColour__DarkGrey__L40',
+            'window_board'  => 'MTE103__LineColour__MediumDarkGrey__L50',
             'glass'         => NA_GLASS_EDGE_COLOUR_ID
         }.freeze
 
@@ -41,7 +42,8 @@ module Na__WindowSystem
             'casement'      => 'edge_colour_casement_id',
             'glazebar'      => 'edge_colour_glazebar_id',
             'leaded'        => 'edge_colour_leaded_id',
-            'fielded_panel' => 'edge_colour_fielded_panel_id'
+            'fielded_panel' => 'edge_colour_fielded_panel_id',
+            'window_board'  => 'edge_colour_window_board_id'
         }.freeze
 
         # FUNCTION | Apply Assembly Edge Colours After Create / Fuse
@@ -94,6 +96,7 @@ module Na__WindowSystem
         def self.na_part_for_group_name(name)
             return nil if name.nil? || name.empty?
 
+            return 'window_board' if name.start_with?('Na_WindowBoard')
             return 'leaded' if name.start_with?('Na_LeadedGlass_') || name.include?('LeadedGlass')
             return 'glass' if name.start_with?('Na_Glass_') ||
                               name.end_with?('__Glass') ||

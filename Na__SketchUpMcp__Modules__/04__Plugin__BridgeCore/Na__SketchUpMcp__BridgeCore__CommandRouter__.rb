@@ -43,6 +43,7 @@ module Na__SketchUpMcp
             'model_file'            => [:Na__Handlers__ModelFile,    :Na__Handlers__ModelFile__File],
             'model_purge'           => [:Na__Handlers__Model,        :Na__Handlers__Model__Purge],
             'entity_query'          => [:Na__Handlers__Query,        :Na__Handlers__Query__EntityQuery],
+            'list_entities'         => [:Na__Handlers__Query,        :Na__Handlers__Query__EntityQuery],
             'entity_get'            => [:Na__Handlers__Query,        :Na__Handlers__Query__EntityGet],
             'outliner_tree'         => [:Na__Handlers__Query,        :Na__Handlers__Query__OutlinerTree],
             'collection_list'       => [:Na__Handlers__Collections,  :Na__Handlers__Collections__List],

@@ -1,0 +1,392 @@
+{
+  "meta"                        : {
+    "fileName"         : "Na__Window__WindowBoard__Type-02__Bullnose__t30mm__.json",
+    "description"      : "Window board nosing profile for the Element Assembly Studio Pro window system.",
+    "version"          : "1.0.0",
+    "lastUpdated"      : "26-Oct-2026",
+    "namingConvention" : "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName.",
+    "fieldPrefixes"    : {
+        "Na__Asset__"          : "Top-level asset metadata and content blocks",
+        "Na__Geometry__"       : "Geometry-related sub-fields (BoundingBox, Counts, OriginNote, CoordSystem)",
+        "Na__PanelPlacement__" : "Door-panel mounting transforms (RH/LH handing, vertical datum)",
+        "Na__WindowBoard__"    : "Parametric window board fields read by Na__WindowBoardBuilder"
+    }
+  },
+  "Na__Asset__Metadata"         : {
+    "Na__Asset__Name"                      : "Window Board Nosing Type 02 (Bullnose)",
+    "Na__Asset__Code"                      : "NA__WBD__PROFILE2D__002",
+    "Na__Asset__Type"                      : "Window Board",
+    "Na__Asset__Description"               : "A 30mm window board with a full half round (bullnose) over the whole thickness of the edge. No step.",
+    "Na__Asset__Notes"                     : "Variation of Type 01 without the 5mm step: the round runs from the underside to the top face, radius 15mm, tip 30mm proud of the wall face.",
+    "Na__Asset__Has2dPlan"                 : false,
+    "Na__Asset__Has2dElevation"            : false,
+    "Na__Asset__Has2dProfile"              : true,
+    "Na__Asset__Has3d"                     : false,
+    "Na__Asset__Supplier"                  : "",
+    "Na__Asset__SupplierProductCode"       : "",
+    "Na__Asset__SupplierPrice_GBP"         : "",
+    "Na__PanelPlacement__DefaultHeight_mm" : null,
+    "Na__PanelPlacement__RightHand"        : {
+        "Na__PanelPlacement__OffsetX_mm" : null,
+        "Na__PanelPlacement__OffsetY_mm" : null,
+        "Na__PanelPlacement__ScaleX"     : null
+    },
+    "Na__PanelPlacement__LeftHand"         : {
+        "Na__PanelPlacement__OffsetX_mm" : null,
+        "Na__PanelPlacement__OffsetY_mm" : null,
+        "Na__PanelPlacement__ScaleX"     : null
+    },
+    "Na__Asset__AvailableFinishes"         : []
+  },
+  "Na__WindowBoard__Parameters" : {
+    "Na__WindowBoard__NosingTypeId"             : "2",
+    "Na__WindowBoard__NosingLabel"              : "Bullnose",
+    "Na__WindowBoard__Thickness_mm"             : 30.0,
+    "Na__WindowBoard__ProfileRevealDepth_mm"    : 250.0,
+    "Na__WindowBoard__ProfileNosingOverhang_mm" : 30.0,
+    "Na__WindowBoard__NoseDepth_mm"             : 15.0,
+    "Na__WindowBoard__ReturnProjection_mm"      : 30.0,
+    "Na__WindowBoard__EdgeColourId"             : "MTE103__LineColour__MediumDarkGrey__L50",
+    "Na__WindowBoard__ParametricNote"           : "The builder keeps the nose shape and stretches the rest. Everything behind the insertion point (Y >= 0) is the reveal section and is rebuilt at the Reveal Depth. Everything in front of it is the nosing: its shape is fixed and it slides out or in with the Nosing Overhang, which never goes below the nose depth plus 1mm, so the nose always starts in front of the wall face. With the nosing returned past the reveal, the nosing runs round three sides and projects one board thickness past each side of the opening."
+  },
+  "Na__Asset__Profile2D"        : {
+    "Na__Geometry__OriginNote"  : "Local 0,0 = insertion point: the underside of the board on the wall face line, where the reveal meets the room.",
+    "Na__Geometry__CoordSystem" : "YZ plane | Y=profile horizontal axis, positive runs back across the reveal to the frame, negative is the nosing projecting into the room | Z=up | Units=mm",
+    "Na__Geometry__BoundingBox" : {
+        "Na__Geometry__MinY_mm"   : -30.0,
+        "Na__Geometry__MaxY_mm"   : 250.0,
+        "Na__Geometry__MinZ_mm"   : 0.0,
+        "Na__Geometry__MaxZ_mm"   : 30.0,
+        "Na__Geometry__Width_mm"  : 280.0,
+        "Na__Geometry__Height_mm" : 30.0
+    },
+    "Na__Geometry__Counts"      : {
+        "Na__Geometry__VertexCount"  : 21,
+        "Na__Geometry__EdgeCount"    : 21,
+        "Na__Geometry__ArcCount"     : 1,
+        "Na__Geometry__ArcEdgeCount" : 18,
+        "Na__Geometry__LineCount"    : 3,
+        "Na__Geometry__FaceCount"    : 1
+    },
+    "Na__Geometry__Vertices"    : [
+        {
+            "VertexId" : "V001",
+            "PosY_mm"  : 250.0,
+            "PosZ_mm"  : 0.0
+        },
+        {
+            "VertexId" : "V002",
+            "PosY_mm"  : -15.0,
+            "PosZ_mm"  : 0.0
+        },
+        {
+            "VertexId" : "V003",
+            "PosY_mm"  : -17.604723,
+            "PosZ_mm"  : 0.227884
+        },
+        {
+            "VertexId" : "V004",
+            "PosY_mm"  : -20.130302,
+            "PosZ_mm"  : 0.904611
+        },
+        {
+            "VertexId" : "V005",
+            "PosY_mm"  : -22.5,
+            "PosZ_mm"  : 2.009619
+        },
+        {
+            "VertexId" : "V006",
+            "PosY_mm"  : -24.641814,
+            "PosZ_mm"  : 3.509333
+        },
+        {
+            "VertexId" : "V007",
+            "PosY_mm"  : -26.490667,
+            "PosZ_mm"  : 5.358186
+        },
+        {
+            "VertexId" : "V008",
+            "PosY_mm"  : -27.990381,
+            "PosZ_mm"  : 7.5
+        },
+        {
+            "VertexId" : "V009",
+            "PosY_mm"  : -29.095389,
+            "PosZ_mm"  : 9.869698
+        },
+        {
+            "VertexId" : "V010",
+            "PosY_mm"  : -29.772116,
+            "PosZ_mm"  : 12.395277
+        },
+        {
+            "VertexId" : "V011",
+            "PosY_mm"  : -30.0,
+            "PosZ_mm"  : 15.0
+        },
+        {
+            "VertexId" : "V012",
+            "PosY_mm"  : -29.772116,
+            "PosZ_mm"  : 17.604723
+        },
+        {
+            "VertexId" : "V013",
+            "PosY_mm"  : -29.095389,
+            "PosZ_mm"  : 20.130302
+        },
+        {
+            "VertexId" : "V014",
+            "PosY_mm"  : -27.990381,
+            "PosZ_mm"  : 22.5
+        },
+        {
+            "VertexId" : "V015",
+            "PosY_mm"  : -26.490667,
+            "PosZ_mm"  : 24.641814
+        },
+        {
+            "VertexId" : "V016",
+            "PosY_mm"  : -24.641814,
+            "PosZ_mm"  : 26.490667
+        },
+        {
+            "VertexId" : "V017",
+            "PosY_mm"  : -22.5,
+            "PosZ_mm"  : 27.990381
+        },
+        {
+            "VertexId" : "V018",
+            "PosY_mm"  : -20.130302,
+            "PosZ_mm"  : 29.095389
+        },
+        {
+            "VertexId" : "V019",
+            "PosY_mm"  : -17.604723,
+            "PosZ_mm"  : 29.772116
+        },
+        {
+            "VertexId" : "V020",
+            "PosY_mm"  : -15.0,
+            "PosZ_mm"  : 30.0
+        },
+        {
+            "VertexId" : "V021",
+            "PosY_mm"  : 250.0,
+            "PosZ_mm"  : 30.0
+        }
+    ],
+    "Na__Geometry__Edges"       : [
+        {
+            "EdgeId"        : "E001",
+            "StartVertex"   : "V001",
+            "EndVertex"     : "V002",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E002",
+            "StartVertex"   : "V002",
+            "EndVertex"     : "V003",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E003",
+            "StartVertex"   : "V003",
+            "EndVertex"     : "V004",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E004",
+            "StartVertex"   : "V004",
+            "EndVertex"     : "V005",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E005",
+            "StartVertex"   : "V005",
+            "EndVertex"     : "V006",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E006",
+            "StartVertex"   : "V006",
+            "EndVertex"     : "V007",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E007",
+            "StartVertex"   : "V007",
+            "EndVertex"     : "V008",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E008",
+            "StartVertex"   : "V008",
+            "EndVertex"     : "V009",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E009",
+            "StartVertex"   : "V009",
+            "EndVertex"     : "V010",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E010",
+            "StartVertex"   : "V010",
+            "EndVertex"     : "V011",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E011",
+            "StartVertex"   : "V011",
+            "EndVertex"     : "V012",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E012",
+            "StartVertex"   : "V012",
+            "EndVertex"     : "V013",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E013",
+            "StartVertex"   : "V013",
+            "EndVertex"     : "V014",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E014",
+            "StartVertex"   : "V014",
+            "EndVertex"     : "V015",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E015",
+            "StartVertex"   : "V015",
+            "EndVertex"     : "V016",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E016",
+            "StartVertex"   : "V016",
+            "EndVertex"     : "V017",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E017",
+            "StartVertex"   : "V017",
+            "EndVertex"     : "V018",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E018",
+            "StartVertex"   : "V018",
+            "EndVertex"     : "V019",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E019",
+            "StartVertex"   : "V019",
+            "EndVertex"     : "V020",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E020",
+            "StartVertex"   : "V020",
+            "EndVertex"     : "V021",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        },
+        {
+            "EdgeId"        : "E021",
+            "StartVertex"   : "V021",
+            "EndVertex"     : "V001",
+            "EdgeColourId"  : "MTE103__LineColour__MediumDarkGrey__L50",
+            "EdgeColourHex" : "#737373"
+        }
+    ],
+    "Na__Geometry__Arcs"        : [
+        {
+            "ArcId"            : "A001",
+            "Centre_mm"        : {
+                "Y" : -15.0,
+                "Z" : 15.0
+            },
+            "Radius_mm"        : 15.0,
+            "StartAngle_deg"   : -90.0,
+            "EndAngle_deg"     : 90.0,
+            "SegmentAngle_deg" : 10.0,
+            "AngleNote"        : "Angle 0 points at the nose tip (negative Y); -90 is the underside, +90 the top.",
+            "VertexIds"        : [
+                "V002",
+                "V003",
+                "V004",
+                "V005",
+                "V006",
+                "V007",
+                "V008",
+                "V009",
+                "V010",
+                "V011",
+                "V012",
+                "V013",
+                "V014",
+                "V015",
+                "V016",
+                "V017",
+                "V018",
+                "V019",
+                "V020"
+            ]
+        }
+    ],
+    "Na__Geometry__Faces"       : [
+        {
+            "FaceId"              : "F001",
+            "OuterLoop_VertexIds" : [
+                "V001",
+                "V002",
+                "V003",
+                "V004",
+                "V005",
+                "V006",
+                "V007",
+                "V008",
+                "V009",
+                "V010",
+                "V011",
+                "V012",
+                "V013",
+                "V014",
+                "V015",
+                "V016",
+                "V017",
+                "V018",
+                "V019",
+                "V020",
+                "V021"
+            ],
+            "InnerLoops"          : []
+        }
+    ]
+  }
+}

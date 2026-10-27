@@ -13,6 +13,11 @@
 //   cloud tag shows it). Copy to Other Clouds gives every other cloud the
 //   same box, in one undoable step.
 //
+// DRAW A CLIP BOX (v0.13.0): the card at the top starts the Draw Clip Box
+//   tool and Clip Box Around Selection, which give their box to every cloud
+//   on show (state.clipDraw), and holds the snap grid and the selection
+//   margin. Its chip shows the key SketchUp gives the tool, if any.
+//
 // STATE: everything shown comes from state.clip (Ruby). This file never keeps
 //   its own copy of the box; it only remembers what the user is typing, so a
 //   state push never wipes a half-typed limit or scene name.
@@ -39,6 +44,66 @@
     var na_confirm_timer = null;
     var na_sorter        = null;     // drag to reorder on the scene list
     var na_list_waiting  = false;    // a repaint held back while a row is being dragged
+    var na_margin_shown  = '';       // the selection margin last shown (unchanged text is not re-sent)
+
+    var NA_DRAW_HINT_IDLE    = 'Drag out the base rectangle in the model, on a floor, a wall or in the air, then pull the height and click. Corners snap to the grid; hold Ctrl to snap to the model\'s own points instead. Type sizes as you go, for example 2400,3600 and then 2700. The tool stays on for the next area: Esc leaves it.';
+    var NA_DRAW_HINT_DRAWING = 'Drawing: drag the base, pull the height and click. Tab changes the base plane (Plan, Front, Side), Backspace steps back, Esc cancels the box or leaves the tool. Right click for the grid and the plane.';
+
+    // -------------------------------------------------------------------------
+    // REGION | Draw a Clip Box Card (v0.13.0)
+    // -------------------------------------------------------------------------
+
+    function na_draw_status(draw) {
+        if (!draw.hasClouds) return 'Import a point cloud to draw a clip box.';
+        if (draw.noneShown) return 'No cloud is on show, so the box goes to the active cloud, ' + draw.targetsText + ', which is shown again.';
+        if (draw.multi) return 'The box clips every cloud on show: ' + draw.targetsText + '. Hide a cloud to leave it out.';
+        return 'The box clips the point cloud, and clipping comes on.';
+    }
+
+    function na_render_draw(state) {
+        var draw = state.clipDraw;
+        if (!draw) return;
+        var button = document.getElementById('na-clip-draw');
+        button.textContent = draw.isDrawing ? 'Finish Drawing' : 'Draw Clip Box';
+        button.classList.toggle('naButton--active', !!draw.isDrawing);
+        button.disabled = !draw.hasClouds;
+        document.getElementById('na-clip-around-selection').disabled = !draw.hasClouds;
+        Shell.na_text('na-clip-draw-status', na_draw_status(draw));
+        var hint = document.getElementById('na-clip-draw-hint');
+        hint.textContent = draw.isDrawing ? NA_DRAW_HINT_DRAWING : NA_DRAW_HINT_IDLE;
+        hint.classList.toggle('na-hint--live', !!draw.isDrawing);
+
+        var select = document.getElementById('na-clip-draw-grid');
+        var steps = draw.gridSteps || [];
+        var signature = steps.join(',');
+        if (select.getAttribute('data-na-steps') !== signature) {
+            select.innerHTML = '';
+            steps.forEach(function (mm) {
+                var option = Shell.na_el('option', '', String(mm));
+                option.value = String(mm);
+                select.appendChild(option);
+            });
+            select.setAttribute('data-na-steps', signature);
+        }
+        select.value = String(draw.gridMm);
+
+        var margin = document.getElementById('na-clip-margin');
+        na_margin_shown = String(draw.marginMm);
+        if (document.activeElement !== margin) margin.value = na_margin_shown;
+
+        var keys = state.hotkeys && state.hotkeys.keysById ? state.hotkeys.keysById : {};
+        var chip = document.getElementById('na-clip-draw-key');
+        chip.textContent = keys.draw_clip || '';
+        chip.classList.toggle('na-hidden', !keys.draw_clip);
+    }
+
+    function na_send_margin() {
+        var value = document.getElementById('na-clip-margin').value.trim();
+        if (!value || value === na_margin_shown) return;
+        Bridge.na_call('clip_set_margin', { marginMm: value });
+    }
+
+    // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
     // REGION | Clip Box Card
@@ -291,6 +356,7 @@
         if (na_renaming && !(na_clip.scenes || []).some(function (scene) { return scene.id === na_renaming.id; })) {
             na_renaming = null;
         }
+        na_render_draw(state);
         na_render_box(na_clip);
         na_render_limits(na_clip);
         na_render_scenes(na_clip);
@@ -303,6 +369,21 @@
     // -------------------------------------------------------------------------
 
     function na_wire() {
+        document.getElementById('na-clip-draw').addEventListener('click', function () {
+            Bridge.na_call('clip_draw_toggle', {});
+        });
+        document.getElementById('na-clip-around-selection').addEventListener('click', function () {
+            Bridge.na_call('clip_around_selection', {});
+        });
+        document.getElementById('na-clip-draw-grid').addEventListener('change', function (event) {
+            Bridge.na_call('clip_draw_set_grid', { gridMm: Number(event.target.value) });
+        });
+        var margin = document.getElementById('na-clip-margin');
+        margin.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter')  { margin.blur(); }
+            if (event.key === 'Escape') { margin.value = na_margin_shown; margin.blur(); }
+        });
+        margin.addEventListener('change', na_send_margin);
         document.getElementById('na-clip-enabled').addEventListener('change', function (event) {
             Bridge.na_call('clip_set_enabled', { enabled: event.target.checked });
         });

@@ -23,9 +23,10 @@
 #   cannot be found is shown as Missing with Relink and Remove. Nothing is ever
 #   guessed and nothing on the SketchUp side is ever changed to "repair" it.
 #
-# NOTHING ON OPEN: read when the dialog, an export or the public API asks,
-#   never while a model opens. No observers at all: the dialog refreshes the
-#   scene list when the Scenes tab is shown or the window gains focus.
+# NOTHING ON OPEN: read when the dialog, an export, the public API or a pressed
+#   SketchUp scene tab (Na__SceneFollow, v0.12.0) asks, never while a model
+#   opens. The scene LIST has no observer: the dialog refreshes it when the
+#   Scenes tab is shown or the window gains focus.
 #
 # NEVER CLOBBERED: a record written by a newer version of this plugin
 #   (schemaVersion above ours) is shown read-only and never rewritten. Keys this

@@ -163,7 +163,39 @@
             errors.push('Window too short for the requested transom layout');
         }
 
+        na_validateCasementOverrides(config).forEach(function (message) {
+            if (errors.indexOf(message) === -1) errors.push(message);
+        });
+
         return { valid: errors.length === 0, errors: errors };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Validate Per Casement Settings (V1.8.0)
+    // ------------------------------------------------------------
+    // A casement on its own settings must still leave glass inside it: the
+    // same 50mm the window-wide check above asks of a shared casement. Only
+    // casements that exist and are switched on are tested, so a hidden
+    // override for a casement clicked off in the preview cannot block the
+    // window. Needs Na__CasementMath, which is loaded ahead of this module.
+    // @param  {Object} config - Window configuration object
+    // @return {string[]}        Error messages, empty when every casement fits
+    function na_validateCasementOverrides(config) {
+        var messages = [];
+        var casementMath = window.Na__CasementMath;
+        if (!casementMath || !casementMath.na_supportsCasementOverrides(config)) return messages;
+
+        casementMath.na_enumerateCasements(config).forEach(function (casement) {
+            if (casement.removed || !casement.sizes.overridden) return;
+            var sizes = casement.sizes;
+            if (casement.width < sizes.left_stile_mm + sizes.right_stile_mm + 50) {
+                messages.push(casement.label + ' is too narrow for its own stiles');
+            }
+            if (casement.height < sizes.top_rail_mm + sizes.bottom_rail_mm + 50) {
+                messages.push(casement.label + ' is too short for its own rails');
+            }
+        });
+        return messages;
     }
     // ---------------------------------------------------------------
 

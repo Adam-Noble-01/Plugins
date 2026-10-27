@@ -52,7 +52,7 @@ module Na__ComponentEditorTools
                 raise Na__McpOperationsError.new('not_found', "The library folder does not exist: #{root}", 'Check Settings > Library folder.')
             end
 
-            root
+            (Dir.glob(root).first || root).tr('\\', '/').chomp('/')
         end
 
         def self.Na__ComponentEditorTools__BlockedFolders

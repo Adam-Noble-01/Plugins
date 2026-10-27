@@ -61,6 +61,9 @@
 
     // HELPER FUNCTION | Shallow-Clone a Config With Dimensions Suppressed
     // ------------------------------------------------------------
+    // The window preview's casement numbers (V1.8.0, drawn while Per
+    // Casement Settings is open) are an editing aid like the dimensions,
+    // so they are left out of the thumbnail too.
     // @param  {Object} config - Source configuration snapshot
     // @return {Object}          Clone with show_dimensions forced false
     function na_clone_without_dimensions(config) {
@@ -69,6 +72,7 @@
             clone[key] = config[key];
         });
         clone.show_dimensions = false;
+        clone.casement_individual_controls = false;
         return clone;
     }
     // ---------------------------------------------------------------

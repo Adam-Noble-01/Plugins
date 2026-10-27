@@ -1,16 +1,17 @@
 # Na Point Cloud Viewer - ARCHITECTURE
 
-Status: **v0.11.1: native image renderer (binned raster, screen crop, orbit budget, several clouds
+Status: **v0.13.0: native image renderer (binned raster, screen crop, orbit budget, several clouds
 in one depth-tested frame), LAS import with the `.napc` point cache (v2, named by the LAS content
 key), the clip box with clip scenes, the Transform tab, model persistence (one record per cloud +
 local backup, explicit Reload), the Clean tab (Remove Noise, Refine Surfaces, Reduce Density; live
 preview in the clip box; Clean & Export LAS to a NEW file, section 22), the Scenes tab (point cloud
-scenes for TrueVision, section 23), LAZ import through a lossless LAZ to LAS converter (section 24),
+scenes for TrueVision, also followed from SketchUp's own scene tabs, section 23), LAZ import through a lossless LAZ to LAS converter (section 24),
 up to ten point clouds per model, each with its own position, clip box and look (section 25), and
 Crop and Cut: Keep and Cut boxes captured from the clip box, shown live, exported to a NEW file
-(section 26) are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026,
+(section 26), and keyboard shortcuts for the main commands with a Draw Clip Box tool (section 27)
+are built; everything marked _Designed_ is not yet code.** Written 03-Oct-2026,
 cleaning added 12-Oct-2026, scenes 19-Oct-2026, LAZ 21-Oct-2026, several clouds and Crop and Cut
-25-Oct-2026. Keep this file true: when a design decision changes, change it here and say why in
+25-Oct-2026, following the scene tabs, the keyboard shortcuts and Draw Clip Box 26-Oct-2026. Keep this file true: when a design decision changes, change it here and say why in
 the DEVLOG.
 
 **The decisive finding (M1):** SketchUp's View API costs ~2.3 us per drawn point (100k points =
@@ -406,6 +407,8 @@ TIME   f32 x count       GPS time minus timeBase (v2, flag bit 1; omitted when c
   scene it came from, so Clip on returns to them. A scene always clips when switched to.
 - **Zoom to Cloud** frames only the clipped part while clipping is on.
 - Unloading the cloud keeps the box and scenes (they belong to the model).
+- **Draw Clip Box and Clip Box Around Selection (v0.13.0):** a new box drawn in the model on a 5 mm
+  grid, or fitted round the selection, for every cloud on show in one step (section 27).
 
 **Later (M3):** with the octree, nodes outside the box are skipped before any point is tested and
 nodes fully inside need no per-point test.
@@ -459,7 +462,7 @@ puts every wall you trace in the wrong place. So:
 | Layer | Where | Holds |
 |---|---|---|
 | Plugin defaults | `02__AppData/...AppConfig__Defaults__.json` (committed, read-only) | limits, presets, defaults, image render scales, overlay id, paths |
-| User config | `91__UserConfig__LocalOnly/Na__PointCloudViewer__UserConfig__.json` (git-ignored, per PC, schema v3) | last tab, last LAS folder, move and angle snap, the point budget (`render.lastSettings`), each cloud's look by cloud id (`render.cloudLooks`, v0.10.0), the Clean tab's filter settings (`clean.filters`) |
+| User config | `91__UserConfig__LocalOnly/Na__PointCloudViewer__UserConfig__.json` (git-ignored, per PC, schema v3) | last tab, last LAS folder, move and angle snap, the point budget (`render.lastSettings`), each cloud's look by cloud id (`render.cloudLooks`, v0.10.0), the Clean tab's filter settings (`clean.filters`), the Draw Clip Box grid and the selection margin (`clip.drawGridMm`, `clip.selectionMarginMm`, v0.13.0) |
 | Model: the clouds | the `.skp`, dictionary `Na__PointCloudViewer__Clouds` - BUILT v0.10.0 | model id (names the backup file), the clouds' order, where a converted v0.9 model came from (section 25.3) |
 | Model: one cloud | the `.skp`, dictionary `Na__PointCloudViewer__Cloud__pc_<8 hex>`, one per cloud - BUILT v0.10.0 | name, colour, LAS link, placement, clip box, clip scenes (section 25.3), Crop and Cut boxes (`cropCut`, v0.11.0, section 26) |
 | Model: scenes | the `.skp`, dictionary `Na__PointCloudViewer__Scenes` (schema 2 since v0.10.0) | point cloud scenes, each holding every cloud's settings by cloud id (sections 23, 25.6) |
@@ -633,7 +636,8 @@ would take SketchUp down). LASzip compiles from the vendored folder into the sam
 Settings > Reload Plugin: re-`load`s every `.rb` under `02__Src__AppModules`, clears the cached
 config JSON, re-runs `Na__Registry__InstallOnce`, then closes and reopens the dialog (HTML/CSS/JS).
 State that must survive is `unless defined?`-guarded. The overlay class is reopened in place, so
-no overlay is removed or added; the AppObserver is added once per SketchUp session.
+no overlay is removed or added; the AppObserver, and the scene tab observer (23.7), are added once per
+SketchUp session.
 
 The native DLL is loaded from a **shadow copy** (`90__AppCache__PointCloudCache/00__NativeShadowCopies/`),
 so the build can overwrite the original while SketchUp runs. When the original is newer, reload
@@ -705,6 +709,8 @@ measurements (tests only; not bound in Ruby).
    rate - see the optimisation list in 7.2.
 5. Native thread lifetime vs model close / GC / hot swap (sections 11, 18).
 6. ~~Toolchain missing on the studio PC~~ - installed 03-Oct-2026.
+7. Following SketchUp's scene tabs is an observer, the kind that can hang SketchUp or damage a model:
+   researched, measured on SketchUp 2026 and designed against both (section 23.7).
 
 ---
 
@@ -725,6 +731,7 @@ measurements (tests only; not bound in Ruby).
 | **Scenes** (built, v0.9.0) | Point cloud scenes for TrueVision; export to scale; LAZ import (v0.9.1) | TrueVision Sync renders and publishes them |
 | **Several clouds** (built, v0.10.0) | Up to ten clouds per model, one record each; the cloud bar and the active cloud; looks and visibility per cloud; one depth-tested frame with a shared budget; scenes holding every cloud; v0.9 models converted on their first change | Adam: an interior GeoSLAM scan and an exterior photogrammetry scan in one model, switched on and off and saved with scenes |
 | **Crop and Cut** (built, v0.11.0) | The Clean tab's Keep box (Remove Outside) and up to 20 Cut boxes (Remove Inside) captured from the clip box; live Result / Differences preview; exact counts; Remove Points & Export LAS to a NEW file through Clean & Export's path; boxes cleared with the switch (one Undo) | Adam: capture the clip box to remove points outside it, and inner boxes for a tree or noise, physically and without ever touching the original |
+| **Shortcuts + Draw Clip Box** (built, v0.13.0) | 14 commands in Extensions > Na__PointCloudViewer for SketchUp's keys, listed with their keys in Settings; Draw Clip Box (Insert Primitives' drag, 5 mm grid) and Clip Box Around Selection for every cloud on show | Adam: a hotkey to switch the clouds on and off while modelling, and a fast clip box tool on a key, area by area |
 | M4 | Two-point align, set origin, round trip across both computers | Round trip across both computers |
 | M5 | Large-cloud hardening, error wording, docs | |
 
@@ -1117,8 +1124,9 @@ schema 2 since v0.10.0 with every cloud's settings by cloud id, section 25.6), n
 - Attributes on Pages have a reported crash path in SketchUp (reproduced in the SketchUp developer
   community), and SketchUp staff have described scene data that left files unopenable. The bug
   Adam remembered from Undet (renaming a scene made models unopenable) is of that family.
-  So the viewer writes nothing to a Page: no attribute, no `update`, no observer. The test
-  scenario has tripwires on every Page and Pages writer.
+  So the viewer writes nothing to a Page: no attribute, no `update`, no observer on a Page or on
+  Pages (following the scene tabs, 23.7, uses SketchUp's application wide frame change hook and only
+  reads). The test scenario has tripwires on every Page and Pages writer.
 - The scene is found by `Page#persistent_id` (stable within a model since SketchUp 2018). Its name
   is stored only as a hint for relinking. `entityID` and names are never keys.
 - A record from a newer viewer, or one that does not parse, is shown read only and never rewritten.
@@ -1131,7 +1139,9 @@ schema 2 since v0.10.0 with every cloud's settings by cloud id, section 25.6), n
 Pressing a scene's name selects the SketchUp scene, then applies the saved settings, visibility and
 clip box in ONE operation, and writes the clip only if it differs. A scene whose Page has gone
 changes nothing and says so. Relink offers a Page with the same name, but only the user adopts it.
-The tab refreshes when it is shown and when the dialog regains focus; there are no observers.
+The tab's list refreshes when it is shown and when the dialog regains focus; the list has no
+observer. With Follow Tabs on, pressing the SketchUp scene tab itself does what Go To Scene does
+(23.7).
 
 ### 23.4 Export to scale
 
@@ -1166,6 +1176,96 @@ API 4 (v0.10.0, several clouds) is in section 25.9.
 `pcv_scenario_scenes.rb`: 83 checks (the record and its refusals, recall, relink, remove, the
 public list with the Site Plan type and the 1:1250 and 1:2500 presets, export geometry, dot
 centring, perspective, limits, revision keys), with the Page tripwires quiet throughout.
+
+### 23.7 Following SketchUp's scene tabs (BUILT in v0.12.0)
+
+Pressing a SketchUp scene tab does what Go To Scene does: when that SketchUp scene has point cloud
+settings, every cloud takes them back (shown or hidden, size, opacity, colour, clip box, the
+budget). A SketchUp scene without settings changes nothing. Code: `...Scenes__Follow__.rb`
+(`Na__SceneFollow`). Switch: Scenes tab, **Follow Tabs** in the Point Cloud Scenes card; on by
+default, kept per computer in the user config (`scenes.followSceneTabs`), never in the model.
+Adam asked for it on 26-Oct-2026, and for certainty first: hangs, file corruption, a scene with no
+match, renames.
+
+**The hook.** `Sketchup::Pages.add_frame_change_observer`: SketchUp calls
+`frameChange(from_page, to_page, percent_done)` for every frame of every scene transition. It is
+the documented route (SketchUp 6 onwards) and what Trimble's own Dynamic Components use for scene
+changes. The alternatives cannot tell a press apart: `PagesObserver#onContentsModified` fires twice
+per change and also for moves, renames and deletes (SketchUp staff, 2019), `ViewObserver` fires on
+every orbit, and there is no "scene activated" event (api-issue-tracker #237, still open). Known
+issues: `from_page` is always nil on Windows (#862, never fixed), so it is never used; a crash on
+exit on the Mac (fixed in 2019); a one shot timer could fire again while a modal window was open
+in it (fixed in 2023.1).
+
+**Measured on SketchUp 2026 (26-Oct-2026)** in a scratch SketchUp on a stock template, never
+Adam's (probes and logs in `D:/_ClaudeScratch/pcv_scenefollow`):
+
+| Case | What SketchUp did |
+|---|---|
+| A real mouse click on a tab; `Pages#selected_page=`; Next Scene | Frames 0.0 to 1.0, about 25 a second. 0.0 and the next frame come INSIDE the click, before `selected_page` names the new scene. 1.0 sometimes comes twice |
+| Transitions off, or a page transition time of 0 | One frame, 1.0, inside the click |
+| The tab already shown, pressed again | A full transition again |
+| A scene that saves no camera | Frames as usual |
+| A second press during a transition | The first never reaches 1.0 |
+| Slideshow (View, Animation, Play) | Frames for every scene, `selected_page` updated at each start, `from_page` filled only here. It starts by showing the current scene. A click on a tab does not stop it; Ruby `selected_page=` does |
+| Opening a model | No frame |
+| Selecting a scene | Not an operation (Ctrl+Z undoes the edit before it) and the model is not marked modified |
+| An observer that selects the scene it was told about | The transition starts again, for ever (the probe stopped it after 6 rounds) |
+| A model write from a timer mid-transition, or after every slideshow scene | The transition and the slideshow carry on |
+| An exception escaping `frameChange` | Swallowed; the observer keeps being called |
+| `View#write_image` with an overlay on screen | The overlay is not in the image, so following during a batch image export cannot change the images |
+
+**The rules** (each one answers a way such an observer hangs SketchUp or damages a model):
+1. The callback only notes the scene and books a timer (0.1 s), one at a time. It never touches the
+   model, never raises, and does nothing for the frames in between.
+2. The work runs from that timer, after SketchUp's notification has returned (SketchUp's guidance:
+   no model changes inside an observer). A newer press replaces a booked look, so only the scene
+   the user ends on is applied. The end of the transition (1.0, once) books one more look: it
+   catches a scene SketchUp names late, and finds nothing different (writes nothing) when the first
+   look applied it. A timer that fires twice runs once.
+3. It never selects a scene: that is the endless loop above, and it would stop a slideshow. Go To
+   Scene still selects its scene, and tells the module first (`Na__Follow__Expect`), so its own
+   transition books nothing.
+4. It changes things only through Go To Scene's own code (`Na__SceneRecall.Na__Scenes__Apply`; Recall
+   is now select, then Apply): nothing on any Page; a clip box that changes is one named undoable
+   operation ("Point Cloud: Scene S2"); when nothing differs nothing at all is written. Never a
+   transparent operation (selecting a scene is not an operation, so it would merge into the user's
+   own last edit) and never an empty one (an empty transparent operation can corrupt the undo
+   stack, SketchUp's safe observer events notes).
+5. Nothing is guessed: the scene is matched by its persistent id, as everywhere in this section. No
+   settings for it, no longer the scene shown, not the active model, or an import or export running
+   (the status line says so): nothing happens.
+6. Installed when a model gets its overlay (the startup notification, after every extension has
+   loaded), never while extensions load (section 18); once per SketchUp session, kept by Reload
+   Plugin (the observer is guarded, its class reopened).
+7. Follow Tabs off: a booked look does nothing, and switching off cancels one. No message box
+   anywhere: the status line only, when the dialog is open.
+
+**Risk assessment.**
+
+| Risk | Where it could come from | Why it does not happen | Left over |
+|---|---|---|---|
+| Hang: endless loop | An observer that selects a scene or fires itself again | Never selects a scene; Apply fires no frames | None found |
+| Hang: blocked | A modal window from a callback or timer | No message box in the path | None |
+| Crash | Model changes inside a notification; an observer added while extensions load | Changes only from the timer; installed after loading | A SketchUp bug can never be ruled out; Follow Tabs turns it off |
+| File corruption | Writing to Pages (the reported crash path, 23.2); empty transparent operations | No Page is ever written; one ordinary named operation, only when a clip box changes | None known |
+| Wrong scene | Names, guesses | Persistent id, read only; renamed and reordered scenes keep working | A scene deleted and made again is a new scene (Missing, Relink) |
+| No matching scene | A SketchUp scene without settings | Nothing happens, nothing is written | None |
+| Undo | The clip box write | One named step, only when a clip box differs, as Go To Scene | Ctrl+Z straight after a press undoes that clip box first |
+| Modified flag | The clip box write | Only when a clip box differs | SketchUp then asks to save, as after Go To Scene |
+| Other tools that select scenes | Scene Image Exporter, ValeVision sync, NaKeys, the MCP bridge | The clouds follow them too; exported images are unaffected (no overlay in `write_image`) | Clip box steps during such a run when scenes differ |
+| Slideshow | A write per scene | Measured: it carries on | A step per scene whose clip box differs |
+| Cost | About 25 calls a second during a transition | A memory only check per frame; a look takes 3 to 5 ms | None |
+
+**Tests.** Harness `follow` mode (`pcv_scenario_follow.rb` with `pcv_stubs_follow.rb`): 60 checks
+with frames as measured, Go To Scene, the same tab again, a scene with no settings, a scene with
+no camera, transitions off, quick presses, a scene no longer shown, a scene named late, the switch,
+a running job, Undo, Reload Plugin, bad frames, another model, a timer firing twice, opening a
+model, and tripwires on Page writes, scene selection and transparent operations. The six earlier
+suites are unchanged. Live, in a scratch SketchUp 2026 running the staged code with a real cloud:
+real clicks on four tabs, Go To Scene, quick presses, the switch from the dialog, Undo, and a
+slideshow; each bound scene applied once about 0.1 s after the press, in 3 to 5 ms, and the
+technical log stayed clean.
 
 ---
 
@@ -1609,3 +1709,134 @@ moment is no longer only theoretical.
 - Copy boxes to other clouds; boxes inside Clean & Export (crop first: cleaning the smaller cloud is
   faster).
 - A Keep box made of several boxes (Cut boxes can carve an L shape out of one Keep box).
+
+---
+
+## 27. Keyboard shortcuts and Draw Clip Box (BUILT in v0.13.0)
+
+Ruby: `15__System__Hotkeys/` (`...Hotkeys__Manager__.rb`: the menu, the keys read back, SketchUp's
+Shortcuts page; `...Hotkeys__Commands__.rb`: what each command does; the Settings list in
+`...Hotkeys__UiSystem__MainUiLogic__.js`), `50__System__ClipBox/...ClipBox__DrawTool__.rb` (the Draw Clip
+Box tool, Clip Box Around Selection and their settings) and the "clouds on show" functions in
+`...ClipBox__State__.rb`; style `...UiFeature__Styles__Hotkeys__.css`; config `hotkeys` and `clip.draw`.
+
+### 27.1 What it is for
+
+Adam, 26-Oct-2026: a hotkey mapper for the main things, above all one key that switches every point
+cloud on and off while modelling; and a fast way to put a clip box round an area, drawn like Insert
+Primitives' Drawn Volume (drag a rectangle, then the height, on the same 5 mm voxel grid), on a key of
+its own, so that once the building is roughed out each area can be looked at in turn.
+
+### 27.2 How SketchUp gives keys
+
+- SketchUp gives a key only to a **menu item**, and keeps it by the item's **menu path**: Windows
+  keeps `Shortcut_N = "<ctrl> <alt> <shift> <key> <path>"` in `SharedPreferences.json` (`Windows Only /
+  Settings`), for example `1 1 0 P Extensions/Na__InsertPrimitives/Drawn Volume` is Ctrl+Alt+P.
+  `Sketchup.get_shortcuts` reads them (`"Ctrl+Alt+P\tExtensions/..."`); no API sets one, and the viewer
+  never writes SketchUp's settings. So every command is an item in **Extensions > Na__PointCloudViewer**,
+  and the submenu's name and each `menuText` (config `hotkeys`) must never change: a renamed item loses
+  its key.
+- **Added once per SketchUp session, per command**, and remembered (`unless defined?`), from
+  `Na__Registry__InstallOnce`. Reload Plugin calls that after reading the config afresh (while it loads
+  the files the cached config is still the old one), so a new command appears at once and is never added
+  twice; SketchUp cannot take a menu item back. Menu items only, so it is safe while extensions load.
+  Each item runs `Na__Hotkeys__Run(id)`, looked up on every press: the reloaded code runs.
+- **Checkmarks** show the switches that are on. They read only what the session holds, never the model,
+  and only once `Na__Registry__Ready?` (a model has its overlay, so loading is over). No command is ever
+  greyed out: a greyed command ignores its key, and a key that does nothing says nothing.
+- The commands work with the window closed and say what they did on SketchUp's status line (and in the
+  window when it is open).
+- **Settings > Keyboard Shortcuts** lists every command, its key or keys, a key another command also has
+  ("Ctrl+Alt+B is also given to ..."), and **Open SketchUp Shortcuts** (`UI.show_preferences`, the page
+  named in `UI.preferences_pages`). The list is read again when the window gets the focus back.
+
+### 27.3 The commands
+
+| Menu text | What it does | Which clouds |
+|---|---|---|
+| Open Point Cloud Viewer | opens the window | |
+| Show or Hide Point Clouds | the master switch (the overlay: the View tab's Show, SketchUp's Overlays panel); with every row switched off it shows them all | all |
+| Show or Hide the Active Cloud | that cloud's own switch; showing it turns the master switch on | active |
+| Next Point Cloud | the next cloud in the list becomes active; a tool on the old one ends, and says so | |
+| Zoom to Point Clouds | frames the clouds on show (their clipped parts) | on show |
+| Draw Clip Box | the tool below | on show |
+| Clip Box Around Selection | 27.5 | on show |
+| Edit Clip Box | the push and pull tool (section 10); again to finish; it switches the cloud and the overlay on (the cage is drawn by the overlay) | active |
+| Clip On or Off | when any cloud on show clips, off for all of them; else on for each that has a box; ONE step; the boxes are kept | on show |
+| Colour Mode: RGB, Monochrome, Primary Colour | each cloud's look (no Undo, remembered on this computer), as on the View tab | on show |
+| Fewer Points, More Points | the shared budget one preset down or up: the presets below the points on show, then All | |
+
+"On show" is every cloud whose own Show switch is on, or the active cloud when none is
+(`Na__Clip__TargetSlots`): these commands look at an area of the model, so they act on what is seen.
+The dialog's own switches still act on the active cloud.
+
+### 27.4 Draw Clip Box
+
+Insert Primitives' Drawn Volume, for a clip box (`Na__ClipBox::Na__ClipDrawTool`):
+
+- Press and drag the base rectangle (or click, move, click), then pull the height and click. Every pick
+  lands on the grid, **5 mm** (`clip.draw.gridMm`; 1, 5, 10, 25, 50 or 100 mm on the Clipping tab or the
+  right click menu, per user), along the **model's** red, green and blue axes: a clip box is level in
+  the model (section 10), so rotated drawing axes are not followed.
+- **Ctrl** takes SketchUp's inference exactly where it lands (a vertex, an edge); **Ctrl+Shift** takes it
+  and rounds it onto the grid, with an open square on the grid point and a dotted leader from the vertex.
+  The modifiers are read from every mouse event's flags (Insert Primitives' finding).
+- **The base plane** follows the drag (the axis it moved least along is the normal, and it changes only
+  when another is clearly better), or is locked: **Tab** cycles Auto, Plan, Front, Side; **Up**, **Right**,
+  **Left** lock Plan, Side, Front (the arrow names the normal, as SketchUp's blue, red and green), drawn as
+  a line in that axis's colour; the same arrow again, or **Down**, frees it. On a locked plane the cursor
+  is the pick ray on that plane, and the height is the pick ray against the line through the corner.
+- **Typed sizes** (the Measurements box, the model's units, or with a unit): `2400,3600` in the base,
+  `2700` (or `+300`, `-50`) for the height, `2400,3600,2700` at the first corner makes the box at once; a
+  single value pins the first side still following the mouse; a typed side shows in brackets and stays
+  until **Backspace** frees it (Backspace with nothing pinned steps back a stage). Straight after a box,
+  `W,H,D` changes it from the same corner, for the same clouds, while they still have exactly that box
+  (an Undo ends it, and it says so). Each side at least 13 mm (the clip box's 0.5 inch).
+- **Esc** cancels the box; with none, it leaves the tool. The tool stays on after a box, ready for the
+  next area. A double click never beeps.
+- **The box** goes to every cloud on show (or the active one, shown again) in ONE undoable operation
+  ("Point Cloud: Draw Clip Box (Interior and Exterior)"), clipping on, each cloud leaving the clip scene it
+  showed (the box is a new area). The clouds and the master switch come on: the box is drawn to be seen.
+  Edit Clip Box still edits the active cloud's box only; Copy to Other Clouds keeps two boxes the same.
+- **Drawing:** by the overlay after the cloud picture (as the clip cage), in screen space with no depth
+  test, so a floor or a wall the box sits in never hides it: the rectangle blue, the box amber (Insert
+  Primitives' colours, the box's fill thin enough to read the model through six faces), sizes on the
+  edges and a card naming the clouds it clips. A corner behind a perspective camera falls back to the
+  depth tested draw. While the overlay is off or paused after a fault, `Tool#draw` draws it instead.
+  SketchUp's inference marker is drawn from the overlay too; if `InputPoint#draw` ever refuses there,
+  the tool draws it from then on. The box last drawn shows as a dashed cage while it can be typed over.
+  The tool's points are in the overlay's extents while it draws.
+- The points of a cloud cannot be picked (section 1): start a box on something modelled, a floor or a
+  wall, so it sits at the right height, or use Ctrl on a vertex, or type the sizes.
+
+### 27.5 Clip Box Around Selection
+
+The box round what is selected, through `model.edit_transform` when a group is open, grown by the
+margin (`clip.draw.selectionMarginMm`, 100 mm, per user on the Clipping tab), rounded OUTWARDS onto the
+grid; a flat selection still gets a box at least 13 mm thick. It goes to every cloud on show in one
+operation, as a drawn box does. Undet's "New By Selection" did the same, and Adam had a key on it.
+
+### 27.6 Tests (26-Oct-2026)
+
+- `pcv_scenario_hotkeys.rb` (134 checks), the real modules and engine with two real LAS fixtures: the
+  menu (one submenu, the config's order, separators, summaries), checkmarks before and after loading is
+  over, registering again, a reload that adds a new command once and only after the config is read
+  afresh; every command with no cloud and with two; the keys read back (an old `Plugins/` path, a clash,
+  a line with no tab) and SketchUp's Shortcuts page; Draw Clip Box by drag, by click, typed, relative,
+  typed over and Undo, Ctrl and Ctrl+Shift, Tab, arrows and the right click menu, a 10 mm grid,
+  Backspace, Esc, a base too thin, a double click, drawn by the overlay and by the tool, ONE operation for
+  both clouds, no cloud on show (the other record byte for byte); Clip On or Off; Around Selection
+  (inside an open group, flat, no margin, nothing selected); colours (nothing written); the budget
+  presets; no dashes anywhere; both LAS files unchanged.
+- Every earlier suite passes on the merged tree (with v0.12.0's Follow Tabs): main 197, boxes 84, scenes 96, clean 59, multi 96, legacy 52, follow 60.
+- The Draw a Clip Box card and the Keyboard Shortcuts list in a browser with states the suite dumped, at
+  600 and 480 px.
+- Not yet tried in SketchUp itself: the draw order of the inference marker from an overlay, and the
+  Shortcuts page's name, are the two things only SketchUp can show.
+
+### 27.7 Not built
+
+- Keys given automatically (no API can; SketchUp's own settings are never written) and toolbar buttons
+  for the commands (each needs an icon).
+- Picking points of the cloud (out of scope, section 1); a box at an angle (section 26.10).
+- Next and previous clip scene keys.

@@ -153,6 +153,9 @@ module Na__PointCloudViewer
         # store_problem: a plain sentence when a record could not be read
         # transform_tool : the active Move or Rotate tool (it knows its slot; the
         #                overlay draws its gimbal or protractor after the clouds)
+        # clip_draw_tool : the active Draw Clip Box tool (v0.13.0; bound to no
+        #                cloud: its box goes to every cloud on show). The overlay
+        #                draws its rectangle or box after the clouds
         # persist_snapshot : the model's point cloud records as last written or
         #                read, so an unrelated Undo never rewrites the backup
         # extents      : cached BoundingBox for Overlay#getExtents
@@ -166,7 +169,7 @@ module Na__PointCloudViewer
         #                (this session only; the Update button follows it)
         attr_accessor :model, :settings, :fault, :image_state,
                       :slots, :active_slot_id, :store_index, :store_legacy, :store_readonly, :store_problem,
-                      :transform_tool, :extents, :persist_snapshot, :clean_tab_active,
+                      :transform_tool, :clip_draw_tool, :extents, :persist_snapshot, :clean_tab_active,
                       :scenes, :scenes_loaded, :scenes_meta, :scenes_problem, :scenes_readonly, :scene_active_id
         attr_reader   :empty_bounds
 

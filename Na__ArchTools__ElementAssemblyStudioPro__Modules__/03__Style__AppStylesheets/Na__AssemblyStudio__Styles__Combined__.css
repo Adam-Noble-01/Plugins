@@ -1139,6 +1139,40 @@ body {
 
 
 /* =============================================================================
+   PER CASEMENT SETTINGS (V1.8.0)
+   Built at runtime inside Advanced Casement Controls > Per Casement Settings:
+   one group per casement, its switch, then its five sliders while it is on.
+   ============================================================================= */
+
+.na-casement-override-hint {
+    font-size: var(--na-font-size-sm);
+    color: var(--na-text-muted);
+    line-height: 1.4;
+    padding-bottom: var(--na-spacing-sm);
+}
+
+.na-casement-override {
+    padding: var(--na-spacing-xs) 0;
+    border-top: 1px solid var(--na-border-color);
+}
+
+.na-casement-override-hint + .na-casement-override {
+    border-top: none;
+}
+
+.na-casement-override--active > .na-control-item > .na-toggle-container > .na-control-label {
+    color: var(--na-accent-blue);
+    font-weight: 600;
+}
+
+.na-casement-override__fields {
+    margin: var(--na-spacing-xs) 0 var(--na-spacing-xs) var(--na-spacing-xs);
+    padding-left: var(--na-spacing-sm);
+    border-left: 2px solid var(--na-accent-blue);
+}
+
+
+/* =============================================================================
    SUBSECTION DIVIDER
    ============================================================================= */
 

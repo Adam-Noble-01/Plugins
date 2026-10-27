@@ -15,6 +15,9 @@
                   (data-na-cloud-tag) naming it when there is more than one.
      DATA       : None in the markup. Ruby pushes state as JSON through
                   window.Na__PointCloudViewer__Receive; the tab scripts render it.
+     SHORTCUTS  : Settings lists the keyboard shortcut commands and the keys
+                  SketchUp has given them (v0.13.0); the Clipping tab's Draw a
+                  Clip Box card starts the drawing tool.
      ============================================================================= -->
 
 <head>
@@ -183,6 +186,32 @@
              ====================================================================== -->
         <div id="na-tab-clipping" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="clipping">
             <div class="na-panel-body">
+
+                <!-- Draw Clip Box (v0.13.0): a new box drawn in the model, for
+                     every cloud on show. Rendered by the ClipBox script from
+                     state.clipDraw. -->
+                <section class="na-card" id="na-clip-draw-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Draw a Clip Box</h3>
+                        <kbd class="na-key-chip na-hidden" id="na-clip-draw-key" title="The key SketchUp gives Draw Clip Box (Settings, Keyboard Shortcuts)"></kbd>
+                    </div>
+                    <p class="na-clip-status" id="na-clip-draw-status"></p>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-clip-draw">Draw Clip Box</button>
+                        <button type="button" class="naButtonSecondary" id="na-clip-around-selection" title="Fits the clip box round what is selected in the model, reaching the margin below past it">Around Selection</button>
+                    </div>
+                    <div class="na-snap-row">
+                        <label class="na-snap-row__check" for="na-clip-draw-grid">Corners snap to a grid of</label>
+                        <select class="naInput na-snap-row__input" id="na-clip-draw-grid"></select>
+                        <span class="na-snap-row__unit">mm</span>
+                    </div>
+                    <div class="na-snap-row">
+                        <label class="na-snap-row__check" for="na-clip-margin">Margin round a selection</label>
+                        <input type="text" class="naInput na-snap-row__input" id="na-clip-margin" spellcheck="false">
+                        <span class="na-snap-row__unit">mm</span>
+                    </div>
+                    <p class="na-hint" id="na-clip-draw-hint"></p>
+                </section>
 
                 <section class="na-card">
                     <div class="na-card__header">
@@ -474,12 +503,19 @@
 
                 <section class="na-card">
                     <div class="na-card__header">
-                        <h3 class="na-card__title">Point Cloud Scenes</h3>
-                        <span class="na-card__value" id="na-pcs-count"></span>
+                        <div class="na-card__title-group">
+                            <h3 class="na-card__title">Point Cloud Scenes</h3>
+                            <span class="na-card__count" id="na-pcs-count"></span>
+                        </div>
+                        <label class="na-toggle" title="On: pressing a scene tab in SketchUp does what Go To Scene does. Off: only Go To Scene changes the point clouds">
+                            <input type="checkbox" id="na-pcs-follow">
+                            <span class="na-toggle__track"></span>
+                            <span class="na-toggle__label">Follow Tabs</span>
+                        </label>
                     </div>
                     <p class="na-note na-hidden" id="na-pcs-problem"></p>
                     <div class="na-pcs-list" id="na-pcs-list"></div>
-                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene, and every point cloud takes back whether it is shown, its size, opacity, colour and clip box, with the point budget. A cloud added after the scene was saved stays hidden there until you update the scene. Drag a scene by its grip to reorder the list.</p>
+                    <p class="na-hint">Press a scene to go to it: SketchUp shows that scene, and every point cloud takes back whether it is shown, its size, opacity, colour and clip box, with the point budget. With Follow Tabs on, pressing the scene's own tab in SketchUp does the same; a SketchUp scene with no settings here leaves the clouds as they are. A cloud added after the scene was saved stays hidden there until you update the scene. Drag a scene by its grip to reorder the list.</p>
                 </section>
 
                 <section class="na-card">
@@ -494,7 +530,7 @@
 
                 <section class="na-card na-card--quiet">
                     <h3 class="na-card__title">How Scenes Are Kept Safe</h3>
-                    <p class="na-hint na-hint--top">These settings live in the viewer's own record in this model. SketchUp's scenes are never changed: the viewer finds each one by the permanent id SketchUp gives it, so renaming, reordering or updating a scene never breaks anything. If a scene is deleted, its settings show as Missing until you relink or remove them.</p>
+                    <p class="na-hint na-hint--top">These settings live in the viewer's own record in this model. SketchUp's scenes are never changed: the viewer finds each one by the permanent id SketchUp gives it, so renaming, reordering or updating a scene never breaks anything. If a scene is deleted, its settings show as Missing until you relink or remove them. Following the tabs only notices which scene SketchUp has just shown: it never selects or changes a scene, and a clip box it changes is one step you can undo.</p>
                 </section>
 
             </div>
@@ -506,6 +542,18 @@
              ====================================================================== -->
         <div id="na-tab-settings" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="settings">
             <div class="na-settings-body">
+
+                <!-- Keyboard shortcuts (v0.13.0). Rendered by the Hotkeys
+                     script from state.hotkeys. -->
+                <section class="na-settings-section" id="na-hotkeys-section">
+                    <h3 class="na-settings-heading">Keyboard Shortcuts</h3>
+                    <p class="na-settings-description">Each command below is a SketchUp command in Extensions &gt; Na__PointCloudViewer, so you can give it any key, and it works with this window closed. Press Open SketchUp Shortcuts, type Na__PointCloudViewer in Filter, choose a command, click in Add Shortcut, press the keys, press the plus button, then OK.</p>
+                    <div class="na-settings-button-row">
+                        <button type="button" class="na-btn na-btn-primary" id="na-hotkeys-open">Open SketchUp Shortcuts</button>
+                    </div>
+                    <div class="na-hotkey-list" id="na-hotkey-list"></div>
+                    <p class="na-settings-info-line" id="na-hotkeys-note"></p>
+                </section>
 
                 <section class="na-settings-section">
                     <h3 class="na-settings-heading">Plugin Maintenance</h3>
@@ -602,7 +650,8 @@
        2. MainShell   - receive dispatcher, status bar, loading overlay
           DragReorder - drag a row by its grip (clouds, clip scenes, point cloud scenes)
        3. CloudSet    - the cloud bar, the Point Clouds list, the cloud tags
-       4. Tab logic   - View, LAS import, Clipping, Transform, model link, Settings
+       4. Tab logic   - View, LAS import, Clipping, Transform, model link, Settings,
+                        Keyboard Shortcuts
        5. TabRouter   - last: activates the remembered tab on first state
      ========================================================================== -->
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__UiSystem__BridgeBase__.js"></script>
@@ -617,6 +666,7 @@
 <script src="02__Src__AppModules/80__System__Clean/Na__PointCloudViewer__Clean__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/90__System__Scenes/Na__PointCloudViewer__Scenes__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/35__System__SettingsMode/Na__PointCloudViewer__SettingsTab__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/15__System__Hotkeys/Na__PointCloudViewer__Hotkeys__UiSystem__MainUiLogic__.js"></script>
 <script src="02__Src__AppModules/01__AppCore/Na__PointCloudViewer__AppCore__TabRouter__.js"></script>
 <!-- endregion ============================================================== -->
 

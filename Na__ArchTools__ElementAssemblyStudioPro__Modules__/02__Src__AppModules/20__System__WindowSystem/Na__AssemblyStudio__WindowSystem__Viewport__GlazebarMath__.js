@@ -48,6 +48,15 @@
        ordered from `start` upward; degenerate segments are clamped to
        size 0 so callers can skip them.
 
+   - na_computeLeadLinePositions(cells, count)
+       Evenly divides every cell from na_computeCellBounds into count + 1
+       panes and returns all the lead centrelines as one ascending list.
+
+   - na_filterPositionsInside(positions, start, size, margin)
+       Keeps the positions that sit more than `margin` inside one span.
+       Together these lay the "Align Lead Lines Across Casements" grid out
+       on a reference pane and cut it to each real glazing cell (V1.8.0).
+
    ============================================================================= */
 
 const Na__GlazebarMath = (function () {
@@ -271,6 +280,41 @@ const Na__GlazebarMath = (function () {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Lead centrelines laid out across a set of glazing cells
+    // ---------------------------------------------------------------
+    // `cells` comes from na_computeCellBounds. Each cell with a positive
+    // size is divided into count + 1 equal panes, exactly as a single cell
+    // is in the per-casement layout. Ruby mirror:
+    // LeadedGlassBuilder.na_compute_lead_line_positions.
+    function na_computeLeadLinePositions(cells, count) {
+        const positions = [];
+        if (!Array.isArray(cells) || !count || count <= 0) return positions;
+        cells.forEach(function (cell) {
+            if (!cell || !(cell.size > 0)) return;
+            na_computeBarPositions(cell.start, cell.size, count, false, 0).forEach(function (position) {
+                positions.push(position);
+            });
+        });
+        return positions;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Keep the positions that sit clearly inside one span
+    // ---------------------------------------------------------------
+    // A lead whose centreline lands within `margin` of the span's edge
+    // would run into a rail, a stile or a glaze bar, so it is dropped
+    // rather than drawn half hidden. Ruby mirror:
+    // LeadedGlassBuilder.na_positions_inside.
+    function na_filterPositionsInside(positions, start, size, margin) {
+        if (!Array.isArray(positions)) return [];
+        const low  = start + margin;
+        const high = start + size - margin;
+        return positions.filter(function (position) {
+            return position > low && position < high;
+        });
+    }
+    // ---------------------------------------------------------------
+
     return {
         na_computeBarPositions             : na_computeBarPositions,
         na_computeArchAlignedBarPositions  : na_computeArchAlignedBarPositions,
@@ -280,7 +324,9 @@ const Na__GlazebarMath = (function () {
         na_gothicTessellationSegmentCount  : na_gothicTessellationSegmentCount,
         na_applyBarOffsets                 : na_applyBarOffsets,
         na_collectBarOffsets               : na_collectBarOffsets,
-        na_computeCellBounds               : na_computeCellBounds
+        na_computeCellBounds               : na_computeCellBounds,
+        na_computeLeadLinePositions        : na_computeLeadLinePositions,
+        na_filterPositionsInside           : na_filterPositionsInside
     };
 })();
 

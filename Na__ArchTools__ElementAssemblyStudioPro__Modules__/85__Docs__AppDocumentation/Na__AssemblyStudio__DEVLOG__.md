@@ -3,6 +3,231 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V1.9.1 - 26-Oct-2026 - Gothic Arch Windows Export to DXF, and Measure Opening Keeps Glaze Bar Offsets
+
+### Context
+Two bugs found while testing V1.8.0. Both predate it, and both were still in V1.9.0.
+
+### Gothic Arch Windows Export to DXF
+Export DXF on any window with Gothic arch glaze bars failed with "Failed to generate DXF content". The Ruby exporter's `na_dxf_polygon` is shared by two callers that disagreed about the shape of a point. The sliding sash horns pass elevation points as `{ x:, z: }`, which is what it reads. The arch tracery passed `[x, y]` pairs straight out of its Sutherland-Hodgman clipper, so reading `point[:x]` off an Array raised "no implicit conversion of Symbol into Integer", and `na_generate_dxf` rescued it and returned nothing.
+
+The commit order says it never worked: the shared polygon helper moved to hash points for the sash horns on 22-May (7271e1f), and the arch export arrived on 27-May (795fd2b).
+
+`na_emit_arc_ring_polyline_dxf` now hands its clipped pairs over as `{ x:, z: }`. The polygon helper's contract and the sash horns are untouched. The browser fallback (`UiSystem__Export__Dxf__.js`) was never affected: it uses `{ x, y }` objects end to end.
+
+Checked offline through the shipped Ruby exporter: the arched reference window (three lights, two 300mm arches each) now exports, and its 510 arch segments are the same segments, to 0.01mm, as the JS exporter draws for the same window.
+
+### Measure Opening Keeps Glaze Bar Offsets
+A measured opening reaches the dialog as just its width and height (`window.na_receiveMeasurement` calls `na_setConfig({ width_mm, height_mm })`). `na_setConfig` ran the pre-V1.9.5 Glaze Bar Offsets hydration on whatever it was given. That hydration turns the toggle on only for a window that holds nudges but no toggle key, so a two-key update, holding neither, read as an old window with no nudges: every Measure Opening switched Glaze Bar Offsets off. The nudges survived, ignored, until the toggle was turned back on.
+
+V1.8.0 gave `na_setConfig` a `{ fullConfig: true }` option for whole configurations (a selected window, an applied preset). Hydration now runs only for those. A measured opening changes width and height and nothing else, and selecting an older window still derives the toggle from its nudges exactly as before.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DxfExporter__.rb`: `na_emit_arc_ring_polyline_dxf`.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`: `na_setConfig` hydrates whole configurations only.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__MeasureOpening__Spec__.js` **(new)**: 16 assertions through the real `window.na_receiveMeasurement` and `window.na_setInitialConfig`.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 1.9.1.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__MeasureOpening__Spec__.js"
+```
+Expect `16 passed, 0 failed`. Against V1.9.0 it fails two: the toggle, and "only width and height change". The other seven suites are unchanged: ArithmeticEvaluator `108`, ComponentName `32`, DoorTypeSwitch `71`, ExteriorDoorParity `109`, MullionMath `76`, CasementOverrides `82`, WindowBoard `79`.
+
+Then in SketchUp, after Reload Plugin:
+1. Glaze Bars: Vertical Bars `1`. Advanced Glazebar Controls: Glaze Bar Gothic Arch Decoration on. Export DXF: the file saves and opens with the arches drawn on the glaze bar layer.
+2. Horizontal Bars `2`. Advanced Glazebar Controls: Glaze Bar Offsets on, Horizontal Bar 1 Offset `40`. Measure Opening on a wall opening: width and height take the measurement, Glaze Bar Offsets stays on and the bar stays where it was nudged.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.9.0 - 26-Oct-2026 - Window Boards
+
+### Context
+A window drawn with this tool stopped at the back of its frame. The internal window board, the timber shelf that runs from the back of the frame across the reveal and finishes in a nosing proud of the wall, had to be traced on afterwards with the Profile Path Tracer, from the Vale window board in its library (PRF90021, a 30mm board with a moulded nose). Traced by hand it was drawn at that profile's 190mm depth whatever the reveal, did not follow the window when the window changed, and stopped dead at the reveal where a joiner would return the nosing round the end.
+
+### Feature Summary
+- **Include Window Board**, a new toggle in OPTIONS under Include Cill. Off by default. Windows only: it is hidden for every exterior door type.
+- Switching it on opens a new **WINDOW BOARD** section under OPTIONS:
+  - **Reveal Depth**, default 250mm: the back of the frame to the wall face, across the reveal.
+  - **Nosing Overhang**, default 30mm: added on beyond the reveal, wall face to the tip of the nose.
+  - **Nosing Type**: Stepped Bullnose (the Vale board), Bullnose or Square Edge.
+  - **Nosing Projection Past Reveal**, on by default: the nosing runs one board thickness (30mm) past each side of the opening and returns back to the wall, mitred at the two front corners, so the board does not end flat. Off, the board ends square in line with the reveal.
+- **Edges are Medium Dark Grey** (`MTE103__LineColour__MediumDarkGrey__L50` from the DataLib SSOT). Edge Colours has a new **Window Board** row.
+- **Faces take the Frame Finish**, like the frame.
+- **The 2D preview** draws the board as a dashed outline under the frame (it is inside the room, behind the wall face in this view), reaching past both sides when the nosing is returned.
+- Built by Create, Update and Live Mode, and saved with the window and with presets like every other setting. The DXF exports are unchanged: they are elevations of the frame and do not include the board.
+
+### Where the Board Sits
+- Its top face is flush with the underside of the frame. With a cill that is the top of the cill, and the board butts the back of the cill. Without one the board hangs below the window origin, as it would on the inner leaf.
+- It starts at the back of the frame (Frame Wall Inset plus Frame Depth) and spans the reveal, X 0 to the window width. The returns reach 30mm past both sides.
+- It is one solid group, `Na_WindowBoard`, in the window component. Fuse Parts leaves it alone: it is already one piece.
+
+### The Three Nosings
+The board profiles are now Assembly Studio assets in a new bucket, `04__Data__AssetLibrary/Windows__WindowBoards__/` (AppConfig `assetLibrary.window.windowBoards`), in the unified asset contract: `meta`, `Na__Asset__Metadata` (Has2dProfile), a `Na__WindowBoard__Parameters` block, and a Profile Path Tracer style `Na__Asset__Profile2D`: vertices, edges in Medium Dark Grey, the outer loop, and the nose arc recorded with its centre and radius.
+
+| File | Nose |
+|---|---|
+| `Na__Window__WindowBoard__Type-01__SteppedBullnose__t30mm__.json` | PRF90021's own nose, point for point: a 25mm half round on the lower edge and a 5mm square step up to the top face. |
+| `Na__Window__WindowBoard__Type-02__Bullnose__t30mm__.json` | A full half round over the whole 30mm, radius 15mm. No step. |
+| `Na__Window__WindowBoard__Type-03__SquareEdge__t30mm__.json` | A plain square edge. |
+
+Each is drawn as the full board section at the standard 250mm reveal and 30mm overhang, with its origin at PRF90021's insertion point: the underside of the board on the wall face line. More nosings can be added as `Type-04` and up; the builder finds each type by its `Type-NN__` prefix and the Nosing Type list needs the matching option.
+
+### How the Board Follows the Window
+- The builder splits the profile at the insertion point. Everything behind it is the reveal section, rebuilt at the Reveal Depth. Everything in front of it is the nose, which keeps its exact shape and slides out or in with the Nosing Overhang.
+- The overhang can never be shallower than the nose. The builder holds it at the nose depth plus 1mm (13.5mm for the stepped bullnose, 16mm for the bullnose, 1mm square), and the slider starts at 20mm. At the bare nose depth the nose would start on the wall face line and the returns would fold to nothing there.
+- With the nosing returned, the board is the reveal section plus the nosing traced round three sides (left end, front, right end) of a strip the reveal width plus a board thickness each side, mitred at the front corners and joined to the reveal section as one solid. Every face is laid out by `Na__WindowBoardBuilder.na_returned_board_faces`, which is pure geometry and testable outside SketchUp, then added to one group facing outward. The top face and the underside are each one face, with no joint or mitre seams on them.
+- Follow Me round the U plus an outer_shell join was tried first. Inside a window definition, in a scratch SketchUp, it deleted its own container group on the first build. The direct build needs no Solid Tools, has no seams on the flat faces, and builds in 1 to 6ms.
+- Square ends: the whole section is one extrusion across the reveal, as the sash horns are.
+
+### Nothing Built Before This Moves
+- Off by default, and an absent `window_board_enabled` reads as off in Ruby, so every saved window rebuilds exactly as it was.
+- A selected window is loaded as a whole configuration (V1.8.0's `fullConfig`), and `na_hydrateFullWindowConfig` now switches `window_board_enabled` off when a window saved before V1.9.0 does not hold it. Otherwise a window selected after one with a board would show the board on, and the next Update or Live Mode rebuild would add one to it. Presets start from the defaults, which now include the WINDOW BOARD section.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__.rb` **(new)**: loads the nosing assets, splits each profile at the insertion point, lays out and builds the board.
+- `04__Data__AssetLibrary/Windows__WindowBoards__/` **(new)**: the three nosing assets.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`: parses the window board keys and builds the board after the cill, before the cill lift.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb`: Reveal Depth and Nosing Overhang constants, the five window board keys and the edge colour key.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__EdgeColourPainter__.rb`: the `window_board` part (`Na_WindowBoard` groups, Medium Dark Grey by default).
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb` and `...__Init__.rb`: `na_requestWindowBoardAssets` pushes the nosing assets to the dialog.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`: the toggle, `NA_WINDOW_BOARD_CONFIG` and the Edge Colours row.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`: builds the section, shows it only while the toggle is on in window mode, hides the toggle for doors, and hydrates `window_board_enabled` on a full configuration.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Bridge__.js`: receives the nosing assets. The sash horn and window board requests share one retry helper and one store helper.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`: the dashed board outline.
+- `50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__Bridge__.js`: preset defaults include the WINDOW BOARD section.
+- `Na__AssemblyStudio__UiLayout__.html`: the WINDOW BOARD section.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 1.9.0, the asset bucket and the window board defaults.
+- `04__Data__AssetLibrary/Na__AssemblyStudio__AssetIndex__.json`: the bucket.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__WindowBoard__Spec__.js` **(new)**.
+
+### How to Test
+1. Reload Plugin. Windows tab: OPTIONS has Include Window Board, off.
+2. Switch it on. WINDOW BOARD opens with 250, 30, Stepped Bullnose, and Nosing Projection Past Reveal on. The preview shows the dashed board under the frame, 30mm past each side.
+3. Create at Cursor. In the component, `Na_WindowBoard` is a solid group, its top flush with the frame underside, 250mm deep plus the 30mm nosing, the nose returned round both ends to the wall face, edges Medium Dark Grey.
+4. Nosing Type Bullnose, then Square Edge, each with Update Window: the nose changes and the returns follow.
+5. Nosing Projection Past Reveal off, Update: the board ends square in line with the reveal.
+6. Live Mode, drag Reveal Depth and Nosing Overhang: the board follows.
+7. Include Cill off: the board drops with the frame, still flush with its underside.
+8. Select a window made before this version: Include Window Board shows off and the section stays shut. Update it: no board is added.
+9. Exterior Doors: the toggle and the section are hidden.
+
+### Testing
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__WindowBoard__Spec__.js"
+```
+Loads the shipped configs, MainUiLogic, Bridge and SVG generator against a DOM stub that records visibility. Covers the defaults and their parity with the Ruby defaults, the section and toggle in every product mode, a saved window with a board, a pre-V1.9.0 window (board off, whatever was shown before), a measured opening leaving the board alone, the preview outline with and without returns and its thickness read off the profile, and the three assets (type ids, thickness, clockwise loop, Medium Dark Grey edges, Type 01 identical to PRF90021's nose when the Profile Path Tracer sits beside this plugin). Expect `79 passed, 0 failed`. With the full-configuration hydration removed, 2 of the 79 fail.
+
+The other suites are unchanged: CasementOverrides `82`, DoorTypeSwitch `71`, ExteriorDoorParity `109`, ArithmeticEvaluator `108`, ComponentName `32`, MullionMath `76`.
+
+The returned board's face layout was proved in SketchUp's own Ruby, outside SketchUp: closed, every face flat, every edge used once in each direction, and the enclosed volume equal to the hand calculation, for nine boards (each nosing at 900 x 250 x 30, stretched, at and below the minimum overhang, and a 2400 x 600 x 100 board). In a scratch SketchUp 2026.2, thirteen boards built as manifold solids with no open edges, one top face and one underside each, volumes exactly as calculated (7,482,910.7mm3 for the default stepped bullnose). Full windows built through this GeometryEngine (casement with cill; no cill with square ends; sliding sash with a 400mm reveal and 45mm bullnose; board off) put the top of the board at the frame underside and its back at the back of the frame.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V1.8.0 - 26-Oct-2026 - Per Casement Settings, and Lead Lines That Run Straight Through
+
+### Context
+Every casement in a window shared one set of stiles and rails and one Casement Frame Inset. Real windows often do not. The cottage window that prompted this release has a heavier centre casement that sits proud of its neighbours: wider stiles, deeper rails, its glass set lower and shorter than the glass either side. Its leaded lights still run straight across all three lights, every horizontal came level from left to right.
+
+The tool could draw neither half. There was no way to size one casement on its own, and if there had been, the lead would have broken: each pane divided its own glass evenly, so a casement with deeper rails re-spaced its lead and nothing lined up any more.
+
+### Feature Summary
+- **Per Casement Settings**, a new dropdown inside Advanced Casement Controls, under Casements Per Opening: a dropdown within the dropdown.
+- **One switch per casement**, named by number and position: `Casement 1 (Left Light)`, `Casement 2 (Centre Light)`, `Casement 4 (Left Light, Top)`, `Casement 7 (Right Light, Leaf 2)`. Numbered in reading order, top row first, then left to right.
+- **Switch a casement on and its five sliders appear**: Left Stile, Right Stile, Top Rail, Bottom Rail and Casement Frame Inset, with the same ranges as the window-wide controls. They start at the window-wide values, so switching on changes nothing until a slider moves.
+- **Switching off puts the casement back on the window-wide settings and keeps its own values.** Switch it on again and they return, the same way hidden mullion offsets survive their toggle.
+- **The preview numbers the casements while the dropdown is open**: a disc in the middle of each casement's glass, filled for a casement on its own settings, outlined for one on the window-wide settings.
+- **Casement Frame Inset per casement.** Negative brings that one casement proud of the frame, which is the centre casement in the photo. Its glass, glaze bars and lead move with it, as they always have with the window-wide inset.
+- **Leaded Glass > Align Lead Lines Across Casements**, on for new windows. See below.
+- **Validation names the casement**: one whose own stiles or rails leave less than 50mm of glass is refused as "Casement 2 (Centre Light) is too narrow for its own stiles" (or "too short for its own rails").
+- **Everywhere**: the 2D preview, the SketchUp solid, the Ruby DXF exporter and the JS DXF fallback.
+
+### How Aligned Lead Works
+The lead lines of every pane are laid out on a **reference glass**: the glass a casement built to the window-wide settings would have in that panel, with that glass's own glaze bar cells, each divided evenly exactly as before. Each real glazing cell then draws the lines that land inside it.
+
+- A casement on the window-wide settings **is** its reference, so it draws exactly the lines it always did.
+- A casement with deeper rails hides the lines behind them: its top and bottom panes come out shorter and every line stays level with its neighbours. The same N lines, at the same heights, in every casement of the row.
+- A light whose casement was clicked off in the preview (glass straight into the frame) lines up the same way, with taller end panes where the casement rails would have been.
+- Vertical lines follow the reference of their own light, so a top light and the casement below it keep their verticals in line too.
+- A line closer to a rail, stile or glaze bar than half the lead width is dropped rather than built half buried.
+- Glaze bars are unchanged: they still divide each casement's own glass.
+
+Off, every pane divides its own glass, which is the V1.7.2 behaviour.
+
+### Nothing Built Before This Moves
+- No saved window has an override, and an absent `casement_overrides` reads as none.
+- Alignment can only differ from the old layout in a pane whose glass is not the reference glass: a casement on its own settings (new) or a light whose casement was clicked off (old). For that second case a window or preset saved before V1.8.0 has no `leaded_global_alignment` key and loads as **Off**, building the lead it was built with. New windows start On.
+- The dialog merges a loaded window over its live settings, so a key an older window does not hold used to keep whatever the dialog last showed. A selected window or an applied preset is now loaded as a whole configuration (`na_setConfig(config, { fullConfig: true })`): an older one starts with no overrides and with alignment off instead of inheriting the last window's casement sizes. A partial update, such as a measured opening, still only touches its own keys.
+- A stand-in harness builds fourteen legacy and alignment-on configurations (casement, transoms with two casements per light, sliding sash, Show Casements off, mullion offsets, Gothic arch, centre-line lead) through the shipped Ruby GeometryEngine and DxfExporter, once at git HEAD and once at V1.8.0. Every one is identical, group for group and DXF line for line, except that the two Gothic arch DXFs fail at both (see Found While Testing).
+
+### Where Overrides Do Not Apply
+- **Sliding sash windows.** One casement key covers both sashes of a panel, and the meeting rail rules already set their rails. The dropdown and the alignment toggle are hidden, and Ruby ignores any stored override.
+- **Exterior doors.** They have no casements; both are hidden.
+- **Show Casements off.** Nothing to override; the dropdown is hidden.
+
+### One Store, Keyed Like the Removal Set
+`casement_overrides` is keyed by the casement key `removed_casements` already uses, `"opening:cell:panel"`:
+
+```
+"casement_overrides": {
+    "1:0:0": { "enabled": true, "left_stile_mm": 70, "right_stile_mm": 70,
+               "top_rail_mm": 100, "bottom_rail_mm": 90, "inset_mm": -20 }
+}
+```
+
+The keys are positional, like the removal set and the mullion offsets: an override on the centre light of three becomes the right light's if a mullion is taken away. Values for casements that no longer exist are kept, so putting the mullion back restores them.
+
+The per-casement controls are not flat config keys. They are built at runtime (`casement_override__<o>_<c>_<p>__<field>`) and every change is routed into the store. The dropdown is rebuilt only when the casement list or a casement's switch changes, never while one of its sliders is being dragged.
+
+### Files Changed
+- `20__System__WindowSystem/`
+  - `...__Viewport__CasementMath__.js` **(new)**: `window.Na__CasementMath`. Window-wide sizes, override resolution, which products take overrides, and the numbered, named casement list.
+  - `...__UiSystem__Config__.js`: Per Casement Settings dropdown, `NA_CASEMENT_OVERRIDE_FIELDS`, `na_buildCasementOverrideDescriptors`, Align Lead Lines Across Casements.
+  - `...__UiSystem__MainUiLogic__.js`: builds and routes the per-casement groups (`na_syncCasementOverrideControls`), `na_hydrateFullWindowConfig`, the `fullConfig` option on `na_setConfig`, alignment toggle visibility.
+  - `...__UiSystem__Bridge__.js`: a selected window loads as a whole configuration.
+  - `...__Viewport__SvgGenerator__.js`: per-casement sizes, the reference glass, aligned lead, casement numbers.
+  - `...__Viewport__GlazebarMath__.js`: `na_computeLeadLinePositions`, `na_filterPositionsInside`.
+  - `...__UiSystem__Export__Dxf__.js`: per-casement sizes.
+  - `...__GeometryEngine__.rb`: `na_parse_casement_overrides`, `na_resolve_panel_casement_sizes`, `na_resolve_lead_reference_glass`, `na_build_lead_reference_grid`.
+  - `...__LeadedGlassBuilder__.rb`: the aligned layout (`grid[:reference]`) and its two helpers.
+  - `...__DxfExporter__.rb`: `na_resolve_casement_sizes_dxf`.
+  - `...__Defaults__.rb`: `casement_individual_controls`, `casement_overrides`, `leaded_global_alignment`.
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Validation__.js`: per-casement checks.
+- `50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__Bridge__.js`: presets load as whole configurations; one saved before V1.8.0 keeps pane-by-pane lead.
+- `50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__SvgCapture__.js`: preset thumbnails leave the casement numbers out, as they do the dimensions.
+- `03__Style__AppStylesheets/Na__AssemblyStudio__Styles__Combined__.css`: per-casement group styling.
+- `Na__AssemblyStudio__UiLayout__.html`: CasementMath script tag, ahead of the viewport engine because Validation reads it.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__CasementOverrides__Spec__.js` **(new)**: 82 assertions.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (version 1.8.0), RewireMap load order.
+
+### How to Test
+Automated first, needs only Node:
+
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__CasementOverrides__Spec__.js"
+```
+
+Expect `82 passed, 0 failed`. The other suites are unchanged: ArithmeticEvaluator `108`, ComponentName `32`, DoorTypeSwitch `71`, ExteriorDoorParity `109`, MullionMath `76`.
+
+Then in SketchUp, after Reload Plugin:
+1. Windows tab. Width `1800`, Height `1200`, Mullions `2`. Leaded Glass on, `6` horizontal and `3` vertical lead lines.
+2. Advanced Casement Controls > Per Casement Settings. Three switches; the preview numbers the casements 1, 2, 3.
+3. Switch on Casement 2 (Centre Light). Its disc fills; five sliders show the window-wide values; nothing moves.
+4. Left Stile `70`, Right Stile `70`, Top Rail `100`, Bottom Rail `90`, Casement Frame Inset `-20`. The centre casement thickens and its lead stays level with the lights either side.
+5. Leaded Glass > Align Lead Lines Across Casements off. The centre lead re-spaces inside its own glass and stops lining up. Back on.
+6. Create the window and orbit to a side view. The centre casement sits 20mm proud of the frame face, its glass and lead with it.
+7. Export DXF. The centre casement's stiles and rails are drawn at their own sizes.
+8. Switch Casement 2 off: it goes back to the window-wide sizes. On again: its own sizes return.
+9. Select a window built before this release. Every casement is switched off and Align Lead Lines is off.
+10. Click the centre casement off in the preview (a fixed light). With alignment on, its lead lines up with the casements beside it.
+
+### Found While Testing (both fixed in V1.9.1)
+Both are present at V1.7.2 and were left alone in this release.
+- **Gothic arch DXF.** Export DXF of a window with Gothic arch glaze bars fails in the Ruby exporter ("Failed to generate DXF content"): `na_emit_arc_ring_polyline_dxf` builds `[x, y]` arrays and hands them to `na_dxf_polygon`, which reads `point[:x]` / `point[:z]`.
+- **Measure Opening switches Glaze Bar Offsets off.** `window.na_receiveMeasurement` calls `na_setConfig({ width_mm, height_mm })`, and `na_hydrateGlazebarOffsetsEnabled` treats that partial update as a pre-V1.9.5 window with no nudges, so it sets `glazebar_offsets_enabled` to false. The nudges are kept but ignored until the toggle is turned back on.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.7.2 - 21-Oct-2026 - Door Type Switch Keeps Your Settings
 
 ### Context

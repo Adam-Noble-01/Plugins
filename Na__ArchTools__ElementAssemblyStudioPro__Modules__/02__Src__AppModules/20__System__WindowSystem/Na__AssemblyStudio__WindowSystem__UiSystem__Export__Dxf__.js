@@ -276,9 +276,15 @@ const Na__Export__Dxf = (function() {
                                 advancedGlazebar
                             );
                         } else {
+                            // Per Casement Settings (V1.8.0) - this casement's own
+                            // rails and stiles when it has some switched on.
+                            const sizes = na_resolveCasementSizesForDxf(
+                                config, i, cellIndex, p,
+                                { top_rail_mm: casTopRail, bottom_rail_mm: casBottomRail, left_stile_mm: casLeftStile, right_stile_mm: casRightStile }
+                            );
                             dxf += na_generateCasementDxf(
                                 panelX, cell.y, panelWidth, cell.height,
-                                casTopRail, casBottomRail, casLeftStile, casRightStile,
+                                sizes.top_rail_mm, sizes.bottom_rail_mm, sizes.left_stile_mm, sizes.right_stile_mm,
                                 hBars, vBars, barWidth,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p, sashIndex: 0 },
                                 removedGlazebars,
@@ -305,6 +311,22 @@ const Na__Export__Dxf = (function() {
 
         dxf += '0\nENDSEC\n0\nEOF\n';
         return dxf;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Resolve One Casement's Rails and Stiles (V1.8.0)
+    // ------------------------------------------------------------
+    // The window-wide sizes with any Per Casement Settings laid over them,
+    // via the shared Na__CasementMath. Without that module the shared sizes
+    // stand, which is exactly what this exporter drew before V1.8.0.
+    function na_resolveCasementSizesForDxf(config, openingIndex, cellIndex, panelIndex, globalSizes) {
+        const casementMath = window.Na__CasementMath;
+        if (!casementMath || !casementMath.na_supportsCasementOverrides(config)) return globalSizes;
+        return casementMath.na_applyCasementOverride(
+            globalSizes,
+            config.casement_overrides,
+            casementMath.na_getCasementKey(openingIndex, cellIndex, panelIndex)
+        );
     }
     // ---------------------------------------------------------------
 

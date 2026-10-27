@@ -18,7 +18,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.3",
+        "version": "1.0.4",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -190,6 +190,39 @@
             "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
             "api": ["Sketchup::Model#find_entity_by_persistent_id", "Sketchup::Entity#persistent_id", "Sketchup::Model#active_path", "Sketchup::Entity#attribute_dictionary", "Sketchup::Face#area", "Sketchup::Edge#length"],
             "description": "Find entities and get their ids. Searches one context (default: the active context; parent_id 0 = model root; or inside a group/component), optionally recursive into nested groups, or the current selection. Filters combine (AND): types, name_contains (instance or definition name), definition_name, tag, material ('none' = default material), attribute {dictionary, key?, value?}, visibility. Paged with limit/offset; 'total' counts every match and next_offset is null on the last page. Each result has world-space bounds in the call's units; nested results carry 'path' (ids from the root). Use entity_get for full detail on a few ids.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent_id": {"$use": "parent_id", "description": "Where to look. Omit = active context. 0 = model root. Else a group/component id (searches inside it)."},
+                    "path": {"$use": "path"},
+                    "recursive": {"type": "boolean", "description": "Also search inside nested groups/components (default false)."},
+                    "max_depth": {"type": "integer", "minimum": 0, "maximum": 64, "description": "Nesting depth when recursive (default 8)."},
+                    "types": {"type": "array", "items": {"type": "string", "enum": ["Face", "Edge", "Group", "ComponentInstance", "Instance", "Image", "Text", "Dimension", "DimensionLinear", "DimensionRadial", "ConstructionLine", "ConstructionPoint", "SectionPlane"]}, "description": "Entity types to include (Instance = Group + ComponentInstance)."},
+                    "name_contains": {"type": "string", "description": "Case-insensitive substring of the instance or definition name."},
+                    "definition_name": {"type": "string", "description": "Exact component definition name."},
+                    "tag": {"type": "string", "description": "Exact tag name (\"Untagged\" for none)."},
+                    "material": {"type": "string", "description": "Exact material name, or \"none\"."},
+                    "attribute": {"type": "object", "description": "Has attribute: {\"dictionary\": \"...\", \"key\": \"...\" (optional), \"value\": ... (optional)}.", "properties": {"dictionary": {"type": "string"}, "key": {"type": "string"}, "value": {}}, "required": ["dictionary"]},
+                    "visibility": {"type": "string", "enum": ["all", "visible", "hidden"], "description": "Hidden-state filter (default all)."},
+                    "selection_only": {"type": "boolean", "description": "Search the current selection instead of a context."},
+                    "limit": {"$use": "limit"},
+                    "offset": {"$use": "offset"},
+                    "response_format": {"$use": "response_format"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "list_entities",
+            "title": "List Entities",
+            "runs_on": "bridge",
+            "handler_key": "list_entities",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#find_entity_by_persistent_id", "Sketchup::Entity#persistent_id", "Sketchup::Model#active_path", "Sketchup::Entity#attribute_dictionary", "Sketchup::Face#area", "Sketchup::Edge#length"],
+            "description": "List and filter entities in a context (alias for entity_query). Searches the active context by default (parent_id 0 = model root; or inside a group/component), optionally recursive into nested groups, or the current selection. Filters combine (AND): types, name_contains, definition_name, tag, material ('none' = default material), attribute {dictionary, key?, value?}, visibility. Paged with limit/offset; each result has world-space bounds in the call's units.",
             "input_schema": {
                 "type": "object",
                 "properties": {

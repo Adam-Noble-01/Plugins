@@ -17,6 +17,11 @@
 #   Copy to Other Clouds gives every other cloud the same box in one undoable
 #   step (one slice through two scans while they are aligned).
 #
+# THE CLOUDS ON SHOW (v0.13.0): Draw Clip Box, Clip Box Around Selection and
+#   the Clip On or Off shortcut look at an AREA of the model, so they act on
+#   every cloud on show together (or the active cloud when none is shown), in
+#   ONE undoable step. The dialog's own switches still act on the active cloud.
+#
 # WHERE IT LIVES: the cloud's own record in the model (Na__CloudStore: 'clip',
 #   'clipScenes', 'activeClipScene'), a few hundred bytes, so the clip box and
 #   its scenes travel with the .skp to any computer. Each committed change is
@@ -226,6 +231,103 @@ module Na__PointCloudViewer
                 return problem
             end
             nil
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | Boxes For The Clouds On Show (v0.13.0)
+    # -------------------------------------------------------------------------
+
+        # The clouds a drawn box, a box around the selection and the Clip On or
+        # Off shortcut act on: every cloud on show (its own Show switch on), or
+        # the active cloud when none is.
+        def self.Na__Clip__TargetSlots(session)
+            slots = Na__CloudSet.Na__Slots__All(session)
+            shown = slots.select(&:visible)
+            return shown unless shown.empty?
+            active = Na__CloudSet.Na__Slots__Active(session)
+            active ? [active] : []
+        end
+
+        # "Interior", "Interior and Exterior", "Interior, Exterior and Site".
+        def self.Na__Clip__Names(slots)
+            names = slots.map(&:name)
+            return names.first.to_s if names.length < 2
+            "#{names[0..-2].join(', ')} and #{names.last}"
+        end
+
+        # Gives every slot in `slots` the box min..max (model inches), clipping,
+        # in ONE undoable operation named `text`. Each leaves the clip scene it
+        # was showing: the box is a new area. Returns nil, or a plain reason
+        # nothing changed (every box then stays as the model holds it).
+        def self.Na__Clip__SetBoxOn(session, slots, min, max, text)
+            return 'There is no point cloud in this model yet.' if slots.empty?
+            min = min.map(&:to_f)
+            max = max.map(&:to_f)
+            3.times do |axis|
+                next if max[axis] - min[axis] >= NA_MIN_GAP_INCHES
+                return "The box is too thin: each side must be at least #{(NA_MIN_GAP_INCHES * 25.4).round} mm."
+            end
+            slots.each { |slot| self.Na__Clip__Ensure(slot) }
+            before = slots.map { |slot| [slot, slot.clip, slot.clip_active_scene] }
+            slots.each do |slot|
+                slot.clip = { 'enabled' => true, 'min' => min.dup, 'max' => max.dup }
+                slot.clip_active_scene = nil
+            end
+            begin
+                problem = Na__CloudStore.Na__Store__WriteSlots(session, slots, self.na_op_for(slots, text)) do |slot, record|
+                    record.merge!(self.Na__Clip__Part(slot))
+                end
+            rescue StandardError
+                before.each { |slot, clip, active| slot.clip = clip; slot.clip_active_scene = active }
+                raise
+            end
+            if problem
+                before.each { |slot, clip, active| slot.clip = clip; slot.clip_active_scene = active }
+                return problem
+            end
+            slots.each { |slot| Na__CleanPreview.Na__Clean__Changed(slot) } if defined?(Na__CleanPreview)
+            nil
+        end
+
+        # The Clip On or Off shortcut: when any cloud on show clips, clipping
+        # goes off for every one of them; otherwise it comes on for each that
+        # has a box. ONE undoable step. Returns [problem, note]: the note says
+        # what happened.
+        def self.Na__Clip__ToggleShown(session)
+            slots = self.Na__Clip__TargetSlots(session)
+            return ['There is no point cloud in this model yet.', nil] if slots.empty?
+            slots.each { |slot| self.Na__Clip__Ensure(slot) }
+            clipping = slots.select { |slot| slot.clip && slot.clip['enabled'] }
+            turning_on = clipping.empty?
+            changing = turning_on ? slots.select(&:clip) : clipping
+            return ['No cloud on show has a clip box yet. Draw Clip Box makes one.', nil] if changing.empty?
+            changing.each { |slot| slot.clip['enabled'] = turning_on }
+            begin
+                problem = Na__CloudStore.Na__Store__WriteSlots(session, changing, self.na_op_for(changing, turning_on ? 'Clip On' : 'Clip Off')) do |slot, record|
+                    record.merge!(self.Na__Clip__Part(slot))
+                end
+            rescue StandardError
+                changing.each { |slot| slot.clip['enabled'] = !turning_on }
+                raise
+            end
+            if problem
+                changing.each { |slot| slot.clip['enabled'] = !turning_on }
+                return [problem, nil]
+            end
+            changing.each { |slot| Na__CleanPreview.Na__Clean__Changed(slot) } if defined?(Na__CleanPreview)
+            names = Na__CloudSet.Na__Slots__Multi?(session) ? " for #{self.Na__Clip__Names(changing)}" : ''
+            note = turning_on ? "Clipping on#{names}." : "Clipping off#{names}: the whole cloud is shown. The box is kept for when clipping comes back on."
+            [nil, note]
+        end
+
+        # "Point Cloud: Draw Clip Box", with the cloud's name once the model has
+        # two clouds, or how many clouds took the box.
+        def self.na_op_for(slots, text)
+            return self.na_op(slots.first, text) if slots.length == 1
+            return "Point Cloud: #{text} (#{self.Na__Clip__Names(slots)})" if slots.length == 2
+            "Point Cloud: #{text} (#{slots.length} clouds)"
         end
 
     # endregion ----------------------------------------------------------------

@@ -63,6 +63,14 @@ Sections:
 - `dxf.layers` - DXF layer names
 - `theme.previewColors` - SVG preview hex colours
 
+## Window Board (V1.9.0)
+- Module: `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__.rb` (`Na__WindowBoardBuilder`), called by `GeometryEngine.na_build_window_elements` after the cill and before the cill lift, with the frame material.
+- Assets: `04__Data__AssetLibrary/Windows__WindowBoards__/Na__Window__WindowBoard__Type-NN__<Name>__t30mm__.json` (AppConfig `assetLibrary.window.windowBoards`). Unified contract plus `Na__WindowBoard__Parameters`; the geometry is a Profile Path Tracer style `Na__Asset__Profile2D` outer loop (Y back across the reveal, Z up, origin = underside of the board on the wall face line).
+- Parametric rule: the loop is split at Y = 0. Behind it is rebuilt at `window_board_reveal_depth_mm` (back of frame to wall face); the nose in front keeps its shape and slides with `window_board_nosing_overhang_mm`, never below the nose depth plus 1mm.
+- Returned nosing (`window_board_nosing_returns_enabled`): the nose runs round the left end, front and right end, one board thickness past each side of the reveal, mitred at the front corners. All faces come from the pure `na_returned_board_faces(geometry)` and go into one `Na_WindowBoard` group; no Follow Me, no Solid Tools. Square ends: the full section extruded across the reveal.
+- Placement: top face flush with the frame underside; starts at the back of the frame (`frame_wall_inset + frame_depth`).
+- UI: toggle `window_board_enabled` in OPTIONS (window modes only) opens `#na-section-window-board` (`NA_WINDOW_BOARD_CONFIG`). Edge colour `edge_colour_window_board_id`, part `window_board` in `Na__EdgeColourPainter` (Medium Dark Grey). The 2D preview draws a dashed outline from `window.NA_WINDOW_BOARD_ASSET_CACHE` (pushed by `na_requestWindowBoardAssets`).
+
 ## Inter-system contracts
 - `Na__ExteriorSingleDoorSystem::PanelInterface.na_build_panel(context)` - WindowSystem builds a `DoorPanelContext` struct and hands it over to construct door-panel-in-casement geometry.
 - `Na__ExteriorSingleDoorSystem::PanelInterface.na_fuse_panel_steps(entities)` - WindowSystem's FuseParts step 5/6 delegates here.

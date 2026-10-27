@@ -3,7 +3,7 @@
         "metadata": {
             "appName"           : "Element Assembly Studio Pro",
             "publisher"         : "Noble Architecture",
-            "version"           : "1.7.2",
+            "version"           : "1.9.1",
             "schemaVersion"     : 1
         },
 
@@ -96,7 +96,8 @@
                 "handles"       : "ExteriorDoor__Handles__"
             },
             "window": {
-                "sashHorns"     : "Windows__SashHorns__"
+                "sashHorns"     : "Windows__SashHorns__",
+                "windowBoards"  : "Windows__WindowBoards__"
             }
         },
 
@@ -112,6 +113,11 @@
                 "slidingSashOverlapMm"     : 40,
                 "sashHornsEnabled"         : true,
                 "sashHornType"             : 1,
+                "windowBoardEnabled"       : false,
+                "windowBoardRevealDepthMm" : 250,
+                "windowBoardNosingOverhangMm": 30,
+                "windowBoardNosingType"    : 1,
+                "windowBoardNosingReturnsEnabled": true,
                 "topSashTopRailMm"         : 60,
                 "topSashBottomRailMm"      : 60,
                 "bottomSashTopRailOverride": false,

@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na Point Cloud Viewer",
-        "version" : "0.11.1"
+        "version" : "0.13.0"
     },
 
     "clouds" : {
@@ -84,6 +84,36 @@
         "angleSnapDegrees" : 15,
         "gimbalPx"         : 90,
         "protractorPx"     : 80
+    },
+
+    "clip" : {
+        "draw" : {
+            "_comment"          : "Draw Clip Box (v0.13.0): drag a base rectangle, then the height, as Insert Primitives' Drawn Volume does. Every pick lands on a grid of gridMm (5 mm, the Insert Primitives voxel) along the model's axes; the Clipping tab offers gridStepsMm and remembers the choice per user. Clip Box Around Selection grows the box round what is selected by selectionMarginMm (per user too). Both give the box to every cloud on show.",
+            "gridMm"            : 5,
+            "gridStepsMm"       : [1, 5, 10, 25, 50, 100],
+            "selectionMarginMm" : 100
+        }
+    },
+
+    "hotkeys" : {
+        "_comment" : "Keyboard shortcuts (v0.13.0). Each command is a menu item in Extensions > <submenu>, which is what lets SketchUp give it a key (Window > Preferences > Shortcuts), and it works with the viewer's window closed. SketchUp keeps each key by the item's menu path, so the submenu and every menuText must NEVER change, or the keys people gave them are lost. The order here is the menu order; separatorBefore starts a group. What each id does is in 15__System__Hotkeys/...Hotkeys__Commands__.rb.",
+        "submenu"  : "Na__PointCloudViewer",
+        "commands" : [
+            { "id" : "open_viewer",    "menuText" : "Open Point Cloud Viewer",          "summary" : "Opens this window." },
+            { "id" : "toggle_clouds",  "menuText" : "Show or Hide Point Clouds",        "summary" : "Every point cloud on or off at once, while you model: the View tab's Show switch.", "separatorBefore" : true },
+            { "id" : "toggle_active",  "menuText" : "Show or Hide the Active Cloud",    "summary" : "Only the cloud the tabs work on, the one marked in the cloud bar." },
+            { "id" : "next_cloud",     "menuText" : "Next Point Cloud",                 "summary" : "Makes the next cloud in the list the active one." },
+            { "id" : "zoom_clouds",    "menuText" : "Zoom to Point Clouds",             "summary" : "Frames every cloud on show, or only their clipped parts." },
+            { "id" : "draw_clip",      "menuText" : "Draw Clip Box",                    "summary" : "Drag out a rectangle, then the height: every cloud on show is clipped to that box.", "separatorBefore" : true },
+            { "id" : "clip_selection", "menuText" : "Clip Box Around Selection",        "summary" : "Fits the clip box round what is selected, with a margin, for every cloud on show." },
+            { "id" : "edit_clip",      "menuText" : "Edit Clip Box",                    "summary" : "Push and pull the sides of the active cloud's box. Press again to finish." },
+            { "id" : "toggle_clip",    "menuText" : "Clip On or Off",                   "summary" : "Clipping on or off for every cloud on show. The box is kept." },
+            { "id" : "colour_rgb",     "menuText" : "Colour Mode: RGB",                 "summary" : "The clouds on show in the colours they were scanned in.", "separatorBefore" : true },
+            { "id" : "colour_mono",    "menuText" : "Colour Mode: Monochrome",          "summary" : "The clouds on show in black." },
+            { "id" : "colour_primary", "menuText" : "Colour Mode: Primary Colour",      "summary" : "Each cloud on show in its own solid colour (the first red, the second blue), to line them up." },
+            { "id" : "fewer_points",   "menuText" : "Fewer Points",                     "summary" : "The point budget down one preset, for smoother orbiting." },
+            { "id" : "more_points",    "menuText" : "More Points",                      "summary" : "The point budget up one preset, up to every point on show." }
+        ]
     },
 
     "clean" : {

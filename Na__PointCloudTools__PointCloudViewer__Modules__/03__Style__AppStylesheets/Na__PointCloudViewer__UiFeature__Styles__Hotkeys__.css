@@ -1,0 +1,98 @@
+/* =============================================================================
+   NA POINT CLOUD VIEWER - KEYBOARD SHORTCUTS STYLES
+   =============================================================================
+   FILE       : Na__PointCloudViewer__UiFeature__Styles__Hotkeys__.css
+   PURPOSE    : Settings > Keyboard Shortcuts (v0.13.0): the list of shortcut
+                commands with their keys, and the key chip the Clipping tab's
+                Draw a Clip Box card shares.
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Key Chip */
+/* ----------------------------------------------------------------- */
+
+.na-key-chip {
+    display             : inline-block;
+    padding             : 1px 7px;
+    border              : 1px solid var(--na-border);
+    border-bottom-width : 2px;
+    border-radius       : 4px;
+    background          : #f7f8fa;
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11.5px;
+    font-weight         : 600;
+    color               : var(--na-text);
+    white-space         : nowrap;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Shortcut List */
+/* ----------------------------------------------------------------- */
+
+.na-hotkey-list {
+    display             : flex;
+    flex-direction      : column;
+    margin-top          : 4px;
+}
+
+.na-hotkey {
+    padding             : 7px 0;
+    border-bottom       : 1px solid #eceef1;
+}
+
+.na-hotkey:last-child {
+    border-bottom       : none;
+}
+
+.na-hotkey--group {
+    margin-top          : 8px;
+    border-top          : 1px solid var(--na-border);
+}
+
+.na-hotkey:first-child.na-hotkey--group {
+    margin-top          : 0;
+    border-top          : none;
+}
+
+.na-hotkey__head {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 10px;
+}
+
+.na-hotkey__name {
+    font-size           : 12.5px;
+    font-weight         : 600;
+    color               : var(--na-text);
+}
+
+.na-hotkey__keys {
+    display             : inline-flex;
+    flex-wrap           : wrap;
+    justify-content     : flex-end;
+    gap                 : 4px;
+}
+
+.na-hotkey__none {
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+}
+
+.na-hotkey__summary {
+    margin              : 3px 0 0;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    line-height         : 1.45;
+}
+
+.na-hotkey__clash {
+    margin              : 3px 0 0;
+    font-size           : 11.5px;
+    color               : var(--na-warn);
+    line-height         : 1.45;
+}
+
+/* endregion ----------------------------------------------------------------- */

@@ -30,9 +30,13 @@
 //   remembers what the user is in the middle of (a custom scale being typed,
 //   a confirmation dialog, a relink choice), so a state push never wipes it.
 //
-// FRESH LIST WITHOUT OBSERVERS: the viewer never watches SketchUp's scenes.
+// FRESH LIST WITHOUT OBSERVERS: the list never watches SketchUp's scenes.
 //   Showing this tab, or the window gaining focus while it is shown, asks Ruby
 //   for a fresh state, so a scene renamed or added in SketchUp appears here.
+//
+// FOLLOW TABS (v0.12.0): the switch in the card header. On, pressing a scene
+//   tab in SketchUp does what Go To Scene does (Ruby, Na__SceneFollow, which
+//   then pushes a fresh state). Kept per computer, never in the model.
 //
 // =============================================================================
 
@@ -489,6 +493,11 @@
             problem.textContent = na_state.problem || '';
             problem.classList.toggle('na-hidden', !na_state.problem);
         }
+        var follow = document.getElementById('na-pcs-follow');
+        if (follow) {
+            follow.checked  = !!na_state.followSceneTabs;
+            follow.disabled = !na_state.isAvailable;
+        }
         if (!na_state.isAvailable) {
             var list = document.getElementById('na-pcs-list');
             if (list) list.innerHTML = '';
@@ -521,6 +530,9 @@
             var select = document.getElementById('na-pcs-add-select');
             if (!select.value) return;
             Bridge.na_call('scenes_add', { pid: Number(select.value) });
+        });
+        document.getElementById('na-pcs-follow').addEventListener('change', function (event) {
+            Bridge.na_call('scenes_set_follow', { on: !!event.target.checked });
         });
         na_sorter = DragReorder.na_attach(document.getElementById('na-pcs-list'), {
             canDrag: function () {

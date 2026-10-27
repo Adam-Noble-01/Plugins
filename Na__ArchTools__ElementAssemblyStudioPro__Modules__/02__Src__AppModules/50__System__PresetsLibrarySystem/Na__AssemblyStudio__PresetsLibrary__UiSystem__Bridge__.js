@@ -260,6 +260,7 @@
             window.NA_GLAZEBAR_CONFIG,
             window.NA_CILL_FRAME_CONFIG,
             window.NA_OPTIONS_CONFIG,
+            window.NA_WINDOW_BOARD_CONFIG,
             window.NA_DOOR_PANEL_CONFIG,
             window.NA_SLIDING_DOOR_CONFIG,
             window.NA_BIFOLD_DOOR_CONFIG,
@@ -282,6 +283,7 @@
         });
 
         defaults.removed_casements                  = [];
+        defaults.casement_overrides                 = {};
         defaults.removed_transom_segments           = [];
         defaults.removed_glazebars                  = [];
         defaults.leaded_disabled_cells              = [];
@@ -322,7 +324,14 @@
             delete merged.glazebar_offsets_enabled;
         }
 
-        Na_DynamicUI.na_setConfig(merged);
+        // Presets saved before V1.8.0 laid their lead out one pane at a time.
+        // Dropping the defaulted key lets na_setConfig hydrate it to Off, so
+        // such a preset still builds the lead it was saved with.
+        if (typeof values.leaded_global_alignment === 'undefined') {
+            delete merged.leaded_global_alignment;
+        }
+
+        Na_DynamicUI.na_setConfig(merged, { fullConfig: true });
         return true;
     }
     // ---------------------------------------------------------------

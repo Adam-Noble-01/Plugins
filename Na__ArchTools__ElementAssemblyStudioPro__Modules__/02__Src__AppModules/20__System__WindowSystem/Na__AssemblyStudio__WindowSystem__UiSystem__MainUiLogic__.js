@@ -41,6 +41,7 @@ const Na_DynamicUI = (function() {
     let _config = {};                                                // Current configuration state
     let _updateCallback = null;                                      // External update callback function
     let _svgValid = false;                                           // SVG preview validation state
+    let _casementOverrideSignature = null;                           // Casement list the Per Casement Settings were last built for
 
     // MODULE CONSTANT | Hinged Exterior Door Products Sharing the Dual Viewport
     // ------------------------------------------------------------
@@ -170,7 +171,10 @@ const Na_DynamicUI = (function() {
         
         // Build options controls
         na_buildControls('na-controls-options', window.NA_OPTIONS_CONFIG);
-        
+
+        // Build window board controls (section shown by Include Window Board)
+        na_buildControls('na-controls-window-board', window.NA_WINDOW_BOARD_CONFIG || []);
+
         // Build door panel controls
         na_buildControls('na-controls-door-panel', window.NA_DOOR_PANEL_CONFIG);
 
@@ -219,7 +223,7 @@ const Na_DynamicUI = (function() {
     // FUNCTION | Set Default Values
     // ------------------------------------------------------------
     function na_setDefaults() {
-        [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_OPTIONS_CONFIG, window.NA_DOOR_PANEL_CONFIG, window.NA_SLIDING_DOOR_CONFIG, window.NA_BIFOLD_DOOR_CONFIG, window.NA_DOUBLE_DOOR_CONFIG || []].forEach(config => {
+        [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_OPTIONS_CONFIG, window.NA_WINDOW_BOARD_CONFIG || [], window.NA_DOOR_PANEL_CONFIG, window.NA_SLIDING_DOOR_CONFIG, window.NA_BIFOLD_DOOR_CONFIG, window.NA_DOUBLE_DOOR_CONFIG || []].forEach(config => {
             config.forEach(item => {
                 _config[item.id] = item.default;
                 
@@ -234,6 +238,7 @@ const Na_DynamicUI = (function() {
         
         // Initialize removed_casements array (tracks which openings have casements removed)
         _config.removed_casements = [];
+        _config.casement_overrides = {};                                // <-- Per Casement Settings, keyed like removed_casements
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
         _config.leaded_disabled_cells = [];
@@ -488,6 +493,7 @@ const Na_DynamicUI = (function() {
         na_updateProductTypeControlVisibility();
         na_updateSlidingSashOverlapVisibility();
         na_updateSashHornControlsVisibility();
+        na_updateWindowBoardVisibility();
         na_updateDoorPanelVisibility();
         na_updateSlidingDoorVisibility();
         na_updateMultifoldDoorVisibility();
@@ -614,7 +620,9 @@ const Na_DynamicUI = (function() {
                 .map(key => String(key))
                 .filter(key => validLeadedCellKeys.has(key));
         }
-        
+
+        na_syncCasementOverrideControls();                                      // <-- After the removal clean-up: a clicked-off casement drops out of the list
+
         // Update 2D viewport and validate
         _svgValid = Na_Viewport.na_render(_config);
         
@@ -669,6 +677,28 @@ const Na_DynamicUI = (function() {
             meetingRailOffsetControl.style.display =
                 showSashControls && _config.meeting_rail_position_override === true ? '' : 'none';
         }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Show the Window Board Section While Its Toggle Is On
+    // ------------------------------------------------------------
+    // Windows only: the door products build through their own engines and
+    // have no window board, so the section stays shut in every door mode
+    // (the toggle itself is hidden there by na_updateWindowOnlyControlsVisibility).
+    function na_updateWindowBoardVisibility() {
+        const section = document.getElementById('na-section-window-board');
+        if (!section) return;
+        section.style.display = (_config.window_board_enabled === true && !na_isExteriorDoorProductActive()) ? '' : 'none';
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | True When Any Exterior Door Product Is Active
+    // ------------------------------------------------------------
+    function na_isExteriorDoorProductActive() {
+        return _config.multifold_mode === true ||
+               _config.sliding_mode === true ||
+               _config.double_door_mode === true ||
+               _config.ext_single_door_mode === true;
     }
     // ---------------------------------------------------------------
 
@@ -1190,16 +1220,21 @@ const Na_DynamicUI = (function() {
     // ------------------------------------------------------------
     // When disabled, only the enable toggle stays visible inside the
     // expandable. Centre Lines Only hides Width + Depth (ignored in Ruby).
+    // Align Lead Lines Across Casements (V1.8.0) only acts on casement
+    // windows, so a sliding sash or any door hides it.
     function na_updateLeadedGlassVisibility() {
         const enabled = _config.leaded_glass_enabled === true;
         const centreLinesOnly = _config.leaded_centre_lines_only === true;
+        const casementWindow = !!(window.Na__CasementMath &&
+            window.Na__CasementMath.na_supportsCasementOverrides({ ..._config, show_casements: true }));
 
         const dependentIds = [
             'horizontal_leaded_bars',
             'vertical_leaded_bars',
             'leaded_width_mm',
             'leaded_depth_mm',
-            'leaded_centre_lines_only'
+            'leaded_centre_lines_only',
+            'leaded_global_alignment'
         ];
         dependentIds.forEach(function (id) {
             const ctrl = document.querySelector('[data-control-id="' + id + '"]');
@@ -1209,6 +1244,10 @@ const Na_DynamicUI = (function() {
                 return;
             }
             if (centreLinesOnly && (id === 'leaded_width_mm' || id === 'leaded_depth_mm')) {
+                ctrl.style.display = 'none';
+                return;
+            }
+            if (id === 'leaded_global_alignment' && !casementWindow) {
                 ctrl.style.display = 'none';
                 return;
             }
@@ -1261,6 +1300,175 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Read the Per Casement Settings Store
+    // ------------------------------------------------------------
+    // Always a plain object keyed "opening:cell:panel" (see Na__CasementMath).
+    function na_getCasementOverrides() {
+        const overrides = _config.casement_overrides;
+        if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return {};
+        return overrides;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Is One Casement Using Its Own Settings
+    // ------------------------------------------------------------
+    function na_isCasementOverrideEnabled(casementKey) {
+        const entry = na_getCasementOverrides()[casementKey];
+        return !!(entry && entry.enabled === true);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Casement Key as a Control-Id Token ("1:0:2" -> "1_0_2")
+    // ------------------------------------------------------------
+    function na_casementKeyToken(casementKey) {
+        return String(casementKey).split(':').join('_');
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Keep the Per Casement Settings in Step With the Layout
+    // ------------------------------------------------------------
+    // The dropdown holds one group per casement that exists right now, so
+    // it is rebuilt whenever that list changes: mullions, transoms,
+    // Casements Per Opening, a casement clicked off in the preview, or a
+    // casement's own switch. Dragging one of its sliders changes none of
+    // those, so a slider is never rebuilt under the cursor mid-drag.
+    // Hidden for sliding sashes, doors and Show Casements off.
+    function na_syncCasementOverrideControls() {
+        const wrapper = document.querySelector('[data-control-id="casement_individual_controls"]');
+        const content = document.getElementById('casement_individual_controls-content');
+        if (!wrapper || !content) return;
+
+        const casementMath = window.Na__CasementMath;
+        const casements = (casementMath && casementMath.na_supportsCasementOverrides(_config))
+            ? casementMath.na_enumerateCasements(_config).filter(casement => !casement.removed)
+            : [];
+        wrapper.style.display = casements.length > 0 ? '' : 'none';
+
+        const signature = JSON.stringify(casements.map(casement => [
+            casement.key,
+            casement.label,
+            na_isCasementOverrideEnabled(casement.key)
+        ]));
+        if (signature === _casementOverrideSignature) return;
+        _casementOverrideSignature = signature;
+        na_renderCasementOverrideControls(content, casements);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build the Per Casement Settings Groups
+    // ------------------------------------------------------------
+    // Each casement gets its switch, and its five sliders beneath it while
+    // the switch is on. A casement that is off shows the window-wide values
+    // its sliders would start from; one that is on shows its own.
+    function na_renderCasementOverrideControls(content, casements) {
+        const controls = window.Na__Ui__Controls;
+        const events = window.Na__Ui__Events;
+        const fields = window.NA_CASEMENT_OVERRIDE_FIELDS || [];
+        if (!controls || !events || typeof window.na_buildCasementOverrideDescriptors !== 'function') return;
+
+        const globalSizes = window.Na__CasementMath.na_resolveGlobalCasementSizes(_config);
+        const overrides = na_getCasementOverrides();
+        const groups = casements.map(casement => {
+            const stored = overrides[casement.key] || {};
+            const values = { enabled: stored.enabled === true };
+            fields.forEach(spec => {
+                const own = stored[spec.field];
+                values[spec.field] = (typeof own === 'number' && isFinite(own)) ? own : globalSizes[spec.field];
+            });
+            return {
+                enabled: values.enabled,
+                descriptors: window.na_buildCasementOverrideDescriptors(
+                    na_casementKeyToken(casement.key), casement.label, values
+                )
+            };
+        });
+
+        let html = casements.length > 0
+            ? '<div class="na-casement-override-hint">Switch a casement on to give it its own stiles, rails and inset. ' +
+              'The numbers match the preview.</div>'
+            : '';
+        groups.forEach(group => {
+            html += `<div class="na-casement-override${group.enabled ? ' na-casement-override--active' : ''}">`;
+            html += controls.na_createControl(group.descriptors.toggle);
+            html += `<div class="na-casement-override__fields"${group.enabled ? '' : ' style="display:none;"'}>`;
+            group.descriptors.sliders.forEach(descriptor => { html += controls.na_createControl(descriptor); });
+            html += '</div></div>';
+        });
+        content.innerHTML = html;
+
+        groups.forEach(group => {
+            events.na_attachEventListeners(group.descriptors.toggle, na_onCasementOverrideControlChange);
+            group.descriptors.sliders.forEach(descriptor => {
+                events.na_attachEventListeners(descriptor, na_onCasementOverrideControlChange);
+            });
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Route a Per Casement Settings Control Into the Store
+    // ------------------------------------------------------------
+    // Switching a casement on fills any value it does not hold yet from the
+    // window-wide settings, so it starts out looking exactly as it did.
+    // Values it already holds are kept: switching off and on again restores
+    // that casement's own sizes, the same way hidden mullion offsets
+    // survive their toggle.
+    function na_onCasementOverrideControlChange(id, value) {
+        const match = /^casement_override__(\d+)_(\d+)_(\d+)__([a-z_]+)$/.exec(String(id));
+        if (!match) return;
+        const casementKey = `${match[1]}:${match[2]}:${match[3]}`;
+        const field = match[4];
+        const overrides = na_getCasementOverrides();
+        const entry = Object.assign({}, overrides[casementKey]);
+
+        if (field === 'enabled') {
+            entry.enabled = value === true;
+            if (entry.enabled) {
+                const globalSizes = window.Na__CasementMath.na_resolveGlobalCasementSizes(_config);
+                (window.NA_CASEMENT_OVERRIDE_FIELDS || []).forEach(spec => {
+                    const own = entry[spec.field];
+                    if (typeof own !== 'number' || !isFinite(own)) entry[spec.field] = globalSizes[spec.field];
+                });
+            }
+        } else {
+            const numericValue = Number(value);
+            if (!isFinite(numericValue)) return;
+            entry[field] = numericValue;
+        }
+
+        _config.casement_overrides = Object.assign({}, overrides, { [casementKey]: entry });
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Hydrate V1.8.0 and V1.9.0 Keys on a Full Window Configuration
+    // ------------------------------------------------------------
+    // na_setConfig MERGES what it is given over the live config, so a key
+    // a saved window does not hold keeps whatever the dialog had last.
+    // Windows and presets saved before V1.8.0 hold neither key below:
+    //   * casement_overrides - must start empty, or one window's own
+    //     casement sizes would ride into the next window selected.
+    //   * leaded_global_alignment - Off, which is how their lead was laid
+    //     out when they were built (one pane at a time).
+    // Windows saved before V1.9.0 have no window board:
+    //   * window_board_enabled - Off. Inherited from the window shown
+    //     before, the next Update or Live Mode rebuild would add a board.
+    // Only called for whole configurations; the measurement path sends a
+    // partial one that must not wipe anything.
+    function na_hydrateFullWindowConfig(cfg) {
+        if (!cfg || typeof cfg !== 'object') return;
+        const overrides = cfg.casement_overrides;
+        if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+            cfg.casement_overrides = {};
+        }
+        if (typeof cfg.leaded_global_alignment === 'undefined') {
+            cfg.leaded_global_alignment = false;
+        }
+        if (typeof cfg.window_board_enabled === 'undefined') {
+            cfg.window_board_enabled = false;
+        }
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Toggle Transom Slider Visibility
     // ------------------------------------------------------------
     function na_updateTransomControlVisibility() {
@@ -1291,11 +1499,7 @@ const Na_DynamicUI = (function() {
     // (the dynamic ones — transom_*, sliding_sash_overlap_mm — are
     // managed by their own specialised helpers above).
     function na_updateWindowOnlyControlsVisibility() {
-        const inDoorMode =
-            (_config.multifold_mode === true) ||
-            (_config.sliding_mode === true) ||
-            (_config.double_door_mode === true) ||
-            (_config.ext_single_door_mode === true);
+        const inDoorMode = na_isExteriorDoorProductActive();
 
         const alwaysWindowOnlyIds = [
             'casement_width_mm',                                                // <-- Casement controls (single + advanced)
@@ -1305,7 +1509,8 @@ const Na_DynamicUI = (function() {
             'mullion_width_mm',                                                 // <-- Window-only mullion thickness
             'advanced_mullion_controls',                                        // <-- Window-only per-mullion offset pool
             'transoms',                                                         // <-- Window-only (split openings vertically)
-            'show_casements'                                                    // <-- Casement-specific toggle
+            'show_casements',                                                   // <-- Casement-specific toggle
+            'window_board_enabled'                                              // <-- Window board sits under a window frame only
         ];
 
         const dynamicWindowOnlyIds = [
@@ -2099,9 +2304,23 @@ const Na_DynamicUI = (function() {
 
     // FUNCTION | Set Configuration
     // ------------------------------------------------------------
-    function na_setConfig(newConfig) {
-        na_hydrateGlazebarOffsetsEnabled(newConfig);
+    // @param {Object} newConfig - Keys to merge over the live config
+    // @param {Object} [options] - { fullConfig: true } when newConfig is a
+    //                             whole saved window or preset rather than
+    //                             a few keys (see na_hydrateFullWindowConfig)
+    //
+    // Hydration only ever runs on a whole configuration. A partial update,
+    // such as the width and height a measured opening sends, carries none
+    // of the keys the hydrators look for, so they would read it as an old
+    // window and reset the user's settings: until V1.9.1 every Measure
+    // Opening switched Glaze Bar Offsets off this way.
+    function na_setConfig(newConfig, options) {
+        if (options && options.fullConfig === true) {
+            na_hydrateGlazebarOffsetsEnabled(newConfig);
+            na_hydrateFullWindowConfig(newConfig);
+        }
         _config = { ..._config, ...newConfig };
+        _casementOverrideSignature = null;                                     // <-- Rebuild Per Casement Settings from the values just loaded
         na_migrateLegacyLeadedColour(_config);
         na_syncBifoldGlazedFromComposition(_config);
         na_hydrateHierarchyFromModeFlags();
@@ -2125,6 +2344,8 @@ const Na_DynamicUI = (function() {
     // pattern intact and makes the sliders visible where the values are.
     // Only fires when the key is genuinely absent - an explicit false
     // from a newer save is the user's own choice and is left alone.
+    // Whole configurations only (V1.9.1): a partial update never holds
+    // the nudge keys, so it would always look like "no nudges".
     function na_hydrateGlazebarOffsetsEnabled(cfg) {
         if (!cfg || typeof cfg !== 'object') return;
         if (typeof cfg.glazebar_offsets_enabled !== 'undefined') return;
@@ -2185,7 +2406,7 @@ const Na_DynamicUI = (function() {
             if (input) input.value = uiValue;
             
             // Find config in main arrays or in expandable children
-            const allConfigArrays = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_DOOR_PANEL_CONFIG, window.NA_SLIDING_DOOR_CONFIG, window.NA_BIFOLD_DOOR_CONFIG, window.NA_DOUBLE_DOOR_CONFIG || []];
+            const allConfigArrays = [window.NA_UI_CONFIG, window.NA_GLAZEBAR_CONFIG, window.NA_CILL_FRAME_CONFIG, window.NA_WINDOW_BOARD_CONFIG || [], window.NA_DOOR_PANEL_CONFIG, window.NA_SLIDING_DOOR_CONFIG, window.NA_BIFOLD_DOOR_CONFIG, window.NA_DOUBLE_DOOR_CONFIG || []];
             let config = allConfigArrays.flat().find(c => c.id === id);
             if (!config) {
                 // Search in expandable children across all config arrays

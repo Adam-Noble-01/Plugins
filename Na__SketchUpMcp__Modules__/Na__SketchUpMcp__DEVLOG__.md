@@ -3,6 +3,27 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.4 - 26-Oct-2026 - `list_entities` Tool Alias & Multi-Machine Component Library Path Fallback
+
+- **What Adam asked for.**
+  - Activity log showed `08:52:17 list_entities 0 FAILED - Unknown bridge command 'list_entities'.` because agents frequently guess `list_entities` when querying entities in the active context (`entity_query`).
+  - Activity log showed `08:52:54 asset_library 2 FAILED - The library folder does not exist: D:/06_CoreLib__Web3D/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib` when working on his second studio machine where the library is at `D:\30__Weblib__3dAssets\SketchUp__SourceFiles\10__SketchUp__CoreComponentLib`.
+- **`list_entities` added as a first-class bridge tool (45 tools in all).**
+  - Registered `list_entities` in `02__Plugin__CoreAppData/Na__SketchUpMcp__CoreAppData__ToolRegistry__.json` with the full `entity_query` input schema and API dependency list.
+  - Routed `'list_entities' => [:Na__Handlers__Query, :Na__Handlers__Query__EntityQuery]` in `04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb`.
+- **Multi-machine library root resolution in Component Editor Tools (`0.6.5`).**
+  - `Na__UserConfig.Na__ComponentEditorTools__LibraryPath` in `01__AppCore/Na__ComponentEditorTools__AppCore__UserConfig__.rb` now checks whether `components_library_path` exists on disk, and if not, automatically falls back across `components_library_fallback_paths` (`D:/06_CoreLib__Web3D/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib` and `D:/30__Weblib__3dAssets/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib`).
+- **Versions.** `bridge_version` and `server.version` are `1.0.4`.
+- **Validation.**
+  - `ValidateApiUsage` passes: 45 tools, 182 API dependencies, 4,365 method calls, 214 constants and 45 routes, with 7 partner files checked.
+  - All 44 Ruby files compile. BridgeCore passes 50 of 50, PythonServer passes 24 of 24, and `mcp_operations_unit.rb.test` passes 76 of 76.
+
+### Validation Checklist
+- [x] Reload Plugin Data in SketchUp (`pid 7668`) and call `list_entities` via `su_bridge.py`.
+- [x] Call `asset_library {"action": "overview"}` on Machine B (`D:/30__Weblib__3dAssets/...`) and verify it resolves automatically.
+
+## -----------------------------------------------------------------------------
+
 ## Na SketchUp MCP | Version 1.0.3 - 30-Sep-2026 - Component Library Tools (asset_library, asset_library_edit)
 
 - **What Adam asked for.** Agents should be able to use his component library through his own Component Editor Tools (Gallery, Index, renaming), and save new assets into it with the right number, folder and name.

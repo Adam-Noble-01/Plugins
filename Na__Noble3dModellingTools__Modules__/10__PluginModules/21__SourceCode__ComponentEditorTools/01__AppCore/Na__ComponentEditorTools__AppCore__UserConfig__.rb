@@ -23,11 +23,17 @@ module Na__ComponentEditorTools
 # REGION | Defaults
 # -----------------------------------------------------------------------------
 
+        NA_STUDIO_LIBRARY_PATHS = [
+            'D:/06_CoreLib__Web3D/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib',
+            'D:/30__Weblib__3dAssets/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib'
+        ].freeze
+
         NA_USER_CONFIG_DEFAULTS = {
-            'components_library_path' => '',
-            'blocked_folder_names'    => ['00__Archive'],
-            'blocked_file_names'      => [],
-            'folder_aliases'          => {}
+            'components_library_path'           => '',
+            'components_library_fallback_paths' => NA_STUDIO_LIBRARY_PATHS,
+            'blocked_folder_names'              => ['00__Archive'],
+            'blocked_file_names'                => [],
+            'folder_aliases'                    => {}
         }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -37,7 +43,14 @@ module Na__ComponentEditorTools
 # -----------------------------------------------------------------------------
 
         def self.Na__ComponentEditorTools__LibraryPath
-            self.Na__ComponentEditorTools__Get('components_library_path').to_s
+            configured = self.Na__ComponentEditorTools__Get('components_library_path').to_s.strip
+            return configured if !configured.empty? && Dir.exist?(configured)
+
+            fallbacks = Array(self.Na__ComponentEditorTools__Get('components_library_fallback_paths')).map(&:to_s) + NA_STUDIO_LIBRARY_PATHS
+            found = fallbacks.map(&:strip).reject(&:empty?).uniq.find { |candidate| Dir.exist?(candidate) }
+            return found if found && !configured.empty?
+
+            configured
         end
 
         def self.Na__ComponentEditorTools__BlockedFolders

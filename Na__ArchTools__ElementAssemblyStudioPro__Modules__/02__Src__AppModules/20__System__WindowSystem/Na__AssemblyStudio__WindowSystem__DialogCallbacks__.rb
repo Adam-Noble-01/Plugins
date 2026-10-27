@@ -22,6 +22,7 @@ require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DxfExporter__'
 require_relative 'Na__AssemblyStudio__WindowSystem__FuseParts__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
+require_relative 'Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__EdgeColourPainter__'
 require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 
@@ -36,6 +37,7 @@ module Na__AssemblyStudio
             DxfExporter    = Na__AssemblyStudio::Na__WindowSystem::Na__DxfExporter
             FuseParts      = Na__AssemblyStudio::Na__WindowSystem::Na__FuseParts
             SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
+            WindowBoardBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__WindowBoardBuilder
             EdgeColourPainter = Na__AssemblyStudio::Na__WindowSystem::Na__EdgeColourPainter
             LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
             TwoPoint       = Na__AssemblyStudio::Na__MeasurementTools::Na__TwoPointOpeningTool
@@ -67,6 +69,7 @@ module Na__AssemblyStudio
                     "na_liveUpdate"                 => proc { |json| na_handle_live_update(json) },
                     "na_requestConfig"              => proc { na_send_config_to_dialog },
                     "na_requestSashHornAssets"      => proc { na_send_sash_horn_assets_to_dialog },
+                    "na_requestWindowBoardAssets"   => proc { na_send_window_board_assets_to_dialog },
                     "na_measureOpening"             => proc { |json = nil| na_handle_measure_opening(json) },                  # <-- Optional live-config JSON from JS
                     "na_setComponentName"           => proc { |json| na_handle_set_component_name(json) },          # <-- Lightweight rename only; never rebuilds geometry
                     "na_keyboard_tab"               => proc { @na_current_placement_tool.na_rotate if @na_current_placement_tool }
@@ -1927,6 +1930,14 @@ module Na__AssemblyStudio
                     @na_dialog,
                     'window.na_receiveSashHornAssets',
                     SashHornBuilder.na_load_all_assets
+                )
+            end
+
+            def self.na_send_window_board_assets_to_dialog
+                UiBridge.na_execute_json_function(
+                    @na_dialog,
+                    'window.na_receiveWindowBoardAssets',
+                    WindowBoardBuilder.na_load_all_assets
                 )
             end
 

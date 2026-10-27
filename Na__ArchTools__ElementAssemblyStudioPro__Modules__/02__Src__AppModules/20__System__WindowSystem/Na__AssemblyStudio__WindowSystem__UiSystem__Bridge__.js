@@ -100,9 +100,11 @@ window.na_setInitialConfig = function(configJson) {
             console.log('[NA_BRIDGE] Using default configuration (new window)');
         }
         
-        // Update UI controls with configuration values
+        // Update UI controls with configuration values. A whole saved window
+        // (or the defaults), so keys it predates are hydrated, not inherited
+        // from the window shown before it.
         if (config.windowConfiguration && typeof Na_DynamicUI !== 'undefined') {
-            Na_DynamicUI.na_setConfig(config.windowConfiguration);
+            Na_DynamicUI.na_setConfig(config.windowConfiguration, { fullConfig: true });
         }
         
     } catch (e) {
@@ -114,17 +116,32 @@ window.na_setInitialConfig = function(configJson) {
 // FUNCTION | Receive Sash Horn Asset Cache From Ruby
 // ------------------------------------------------------------
 window.na_receiveSashHornAssets = function(assetsJson) {
+    na_storePreviewAssetCache('NA_SASH_HORN_ASSET_CACHE', assetsJson, 'sash horn');
+};
+// ---------------------------------------------------------------
+
+// FUNCTION | Receive Window Board Asset Cache From Ruby
+// ------------------------------------------------------------
+// The preview reads each nosing's board thickness from here; until it
+// arrives the board outline is drawn at the 30mm standard.
+window.na_receiveWindowBoardAssets = function(assetsJson) {
+    na_storePreviewAssetCache('NA_WINDOW_BOARD_ASSET_CACHE', assetsJson, 'window board');
+};
+// ---------------------------------------------------------------
+
+// HELPER FUNCTION | Store a Preview Asset Cache From Ruby and Redraw
+// ------------------------------------------------------------
+function na_storePreviewAssetCache(cacheName, assetsJson, label) {
     try {
-        const assets = JSON.parse(assetsJson);
-        window.NA_SASH_HORN_ASSET_CACHE = assets || {};
+        window[cacheName] = JSON.parse(assetsJson) || {};
 
         if (typeof Na_DynamicUI !== 'undefined' && typeof Na_Viewport !== 'undefined') {
             Na_Viewport.na_render(Na_DynamicUI.na_getConfig());
         }
     } catch (e) {
-        console.error('[NA_BRIDGE] Error parsing sash horn asset JSON:', e);
+        console.error('[NA_BRIDGE] Error parsing ' + label + ' asset JSON:', e);
     }
-};
+}
 // ---------------------------------------------------------------
 
 // FUNCTION | Clear Current Window (When Selection is Cleared)
@@ -904,22 +921,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     na_bindComponentNameField();
 
-    na_requestSashHornAssets();
+    na_requestPreviewAssets('na_requestSashHornAssets');
+    na_requestPreviewAssets('na_requestWindowBoardAssets');
 });
 // ---------------------------------------------------------------
 
-// FUNCTION | Request Sash Horn Preview Assets From Ruby
+// FUNCTION | Request Preview Assets From Ruby (Sash Horns, Window Boards)
 // ------------------------------------------------------------
-function na_requestSashHornAssets(attempt) {
+// The sketchup bridge can arrive a moment after the DOM, so each request
+// retries briefly before giving up.
+function na_requestPreviewAssets(callbackName, attempt) {
     const attemptNumber = attempt || 1;
-    if (typeof sketchup !== 'undefined' && typeof sketchup.na_requestSashHornAssets === 'function') {
-        try { sketchup.na_requestSashHornAssets(); }
-        catch (err) { console.warn('[NA_BRIDGE] na_requestSashHornAssets threw:', err); }
+    if (typeof sketchup !== 'undefined' && typeof sketchup[callbackName] === 'function') {
+        try { sketchup[callbackName](); }
+        catch (err) { console.warn('[NA_BRIDGE] ' + callbackName + ' threw:', err); }
         return;
     }
 
     if (attemptNumber < 8) {
-        setTimeout(() => na_requestSashHornAssets(attemptNumber + 1), 100);
+        setTimeout(() => na_requestPreviewAssets(callbackName, attemptNumber + 1), 100);
     }
 }
 // ---------------------------------------------------------------

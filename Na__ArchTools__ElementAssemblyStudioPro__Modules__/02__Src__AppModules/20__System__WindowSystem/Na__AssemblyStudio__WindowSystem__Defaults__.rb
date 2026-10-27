@@ -79,6 +79,14 @@ module Na__WindowSystem
     NA_DEFAULT_TRANSOM_3_Y              = 900
     # ---------------------------------------------------------------
 
+    # MODULE CONSTANTS | Window Board (millimetres)
+    # ------------------------------------------------------------
+    # Reveal Depth runs from the back of the frame to the wall face; the
+    # Nosing Overhang is added on beyond it, measured to the nose tip.
+    NA_DEFAULT_WINDOW_BOARD_REVEAL_DEPTH    = 250
+    NA_DEFAULT_WINDOW_BOARD_NOSING_OVERHANG = 30
+    # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -151,6 +159,8 @@ module Na__WindowSystem
                 "casement_depth_mm"                     : 55,
                 "casement_inset_mm"                     : 10,
                 "casements_per_opening"                 : 1,
+                "casement_individual_controls"          : false,
+                "casement_overrides"                    : {},
                 "sliding_sash_overlap_mm"               : 40,
                 "sliding_sash_window"                   : false,
                 "sash_horns_enabled"                    : true,
@@ -211,6 +221,7 @@ module Na__WindowSystem
                 "leaded_width_mm"                       : 6,
                 "leaded_depth_mm"                       : 0,
                 "leaded_centre_lines_only"              : false,
+                "leaded_global_alignment"               : true,
                 "leaded_disabled_cells"                 : [],
                 "double_door_leaded_disabled_cells"     : [],
 
@@ -220,10 +231,17 @@ module Na__WindowSystem
                 "edge_colour_glazebar_id"               : "MTE103__LineColour__DarkGrey__L40",
                 "edge_colour_leaded_id"                 : "MTE104__LineColour__MidGrey__L60",
                 "edge_colour_fielded_panel_id"          : "MTE103__LineColour__DarkGrey__L40",
+                "edge_colour_window_board_id"           : "MTE103__LineColour__MediumDarkGrey__L50",
 
                 "has_cill"                              : true,
                 "cill_depth_mm"                         : 50,
                 "cill_height_mm"                        : 50,
+
+                "window_board_enabled"                  : false,
+                "window_board_reveal_depth_mm"          : 250,
+                "window_board_nosing_overhang_mm"       : 30,
+                "window_board_nosing_type"              : "1",
+                "window_board_nosing_returns_enabled"   : true,
 
                 "removed_casements"                     : [],
                 "removed_transom_segments"              : [],

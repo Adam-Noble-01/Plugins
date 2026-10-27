@@ -13,7 +13,8 @@
 #   bar and the View tab's list); 'cloud', 'render' (the look), 'units',
 #   'clip', 'transform' and 'clean' describe the ACTIVE cloud, the one the
 #   tabs work on, and each names it (cloudId, cloudName). The point budget in
-#   'render' is the shared one.
+#   'render' is the shared one. 'clipDraw' (the Draw a Clip Box card) and
+#   'hotkeys' (the keyboard shortcuts and their keys) are v0.13.0's.
 #
 # =============================================================================
 
@@ -38,6 +39,7 @@ module Na__PointCloudViewer
                 'cloud'        => self.na_cloud_payload(slot),
                 'render'       => self.na_render_payload(session, slot),
                 'clip'         => Na__ClipBox.Na__Clip__Payload(slot, model),
+                'clipDraw'     => Na__ClipBox.respond_to?(:Na__Clip__DrawPayload) ? Na__ClipBox.Na__Clip__DrawPayload(session) : nil,
                 'transform'    => Na__Placement.Na__Placement__Payload(slot, model),
                 'link'         => Na__ModelLink.Na__Link__Payload(session, model),
                 'clean'        => Na__CleanPreview.Na__Clean__Payload(slot, model),
@@ -49,6 +51,7 @@ module Na__PointCloudViewer
                 },
                 'pointCaches'  => Na__PointCache.Na__Cache__Stats,
                 'nativeEngine' => self.na_native_payload,
+                'hotkeys'      => defined?(Na__HotkeyManager) ? Na__HotkeyManager.Na__Hotkeys__Payload : nil,
                 'ui'           => { 'activeTab' => Na__UserConfigStore.Na__UserConfig__Get('ui', 'activeTab', 'view') },
                 'log'          => Na__DebugTools.Na__Debug__RecentEntries(30)
             }

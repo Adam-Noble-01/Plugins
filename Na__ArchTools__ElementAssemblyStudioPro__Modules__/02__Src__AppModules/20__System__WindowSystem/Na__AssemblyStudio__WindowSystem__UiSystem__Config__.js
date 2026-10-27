@@ -13,7 +13,8 @@
    - Glaze bar controls (horizontal, vertical, bar width)
    - Cill & frame controls (cill height/depth, frame depth/inset)
    - Options controls (toggles, color pickers)
-   
+   - Window board controls (reveal depth, nosing overhang, nosing type, returns)
+
    NAMING CONVENTION:
    - All constants use NA_ prefix (uppercase)
    - Exported to window object for global access
@@ -51,6 +52,57 @@ function na_buildMullionOffsetDescriptors() {
         });
     }
     return descriptors;
+}
+// ------------------------------------------------------------
+
+// CONSTANTS | Per-Casement Override Fields (V1.8.0)
+// ------------------------------------------------------------
+// The five settings one casement can take on its own, inside Advanced
+// Casement Controls > Per Casement Settings. Ranges match the window-wide
+// sliders they stand in for (Individual Casement Sizes and Casement Frame
+// Inset), so a casement can never be given a value its window-wide control
+// could not hold. Resolution lives in Na__CasementMath.
+const NA_CASEMENT_OVERRIDE_FIELDS = [
+    { field: 'left_stile_mm',  label: 'Left Stile',           min:   20, max: 250, step: 5 },
+    { field: 'right_stile_mm', label: 'Right Stile',          min:   20, max: 250, step: 5 },
+    { field: 'top_rail_mm',    label: 'Top Rail',             min:   20, max: 250, step: 5 },
+    { field: 'bottom_rail_mm', label: 'Bottom Rail',          min:   20, max: 500, step: 5 },
+    { field: 'inset_mm',       label: 'Casement Frame Inset', min: -100, max: 100, step: 1 }
+];
+
+// FUNCTION | Build the Controls for One Casement's Own Settings
+// ------------------------------------------------------------
+// One switch named after the casement plus a slider per override field.
+// ids: casement_override__<opening>_<cell>_<panel>__enabled and
+//      casement_override__<opening>_<cell>_<panel>__<field>
+// None of them is a flat config key: MainUiLogic routes every change into
+// config.casement_overrides (na_onCasementOverrideControlChange).
+// @param {string} keyToken - Casement key with ':' swapped for '_'
+// @param {string} title    - e.g. 'Casement 2 (Centre Light)'
+// @param {Object} values   - { enabled, left_stile_mm, ... } current values
+// @return {Object}           { toggle: descriptor, sliders: [descriptor] }
+function na_buildCasementOverrideDescriptors(keyToken, title, values) {
+    const prefix = 'casement_override__' + keyToken + '__';
+    return {
+        toggle : {
+            id      :  prefix + 'enabled',
+            label   :  title,
+            type    :  'toggle',
+            default :  values.enabled === true
+        },
+        sliders: NA_CASEMENT_OVERRIDE_FIELDS.map(function (spec) {
+            return {
+                id      :  prefix + spec.field,
+                label   :  spec.label,
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  spec.min,
+                max     :  spec.max,
+                step    :  spec.step,
+                default :  values[spec.field]
+            };
+        })
+    };
 }
 // ------------------------------------------------------------
 
@@ -259,6 +311,24 @@ const NA_UI_CONFIG = [
                 max     :  6,
                 step    :  1,
                 default :  1
+            },
+            // -----------------------------------------------------------------
+            // Per Casement Settings (V1.8.0)
+            //
+            // A dropdown inside this dropdown. Its contents are built at
+            // runtime by MainUiLogic (na_syncCasementOverrideControls): one
+            // group per casement in the current layout, because how many
+            // casements there are follows the mullions, transoms and
+            // Casements Per Opening. Each group is a switch named after its
+            // casement over the NA_CASEMENT_OVERRIDE_FIELDS sliders, and the
+            // values live in `casement_overrides`. Casement windows only.
+            // -----------------------------------------------------------------
+            {
+                id      :  'casement_individual_controls',
+                label   :  'Per Casement Settings',
+                type    :  'expandable',
+                default :  false,
+                children:  []
             }
         ]
     },
@@ -617,6 +687,14 @@ const NA_GLAZEBAR_CONFIG = [
     // Modes: centre-lines only / flat ribbons (depth 0) / extruded (1–5 mm).
     // Visibility of child controls is wired in MainUiLogic
     // (na_updateLeadedGlassVisibility).
+    //
+    // V1.8.0 - Align Lead Lines Across Casements. On, every pane of a
+    // casement window lays its lead out on the glass a casement built to the
+    // window-wide settings would have, and shows the part of that grid its
+    // own glass covers. Lines then run straight through a casement with its
+    // own Per Casement Settings, or with no casement at all, instead of
+    // being re-spaced inside it. Off, each pane divides its own glass, as
+    // before. A window saved before V1.8.0 has no key and loads as Off.
     // -------------------------------------------------------------------------
     {
         id      :  'leaded_glass_controls',
@@ -675,6 +753,12 @@ const NA_GLAZEBAR_CONFIG = [
                 label   :  'Centre Lines Only',
                 type    :  'toggle',
                 default :  false
+            },
+            {
+                id      :  'leaded_global_alignment',
+                label   :  'Align Lead Lines Across Casements',
+                type    :  'toggle',
+                default :  true
             }
         ]
     }
@@ -797,6 +881,14 @@ const NA_OPTIONS_CONFIG = [
         default :  true
     },
     {
+        // Switches the WINDOW BOARD section on below OPTIONS. Off by
+        // default, so a window saved before V1.9.0 rebuilds without one.
+        id      :  'window_board_enabled',
+        label   :  'Include Window Board',
+        type    :  'toggle',
+        default :  false
+    },
+    {
         id      :  'show_dimensions',
         label   :  'Show Dimensions',
         type    :  'toggle',
@@ -879,8 +971,76 @@ const NA_OPTIONS_CONFIG = [
                 type            : 'material_cards',
                 default         : 'MTE103__LineColour__DarkGrey__L40',
                 materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
+            },
+            {
+                id              : 'edge_colour_window_board_id',
+                label           : 'Window Board',
+                type            : 'material_cards',
+                default         : 'MTE103__LineColour__MediumDarkGrey__L50',
+                materialsSource : 'NA_EDGE_COLOUR_SWATCHES'
             }
         ]
+    }
+];
+
+// endregion ===================================================================
+
+// =============================================================================
+// REGION | Window Board Configuration
+// =============================================================================
+
+// CONSTANTS | Window Board Configuration
+// ------------------------------------------------------------
+// The WINDOW BOARD section, shown only while Include Window Board is on
+// (MainUiLogic na_updateWindowBoardVisibility). The board sits under the
+// frame with its top face flush with the frame underside, in the frame
+// finish. Profiles come from 04__Data__AssetLibrary/Windows__WindowBoards__
+// - see Na__WindowBoardBuilder for how each one is stretched.
+const NA_WINDOW_BOARD_CONFIG = [
+    {
+        // Back of the frame to the wall face, i.e. across the reveal.
+        id      :  'window_board_reveal_depth_mm',
+        label   :  'Reveal Depth',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  10,
+        max     :  800,
+        step    :  5,
+        default :  250
+    },
+    {
+        // Added on beyond the reveal: wall face to the tip of the nose. The
+        // nose keeps its shape, so the overhang can never be shallower than
+        // the nose itself (15mm for the bullnose); 20mm clears every type,
+        // and the builder holds anything smaller at the nose depth plus 1mm.
+        id      :  'window_board_nosing_overhang_mm',
+        label   :  'Nosing Overhang',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  20,
+        max     :  100,
+        step    :  1,
+        default :  30
+    },
+    {
+        id      :  'window_board_nosing_type',
+        label   :  'Nosing Type',
+        type    :  'select',
+        default :  '1',
+        options :  [
+            { value: '1', label: 'Stepped Bullnose' },
+            { value: '2', label: 'Bullnose' },
+            { value: '3', label: 'Square Edge' }
+        ]
+    },
+    {
+        // Returns the nosing round both ends and back to the wall, one board
+        // thickness past each side of the opening. Off ends it square, flush
+        // with the reveal.
+        id      :  'window_board_nosing_returns_enabled',
+        label   :  'Nosing Projection Past Reveal',
+        type    :  'toggle',
+        default :  true
     }
 ];
 
@@ -893,9 +1053,12 @@ const NA_OPTIONS_CONFIG = [
 // Export to global window object for access by other modules
 // ------------------------------------------------------------
 window.NA_UI_CONFIG = NA_UI_CONFIG;
+window.NA_CASEMENT_OVERRIDE_FIELDS = NA_CASEMENT_OVERRIDE_FIELDS;
+window.na_buildCasementOverrideDescriptors = na_buildCasementOverrideDescriptors;
 window.NA_GLAZEBAR_CONFIG = NA_GLAZEBAR_CONFIG;
 window.NA_CILL_FRAME_CONFIG = NA_CILL_FRAME_CONFIG;
 window.NA_OPTIONS_CONFIG = NA_OPTIONS_CONFIG;
+window.NA_WINDOW_BOARD_CONFIG = NA_WINDOW_BOARD_CONFIG;
 
 console.log('[NA_UI_CONFIG] Configuration module loaded');
 

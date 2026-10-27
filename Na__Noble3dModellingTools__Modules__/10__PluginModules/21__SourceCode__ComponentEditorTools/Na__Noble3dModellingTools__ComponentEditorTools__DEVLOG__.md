@@ -1,4 +1,4 @@
-﻿# Na Noble3d - Component Editor Tools - Development Log
+# Na Noble3d - Component Editor Tools - Development Log
 # =============================================================================
 # Module : 21__SourceCode__ComponentEditorTools
 # Plugin : Na Noble3d Modelling Tools
@@ -23,6 +23,13 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 # =============================================================================
 # VERSION HISTORY
 # =============================================================================
+
+# Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.5 - 26-Oct-2026 - Multi-Machine Studio Library Root Fallback
+
+- **What Adam asked for.** He works between two studio machines where the component library root lives at either `D:/06_CoreLib__Web3D/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib` or `D:/30__Weblib__3dAssets/SketchUp__SourceFiles/10__SketchUp__CoreComponentLib`.
+- **Automatic fallback.** `Na__UserConfig.Na__ComponentEditorTools__LibraryPath` (`01__AppCore/Na__ComponentEditorTools__AppCore__UserConfig__.rb`) and `07__UserData/Na__ComponentEditorTools__UserConfig__.json` (`components_library_fallback_paths`) now check if the primary `components_library_path` exists on disk, and if not, automatically select the existing studio root on the current machine.
+- **Tests.** Fixed Windows 8.3 short temp path expansion (`File.realpath(Dir.mktmpdir(...))`) in `tests/mcp_operations_unit.rb.test`; 76/76 checks pass.
 
 # Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.6.4 - 30-Sep-2026 - Library Tools for Agents (12__McpOperations) and Safe Library Loading

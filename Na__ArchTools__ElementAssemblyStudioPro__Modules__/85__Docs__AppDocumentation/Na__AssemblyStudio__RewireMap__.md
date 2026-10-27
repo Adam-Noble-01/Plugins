@@ -123,8 +123,10 @@ This pattern means:
 31__ExtSingleDoor JS        - UiSystem Config (door-panel schema for door_mode)
 32__ExtSlide JS             - UiSystem Config (sliding-door schema)            [Phase-1 scaffold]
 33__ExtFold JS              - UiSystem Config (multi-fold schema)              [Phase-1 scaffold]
+20__WindowSystem JS         - MullionMath, CasementMath (shared light layout +
+                              per-casement sizes; Validation reads both)
 05__Viewport JS             - SvgHelpers, Validation, Controls, Instance
-20__WindowSystem JS         - SvgGenerator, Export Dxf
+20__WindowSystem JS         - GlazebarMath, SvgGenerator, Export Dxf
 32__ExtSlide JS             - Viewport Elevation+Plan generators              [Phase-1 scaffold]
 33__ExtFold JS              - Viewport Elevation+Plan generators              [Phase-1 scaffold]
 20__WindowSystem JS         - MainUiLogic, Bridge
@@ -152,6 +154,8 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | sketchup.na_exportDxf(json)          | WindowSystem::DialogCallbacks                                              |
 | sketchup.na_liveUpdate(json)         | WindowSystem::DialogCallbacks                                              |
 | sketchup.na_requestConfig            | WindowSystem::DialogCallbacks                                              |
+| sketchup.na_requestSashHornAssets    | WindowSystem::DialogCallbacks (pushes the sash horn preview assets)        |
+| sketchup.na_requestWindowBoardAssets | WindowSystem::DialogCallbacks (pushes the window board nosing assets)      |
 | sketchup.na_measureOpening           | WindowSystem::DialogCallbacks (activates TwoPointOpeningTool)              |
 | sketchup.na_keyboard_tab             | WindowSystem::DialogCallbacks (forwards to active PlacementTool)           |
 | sketchup.na_createDoor               | InteriorDoorSystem::DialogRouter                                           |
@@ -167,6 +171,8 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 |--------------------------------------|---------------------------------------------------------------------------|
 | window.na_setInitialConfig(json)     | Push window config into the dialog                                         |
 | window.na_clearCurrentWindow()       | Tell window UI to clear edit-mode state                                    |
+| window.na_receiveSashHornAssets(json) | Sash horn assets for the 2D preview                                       |
+| window.na_receiveWindowBoardAssets(json) | Window board nosing assets for the 2D preview (board thickness)        |
 | window.na_setInitialDoorConfig(json) | Push door config into the dialog                                           |
 | window.na_clearCurrentDoor()         | Tell door UI to clear edit-mode state                                      |
 | window.na_showStatus(type, msg)      | Update the status bar                                                      |

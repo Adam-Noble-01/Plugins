@@ -61,7 +61,8 @@ module Na__PointCloudViewer
 
         end
 
-        @na_app_observer = nil unless defined?(@na_app_observer)
+        @na_app_observer  = nil   unless defined?(@na_app_observer)
+        @na_overlay_ready = false unless defined?(@na_overlay_ready)   # a model has its overlay: loading is over
 
     # endregion ----------------------------------------------------------------
 
@@ -78,7 +79,12 @@ module Na__PointCloudViewer
         # notifications (expectsStartupModelNotifications) add the overlay once
         # loading has finished, and any dialog action adds it on demand
         # (Na__Registry__ActiveOverlay). A RELOAD, mid-session, adds it at once.
+        #
+        # Both also add the keyboard shortcut commands to the Extensions menu
+        # (v0.13.0): menu items only, safe while extensions load. Reload Plugin
+        # calls this after the config is read afresh, so new commands appear.
         def self.Na__Registry__InstallOnce
+            Na__HotkeyManager.Na__Hotkeys__Register if defined?(Na__HotkeyManager)
             first_install = @na_app_observer.nil?
             if first_install
                 @na_app_observer = Na__AppObserver.new
@@ -114,10 +120,22 @@ module Na__PointCloudViewer
                 model.overlays.add(overlay)
             end
             self.na_bind_session(overlay, model)
+            @na_overlay_ready = true
+            # Following SketchUp's scene tabs starts here, never while
+            # extensions load: once per SketchUp session (Na__SceneFollow).
+            Na__SceneFollow.Na__Follow__InstallOnce if defined?(Na__SceneFollow)
             overlay
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Error('The point cloud overlay could not be registered for this model.', error)
             nil
+        end
+
+        # True once a model has been given its overlay, which only happens
+        # after SketchUp has finished loading extensions (see the cold start
+        # note above). Until then nothing may read the model, not even the
+        # checkmarks of the shortcut commands' menu items.
+        def self.Na__Registry__Ready?
+            @na_overlay_ready ? true : false
         end
 
         # The session needs its model (clip state lives in the model) and one
