@@ -3,13 +3,14 @@
         "Na__RightClickMenu__Config": {
             "Na__RightClickMenu__AnchorMode": "anchored",
             "Na__RightClickMenu__Position": {
-                "Na__Position__X": 1942,
-                "Na__Position__Y": 140
+                "Na__Position__X": 1953,
+                "Na__Position__Y": 181
             },
-            "Na__RightClickMenu__Size": {
-                "Na__Size__Width": 248,
-                "Na__Size__Height": 1472
-            }
+            "Na__RightClickMenu__ContentSize": {
+                "Na__Size__Width": null,
+                "Na__Size__Height": null
+            },
+            "Na__RightClickMenu__ShowMode": "with_tool"
         }
     }
 }

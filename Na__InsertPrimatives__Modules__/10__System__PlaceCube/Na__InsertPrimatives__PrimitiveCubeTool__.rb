@@ -232,6 +232,19 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Flip a Submenu Option, Then Re-Read the Face Setting
+        # ------------------------------------------------------------
+        # Plane's Face now lives in the submenu under the Plane button (it used
+        # to be a general button), so the shared toggle flips it. This tool
+        # keeps its own copy for the click, which is re-read here.
+        # ------------------------------------------------------------
+        def Na__DrawnMode__ToggleToolOption(option_id)
+            result = super
+            @plane_faces_enabled = Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+            result
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Which Primitive Mode Is Running (Popup Highlight)
         # ------------------------------------------------------------
         def Na__DrawnMode__ActiveModeKey

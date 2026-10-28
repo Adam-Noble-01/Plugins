@@ -6,8 +6,8 @@
 # NAMESPACE  : Na__InsertPrimatives::DrawnChamferHotSwap
 # AUTHOR     : Noble Architecture
 # PURPOSE    : Switch between Chamfer, Fillet, Ogee and Ovolo from the right-click
-#              menu or a letter typed on its own, without losing the edges or
-#              the drag in hand
+#              menu, SHIFT+TAB or the tools' own menu commands, without losing
+#              the edges or the drag in hand
 # CREATED    : 2026
 #
 # DESCRIPTION:
@@ -26,30 +26,35 @@
 #                        R15 fillet, a 15 ogee), trimmed to the new profile's
 #                        own limit if it is over it; a typed size stays pinned;
 #                        the scrub carries on from it without a jump
-# - Nothing held, and the menu switches exactly as before. Picking the tool
+# - Nothing held, and the switch is the ordinary one. Asking for the tool
 #   already running keeps everything and says so.
 # - The retype of a cut already made is not carried: that cut belongs to the
 #   tool that made it.
 #
-# LETTERS (5.1.22) — typed on their own, with nothing else in the box:
-#     C  chamfer        R  radius (Deep Fillet)
-#     O  ogee           G  ogee (oGee)
-#     V  ovolo (TAB in there turns it into a cavetto)
-# - On its own is the whole rule: once a number is being typed the letter is
-#   part of the entry ("40r", "48s"), and SketchUp's own shortcut on the same
-#   letter (C circle, R rectangle, O orbit, G component) is held off only
-#   while one of these four tools is running and nothing has been typed.
-# - The switch happens on the key itself — SketchUp would otherwise run its
-#   shortcut before the measurements box ever saw the letter — and the Enter
-#   that habit adds straight after is taken as finishing the switch, not as
-#   cutting the profile just swapped in. A letter that does reach the box
-#   (typed after a cleared entry) switches on Enter the ordinary way.
-# - CTRL, SHIFT and ALT combinations are left to SketchUp: Ctrl+C copies,
-#   Alt+V opens the View menu.
+# THREE WAYS TO SWITCH (5.2.9):
+#   right-click menu    Deep Chamfer / Deep Fillet / Deep Ogee / Deep Ovolo
+#   SHIFT+TAB           the next profile: Chamfer, Fillet, Ogee, Ovolo, and
+#                       round again (the plugin's second-switch key, as in
+#                       Drawn Volume and Deep Scale). TAB on its own stays each
+#                       profile's own switch: round or cove, turn round,
+#                       ovolo or cavetto
+#   menu commands       Extensions > Na__InsertPrimitives > Deep Chamfer and
+#                       the rest, bound to keys in Preferences > Shortcuts.
+#                       Pressed while one of the four runs, a command hands
+#                       over like the menu instead of starting empty
 #
-# HOST CONTRACT — included by DrawnChamferTool after DrawnChamferScrub. Its
-# activate calls na_hs__apply when a handover is pending, instead of reading
-# the selection, and its onReturn asks na_hs__enter_after_letter? first.
+# WHY NOT C R O G V ANY MORE (5.2.9):
+# - 5.1.22 took those letters typed on their own. They never got the chance:
+#   SketchUp's own shortcuts (C Circle, R Rectangle, O Orbit, G Make
+#   Component) are handled by the application before a tool sees the key, and
+#   nothing a tool returns from onKeyDown stops them. Deep Scale's letters
+#   failed the same way (5.2.6).
+#
+# HOST CONTRACT — included by DrawnChamferTool after DrawnChamferScrub, so its
+# key handlers sit in front of the shared ones and fall back to them with
+# super. Its activate registers the tool (Na__HotSwap__SetActiveTool) and
+# calls na_hs__apply when a handover is pending, instead of reading the
+# selection.
 #
 # =============================================================================
 
@@ -58,26 +63,65 @@ require 'sketchup.rb'
 module Na__InsertPrimatives
 
     # -----------------------------------------------------------------------------
-    # REGION | The Enter After a Letter (Module Level, Across the Swap)
+    # REGION | The Running Edge Tool (Module Level, for the Menu Commands)
     # -----------------------------------------------------------------------------
 
-    NA_HS_LETTER_ENTER_S = 1.5                                                # <-- An Enter this soon after a letter switch finishes the switch
+    NA_HS_PROFILE_ORDER = [:chamfer, :fillet, :ogee, :ovolo].freeze           # <-- SHIFT+TAB steps through these, in the menu's order
+    NA_HS_TAB_HELD_S    = 1.5                                                 # <-- A switching TAB counts as held this long past its last repeat
 
-    # FUNCTION | A Letter Just Switched the Profile
-    # Kept on the module, not the tool: the tool that sees the Enter is the
-    # new one, built a moment after the letter.
+    # FUNCTION | The TAB That Switched the Profile Is Down, or Was Let Go
     # ------------------------------------------------------------
-    def self.Na__HotSwap__MarkLetter
-        @na_hs_letter_at = Time.now
+    # Kept on the module, not the tool: the repeats of a held TAB arrive at
+    # the NEW tool, which never saw the key go down and may not know SHIFT is
+    # held either. Each repeat keeps it held; a key-up lets it go, and a
+    # key-up lost to a change of focus cannot keep it held for long.
+    # ------------------------------------------------------------
+    def self.Na__HotSwap__TabDown(down)
+        @na_hs_tab_at = down ? Time.now : nil
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Is This Enter the One Straight After a Letter? (Asked Once)
+    # FUNCTION | Is the TAB That Switched the Profile Still Held?
     # ------------------------------------------------------------
-    def self.Na__HotSwap__TakeLetterEnter
-        at               = @na_hs_letter_at
-        @na_hs_letter_at = nil
-        at ? (Time.now - at).to_f < NA_HS_LETTER_ENTER_S : false
+    def self.Na__HotSwap__TabDown?
+        at = @na_hs_tab_at
+        at ? (Time.now - at).to_f < NA_HS_TAB_HELD_S : false
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Remember Which Edge Tool Is Running (nil When None)
+    # ------------------------------------------------------------
+    def self.Na__HotSwap__SetActiveTool(tool)
+        @na_hs_active_tool = tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Edge Tool Running Now, or nil
+    # ------------------------------------------------------------
+    def self.Na__HotSwap__ActiveTool
+        tool = @na_hs_active_tool
+        tool.is_a?(Na__InsertPrimatives::DrawnChamferTool) ? tool : nil
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Profile's Menu Command, Pressed While an Edge Tool Runs
+    # ------------------------------------------------------------
+    # Deep Chamfer, Deep Fillet, Deep Ogee and Deep Ovolo in the Extensions
+    # menu are the commands a key is bound to in Preferences > Shortcuts.
+    # With one of the four already running, the command hands the edges and
+    # the drag across as the right-click menu does. false when none is
+    # running: the command then starts its tool the ordinary way.
+    # ------------------------------------------------------------
+    def self.Na__HotSwap__ToProfile(profile)
+        tool = Na__InsertPrimatives.Na__HotSwap__ActiveTool
+        return false unless tool
+
+        tool.na_hs__switch_profile(profile)
+    rescue StandardError => error
+        Na__InsertPrimatives.Na__Debug__Puts "NA HOT SWAP: the #{profile} command could not hand over (#{error.message})"
+        false
     end
     # ---------------------------------------------------------------
 
@@ -86,12 +130,8 @@ module Na__InsertPrimatives
 
     module DrawnChamferHotSwap
 
-        # Windows virtual-key codes, which for letters are their capitals.
-        NA_HS_LETTER_KEYS    = { 67 => :chamfer, 82 => :fillet, 79 => :ogee, 71 => :ogee, 86 => :ovolo }.freeze
-        NA_HS_LETTER_TEXT    = { 'c' => :chamfer, 'r' => :fillet, 'o' => :ogee, 'g' => :ogee, 'v' => :ovolo }.freeze
+        NA_HS_TAB_KEY        = 9                                              # <-- No VK_TAB constant in the SketchUp API
         NA_HS_PROFILE_CLASS  = { :chamfer => :DrawnChamferTool, :fillet => :DrawnFilletTool, :ogee => :DrawnOgeeTool, :ovolo => :DrawnOvoloTool }.freeze
-        NA_HS_ALT_KEY        = defined?(ALT_MODIFIER_KEY) ? ALT_MODIFIER_KEY : 18
-        NA_HS_ALT_HELD_S     = 2.0                                            # <-- A missed ALT key-up (the menu bar eats it) is forgotten after this
 
         # -----------------------------------------------------------------------------
         # REGION | The Menu Buttons
@@ -129,79 +169,95 @@ module Na__InsertPrimatives
 
 
         # -----------------------------------------------------------------------------
-        # REGION | Letters — C R O G V Typed on Their Own
+        # REGION | SHIFT+TAB — the Next Profile
         # -----------------------------------------------------------------------------
 
-        # ON KEY DOWN | A Profile Letter, With Nothing Typed, Swaps the Profile
-        # Swallowed (true) whenever it is taken, so SketchUp's own shortcut on
-        # the letter does not run as well. ALT is tracked here only to keep
-        # Alt+V and friends with the Windows menu bar.
+        # ON KEY DOWN | SHIFT+TAB Steps to the Next Profile
+        # ------------------------------------------------------------
+        # Chamfer, Fillet, Ogee, Ovolo and round again, carrying the edges and
+        # the drag. One step per press: the repeats of a held TAB are
+        # swallowed until it is let go (Na__HotSwap__TabDown), so it neither
+        # races round the four nor falls through to the new profile's own TAB.
+        # SHIFT comes from the mouse flags, the one modifier they are always
+        # right about; the key flags carry the scan code on Windows and are not
+        # read. Not with CTRL down, which is the hand on the vertex snap.
         # ------------------------------------------------------------
         def onKeyDown(key, repeat, flags, view)
-            if key == NA_HS_ALT_KEY
-                @na_hs_alt_at = Time.now
-                return super
+            if key == NA_HS_TAB_KEY && Na__InsertPrimatives.Na__HotSwap__TabDown?
+                Na__InsertPrimatives.Na__HotSwap__TabDown(true)               # <-- A repeat of the press that switched: still held
+                return true
             end
 
-            profile = NA_HS_LETTER_KEYS[key]
-            return super unless profile && na_hs__letter_free?
+            return super unless key == NA_HS_TAB_KEY && @na_shift_held && !@na_ctrl_held
 
-            na_hs__switch_profile(profile, true) if repeat.to_i <= 1          # <-- A held key switches once, and its repeats stay swallowed
+            Na__InsertPrimatives.Na__HotSwap__TabDown(true)
+            na_hs__switch_profile(na_hs__next_profile)
             true
         end
         # ---------------------------------------------------------------
 
-        # ON KEY UP | ALT Released
+        # ON KEY UP | TAB Let Go; Everything Else to the Shared Handler
+        # ------------------------------------------------------------
+        # Defined either way rather than deleted: Reload Plugin Data loads this
+        # file again without removing anything, so 5.1.22's ALT-tracking
+        # key-up would otherwise live on in a running SketchUp until a restart.
         # ------------------------------------------------------------
         def onKeyUp(key, repeat, flags, view)
-            @na_hs_alt_at = nil if key == NA_HS_ALT_KEY
+            Na__InsertPrimatives.Na__HotSwap__TabDown(false) if key == NA_HS_TAB_KEY
             super
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Is a Letter Free to Mean a Profile Right Now?
-        # Not mid-entry, where it belongs to the box ("40r", "48s"), and not
-        # with a modifier down, where it belongs to SketchUp. The key flags are
-        # not read for this: on Windows they carry the key's scan code, whose
-        # bits can look like a modifier mask.
-        # ------------------------------------------------------------
-        def na_hs__letter_free?
-            return false if @na_vcb_typing_active
-            return false if @na_ctrl_held || @na_shift_held
-            return false if @na_hs_alt_at && (Time.now - @na_hs_alt_at).to_f < NA_HS_ALT_HELD_S
-
-            true
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | A Letter That Reached the Measurements Box Switches on Enter
-        # The usual route is the key itself (above). This is the other: a
-        # letter typed after an entry was cleared with Backspace gets into the
-        # box, and arrives here with its Enter.
+        # ON USER TEXT | Left to the Shared Handler (the Same Reason)
+        # A letter typed into the box is no longer a profile: "r" on its own is
+        # just an entry the tool cannot read, and says so as any other would.
         # ------------------------------------------------------------
         def onUserText(text, view)
-            profile = NA_HS_LETTER_TEXT[text.to_s.strip.downcase]
-            return super unless profile
-
-            @na_vcb_typing_active = false
-            na_hs__switch_profile(profile, false)
-            nil
+            super
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Switch to the Profile a Letter Names
-        # The same handover as the menu: the edges and the drag come across.
-        # The profile already running keeps everything and says so (Deep Ovolo
-        # answers V itself: it turns a cavetto back into an ovolo).
+        # DEACTIVATE | The Menu Commands Forget This Tool
         # ------------------------------------------------------------
-        def na_hs__switch_profile(profile, by_key)
+        def deactivate(view)
+            Na__InsertPrimatives.Na__HotSwap__SetActiveTool(nil) if Na__InsertPrimatives.Na__HotSwap__ActiveTool.equal?(self)
+            super
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | This Tool's Own Profile
+        # ------------------------------------------------------------
+        def na_hs__profile
+            NA_HS_PROFILE_CLASS.each do |profile, class_name|
+                next unless Na__InsertPrimatives.const_defined?(class_name)
+
+                return profile if instance_of?(Na__InsertPrimatives.const_get(class_name))
+            end
+
+            :chamfer
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Profile SHIFT+TAB Goes To From This One
+        # ------------------------------------------------------------
+        def na_hs__next_profile
+            order = Na__InsertPrimatives::NA_HS_PROFILE_ORDER
+            order[(order.index(na_hs__profile).to_i + 1) % order.length]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to a Profile — SHIFT+TAB, or Its Menu Command
+        # ------------------------------------------------------------
+        # The same handover as the right-click menu: the edges and the drag come
+        # across. The profile already running keeps everything and says so
+        # (Deep Ovolo answers its own command by turning a cavetto back into an
+        # ovolo).
+        # ------------------------------------------------------------
+        def na_hs__switch_profile(profile)
             class_name = NA_HS_PROFILE_CLASS[profile]
             return false unless class_name && Na__InsertPrimatives.const_defined?(class_name)
 
-            return na_hs__same_profile_letter(profile) if instance_of?(Na__InsertPrimatives.const_get(class_name))
-
-            Na__InsertPrimatives.Na__DrawnSettings__SetOvoloCavetto(false) if profile == :ovolo   # <-- V is the ovolo; TAB in there gives the cavetto
-            Na__InsertPrimatives.Na__HotSwap__MarkLetter if by_key
+            return na_hs__same_profile(profile) if instance_of?(Na__InsertPrimatives.const_get(class_name))
 
             case profile                                                      # <-- self. receivers: a bare capitalised name parses as a constant
             when :chamfer then self.Na__DrawnMode__SetChamferMode
@@ -212,25 +268,15 @@ module Na__InsertPrimatives
 
             true
         rescue StandardError => error
-            Na__InsertPrimatives.Na__Debug__Puts "NA HOT SWAP: the letter could not switch (#{error.message})"
+            Na__InsertPrimatives.Na__Debug__Puts "NA HOT SWAP: could not switch to #{profile} (#{error.message})"
             false
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | The Letter for the Profile Already Running
+        # FUNCTION | The Profile Already Running, Asked For Again
         # ------------------------------------------------------------
-        def na_hs__same_profile_letter(_profile)
-            na_revise__notice("Already #{na_drawn__tool_title} — C chamfer, R radius, O ogee, V ovolo")
-            true
-        end
-        # ---------------------------------------------------------------
-
-        # FUNCTION | Is This Enter the One That Followed a Letter? (Asked Once)
-        # ------------------------------------------------------------
-        def na_hs__enter_after_letter?
-            return false unless Na__InsertPrimatives.Na__HotSwap__TakeLetterEnter
-
-            na_revise__notice("#{na_drawn__tool_title} — press Enter again, or click, to cut") if @na_state == :picking_depth
+        def na_hs__same_profile(_profile)
+            na_revise__notice("Already #{na_drawn__tool_title} — SHIFT+TAB steps to the next profile, keeping the edges")
             true
         end
         # ---------------------------------------------------------------

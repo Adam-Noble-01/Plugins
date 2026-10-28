@@ -48,8 +48,8 @@ module Na__InsertPrimatives
                     'Na__Position__X' => nil,
                     'Na__Position__Y' => nil
                 },
-                'Na__RightClickMenu__Size'       => {
-                    'Na__Size__Width'  => 216,
+                'Na__RightClickMenu__ContentSize' => {                          # <-- The page's own size (CSS px), set by the user's resize; nil = fit
+                    'Na__Size__Width'  => nil,
                     'Na__Size__Height' => nil
                 }
             }

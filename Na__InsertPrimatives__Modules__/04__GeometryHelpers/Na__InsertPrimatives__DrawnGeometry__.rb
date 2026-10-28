@@ -99,9 +99,10 @@ module Na__InsertPrimatives
 
     # FUNCTION | Create a Drawn Plane Group
     # Returns the new group, or nil when the rectangle is degenerate or the face
-    # could not be built.
+    # could not be built. `container_material` works as it does for the volume
+    # below: a material NAME painted on the group inside this one operation.
     # ------------------------------------------------------------
-    def self.Na__DrawnGeom__CreatePlane(origin, plane_key, u_len, v_len, view, create_face)
+    def self.Na__DrawnGeom__CreatePlane(origin, plane_key, u_len, v_len, view, create_face, container_material = nil)
         return nil unless origin
         return nil unless Na__InsertPrimatives.Na__DrawnGeom__ValidRectangle?(u_len, v_len)
 
@@ -120,6 +121,10 @@ module Na__InsertPrimatives
         unless geometry
             model.abort_operation
             return nil
+        end
+
+        if container_material
+            Na__InsertPrimatives.Na__StdMaterial__ApplyToContainer(group, container_material)
         end
 
         model.commit_operation

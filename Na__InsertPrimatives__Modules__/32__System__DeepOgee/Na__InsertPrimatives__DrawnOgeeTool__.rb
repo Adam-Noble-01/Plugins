@@ -102,7 +102,7 @@ module Na__InsertPrimatives
                 "VCB: 40 | +5 | -5 sizes it   48s smooths the curve (now #{Na__InsertPrimatives.Na__DrawnSettings__CircleSegments} sides)",
                 'After cutting, keep typing: 60 resizes the ogee, +5 / -5 adjust it',
                 'Double-click an edge to mould it at the last size placed (remembered in the model)',
-                'Type C chamfer, R radius, O ogee, V ovolo on their own to swap the profile, keeping the edges',
+                'SHIFT+TAB steps the profile — Chamfer, Fillet, Ogee, Ovolo — keeping the edges and the drag',
                 'The edge must border exactly two faces'
             ]
         end
@@ -380,9 +380,12 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     # Bind in Preferences -> Shortcuts against the Extensions menu item, or call
     # directly: Na__InsertPrimatives.Na__InsertPrimatives__DeepOgee
+    # Pressed while one of the four edge tools runs, it hands the edges and
+    # the drag over, as the right-click menu does (5.2.9, DrawnChamferHotSwap).
     # ------------------------------------------------------------
     def self.Na__InsertPrimatives__DeepOgee
-        Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOgeeTool
+        Na__InsertPrimatives.Na__HotSwap__ToProfile(:ogee) ||
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOgeeTool
     end
     # ---------------------------------------------------------------
 

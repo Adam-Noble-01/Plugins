@@ -33,6 +33,12 @@
 #   Transparent  the new group CONTAINER is painted with the indexed material
 #                MAT011__ModelingUtility__Transparent. The container, not the
 #                faces, so it can be cleared again in one click.
+#   2D Orbit Lock  on (default): in a parallel view, AltGr / Ctrl+Alt cannot
+#                orbit or pan the camera (SketchUp 2027's touchpad gestures);
+#                the middle mouse, the Pan tool and the wheel work as ever.
+#                Shared with Drawn Plane. The Staircase, a subclass with its
+#                own mode key, is not guarded. See Camera__ParallelDrawingGuard__
+#                and Camera__AltGrFilter__.
 #
 #   SHIFT+TAB switches Subtraction on and off, mid-drag included: the drag
 #   in hand follows the switch, and so it does from the popup.
@@ -41,6 +47,7 @@
 
 require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__Camera__ParallelDrawingGuard__'
 require_relative 'Na__InsertPrimatives__DrawnVolume__Subtract__'
 
 module Na__InsertPrimatives
@@ -55,6 +62,7 @@ module Na__InsertPrimatives
 
         include Na__InsertPrimatives::DrawnToolShared
         include Na__InsertPrimatives::DrawnVolumeSubtract
+        prepend Na__InsertPrimatives::ParallelDrawingGuard                     # <-- Holds a 2D view still against AltGr / Ctrl+Alt orbit (SketchUp 2027)
 
         # INITIALIZE | Tool Constructor
         # ------------------------------------------------------------

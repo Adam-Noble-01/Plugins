@@ -32,10 +32,11 @@
 #   between the two faces), so a chamfer can be set to stop exactly at an
 #   existing corner.
 #
-# C R O G V SWITCH THE PROFILE (5.1.22):
-# - Typed on its own, with nothing else in the measurements box: C chamfer,
-#   R radius (Deep Fillet), O or G ogee, V ovolo. The edges and the drag come
-#   across, exactly as the right-click menu hands them over. See
+# SHIFT+TAB STEPS THE PROFILE (5.2.9):
+# - Chamfer, Fillet, Ogee, Ovolo, and round again. The edges and the drag come
+#   across, exactly as the right-click menu hands them over. TAB on its own is
+#   each profile's own switch. The C R O G V letters of 5.1.22 are gone:
+#   SketchUp ran its own shortcut on each before the tool saw it. See
 #   DrawnChamferHotSwap.
 #
 # LESSONS CARRIED FROM THE PUSH/PULL SAGA (built in from the start, not found):
@@ -95,10 +96,13 @@
 #   named. The full size builds: the face it consumes is dropped. See
 #   DrawnChamferLimit and DrawnChamferScrub.
 #
-# HOT SWAP FROM THE RIGHT-CLICK MENU:
-# - Chamfer, Fillet and Ogee chosen from the menu hand over the banked edges,
-#   the drag and the size, so the preview redraws in the new profile instead
-#   of starting again. See DrawnChamferHotSwap.
+# HOT SWAP FROM THE MENUS AND SHIFT+TAB:
+# - Chamfer, Fillet, Ogee and Ovolo chosen from the right-click menu, stepped
+#   to with SHIFT+TAB, or started from their Extensions menu commands (the
+#   ones keys are bound to in Preferences > Shortcuts) while one of the four
+#   runs, hand over the banked edges, the drag and the size, so the preview
+#   redraws in the new profile instead of starting again. See
+#   DrawnChamferHotSwap.
 #
 # PRESELECTED LOOSE EDGES:
 # - Select loose edges BEFORE starting the tool and they are the edges it
@@ -142,7 +146,7 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnChamferPreselect                   # <-- Loose edges selected before the tool starts are the bank
         include Na__InsertPrimatives::DrawnChamferLimit                       # <-- The largest cut the faces allow
         include Na__InsertPrimatives::DrawnChamferScrub                       # <-- The drag: opens at 25% of that, up for more, down for less
-        include Na__InsertPrimatives::DrawnChamferHotSwap                     # <-- Chamfer / Fillet / Ogee / Ovolo from the menu or C R O V keep the edges and the drag
+        include Na__InsertPrimatives::DrawnChamferHotSwap                     # <-- Chamfer / Fillet / Ogee / Ovolo from the menus or SHIFT+TAB keep the edges and the drag
 
         NA_CH_HOVER_COLOR   = Sketchup::Color.new(  0, 110, 235, 235)
         NA_CH_SELECT_COLOR  = Sketchup::Color.new(226, 118,   0, 255)         # <-- Edges banked with SHIFT, waiting for the drag
@@ -169,6 +173,7 @@ module Na__InsertPrimatives
         # what the user selected before starting the tool.
         # ------------------------------------------------------------
         def activate
+            Na__InsertPrimatives.Na__HotSwap__SetActiveTool(self)             # <-- The profiles' menu commands hand over to this one
             super
 
             if na_hs__pending?
@@ -293,8 +298,8 @@ module Na__InsertPrimatives
                 'Double-click an edge to cut it at the last setback placed (remembered in the model)',
                 'The edge must border exactly two faces',
                 'Select loose edges BEFORE starting the tool and they are the ones cut — press and drag anywhere',
-                'Type C chamfer, R radius, O or G ogee, V ovolo on their own to swap the profile, keeping the edges',
-                'Right-click → Deep Fillet / Deep Ogee / Deep Ovolo swaps the profile mid-drag too'
+                'SHIFT+TAB steps the profile — Chamfer, Fillet, Ogee, Ovolo — keeping the edges and the drag',
+                'Right-click → Deep Fillet / Deep Ogee / Deep Ovolo swaps it too, and so does a key bound to them in Preferences > Shortcuts'
             ]
         end
         # ---------------------------------------------------------------
@@ -503,16 +508,10 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Enter Cuts the Chamfer
-        # Except straight after C / R / O / V switched the profile: typed the
-        # measurements-box way, the letter is followed by Enter, and that Enter
-        # finishes the switch rather than cutting the profile just swapped in.
         # ------------------------------------------------------------
         def onReturn(view)
-            after_letter = na_hs__enter_after_letter?                         # <-- Asked first, so the flag never outlives this Enter
-
             return false unless na_drawn__ensure_known_state
             return false unless @na_state == :picking_depth
-            return true if after_letter
 
             na_drawn__commit_chamfer(view)
             na_drawn__update_status_text
@@ -579,10 +578,10 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | The Snap Keys, and the Letters That Swap the Profile
+        # FUNCTION | The Snap Key, and the Key That Steps the Profile
         # ------------------------------------------------------------
         def na_drawn__vertex_hint
-            'CTRL vertex  C R O V profile'
+            'CTRL vertex  SHIFT+TAB profile'
         end
         # ---------------------------------------------------------------
 
@@ -1517,9 +1516,12 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     # Bind in Preferences -> Shortcuts against the Extensions menu item, or call
     # directly: Na__InsertPrimatives.Na__InsertPrimatives__DeepChamfer
+    # Pressed while one of the four edge tools runs, it hands the edges and
+    # the drag over, as the right-click menu does (5.2.9, DrawnChamferHotSwap).
     # ------------------------------------------------------------
     def self.Na__InsertPrimatives__DeepChamfer
-        Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnChamferTool
+        Na__InsertPrimatives.Na__HotSwap__ToProfile(:chamfer) ||
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnChamferTool
     end
     # ---------------------------------------------------------------
 

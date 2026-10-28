@@ -75,6 +75,40 @@ reloader_file = File.join(app_core_dir, 'Na__InsertPrimatives__AppCore__PluginRe
     # ---------------------------------------------------------------
 
 
+    # FUNCTION | Run a Deep Scale Switch From Its Shortcut Command
+    # ------------------------------------------------------------
+    # The same guard as RunTool. The switch itself starts Deep Scale when it
+    # is not already running (Na__Scale__Hotkey).
+    # ------------------------------------------------------------
+    def Na__InsertPrimatives__RunScaleHotkey(action)
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__Scale__Hotkey)
+            UI.messagebox(
+                "Na Insert Primatives is not loaded.\n\n" \
+                "Use Extensions > Na__InsertPrimitives > Reload Plugin Data, " \
+                "or restart SketchUp."
+            )
+            return
+        end
+
+        Na__InsertPrimatives.Na__Scale__Hotkey(action)
+    end
+    # ---------------------------------------------------------------
+
+
+    # FUNCTION | Tick a Deep Scale Switch's Menu Entry When It Is On
+    # ------------------------------------------------------------
+    def Na__InsertPrimatives__ScaleHotkeyState(action)
+        return MF_GRAYED unless defined?(Na__InsertPrimatives) &&
+                                Na__InsertPrimatives.respond_to?(:Na__Scale__HotkeyChecked?)
+
+        Na__InsertPrimatives.Na__Scale__HotkeyChecked?(action) ? MF_CHECKED : MF_UNCHECKED
+    rescue StandardError
+        MF_UNCHECKED
+    end
+    # ---------------------------------------------------------------
+
+
     # FUNCTION | Write Loader Diagnostics Only When AppConfig Dev Mode Is On
     # ------------------------------------------------------------
     def Na__InsertPrimatives__DebugPuts(*args)
@@ -182,6 +216,23 @@ $na_insert_primatives_menu ||= { :submenu => nil, :entries => {} }
     end
     # ---------------------------------------------------------------
 
+
+    # FUNCTION | Fetch or Create a Submenu Inside the Plugin Submenu
+    # ------------------------------------------------------------
+    # Kept in the same global registry as the entries, for the same reason:
+    # a reload must find the submenu it made, not add a second one.
+    # ------------------------------------------------------------
+    def Na__InsertPrimatives__NestedSubmenu(key, title)
+        $na_insert_primatives_menu[:submenus] ||= {}
+        existing = $na_insert_primatives_menu[:submenus][key]
+        return existing if existing
+
+        submenu = Na__InsertPrimatives__PluginSubmenu().add_submenu(title)
+        $na_insert_primatives_menu[:submenus][key] = submenu
+        submenu
+    end
+    # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 
@@ -272,6 +323,50 @@ begin
     stair_cmd.menu_text       = "Staircase"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Pipework Tool (Along Selected Edges, or Drawn Point by Point)
+    # ------------------------------------------------------------
+    pipe_cmd = UI::Command.new('NA_DrawPipework') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DrawPipe)
+    }
+    pipe_cmd.tooltip         = "Pipework"
+    pipe_cmd.status_bar_text = "Pipe along the selected edges, or draw a run point by point: diameter, bend radius, sides (80,110,24s)"
+    pipe_cmd.menu_text       = "Pipework"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Pipework Path — Edit and Finish, So Each Can Take a Shortcut
+    # ------------------------------------------------------------
+    pipe_edit_cmd = UI::Command.new('NA_PipeworkEditPath') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__EditPipePath)
+    }
+    pipe_edit_cmd.tooltip         = "Edit Pipework Path"
+    pipe_edit_cmd.status_bar_text = "Re-route the selected pipe: its path comes out as a red line to edit with any tool"
+    pipe_edit_cmd.menu_text       = "Edit Pipework Path"
+
+    pipe_finish_cmd = UI::Command.new('NA_PipeworkFinishPath') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__FinishPipePath)
+    }
+    pipe_finish_cmd.tooltip         = "Finish Pipework Path"
+    pipe_finish_cmd.status_bar_text = "Rebuild the pipe along its red line now"
+    pipe_finish_cmd.menu_text       = "Finish Pipework Path"
+
+    # COMMAND SETUP | Pipework Bar on Selection — Ticked While It Is On
+    # ------------------------------------------------------------
+    pipe_bar_cmd = UI::Command.new('NA_PipeworkBarOnSelection') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__TogglePipeAutoBar)
+    }
+    pipe_bar_cmd.tooltip         = "Pipework Bar on Selection"
+    pipe_bar_cmd.status_bar_text = "Show the Pipework bar, top left, whenever pipes are selected with the Select tool"
+    pipe_bar_cmd.menu_text       = "Pipework Bar on Selection"
+    pipe_bar_cmd.set_validation_proc {
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__DrawnPipe__AutoBarOn?)
+            next MF_GRAYED
+        end
+
+        Na__InsertPrimatives.Na__DrawnPipe__AutoBarOn? ? MF_CHECKED : MF_UNCHECKED
+    }
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Pitched Roof Tool (Click and Drag Gable Roof)
     # ------------------------------------------------------------
     pitched_roof_cmd = UI::Command.new('NA_DrawPitchedRoofPrimitive') {
@@ -303,6 +398,37 @@ begin
     # the separator, so "Deep Push / Pull" would read as two extra path levels in
     # Preferences -> Shortcuts.
     push_pull_cmd.menu_text       = "Deep Push Pull"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Deep Push/Pull Joint Surfaces — Ticked While It Is On
+    # ------------------------------------------------------------
+    # The tool's SHIFT+TAB, as a command, so it can take a key of its own in
+    # Preferences -> Shortcuts.
+    # ------------------------------------------------------------
+    push_joint_cmd = UI::Command.new('NA_DeepPushPullJointSurfaces') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__TogglePushPullJoint)
+    }
+    push_joint_cmd.tooltip         = "Deep Push Pull Joint Surfaces"
+    push_joint_cmd.status_bar_text = "A face on a smoothed surface pushes the whole surface as one; off, one face at a time"
+    push_joint_cmd.menu_text       = "Deep Push Pull Joint Surfaces"
+    push_joint_cmd.set_validation_proc {
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__PushPull__JointOn?)
+            next MF_GRAYED
+        end
+
+        Na__InsertPrimatives.Na__PushPull__JointOn? ? MF_CHECKED : MF_UNCHECKED
+    }
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Deep Project Tool (Carry a Face On to a Target)
+    # ------------------------------------------------------------
+    project_cmd = UI::Command.new('NA_DeepProject') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepProject)
+    }
+    project_cmd.tooltip         = "Deep Project"
+    project_cmd.status_bar_text = "Carry any face, at any nesting depth, on to the plane of another face, a point or an object"
+    project_cmd.menu_text       = "Deep Project"
     # ---------------------------------------------------------------
 
     # COMMAND SETUP | Deep Chamfer Tool
@@ -345,6 +471,64 @@ begin
     ovolo_cmd.menu_text       = "Deep Ovolo"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Deep Scale Tool (Grips, Typed Dimensions, Stretch Planes)
+    # ------------------------------------------------------------
+    scale_cmd = UI::Command.new('NA_DeepScale') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepScale)
+    }
+    scale_cmd.tooltip         = "Deep Scale"
+    scale_cmd.status_bar_text = "Scale any group or component by its grips, type its size, or stretch it between cut planes"
+    scale_cmd.menu_text       = "Deep Scale"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Deep Vertex Move Tool (Box-Pick Vertices, Move With a Gimbal)
+    # ------------------------------------------------------------
+    # The selection when it starts is the scope: only the vertices inside those
+    # groups, components or loose faces can be picked and moved.
+    # ------------------------------------------------------------
+    vertex_move_cmd = UI::Command.new('NA_DeepVertexMove') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__DeepVertexMove)
+    }
+    vertex_move_cmd.tooltip         = "Deep Vertex Move"
+    vertex_move_cmd.status_bar_text = "Box-pick vertices at any depth inside the selection and move or stretch them with a gimbal, on the grid"
+    vertex_move_cmd.menu_text       = "Deep Vertex Move"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | Deep Scale Options — One Command per Switch, for Shortcuts
+    # ------------------------------------------------------------
+    # Every switch the handle bar and the right-click menu carry, as a command
+    # of its own, so each can be given a key in Preferences > Shortcuts under
+    # Extensions/Na__InsertPrimitives/Deep Scale Options. Pressed with Deep
+    # Scale not running, a command starts it. Single letters are left to
+    # SketchUp (5.2.6): its own shortcuts take them before a tool can. The
+    # ids are each shortcut's permanent identity: never rename one.
+    # ------------------------------------------------------------
+    scale_option_specs = [
+        ['NA_DeepScale_HandlesAll',     :handles_all,     'Handles All',          'Show every scale grip'],
+        ['NA_DeepScale_HandlesFaces',   :handles_faces,   'Handles Faces',        'Show the face grips only, one axis each'],
+        ['NA_DeepScale_HandlesCorners', :handles_corners, 'Handles Corners',      'Show the corner grips only, a uniform scale'],
+        ['NA_DeepScale_HandlesX',       :handles_x,       'Handles X Only',       'Show only the two grips that pull X (RIGHT ARROW for a moment)'],
+        ['NA_DeepScale_HandlesY',       :handles_y,       'Handles Y Only',       'Show only the two grips that pull Y (LEFT ARROW for a moment)'],
+        ['NA_DeepScale_HandlesZ',       :handles_z,       'Handles Z Only',       'Show only the two grips that pull Z (UP ARROW for a moment)'],
+        ['NA_DeepScale_HandlesNext',    :handles_next,    'Next Handle Set',      'Step to the next handle set: All, Faces, Corners, X, Y, Z'],
+        ['NA_DeepScale_StretchPlanes',  :planes,          'Stretch Planes',       'Stretch Planes on or off (SHIFT+TAB while scaling)'],
+        ['NA_DeepScale_AboutCentre',    :centre,          'About Centre',         'Scale about the centre on or off (TAB)'],
+        ['NA_DeepScale_Dimensions',     :dims,            'Dimensions',           'Show Dimensions on or off'],
+        ['NA_DeepScale_ClearPlanes',    :clear_planes,    'Clear Stretch Planes', 'Remove every stretch plane saved with the object being scaled']
+    ]
+
+    scale_option_cmds = scale_option_specs.map do |id, action, text, status|
+        command = UI::Command.new(id) { Na__InsertPrimatives__RunScaleHotkey(action) }
+        command.tooltip         = "Deep Scale: #{text}"
+        command.status_bar_text = status
+        command.menu_text       = text
+        unless [:handles_next, :clear_planes].include?(action)
+            command.set_validation_proc { Na__InsertPrimatives__ScaleHotkeyState(action) }     # <-- Ticks the handle set in force and the switches that are on
+        end
+        [id, command]
+    end
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Hot Reload All Plugin Modules
     # ------------------------------------------------------------
     reload_cmd = UI::Command.new('NA_InsertPrimitivesReloadPluginData') {
@@ -380,6 +564,32 @@ begin
     reset_menu_cmd.tooltip         = "Reset Menu Position"
     reset_menu_cmd.status_bar_text = "Forget where the right-click primitive menu was left; it opens at the cursor next time"
     reset_menu_cmd.menu_text       = "Reset Menu Position"
+    # ---------------------------------------------------------------
+
+    # COMMAND SETUP | AltGr Never Orbits or Pans — Ticked While It Is On (Windows)
+    # ------------------------------------------------------------
+    # SketchUp 2027 orbits on Ctrl+Alt and pans on Shift+Ctrl+Alt as the cursor
+    # moves, and Windows reports AltGr as Ctrl+Alt. Drawn Plane and Drawn
+    # Volume already keep AltGr from navigating a 2D view; this keeps it from
+    # navigating anywhere in SketchUp. AltGr shortcuts still fire. See
+    # Camera__AltGrFilter__.
+    # ------------------------------------------------------------
+    altgr_cmd = UI::Command.new('NA_AltGrNeverNavigates') {
+        Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__ToggleAltGrFilter)
+    }
+    altgr_cmd.tooltip         = "AltGr Never Orbits or Pans"
+    altgr_cmd.status_bar_text = "Keep AltGr (Ctrl+Alt to Windows) from starting SketchUp 2027's touchpad orbit and pan, in every tool; AltGr shortcuts still work"
+    altgr_cmd.menu_text       = "AltGr Never Orbits or Pans"
+    altgr_cmd.set_validation_proc {
+        unless defined?(Na__InsertPrimatives) &&
+               Na__InsertPrimatives.respond_to?(:Na__AltGrFilter__Everywhere?) &&
+               defined?(Na__InsertPrimatives::NA_ALTGR_FILTER_WINDOWS) &&
+               Na__InsertPrimatives::NA_ALTGR_FILTER_WINDOWS
+            next MF_GRAYED
+        end
+
+        Na__InsertPrimatives.Na__AltGrFilter__Everywhere? ? MF_CHECKED : MF_UNCHECKED
+    }
     # ---------------------------------------------------------------
 
     # COMMAND SETUP | Toggle AppConfig Dev Mode
@@ -428,14 +638,36 @@ begin
     Na__InsertPrimatives__AddMenuEntry('drawn_plane')     { |m| m.add_item(drawn_plane_cmd) }
     Na__InsertPrimatives__AddMenuEntry('drawn_volume')    { |m| m.add_item(drawn_volume_cmd) }
     Na__InsertPrimatives__AddMenuEntry('drawn_cylinder')  { |m| m.add_item(drawn_cylinder_cmd) }
-    Na__InsertPrimatives__AddMenuEntry('staircase')       { |m| m.add_item(stair_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_draw')  { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('pitched_roof')    { |m| m.add_item(pitched_roof_cmd) }
     Na__InsertPrimatives__AddMenuEntry('hipped_roof')     { |m| m.add_item(hipped_roof_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('staircase')       { |m| m.add_item(stair_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('pipework')        { |m| m.add_item(pipe_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('pipework_edit_path')   { |m| m.add_item(pipe_edit_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('pipework_finish_path') { |m| m.add_item(pipe_finish_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('pipework_bar_on_selection') { |m| m.add_item(pipe_bar_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_roof')  { |m| m.add_separator }
 
     Na__InsertPrimatives__AddMenuEntry('push_pull')       { |m| m.add_item(push_pull_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('push_pull_joint') { |m| m.add_item(push_joint_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('project')         { |m| m.add_item(project_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('scale')           { |m| m.add_item(scale_cmd) }
+
+    scale_option_cmds.each do |id, command|
+        if id == 'NA_DeepScale_StretchPlanes'
+            Na__InsertPrimatives__AddMenuEntry('scale_options_sep') do |_m|
+                Na__InsertPrimatives__NestedSubmenu('scale_options', 'Deep Scale Options').add_separator
+            end
+        end
+
+        Na__InsertPrimatives__AddMenuEntry("scale_option_#{id}") do |_m|
+            Na__InsertPrimatives__NestedSubmenu('scale_options', 'Deep Scale Options').add_item(command)
+        end
+    end
+
+    Na__InsertPrimatives__AddMenuEntry('vertex_move')     { |m| m.add_item(vertex_move_cmd) }
+
     Na__InsertPrimatives__AddMenuEntry('chamfer')         { |m| m.add_item(chamfer_cmd) }
     Na__InsertPrimatives__AddMenuEntry('fillet')          { |m| m.add_item(fillet_cmd) }
     Na__InsertPrimatives__AddMenuEntry('ogee')            { |m| m.add_item(ogee_cmd) }
@@ -444,8 +676,35 @@ begin
 
     Na__InsertPrimatives__AddMenuEntry('reload')              { |m| m.add_item(reload_cmd) }
     Na__InsertPrimatives__AddMenuEntry('reset_menu_position') { |m| m.add_item(reset_menu_cmd) }
+    Na__InsertPrimatives__AddMenuEntry('altgr_never_navigates') { |m| m.add_item(altgr_cmd) }
     Na__InsertPrimatives__AddMenuEntry('sep_after_reload')    { |m| m.add_separator }
     Na__InsertPrimatives__AddMenuEntry('dev_mode')            { |m| m.add_item(dev_mode_cmd) }
+    # ---------------------------------------------------------------
+
+    # MENU INTEGRATION | Branded Launcher Beside the Submenu
+    # ------------------------------------------------------------
+    # SketchUp gives a submenu no icon, so the NA mark rides on a command of its
+    # own in the Extensions menu, straight after the submenu: the pattern Na Point
+    # Cloud Viewer uses. It starts the tool on Insert Cube; a right-click then
+    # opens the Primitive Menu. Keyed in the same registry, so a reload never adds
+    # a second.
+    # ------------------------------------------------------------
+    unless $na_insert_primatives_menu[:entries]['brand_launcher']
+        brand_icon = File.join(__dir__, 'Na__InsertPrimatives__Modules__', '40__UserInterface',
+                               'UiIcons__MenuIcons__PrimitiveMenu', 'Na__InsertPrimatives__Brand__CustomToolbarIcon__.svg')
+        launch_cmd = UI::Command.new('Na Insert Primitives') {
+            Na__InsertPrimatives__RunTool(:Na__InsertPrimatives__InsertCube)
+        }
+        launch_cmd.tooltip         = "Na Insert Primitives"
+        launch_cmd.status_bar_text = "Start Insert Primitives (right-click for the Primitive Menu)"
+        launch_cmd.menu_text       = "Na Insert Primitives"
+        if File.exist?(brand_icon)
+            launch_cmd.small_icon = brand_icon
+            launch_cmd.large_icon = brand_icon
+        end
+        UI.menu('Extensions').add_item(launch_cmd)
+        $na_insert_primatives_menu[:entries]['brand_launcher'] = true
+    end
     # ---------------------------------------------------------------
 
 rescue => loader_menu_error

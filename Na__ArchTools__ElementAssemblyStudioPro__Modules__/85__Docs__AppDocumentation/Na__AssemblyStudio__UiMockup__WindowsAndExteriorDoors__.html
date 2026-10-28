@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     ELEMENT ASSEMBLY STUDIO PRO - UI MOCKUP - WINDOWS & EXTERIOR DOORS
+     =============================================================================
+     FILE       : Na__AssemblyStudio__UiMockup__WindowsAndExteriorDoors__.html
+     AUTHOR     : Noble Architecture
+     PURPOSE    : Interactive mockup of a reordered Windows & Exterior Doors
+                  panel, with the design notes that justify it.
+     CREATED    : 28-Oct-2026
+
+     DESCRIPTION:
+     - Self-contained: no scripts or styles from the plugin, fake data only.
+     - Left: the dialog at its real 780px width. Right: findings, usage
+       evidence, the new flow and an old -> new map.
+     - Parameter ids shown in search are the real config keys, so the
+       mockup maps straight back onto the five UiSystem Config files.
+     ============================================================================= -->
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EASP Panel Rework</title>
+<style>
+:root {
+    --na-page        : #e2e5e9;
+    --na-dlg         : #f3f4f6;
+    --na-card        : #ffffff;
+    --na-line        : #dce1e6;
+    --na-line-soft   : #eceff2;
+    --na-ink         : #1b222a;
+    --na-ink-2       : #3a4450;
+    --na-mute        : #687380;
+    --na-faint       : #9aa3ad;
+    --na-blue        : #3a7fd5;
+    --na-blue-ink    : #245fa8;
+    --na-blue-soft   : #e8f1fc;
+    --na-green       : #3c9a48;
+    --na-green-ink   : #2b7535;
+    --na-amber       : #e08600;
+    --na-amber-ink   : #9c5d00;
+    --na-amber-soft  : #fff2dc;
+    --na-tint        : #f7f8fa;
+    --na-font        : 'Open Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --na-mono        : 'Cascadia Mono', Consolas, 'SFMono-Regular', monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--na-page); color: var(--na-ink); font: 13px/1.45 var(--na-font); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+
+/* ---------------------------------------------------------------- page */
+.na-page { max-width: 1480px; margin: 0 auto; padding: 20px 20px 48px; }
+.na-page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.na-page-head h1 { font-size: 20px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; }
+.na-page-head p { margin: 0; color: var(--na-mute); }
+.na-demo { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--na-line); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--na-ink-2); }
+.na-demo b { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--na-faint); font-weight: 700; }
+.na-demo label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.na-layout { display: grid; grid-template-columns: minmax(0, 780px) minmax(340px, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1200px) { .na-layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* -------------------------------------------------------------- dialog */
+.na-dialog { width: 100%; max-width: 780px; height: min(1200px, calc(100vh - 110px)); min-height: 620px; display: flex; flex-direction: column; background: var(--na-dlg); border: 1px solid #c6ccd3; border-radius: 9px; overflow: hidden; position: relative; box-shadow: 0 14px 34px -14px rgba(18, 28, 40, .38), 0 2px 6px rgba(18, 28, 40, .08); }
+.na-os { height: 30px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 12px; background: #fbfbfc; border-bottom: 1px solid var(--na-line); font-size: 12px; color: var(--na-ink-2); }
+.na-os i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #d6dade; margin-left: 6px; }
+
+.na-chrome { flex: none; background: #fff; border-bottom: 1px solid var(--na-line); }
+.na-brand { display: flex; align-items: center; gap: 14px; padding: 8px 12px 0; }
+.na-logo { height: 22px; width: auto; display: block; }
+.na-logo-text { font-size: 10px; font-weight: 800; letter-spacing: .14em; color: #59636e; line-height: 1.05; }
+.na-tabs { display: flex; gap: 2px; margin-left: 4px; align-self: flex-end; }
+.na-tab { border: 0; background: none; padding: 7px 12px 8px; font-size: 12.5px; font-weight: 600; color: var(--na-mute); border-bottom: 2px solid transparent; }
+.na-tab--on { color: var(--na-ink); border-bottom-color: var(--na-blue); }
+.na-brand-tools { margin-left: auto; display: flex; gap: 6px; align-items: center; padding-bottom: 4px; }
+.na-ghost { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--na-line); background: #fff; border-radius: 6px; padding: 4px 9px; font-size: 12px; color: var(--na-ink-2); }
+.na-ghost:hover { background: var(--na-tint); border-color: #cbd2d9; }
+.na-ghost svg { width: 14px; height: 14px; }
+.na-icon-btn { padding: 4px 6px; }
+
+.na-products { display: flex; align-items: flex-end; gap: 14px; padding: 10px 12px 8px; border-top: 1px solid var(--na-line-soft); flex-wrap: wrap; }
+.na-pgroup { display: flex; flex-direction: column; gap: 4px; }
+.na-pgroup > b { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--na-faint); font-weight: 700; padding-left: 2px; }
+.na-pgroup > div { display: flex; gap: 4px; }
+.na-pchip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px 0 8px; border: 1px solid var(--na-line); border-radius: 7px; background: #fff; font-size: 12.5px; font-weight: 600; color: var(--na-ink-2); }
+.na-pchip svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; color: var(--na-mute); }
+.na-pchip:hover { border-color: #bfc8d1; }
+.na-pchip--on { background: var(--na-blue-soft); border-color: var(--na-blue); color: var(--na-blue-ink); }
+.na-pchip--on svg { color: var(--na-blue); }
+
+.na-searchrow { display: flex; gap: 8px; padding: 0 12px 10px; }
+.na-search { position: relative; flex: 1; }
+.na-search svg { position: absolute; left: 10px; top: 50%; width: 15px; height: 15px; transform: translateY(-50%); stroke: var(--na-faint); fill: none; stroke-width: 2; }
+.na-search input { width: 100%; height: 34px; border: 1px solid var(--na-line); border-radius: 7px; background: var(--na-tint); padding: 0 70px 0 32px; font-size: 13px; outline: none; }
+.na-search input:focus { background: #fff; border-color: var(--na-blue); box-shadow: 0 0 0 3px rgba(58, 127, 213, .15); }
+.na-search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font: 600 10.5px var(--na-font); color: var(--na-faint); border: 1px solid var(--na-line); border-radius: 4px; padding: 1px 5px; background: #fff; }
+.na-chgchip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border: 1px solid var(--na-line); border-radius: 7px; background: #fff; font-size: 12px; font-weight: 600; color: var(--na-ink-2); white-space: nowrap; }
+.na-chgchip i { width: 7px; height: 7px; border-radius: 50%; background: var(--na-blue); }
+.na-chgchip--none { color: var(--na-faint); }
+.na-chgchip--none i { background: var(--na-line); }
+.na-chgchip--on { background: var(--na-blue-soft); border-color: var(--na-blue); color: var(--na-blue-ink); }
+
+.na-body { flex: 1; overflow: auto; padding: 10px 12px 8px; position: relative; scroll-behavior: smooth; }
+#na-sections > .na-sec:last-child { margin-bottom: 0; }
+
+/* ---------------------------------------------------- selected strip */
+.na-selected { background: #fff; border: 1px solid #b9dcbf; border-left: 3px solid var(--na-green); border-radius: 8px; padding: 7px 10px; margin-bottom: 10px; }
+.na-selected-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.na-idchip { font: 600 12px var(--na-mono); background: #e9f5eb; color: var(--na-green-ink); padding: 2px 7px; border-radius: 5px; }
+.na-link { border: 0; background: none; color: var(--na-blue-ink); font-size: 12px; font-weight: 600; padding: 0; margin-left: auto; }
+.na-namefields { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; margin-top: 8px; align-items: center; font-size: 12px; color: var(--na-ink-2); }
+.na-namefields input { height: 28px; border: 1px solid var(--na-line); border-radius: 5px; padding: 0 8px; }
+.na-namefields code { grid-column: 2; font: 11px var(--na-mono); color: var(--na-mute); }
+
+/* -------------------------------------------------------------- preview */
+.na-preview { background: #fff; border: 1px solid var(--na-line); border-radius: 9px; margin-bottom: 10px; overflow: hidden; }
+.na-preview-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--na-line-soft); }
+.na-preview-head h3 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--na-mute); }
+.na-size-badge { font: 600 11.5px var(--na-mono); color: var(--na-ink-2); background: var(--na-tint); border-radius: 5px; padding: 2px 7px; }
+.na-size-badge--measured { background: var(--na-amber-soft); color: var(--na-amber-ink); }
+.na-preview-head .na-ghost { padding: 3px 8px; font-size: 11.5px; }
+.na-preview-head .na-sp { flex: 1; }
+.na-preview-head .na-ghost[aria-pressed="true"] { background: var(--na-blue-soft); border-color: #b8d2f2; color: var(--na-blue-ink); }
+.na-canvas { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 236px; background: linear-gradient(#fafbfc, #f2f4f6); }
+.na-canvas--dual { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.na-cell { position: relative; min-width: 0; min-height: 0; overflow: hidden; padding: 22px 8px 6px; }
+.na-cell + .na-cell { border-left: 1px solid var(--na-line-soft); }
+.na-cell > span { position: absolute; left: 10px; top: 7px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--na-faint); }
+.na-cell svg { width: 100%; height: 100%; display: block; }
+.na-ln { stroke: #24303b; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.na-dim { stroke: #7a8591; stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+.na-dimt { fill: #56616d; font-family: var(--na-font); }
+.na-preview-tip { font-size: 11px; color: var(--na-faint); }
+
+/* ------------------------------------------------------------ sections */
+.na-sec { background: #fff; border: 1px solid var(--na-line); border-radius: 9px; margin-bottom: 7px; }
+.na-sec-top { display: flex; align-items: center; }
+.na-sec-head { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 8px 12px; text-align: left; border-radius: 9px; }
+.na-sec-head:hover { background: var(--na-tint); }
+.na-sec-head svg { width: 12px; height: 12px; flex: none; stroke: var(--na-mute); fill: none; stroke-width: 2; transition: transform .15s; }
+.na-sec-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.na-sec-title { font-size: 13px; font-weight: 700; color: var(--na-ink); white-space: nowrap; }
+.na-sec-sum { font-size: 12px; color: var(--na-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.na-badge { flex: none; font-size: 10.5px; font-weight: 700; color: var(--na-blue-ink); background: var(--na-blue-soft); border-radius: 9px; padding: 1px 7px; }
+.na-sec-body { padding: 0 12px 10px; }
+.na-sec--off .na-sec-title { color: var(--na-faint); }
+.na-offnote { font-size: 12px; color: var(--na-mute); background: var(--na-tint); border-radius: 6px; padding: 7px 10px; }
+
+.na-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 22px; }
+.na-wide { grid-column: 1 / -1; }
+@media (max-width: 640px) { .na-grid { grid-template-columns: 1fr; } }
+
+.na-more { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; border: 0; border-top: 1px dashed var(--na-line); background: none; padding: 7px 0 1px; font-size: 12px; font-weight: 600; color: var(--na-blue-ink); text-align: left; }
+.na-more svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2.4; transition: transform .15s; }
+.na-more[aria-expanded="true"] svg { transform: rotate(90deg); }
+.na-more em { font-style: normal; color: var(--na-faint); font-weight: 600; }
+.na-more b { font-size: 10.5px; color: var(--na-blue-ink); background: var(--na-blue-soft); border-radius: 9px; padding: 0 7px; }
+.na-more--head { width: auto; flex: none; margin: 0; border: 0; padding: 4px 12px 4px 8px; white-space: nowrap; border-radius: 6px; }
+.na-more--head:hover { background: var(--na-blue-soft); }
+.na-tier2 { margin-top: 6px; padding-top: 4px; border-top: 1px dashed var(--na-line); }
+.na-tier3 { margin-top: 6px; background: var(--na-tint); border-left: 2px solid #c9d3de; border-radius: 0 7px 7px 0; padding: 6px 10px 8px; }
+.na-group-head { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--na-faint); margin: 10px 0 2px; }
+
+/* ------------------------------------------------------------ controls */
+.na-ctl { display: grid; grid-template-columns: 112px minmax(60px, 1fr) 76px; align-items: center; gap: 8px; min-height: 32px; border-radius: 6px; }
+.na-lbl { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--na-ink-2); min-width: 0; }
+.na-lbl > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-chg { display: none; width: 6px; height: 6px; border-radius: 50%; background: var(--na-blue); flex: none; }
+.na-rst { display: none; border: 0; background: none; padding: 0 2px; font-size: 12px; line-height: 1; color: var(--na-faint); }
+.na-rst:hover { color: var(--na-blue-ink); }
+.na-is-chg .na-chg { display: inline-block; }
+.na-is-chg:hover .na-rst, .na-is-chg:focus-within .na-rst { display: inline-block; }
+
+.na-range { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: none; margin: 0; }
+.na-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: #dfe4ea; }
+.na-range::-moz-range-track { height: 4px; border-radius: 2px; background: #dfe4ea; }
+.na-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--na-blue); margin-top: -5px; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(36, 95, 168, .35); }
+.na-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--na-blue); border: 2px solid #fff; }
+.na-numbox { position: relative; }
+.na-num { width: 100%; height: 27px; border: 1px solid var(--na-line); border-radius: 5px; padding: 0 26px 0 6px; text-align: right; font: 12.5px var(--na-mono); background: #fff; outline: none; }
+.na-num:focus { border-color: var(--na-blue); box-shadow: 0 0 0 3px rgba(58, 127, 213, .14); }
+.na-num.na-bad { border-color: #d64545; }
+.na-numbox em { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 10.5px; color: var(--na-faint); pointer-events: none; }
+
+.na-ctl--count, .na-ctl--tog, .na-ctl--sel, .na-ctl--seg { grid-template-columns: 1fr auto; }
+.na-step { display: inline-flex; align-items: center; border: 1px solid var(--na-line); border-radius: 6px; overflow: hidden; background: #fff; }
+.na-step button { width: 26px; height: 26px; border: 0; background: var(--na-tint); font-size: 15px; line-height: 1; color: var(--na-ink-2); }
+.na-step button:hover:not(:disabled) { background: var(--na-blue-soft); color: var(--na-blue-ink); }
+.na-step button:disabled { color: #c7cdd3; cursor: default; }
+.na-step output { min-width: 30px; text-align: center; font: 600 12.5px var(--na-mono); }
+
+.na-seg { display: inline-flex; background: var(--na-tint); border: 1px solid var(--na-line); border-radius: 6px; padding: 2px; gap: 2px; flex-wrap: wrap; }
+.na-seg button { border: 0; background: none; border-radius: 4px; padding: 3px 9px; font-size: 12px; color: var(--na-ink-2); white-space: nowrap; }
+.na-seg button[aria-pressed="true"] { background: #fff; color: var(--na-blue-ink); font-weight: 600; box-shadow: 0 1px 2px rgba(18, 28, 40, .14); }
+
+.na-ctl--tog { cursor: pointer; }
+.na-switch { position: relative; width: 32px; height: 18px; border-radius: 9px; border: 0; background: #cfd5dc; padding: 0; transition: background .15s; flex: none; }
+.na-switch i { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: left .15s; }
+.na-switch[aria-checked="true"] { background: var(--na-blue); }
+.na-switch[aria-checked="true"] i { left: 16px; }
+
+.na-select { height: 28px; border: 1px solid var(--na-line); border-radius: 5px; background: #fff; padding: 0 6px; font-size: 12.5px; max-width: 220px; }
+
+.na-ctl--sw { grid-template-columns: 112px auto 1fr; row-gap: 4px; padding: 2px 0; }
+.na-swname { font-size: 12px; color: var(--na-mute); }
+.na-sws { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.na-swc { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, .14); background: var(--c); padding: 0; }
+.na-swc[aria-pressed="true"] { outline: 2px solid var(--na-blue); outline-offset: 2px; }
+
+.na-ctl--cards { grid-template-columns: 1fr; row-gap: 4px; padding: 3px 0; }
+.na-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.na-card { display: flex; align-items: center; gap: 8px; border: 1px solid var(--na-line); border-radius: 7px; background: #fff; padding: 6px 8px; font-size: 12px; text-align: left; color: var(--na-ink-2); }
+.na-card svg { width: 18px; height: 26px; flex: none; color: var(--na-mute); }
+.na-card svg .o { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.na-card svg .g { fill: #cfe2ee; stroke: currentColor; stroke-width: 1; }
+.na-card svg .f { fill: rgba(0, 0, 0, .06); stroke: currentColor; stroke-width: 1; }
+.na-card[aria-pressed="true"] { border-color: var(--na-blue); background: var(--na-blue-soft); color: var(--na-blue-ink); font-weight: 600; }
+.na-card[aria-pressed="true"] svg { color: var(--na-blue); }
+
+.na-ctl--eq { grid-template-columns: 112px auto 76px; justify-content: start; }
+.na-ctl--pick { grid-template-columns: 112px auto 1fr; }
+.na-pick-note { font-size: 11.5px; color: var(--na-faint); }
+
+.na-flash { animation: na-flash 1.4s ease-out; }
+@keyframes na-flash { 0%, 30% { background: #fff1c9; box-shadow: 0 0 0 4px #fff1c9; } 100% { background: transparent; box-shadow: 0 0 0 4px transparent; } }
+
+/* ------------------------------------------------------------- results */
+.na-res-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--na-mute); margin: 2px 2px 8px; }
+.na-res-head strong { color: var(--na-ink); }
+.na-res-head .na-ghost { margin-left: auto; }
+.na-res { background: #fff; border: 1px solid var(--na-line); border-radius: 8px; padding: 6px 10px 6px; margin-bottom: 6px; }
+.na-res--active { border-color: var(--na-blue); box-shadow: 0 0 0 3px rgba(58, 127, 213, .12); }
+.na-res-top { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--na-faint); margin-bottom: 1px; }
+.na-res-top code { font: 10.5px var(--na-mono); color: #8a94a0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.na-res-top button { margin-left: auto; border: 0; background: none; color: var(--na-blue-ink); font-size: 11.5px; font-weight: 600; padding: 0; white-space: nowrap; }
+.na-res-path { white-space: nowrap; }
+.na-res mark { background: #fff0b8; color: inherit; border-radius: 2px; padding: 0 1px; }
+.na-res .na-ctl { max-width: 520px; }
+.na-blocked .na-ctl { opacity: .45; pointer-events: none; }
+.na-need { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--na-amber-ink); margin-top: 2px; }
+.na-need button { border: 1px solid #f1cf94; background: var(--na-amber-soft); color: var(--na-amber-ink); border-radius: 5px; font-size: 11px; font-weight: 600; padding: 1px 7px; }
+.na-other { margin-top: 10px; background: var(--na-tint); border: 1px solid var(--na-line); border-radius: 8px; padding: 6px 10px; }
+.na-other summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--na-ink-2); }
+.na-other-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--na-line-soft); font-size: 12px; }
+.na-other-row:first-of-type { border-top: 0; }
+.na-pill { font-size: 10.5px; color: var(--na-mute); background: #fff; border: 1px solid var(--na-line); border-radius: 9px; padding: 0 6px; }
+.na-other-row button { margin-left: auto; border: 0; background: none; color: var(--na-blue-ink); font-weight: 600; font-size: 11.5px; padding: 0; white-space: nowrap; }
+.na-empty { text-align: center; color: var(--na-mute); padding: 30px 10px; }
+
+/* ---------------------------------------------------------------- dock */
+.na-dock { flex: none; background: #fff; border-top: 1px solid var(--na-line); padding: 6px 12px 10px; box-shadow: 0 -6px 16px -12px rgba(18, 28, 40, .3); }
+.na-dock-status { font-size: 11.5px; color: var(--na-mute); padding: 0 2px 6px; display: flex; align-items: center; gap: 6px; min-height: 22px; }
+.na-dock-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--na-faint); flex: none; }
+.na-dock-status--amber i { background: var(--na-amber); }
+.na-dock-status--green i { background: var(--na-green); }
+.na-dock-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.na-flow { display: flex; align-items: center; background: var(--na-amber-soft); border: 1px solid #f3d6a6; border-radius: 9px; padding: 3px; }
+.na-flow-step { display: inline-flex; align-items: center; gap: 7px; height: 36px; border: 1px solid transparent; border-radius: 7px; padding: 0 12px 0 6px; font-size: 12.5px; font-weight: 600; background: #fff; color: var(--na-amber-ink); border-color: #f0cf97; white-space: nowrap; }
+.na-flow-step b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--na-amber); color: #fff; font-size: 11px; }
+.na-flow-step:hover:not(:disabled) { border-color: var(--na-amber); }
+.na-flow-step:disabled { background: transparent; color: #c49a5c; border-color: transparent; cursor: default; }
+.na-flow-step:disabled b { background: #e7c48d; }
+.na-flow-go:not(:disabled) { background: var(--na-amber); color: #fff; border-color: var(--na-amber); box-shadow: 0 2px 6px -2px rgba(224, 134, 0, .6); }
+.na-flow-go:not(:disabled) b { background: #fff; color: var(--na-amber-ink); }
+.na-flow-go:not(:disabled):hover { background: #c97800; }
+.na-flow-arrow { width: 22px; text-align: center; color: #d39b45; font-weight: 700; }
+.na-measuring { animation: na-pulse 0.9s ease-in-out infinite alternate; }
+@keyframes na-pulse { from { box-shadow: 0 0 0 0 rgba(224, 134, 0, .45); } to { box-shadow: 0 0 0 5px rgba(224, 134, 0, 0); } }
+.na-dock-sep { width: 1px; height: 30px; background: var(--na-line); margin: 0 2px; }
+.na-btn { height: 38px; border-radius: 8px; border: 1px solid transparent; padding: 0 14px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.na-btn-blue { background: var(--na-blue); color: #fff; }
+.na-btn-blue:hover { background: var(--na-blue-ink); }
+.na-btn-green { background: var(--na-green); color: #fff; }
+.na-btn-green:hover:not(:disabled) { background: var(--na-green-ink); }
+.na-btn:disabled { background: #e9ecef; color: #a7b0b9; cursor: default; }
+.na-live { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; font-size: 12px; font-weight: 600; color: var(--na-ink-2); cursor: pointer; }
+.na-toast { position: absolute; left: 50%; bottom: 104px; transform: translate(-50%, 8px); background: #1f2933; color: #fff; font-size: 12px; padding: 7px 12px; border-radius: 7px; opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; max-width: 90%; text-align: center; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .4); }
+.na-toast--on { opacity: 1; transform: translate(-50%, 0); }
+
+/* --------------------------------------------------------------- notes */
+.na-notes { background: #fff; border: 1px solid var(--na-line); border-radius: 10px; padding: 18px 20px 22px; font-size: 13px; line-height: 1.55; color: var(--na-ink-2); position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+@media (max-width: 1200px) { .na-notes { position: static; max-height: none; } }
+.na-notes h2 { font-size: 15px; color: var(--na-ink); margin: 22px 0 8px; letter-spacing: -.005em; }
+.na-notes h2:first-child { margin-top: 0; }
+.na-notes h2 small { font-size: 11px; font-weight: 700; color: var(--na-faint); letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
+.na-notes p { margin: 0 0 8px; }
+.na-notes ol, .na-notes ul { margin: 0 0 8px; padding-left: 20px; }
+.na-notes li { margin-bottom: 5px; }
+.na-notes li strong { color: var(--na-ink); }
+.na-notes code { font: 11.5px var(--na-mono); background: var(--na-tint); border-radius: 4px; padding: 0 4px; }
+.na-notes table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 4px 0 10px; }
+.na-notes th { text-align: left; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--na-faint); font-weight: 700; padding: 4px 6px; border-bottom: 1px solid var(--na-line); }
+.na-notes td { padding: 5px 6px; border-bottom: 1px solid var(--na-line-soft); vertical-align: top; }
+.na-notes td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.na-tb { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 9px; padding: 0 7px; white-space: nowrap; }
+.na-tb1 { background: var(--na-blue-soft); color: var(--na-blue-ink); }
+.na-tb2 { background: #eef1f4; color: var(--na-ink-2); }
+.na-tb3 { background: var(--na-tint); color: var(--na-mute); border: 1px dashed #c9d3de; }
+.na-try { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.na-try button { border: 1px solid var(--na-line); background: var(--na-tint); border-radius: 14px; padding: 3px 10px; font-size: 12px; color: var(--na-ink-2); }
+.na-try button:hover { border-color: var(--na-blue); color: var(--na-blue-ink); background: var(--na-blue-soft); }
+.na-callout { background: var(--na-amber-soft); border: 1px solid #f3d6a6; border-radius: 8px; padding: 8px 11px; color: #6d4a12; margin: 6px 0 10px; }
+.na-map { margin: 6px 0 4px; }
+.na-map svg { width: 100%; height: auto; display: block; }
+.na-caveat { font-size: 12px; color: var(--na-mute); }
+.na-flowline { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0 10px; }
+.na-flowline span { background: var(--na-tint); border: 1px solid var(--na-line); border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 600; color: var(--na-ink-2); }
+.na-flowline i { font-style: normal; color: var(--na-faint); }
+
+@media (max-width: 560px) {
+    .na-page { padding: 12px 10px 32px; }
+    .na-ctl { grid-template-columns: 96px minmax(40px, 1fr) 70px; }
+    .na-cards { grid-template-columns: 1fr; }
+    .na-ctl--sw { grid-template-columns: 1fr auto; }
+    .na-sws { grid-column: 1 / -1; justify-content: flex-start; }
+    .na-dock-sep { display: none; }
+    .na-live { margin-left: 0; }
+    .na-tabs .na-tab:not(.na-tab--on) { display: none; }
+}
+</style>
+</head>
+
+<body>
+<div class="na-page">
+
+    <header class="na-page-head">
+        <div>
+            <h1>Windows &amp; Exterior Doors: panel rework</h1>
+            <p>Interactive mockup for Element Assembly Studio Pro. The data is fake and nothing here talks to SketchUp.</p>
+        </div>
+        <div class="na-demo">
+            <b>Demo</b>
+            <label><input type="checkbox" id="na-demo-select"> An element is selected in the model</label>
+        </div>
+    </header>
+
+    <div class="na-layout">
+
+        <!-- ==================================================================
+             REGION | Mock Dialog
+             ================================================================== -->
+        <div class="na-dialog" id="na-dialog">
+            <div class="na-os"><span>Element Assembly Studio Pro</span><span><i></i><i></i><i></i></span></div>
+
+            <div class="na-chrome">
+                <div class="na-brand">
+                    <img class="na-logo" src="../01__AppAssets__ElementAssemblyStudio/Na__AssemblyStudio__Brand__NobleLogo__.png" alt="Noble Architecture"
+                         onerror="this.outerHTML='&lt;span class=&quot;na-logo-text&quot;&gt;NOBLE&lt;br&gt;ARCHITECTURE&lt;/span&gt;'">
+                    <nav class="na-tabs">
+                        <button class="na-tab na-tab--on" type="button">Windows &amp; Ext. Doors</button>
+                        <button class="na-tab" type="button">Interior Doors</button>
+                    </nav>
+                    <div class="na-brand-tools">
+                        <button class="na-ghost" type="button" id="na-presets">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                            Presets
+                        </button>
+                        <button class="na-ghost na-icon-btn" type="button" title="Settings" id="na-settings">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="na-products" id="na-products"></div>
+
+                <div class="na-searchrow">
+                    <div class="na-search">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        <input id="na-q" type="search" autocomplete="off" spellcheck="false" placeholder="Search every parameter: cill, horns, midrail, hinge…">
+                        <kbd>Ctrl F</kbd>
+                    </div>
+                    <button class="na-chgchip" id="na-chg" type="button" title="List every value changed from its default"><i></i><span>Changed · 0</span></button>
+                </div>
+            </div>
+
+            <div class="na-body" id="na-body">
+                <div class="na-selected" id="na-selected" hidden></div>
+
+                <section class="na-preview" id="na-preview">
+                    <div class="na-preview-head">
+                        <h3>Preview</h3>
+                        <span class="na-size-badge" id="na-size-badge">900 × 1200</span>
+                        <span class="na-sp"></span>
+                        <button class="na-ghost" type="button" id="na-dims-toggle" title="Dimensions in preview (Output › More)">Dimensions</button>
+                        <button class="na-ghost" type="button" data-toast="View reset">Reset view</button>
+                        <button class="na-ghost" type="button" data-toast="Removed bars and casements restored">Reset elements</button>
+                        <button class="na-ghost" type="button" data-toast="DXF exported (mock)">DXF</button>
+                    </div>
+                    <div class="na-canvas" id="na-canvas" title="Click a glaze bar or casement to remove it. Drag the bottom edge to resize."></div>
+                </section>
+
+                <div id="na-sections"></div>
+                <div id="na-results" hidden></div>
+            </div>
+
+            <div class="na-toast" id="na-toast"></div>
+
+            <footer class="na-dock">
+                <div class="na-dock-status" id="na-dock-status"><i></i><span></span></div>
+                <div class="na-dock-row">
+                    <div class="na-flow">
+                        <button class="na-flow-step" id="na-measure" type="button"><b>1</b><span>Measure opening</span></button>
+                        <span class="na-flow-arrow">→</span>
+                        <button class="na-flow-step na-flow-go" id="na-insert-measured" type="button" disabled><b>2</b><span>Insert at measured point</span></button>
+                    </div>
+                    <span class="na-dock-sep"></span>
+                    <button class="na-btn na-btn-blue" id="na-insert-cursor" type="button">Insert at cursor</button>
+                    <button class="na-btn na-btn-green" id="na-update" type="button" disabled>Update</button>
+                    <label class="na-live" title="Stream every change to the selected element">
+                        <button class="na-switch" id="na-live" type="button" role="switch" aria-checked="false"><i></i></button>
+                        Live
+                    </label>
+                </div>
+            </footer>
+        </div>
+        <!-- endregion ======================================================= -->
+
+        <!-- ==================================================================
+             REGION | Design Notes
+             ================================================================== -->
+        <aside class="na-notes">
+
+            <h2>Try it</h2>
+            <div class="na-try">
+                <button type="button" data-try="measure">Measure an opening</button>
+                <button type="button" data-try="q:sill">Search “sill”</button>
+                <button type="button" data-try="q:horn">Search “horn”</button>
+                <button type="button" data-try="q:midrail">Search “midrail”</button>
+                <button type="button" data-try="product:double">Switch to double doors</button>
+                <button type="button" data-try="product:sash">Switch to sliding sash</button>
+                <button type="button" data-try="changed">Show what’s changed</button>
+            </div>
+            <p class="na-caveat">Number fields take arithmetic (<code>900+45</code>) and the arrow keys (Shift for ×10). Ctrl+F jumps to search and Esc clears it. There are no single-letter keys, because SketchUp takes those first.</p>
+
+            <h2><small>1</small>What’s out of order now</h2>
+            <p>I measured these on the live dialog at about 1,000&nbsp;px wide with every expander shut.</p>
+            <ol>
+                <li><strong>The first decision comes near the end.</strong> Product, Window Type and Door Type sit in OPTIONS, the fourth section, about 1,700&nbsp;px down. You set the width, frame and glaze bars before you say what you’re building, and switching product rebuilds the sections above where you’re looking.</li>
+                <li><strong>Measure and its insert button are 2,000–3,000&nbsp;px apart.</strong> Measure Opening sits in the tab strip at about 70&nbsp;px. Create at Measurement Point is at the bottom: about 2,100&nbsp;px for a window and 3,080&nbsp;px for double doors. Width and Height, which Measure fills in, sit somewhere in between.</li>
+                <li><strong>Live Mode and Update are split the same way:</strong> Live Mode is top right and Update is at the bottom.</li>
+                <li><strong>The frame is in three places.</strong> Frame Thickness and Advanced Frame are in DIMENSIONS, Frame Depth and Wall Inset are in CILL &amp; FRAME, and Frame Finish and Edge Colours are in OPTIONS.</li>
+                <li><strong>The cill is in two.</strong> Include Cill and Paint Cill are in OPTIONS, Height and Protrusion are in CILL &amp; FRAME, and all three stay on screen with the cill switched off.</li>
+                <li><strong>DIMENSIONS is a catch-all.</strong> It holds overall size, frame, casement rails, mullions and transoms, plus four sliding-sash rail controls after the transoms. The sash horns are in OPTIONS.</li>
+                <li><strong>Glazing is split.</strong> Bar count and width are in GLAZE BARS, but Glaze Bar Inset and Glazing Thickness are inside Advanced <em>Casement</em> Controls.</li>
+                <li><strong>“Advanced” doesn’t mean “rare”.</strong> Casements Per Opening is a layout choice but sits next to glass thickness. Per Casement Settings is a dropdown inside a dropdown.</li>
+                <li><strong>Doors see the window’s sections first.</strong> Their own choices (swing, leaf style, handles) come last. Glaze Bars come before you’ve said whether the leaf has any glass.</li>
+                <li><strong>The door controls already carry group tags,</strong> such as <code>Opening and Leaves</code>, <code>Fielded Panels</code> and <code>Hardware</code>, but the renderer ignores them. Double Doors draws as one flat list of 30 controls, or 68 with the leaf overrides.</li>
+                <li><strong>Output switches are mixed in with design ones.</strong> Fuse Parts and Show Dimensions sit between Include Cill and Paint Cill.</li>
+                <li><strong>The rows are tall and in one column.</strong> Each slider takes about 41&nbsp;px (label, track and number box). A default casement window is 29 controls and 2,155&nbsp;px long, and double doors are 48 controls and 3,137&nbsp;px.</li>
+                <li><strong>The defaults don’t match how you work.</strong> Fuse Parts is off by default but on in all 9 saved presets, and Frame Finish has been changed in all 9.</li>
+                <li><strong>The labels hide things.</strong> The “Windows” tab holds every exterior door, and Presets Gallery, the quickest way in, is a small button in the preview header.</li>
+            </ol>
+
+            <div class="na-map" id="na-scrollmap"></div>
+
+            <h2><small>2</small>What gets used</h2>
+            <p>This comes from diffing your 9 saved presets against the defaults (<code>05__Data__PresetsLibrary</code>): 3 windows and 6 doors.</p>
+            <table>
+                <thead><tr><th>Parameter</th><th>Changed</th><th>Tier</th></tr></thead>
+                <tbody>
+                    <tr><td>Width, Height</td><td>9 / 9</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Fuse Parts switched <em>on</em></td><td>9 / 9</td><td><span class="na-tb na-tb1">1</span> default on?</td></tr>
+                    <tr><td>Frame Finish</td><td>9 / 9</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Frame Wall Inset</td><td>8 / 9</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Frame Thickness (often 0, no frame)</td><td>8 / 9</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Glaze bars, horizontal / vertical</td><td>7 / 6</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Include Cill (switched off)</td><td>6 / 9</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Leaf finish</td><td>6 / 6 doors</td><td><span class="na-tb na-tb1">1</span></td></tr>
+                    <tr><td>Midrail, fielded section height</td><td>5 / 6 doors</td><td><span class="na-tb na-tb1">1</span> when glazed-over-fielded</td></tr>
+                    <tr><td>Paint Cill</td><td>5 / 9</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Per-side frame widths</td><td>4 / 9</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Leaf bottom rail</td><td>4 / 6 doors</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Casement / sash rails per side</td><td>3 / 3 windows</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Sash horn type, meeting rail, sash rails</td><td>1–2 / 3 windows</td><td><span class="na-tb na-tb1">1</span> for sash</td></tr>
+                    <tr><td>Cill height, protrusion, frame depth</td><td>1–2 / 9</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Opening angle, hinge projection</td><td>Vale double doors only</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Leaded glass</td><td>1 / 9</td><td><span class="na-tb na-tb2">2</span></td></tr>
+                    <tr><td>Per-bar / per-mullion offsets, per-casement settings, edge colours, leaf overrides</td><td>0–1 / 9</td><td><span class="na-tb na-tb3">3</span></td></tr>
+                </tbody>
+            </table>
+            <p class="na-caveat">Caveat: 9 presets is a small sample and it leans towards Vale doors and panels. Mullions and transoms score 0 only because none of the presets are multi-light windows. For a window they are the layout, so they stay in Tier 1.</p>
+
+            <h2><small>3</small>The new flow</h2>
+            <div class="na-flowline">
+                <span>Product</span><i>→</i><span>Size</span><i>→</i><span>Lights / Opening</span><i>→</i><span>Leaves</span><i>→</i><span>Glazing</span><i>→</i><span>Fielded panels</span><i>→</i><span>Frame &amp; cill</span><i>→</i><span>Casements / Sashes</span><i>→</i><span>Finish</span><i>→</i><span>Output</span>
+            </div>
+            <ul>
+                <li><strong>The order follows how you’d say it out loud:</strong> “a 900 by 1200 casement, two lights with a transom, three over one bars, 50 frame set back 10, painted.” Leaves and fielded panels only show for doors, and Casements/Sashes only for windows.</li>
+                <li><strong>One product strip</strong> replaces the two-level Product → Type toggle. It’s one click for all six, and it’s the first thing in the panel.</li>
+                <li><strong>Each topic has one home.</strong> Everything about the frame is in Frame &amp; cill, and everything about glass is in Glazing.</li>
+                <li><strong>There are three tiers inside every section.</strong> <span class="na-tb na-tb1">1</span> is always shown. <span class="na-tb na-tb2">2</span> sits behind <em>More</em>, and <span class="na-tb na-tb3">3</span> behind <em>Advanced</em> inside More. A section header shows a one-line summary and a count of changed values. A shut tier that holds changes says so (“More · 2 changed”), so a changed value is never invisible.</li>
+                <li><strong>Every action is in one pinned dock:</strong> ① Measure → ② Insert at measured point, side by side, then Insert at cursor, Update and Live. They are always visible, whatever you’ve scrolled to.</li>
+                <li><strong>Search covers all ~230 parameters,</strong> nested ones included. It understands synonyms (sill, threshold, muntin, astragal, ironmongery, fanlight…), puts the real control in the result so you can edit it there, and has “Show in panel” to open the path. Parameters for other products are listed apart, with a switch button. <em>Changed</em> lists every value that differs from its default, each with its own reset.</li>
+                <li><strong>Rows are compact and two to a line</strong> at the dialog’s 780&nbsp;px. Counts use steppers and enums use segmented buttons. Dependent fields only appear when their switch is on.</li>
+                <li><strong>Tier 1 is about one screen.</strong> At the default 780 × 1200 size, a casement’s Tier 1 fits with no scrolling (928&nbsp;px of content in a 928&nbsp;px body). Sliding sash needs about 110&nbsp;px of scroll, and the doors 120–190&nbsp;px. Today it’s 2,155 and 3,137&nbsp;px.</li>
+            </ul>
+
+            <h2><small>4</small>Where things moved</h2>
+            <table>
+                <thead><tr><th>Now</th><th></th><th>Proposed</th></tr></thead>
+                <tbody>
+                    <tr><td>Product, Window Type, Door Type (OPTIONS)</td><td>→</td><td>Product strip, top</td></tr>
+                    <tr><td>Measure Opening (tab strip) and Create at Measurement (bottom)</td><td>→</td><td>Dock ① → ②, side by side</td></tr>
+                    <tr><td>Live Mode (tab strip), Create, Update (bottom)</td><td>→</td><td>Dock</td></tr>
+                    <tr><td>Mullions, Transoms, transom heights (DIMENSIONS)</td><td>→</td><td>Lights &amp; dividers</td></tr>
+                    <tr><td>Casements Per Opening (Advanced Casement)</td><td>→</td><td>Lights &amp; dividers › More</td></tr>
+                    <tr><td>Frame Thickness, Wall Inset, Include Cill</td><td>→</td><td>Frame &amp; cill</td></tr>
+                    <tr><td>Advanced Frame, Frame Depth, Cill sizes, Paint Cill, Window Board</td><td>→</td><td>Frame &amp; cill › More</td></tr>
+                    <tr><td>Casement Width, Individual Sizes, Advanced Casement</td><td>→</td><td>Casements (More / Advanced)</td></tr>
+                    <tr><td>Sash rails (DIMENSIONS), Sash horns (OPTIONS)</td><td>→</td><td>Sashes</td></tr>
+                    <tr><td>Glaze Bar Inset, Glazing Thickness (Advanced Casement)</td><td>→</td><td>Glazing › More</td></tr>
+                    <tr><td>Margins, Gothic Arch, Leaded Glass</td><td>→</td><td>Glazing › More › Decoration</td></tr>
+                    <tr><td>Per-bar offsets, horizontal bar shift</td><td>→</td><td>Glazing › Advanced</td></tr>
+                    <tr><td>Door swing, angles, hinge projection, fixed</td><td>→</td><td>Opening</td></tr>
+                    <tr><td>Leaf construction, Link Leaf Settings, leaf overrides</td><td>→</td><td>Leaves (overrides in Advanced, one leaf at a time)</td></tr>
+                    <tr><td>Fielded panel controls</td><td>→</td><td>Fielded panels (hidden for fully glazed leaves)</td></tr>
+                    <tr><td>Frame / leaf / handle finish, handle, Edge Colours</td><td>→</td><td>Finish (&amp; hardware)</td></tr>
+                    <tr><td>Fuse Parts, Show Dimensions, swing arcs, open-state copy</td><td>→</td><td>Output (Dimensions also a toggle on the preview)</td></tr>
+                    <tr><td>Window Info (bottom)</td><td>→</td><td>Selected strip at the top while editing</td></tr>
+                </tbody>
+            </table>
+
+            <h2><small>5</small>Building it</h2>
+            <ul>
+                <li>Give every descriptor in the five <code>UiSystem__Config__.js</code> files a <code>section</code> and a <code>tier</code>. The door descriptors already have <code>section</code>, which nothing reads yet. One renderer then groups by section and tier, in place of the fixed <code>&lt;section&gt;</code>s in <code>UiLayout.html</code>.</li>
+                <li>The visibility helpers in <code>na_onConfigChange</code> stay as they are. A tier is just a wrapper that’s open or shut.</li>
+                <li>The product strip writes the existing keys (<code>ui_element_category</code> plus <code>ui_window_type</code> or <code>ui_exterior_door_type</code>), so saved elements and <code>na_hydrateHierarchyFromModeFlags</code> don’t change.</li>
+                <li>The dock moves <code>#na-btn-measure</code>, <code>#na-btn-create-at-measurement</code>, <code>#na-btn-create</code>, <code>#na-btn-update</code> and <code>#na-btn-live</code> into one sticky footer. The ids stay the same, so the bridges keep working.</li>
+                <li>Search builds its index at load from the same descriptors (label, id, section, tier) plus a small synonyms table, and draws inline controls with the same renderer.</li>
+                <li>The four door configs repeat the same nine fielded-panel controls. One shared set keyed by product prefix would remove three of the copies.</li>
+                <li>While you’re in there, hide the cill fields when Cill is off, and consider making Fuse Parts default on.</li>
+            </ul>
+        </aside>
+        <!-- endregion ======================================================= -->
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // =========================================================================
+    // REGION | Products
+    // =========================================================================
+    const NA_PRODUCTS = [
+        { key: 'casement', group: 'Window',        label: 'Casement',     icon: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3v18"/><path d="M13.5 5.5 18 12l-4.5 6.5" opacity=".55"/>' },
+        { key: 'sash',     group: 'Window',        label: 'Sliding sash', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1"/><path d="M5 12.5h14"/><path d="M7.5 5v5M16.5 15v4.5" opacity=".55"/>' },
+        { key: 'single',   group: 'Exterior door', label: 'Single',       icon: '<rect x="6" y="2.5" width="12" height="19" rx="1"/><circle cx="15.2" cy="12.5" r=".9"/>' },
+        { key: 'double',   group: 'Exterior door', label: 'Double',       icon: '<rect x="3.5" y="2.5" width="17" height="19" rx="1"/><path d="M12 2.5v19"/><circle cx="10" cy="12.5" r=".8"/><circle cx="14" cy="12.5" r=".8"/>' },
+        { key: 'bifold',   group: 'Exterior door', label: 'Bifold',       icon: '<path d="M3 4.5 7.5 6v12L3 19.5zM7.5 6 12 4.5v15L7.5 18zM12 4.5 16.5 6v12L12 19.5zM16.5 6 21 4.5v15L16.5 18z"/>' },
+        { key: 'slider',   group: 'Exterior door', label: 'Sliding',      icon: '<rect x="2.5" y="4" width="11" height="16" rx="1"/><rect x="10.5" y="4" width="11" height="16" rx="1"/><path d="M4.5 12h5m-2-2 2 2-2 2"/>' }
+    ];
+    const NA_LONG = { casement: 'Casement window', sash: 'Sliding sash window', single: 'Single door', double: 'Double doors', bifold: 'Bifold doors', slider: 'Sliding doors' };
+    const NA_W  = ['casement', 'sash'];
+    const NA_D  = ['single', 'double', 'bifold', 'slider'];
+    const NA_HD = ['single', 'double'];
+    const na_pre = p => ({ single: 'single_door', double: 'double_door', bifold: 'bifold_door', slider: 'sliding_door' })[p];
+    const na_fam = p => NA_W.includes(p) ? 'W' : 'D';
+    const na_idMap = m => p => m[p] || m._;
+    // endregion
+
+    // =========================================================================
+    // REGION | Swatch Sets (two real ids each; MOCK__ ids are stand-ins)
+    // =========================================================================
+    const NA_FINISH = [
+        { id: 'MAT001__Default',     n: 'Default',       c: '#f1f0eb' },
+        { id: 'MAT120__GenericWood', n: 'Generic wood',  c: '#b9844f' },
+        { id: 'MOCK__Oak',           n: 'Oak',           c: '#cda774' },
+        { id: 'MOCK__Sage',          n: 'Sage',          c: '#a4ae98' },
+        { id: 'MOCK__Slate',         n: 'Slate blue',    c: '#6f8191' },
+        { id: 'MOCK__Anthracite',    n: 'Anthracite',    c: '#434950' },
+        { id: 'MOCK__Black',         n: 'Black',         c: '#25282b' }
+    ];
+    const NA_HANDLES = [
+        { id: 'MAT615__Metal__Ironmongery__Chrome', n: 'Chrome',       c: '#c9ced3' },
+        { id: 'MOCK__SatinNickel',                  n: 'Satin nickel', c: '#b3afa4' },
+        { id: 'MOCK__Brass',                        n: 'Brass',        c: '#c9a24a' },
+        { id: 'MOCK__MattBlack',                    n: 'Matt black',   c: '#2a2a2a' }
+    ];
+    const NA_EDGES = [
+        { id: 'MTE102__LineColour__SoftBlack__L20',      n: 'Soft black L20',        c: '#333333' },
+        { id: 'MTE103__LineColour__DarkGrey__L40',       n: 'Dark grey L40',         c: '#666666' },
+        { id: 'MTE103__LineColour__MediumDarkGrey__L50', n: 'Medium dark grey L50',  c: '#808080' },
+        { id: 'MTE104__LineColour__MidGrey__L60',        n: 'Mid grey L60',          c: '#999999' }
+    ];
+    const na_swatch = (set, id) => set.find(s => s.id === id) || set[0];
+    // endregion
+
+    // =========================================================================
+    // REGION | Sections
+    // =========================================================================
+    const NA_SECTIONS = {
+        size    : { title: () => 'Size' },
+        layout  : { title: p => na_fam(p) === 'W' ? 'Lights & dividers' : 'Opening' },
+        leaves  : { title: () => 'Leaves' },
+        glazing : { title: () => 'Glazing',
+                    off: p => na_fam(p) === 'D' && na_get('leaf_composition') === 'FullyFielded' ? 'Fully fielded leaves have no glass. Change the leaf style under Leaves to glaze them.' : '' },
+        panels  : { title: () => 'Fielded panels',
+                    off: () => na_get('leaf_composition') === 'FullyGlazed' ? 'Fully glazed leaves have no fielded panels. Change the leaf style under Leaves to add some.' : '' },
+        frame   : { title: () => 'Frame & cill' },
+        sashes  : { title: p => p === 'sash' ? 'Sashes' : 'Casements' },
+        finish  : { title: p => NA_HD.includes(p) ? 'Finish & hardware' : 'Finish' },
+        output  : { title: () => 'Output' }
+    };
+    const NA_ORDER_W = ['size', 'layout', 'glazing', 'frame', 'sashes', 'finish', 'output'];
+    const NA_ORDER_D = ['size', 'layout', 'leaves', 'glazing', 'panels', 'frame', 'finish', 'output'];
+    // endregion
+
+    // =========================================================================
+    // REGION | Parameter Registry
+    // Every entry: k (state key), l (label), t (type), s (section), tier,
+    // p (products, all if absent), id (real config key, if not k), when
+    // (visibility), need/fix (what search offers when hidden), kw (synonyms).
+    // =========================================================================
+    const NA_PARAMS = [];
+    const NA_BY_KEY = {};
+    let na_sec = 'size';
+    const na_in = s => { na_sec = s; };
+    function na_def(t, k, l, x) {
+        const prm = Object.assign({ t: t, k: k, l: l, s: na_sec, tier: 1 }, x || {});
+        NA_PARAMS.push(prm);
+        NA_BY_KEY[k] = prm;
+        return prm;
+    }
+    const num  = (k, l, min, max, step, d, x) => na_def('num', k, l, Object.assign({ min, max, step, d, u: 'mm' }, x));
+    const cnt  = (k, l, min, max, d, x)       => na_def('count', k, l, Object.assign({ min, max, d, step: 1 }, x));
+    const seg  = (k, l, o, d, x)              => na_def('seg', k, l, Object.assign({ o, d }, x));
+    const tog  = (k, l, d, x)                 => na_def('tog', k, l, Object.assign({ d }, x));
+    const sel  = (k, l, o, d, x)              => na_def('sel', k, l, Object.assign({ o, d }, x));
+    const sw   = (k, l, set, d, x)            => na_def('sw', k, l, Object.assign({ set, d }, x));
+    const v    = k => na_get(k);
+    const na_atLeast = (k, n) => () => na_set(k, Math.max(+v(k), n));
+    const na_force   = (k, val) => () => na_set(k, val);
+
+    const NA_LEFT_RIGHT = [['Left', 'Left'], ['Right', 'Right']];
+    const NA_COMPOSITIONS = [['FullyGlazed', 'Fully glazed'], ['GlazedOverFielded', 'Glazed over fielded'], ['FullyFielded', 'Fully fielded']];
+    const NA_PANEL_PRESETS = [['OnePanel', 'One panel'], ['TwoVertical', 'Two vertical'], ['TwoHorizontal', 'Two horizontal'], ['FourPanel', 'Four panel'], ['SixPanel', 'Six panel'], ['Custom', 'Custom grid']];
+    const NA_PROFILES = [['RaisedBevelled', 'Raised & bevelled'], ['RecessedShaker', 'Recessed shaker']];
+    const NA_OUTPUTS = [['ThreeDimensional', '3D'], ['Linework', 'Linework']];
+
+    // ---------------------------------------------------------------- Size
+    na_in('size');
+    num('width_mm', 'Width', 300, p => ['bifold', 'slider'].includes(p) ? 8000 : 4000, 5,
+        { casement: 900, sash: 900, single: 900, double: 1800, bifold: 3000, slider: 2400 },
+        { kw: 'opening size overall span wide' });
+    num('height_mm', 'Height', 300, 2600, 5, { casement: 1200, sash: 1500, _: 2100 }, { kw: 'opening size overall tall' });
+
+    // ------------------------------------------------- Lights & dividers (W)
+    na_in('layout');
+    cnt('mullions', 'Mullions', 0, 6, 0, { p: NA_W, kw: 'divider vertical lights bay split' });
+    cnt('transoms', 'Transoms', 0, 3, 0, { p: NA_W, kw: 'divider horizontal fanlight toplight' });
+    [1, 2, 3].forEach(n => num(`transom_${n}_y_mm`, `Transom ${n} height`, 50, 2400, 10, n * 300, {
+        p: NA_W, pool: n, when: () => v('transoms') >= n, need: `Transoms at ${n} or more`, fix: na_atLeast('transoms', n), kw: 'transom position fanlight' }));
+    num('mullion_width_mm', 'Mullion width', 10, 120, 5, 40, { tier: 2, p: NA_W, when: () => v('mullions') > 0, need: 'At least one mullion', fix: na_atLeast('mullions', 1) });
+    num('transom_width_mm', 'Transom width', 10, 120, 5, 40, { tier: 2, p: NA_W, when: () => v('transoms') > 0, need: 'At least one transom', fix: na_atLeast('transoms', 1) });
+    cnt('casements_per_opening', 'Casements per light', 1, 6, 1, { tier: 2, p: ['casement'], kw: 'casements per opening split light' });
+    tog('mullion_offsets_enabled', 'Individual mullion offsets', false, { tier: 3, p: NA_W, when: () => v('mullions') > 0, need: 'At least one mullion', fix: na_atLeast('mullions', 1), kw: 'unequal lights nudge move' });
+    for (let n = 1; n <= 6; n += 1) {
+        num(`mullion_offset_${n}_mm`, `Mullion ${n} offset`, -2000, 2000, 5, 0, {
+            tier: 3, p: NA_W, pool: n, kw: 'unequal lights nudge move',
+            when: () => v('mullion_offsets_enabled') && v('mullions') >= n,
+            need: `Mullion offsets on, ${n}+ mullions`,
+            fix: () => { na_set('mullion_offsets_enabled', true); na_set('mullions', Math.max(v('mullions'), n)); } });
+    }
+
+    // ------------------------------------------------------------ Opening (D)
+    const na_notFixed = { when: () => !v('fixed_panels'), need: 'Not a fixed panel', fix: na_force('fixed_panels', false) };
+    seg('swing_side', 'Hinge side', NA_LEFT_RIGHT, 'Left', Object.assign({ p: ['single'], id: 'single_door_swing_side', kw: 'swing side handing hand' }, na_notFixed));
+    seg('active_leaf', 'Active leaf', NA_LEFT_RIGHT, 'Left', { p: ['double'], id: 'double_door_active_leaf', kw: 'opening leaf master' });
+    seg('swing_direction', 'Opens', [['Inward', 'Inward'], ['Outward', 'Outward']], 'Inward', { p: NA_HD, id: p => na_pre(p) + '_swing_direction', kw: 'swing direction in out' });
+    na_def('eq', 'active_leaf_width_mm', 'Active leaf width', { tier: 2, p: ['double'], d: 'EQ', u: 'mm', id: 'double_door_active_leaf_width_mm', kw: 'unequal leaves split eq' });
+    tog('fixed_panels', p => p === 'double' ? 'Fixed panels' : 'Fixed panel', false, { tier: 2, p: NA_HD, id: p => na_pre(p) + '_fixed_panels', kw: 'dead light non-opening' });
+    num('opening_angle_deg', 'Opening angle', 0, 180, 5, 90, Object.assign({ tier: 2, u: '°', p: ['single'], id: 'single_door_opening_angle_deg', kw: 'swing open angle' }, na_notFixed));
+    num('left_opening_angle_deg', 'Left opening angle', 0, 180, 5, 90, Object.assign({ tier: 2, u: '°', p: ['double'], id: 'double_door_left_opening_angle_deg', kw: 'swing open angle' }, na_notFixed));
+    num('right_opening_angle_deg', 'Right opening angle', 0, 180, 5, 90, Object.assign({ tier: 2, u: '°', p: ['double'], id: 'double_door_right_opening_angle_deg', kw: 'swing open angle' }, na_notFixed));
+    num('hinge_projection_mm', 'Hinge projection', 0, 150, 5, 0, Object.assign({ tier: 2, p: ['single'], id: 'single_door_hinge_projection_mm' }, na_notFixed));
+    num('left_hinge_projection_mm', 'Left hinge projection', 0, 150, 5, 0, Object.assign({ tier: 2, p: ['double'], id: 'double_door_left_hinge_projection_mm' }, na_notFixed));
+    num('right_hinge_projection_mm', 'Right hinge projection', 0, 150, 5, 0, Object.assign({ tier: 2, p: ['double'], id: 'double_door_right_hinge_projection_mm' }, na_notFixed));
+    cnt('bifold_door_panel_count', 'Panels', 2, 8, 4, { p: ['bifold'], kw: 'leaves count number' });
+    seg('bifold_door_layout', 'Folding pattern', [['EqualEqual', 'Split both ways'], ['AllOneWay', 'All one way'], ['MasterSlaves', 'Master + slaves']], 'EqualEqual', { p: ['bifold'], full: true, kw: 'fold layout' });
+    seg('bifold_door_open_side', 'Folds to', NA_LEFT_RIGHT, 'Right', { p: ['bifold'], when: () => v('bifold_door_layout') === 'AllOneWay', need: 'Folding pattern: All one way', fix: na_force('bifold_door_layout', 'AllOneWay'), kw: 'open side' });
+    seg('bifold_door_master_side', 'Master leaf', NA_LEFT_RIGHT, 'Right', { p: ['bifold'], when: () => v('bifold_door_layout') === 'MasterSlaves', need: 'Folding pattern: Master + slaves', fix: na_force('bifold_door_layout', 'MasterSlaves'), kw: 'master side traffic door' });
+    seg('sliding_door_panel_count', 'Panels', [[2, 'Two'], [3, 'Three']], 2, { p: ['slider'], kw: 'leaves count track' });
+    seg('sliding_door_mode', 'Front panel slides', [['FrontSlidesLeft', 'Left'], ['FrontSlidesRight', 'Right']], 'FrontSlidesRight', { p: ['slider'], kw: 'slide direction' });
+    num('sliding_door_rear_setback_mm', 'Rear panel setback', 30, 200, 1, 60, { tier: 2, p: ['slider'], kw: 'track offset depth' });
+
+    // -------------------------------------------------------------- Leaves (D)
+    na_in('leaves');
+    const na_gof = { when: () => v('leaf_composition') === 'GlazedOverFielded', need: 'Leaf style: Glazed over fielded', fix: na_force('leaf_composition', 'GlazedOverFielded') };
+    na_def('cards', 'leaf_composition', 'Leaf style', { p: NA_D, o: NA_COMPOSITIONS, d: { single: 'GlazedOverFielded', double: 'GlazedOverFielded', _: 'FullyGlazed' }, id: p => na_pre(p) + '_leaf_composition', kw: 'composition glazed fielded solid panel' });
+    num('mid_rail_width_mm', 'Midrail width', 40, 300, 5, 120, Object.assign({ p: NA_D, id: p => na_pre(p) + '_mid_rail_width_mm', kw: 'separating mid rail lock rail' }, na_gof));
+    num('fielded_section_height_mm', 'Fielded height', 100, 1800, 5, 300, Object.assign({ p: NA_D, id: p => na_pre(p) + '_fielded_section_height_mm', kw: 'fielded section panel height' }, na_gof));
+    num('leaf_thickness_mm', 'Leaf thickness', 30, 80, 1, 50, { tier: 2, p: NA_D, kw: 'panel thickness depth',
+        id: na_idMap({ single: 'single_door_leaf_thickness_mm', double: 'double_door_leaf_thickness_mm', bifold: 'bifold_door_panel_thickness_mm', slider: 'sliding_door_panel_thickness_mm' }) });
+    num('stile_width_mm', 'Stile width', 40, 250, 5, 95, { tier: 2, p: NA_D, kw: 'perimeter stile',
+        id: na_idMap({ single: 'single_door_panel_stile_width_mm', double: 'double_door_panel_stile_width_mm', bifold: 'bifold_door_stile_width_mm', slider: 'sliding_door_stile_width_mm' }) });
+    num('top_rail_mm', 'Top rail', 40, 300, 5, 95, { tier: 2, p: NA_D, kw: 'head rail',
+        id: na_idMap({ single: 'single_door_panel_top_rail_width_mm', double: 'double_door_panel_top_rail_width_mm', bifold: 'bifold_door_head_rail_mm', slider: 'sliding_door_head_rail_mm' }) });
+    num('bottom_rail_mm', 'Bottom rail', 40, 400, 5, { single: 150, double: 150, _: 200 }, { tier: 2, p: NA_D, kw: 'base rail kick',
+        id: na_idMap({ single: 'single_door_panel_bottom_rail_width_mm', double: 'double_door_panel_bottom_rail_width_mm', bifold: 'bifold_door_base_rail_mm', slider: 'sliding_door_base_rail_mm' }) });
+    tog('double_door_leaf_settings_linked', 'Same settings for both leaves', true, { tier: 3, p: ['double'], kw: 'link leaf settings override' });
+    na_def('leafpick', 'na_leaf_pick', 'Leaf', { tier: 3, p: ['double'], nosearch: true, when: () => !v('double_door_leaf_settings_linked') });
+
+    const NA_LEAF_OVERRIDES = [
+        ['leaf_composition', 'Leaf style', 'seg', NA_COMPOSITIONS, 'GlazedOverFielded'],
+        ['panel_preset', 'Panel layout', 'sel', NA_PANEL_PRESETS, 'OnePanel'],
+        ['horizontal_glaze_bars', 'Horizontal bars', 'count', [0, 12], 0],
+        ['vertical_glaze_bars', 'Vertical bars', 'count', [0, 12], 0],
+        ['glaze_bar_width_mm', 'Bar width', 'num', [5, 100, 1], 25],
+        ['glazebar_inset_mm', 'Bar inset', 'num', [0, 100, 1], 10],
+        ['mid_rail_width_mm', 'Midrail width', 'num', [40, 300, 5], 120],
+        ['fielded_section_height_mm', 'Fielded height', 'num', [100, 1800, 5], 300],
+        ['panel_stile_width_mm', 'Stile width', 'num', [40, 250, 5], 95],
+        ['panel_top_rail_width_mm', 'Top rail', 'num', [40, 300, 5], 95],
+        ['panel_bottom_rail_width_mm', 'Bottom rail', 'num', [40, 400, 5], 150],
+        ['panel_output_mode', 'Panel geometry', 'seg', NA_OUTPUTS, 'ThreeDimensional'],
+        ['panel_profile', 'Profile', 'seg', NA_PROFILES, 'RaisedBevelled'],
+        ['panel_columns', 'Columns', 'count', [1, 6], 1],
+        ['panel_rows', 'Rows', 'count', [1, 6], 1],
+        ['panel_inset_mm', 'Panel inset', 'num', [5, 100, 1], 25],
+        ['panel_depth_mm', 'Panel depth', 'num', [1, 30, 1], 12],
+        ['panel_bevel_width_mm', 'Bevel width', 'num', [2, 60, 1], 18]
+    ];
+    ['left', 'right'].forEach(side => {
+        const Side = side === 'left' ? 'Left' : 'Right';
+        const base = `double_door_${side}_`;
+        const unlinked = () => !v('double_door_leaf_settings_linked');
+        tog(base + 'leaf_override_enabled', `Override the ${side} leaf`, false, { tier: 3, p: ['double'], side, when: unlinked, need: 'Same settings for both leaves: off', fix: na_force('double_door_leaf_settings_linked', false), kw: 'leaf override per leaf' });
+        NA_LEAF_OVERRIDES.forEach(([field, label, type, range, d]) => {
+            const x = { tier: 3, p: ['double'], side, kw: `${side} leaf override`,
+                        when: () => unlinked() && v(base + 'leaf_override_enabled'),
+                        need: `${Side} leaf override on`,
+                        fix: () => { na_set('double_door_leaf_settings_linked', false); na_set(base + 'leaf_override_enabled', true); } };
+            if (type === 'num')   num(base + field, label, range[0], range[1], range[2], d, x);
+            if (type === 'count') cnt(base + field, label, range[0], range[1], d, x);
+            if (type === 'seg')   seg(base + field, label, range, d, Object.assign(x, { full: range.length > 2 }));
+            if (type === 'sel')   sel(base + field, label, range, d, x);
+        });
+    });
+
+    // ----------------------------------------------------------------- Glazing
+    na_in('glazing');
+    cnt('horizontal_glaze_bars', 'Horizontal bars', 0, 8, 0, { kw: 'glaze bars georgian astragal muntin grid' });
+    cnt('vertical_glaze_bars', 'Vertical bars', 0, 8, 0, { kw: 'glaze bars georgian astragal muntin grid' });
+    num('glaze_bar_width_mm', 'Bar width', 10, 60, 5, 25, { tier: 2, kw: 'glaze bar width' });
+    num('glazebar_inset_mm', 'Bar inset', 0, 20, 1, 10, { tier: 2, kw: 'glaze bar inset depth' });
+    num('glass_thickness_mm', 'Glass thickness', 5, 35, 1, 20, { tier: 2, p: NA_W, kw: 'glazing thickness unit dgu double glazing' });
+    const na_margin = { when: () => v('glazebar_margin_enabled'), need: 'Margin bars on', fix: na_force('glazebar_margin_enabled', true) };
+    const na_gothic = { when: () => v('glazebar_gothic_arch_enabled'), need: 'Gothic arches on', fix: na_force('glazebar_gothic_arch_enabled', true) };
+    const na_leaded = { when: () => v('leaded_glass_enabled'), need: 'Leaded lights on', fix: na_force('leaded_glass_enabled', true) };
+    tog('glazebar_margin_enabled', 'Margin bars', false, { tier: 2, g: 'Decoration', kw: 'margin glazing border bars', hint: 'Insets the outer pair of bars and spreads the rest between them' });
+    num('glazebar_margin_offset_mm', 'Margin size', 50, 400, 10, 120, Object.assign({ tier: 2, g: 'Decoration', kw: 'margin offset' }, na_margin));
+    tog('glazebar_gothic_arch_enabled', 'Gothic arches', false, { tier: 2, g: 'Decoration', kw: 'arch lancet pointed tracery decoration' });
+    cnt('glazebar_gothic_arch_amount', 'Arches', 1, 8, 2, Object.assign({ tier: 2, g: 'Decoration', kw: 'arch amount' }, na_gothic));
+    num('glazebar_gothic_arch_height_mm', 'Arch height', 200, 800, 10, 400, Object.assign({ tier: 2, g: 'Decoration', kw: 'arch height' }, na_gothic));
+    tog('leaded_glass_enabled', 'Leaded lights', false, { tier: 2, g: 'Decoration', kw: 'lead came leaded glass' });
+    cnt('horizontal_leaded_bars', 'Horizontal lead', 0, 10, 0, Object.assign({ tier: 2, g: 'Decoration', kw: 'lead lines came' }, na_leaded));
+    cnt('vertical_leaded_bars', 'Vertical lead', 0, 8, 0, Object.assign({ tier: 2, g: 'Decoration', kw: 'lead lines came' }, na_leaded));
+    num('leaded_width_mm', 'Lead width', 2, 20, 1, 6, Object.assign({ tier: 2, g: 'Decoration', kw: 'lead came' }, na_leaded));
+    num('leaded_depth_mm', 'Lead depth', 0, 5, 1, 0, Object.assign({ tier: 2, g: 'Decoration', kw: 'lead came', hint: '0 lays a flat ribbon' }, na_leaded));
+    tog('leaded_centre_lines_only', 'Lead as centre lines', false, Object.assign({ tier: 2, g: 'Decoration', kw: 'lead centre lines only' }, na_leaded));
+    tog('leaded_global_alignment', 'Align lead across casements', true, Object.assign({ tier: 2, g: 'Decoration', p: ['casement'], kw: 'lead align' }, na_leaded));
+    num('glazebar_horizontal_offset_mm', 'Raise horizontal bars', -500, 500, 5, 0, { tier: 3, kw: 'horizontal bar vertical offset springing shift', when: () => v('horizontal_glaze_bars') > 0, need: 'At least one horizontal bar', fix: na_atLeast('horizontal_glaze_bars', 1) });
+    tog('glazebar_offsets_enabled', 'Individual bar offsets', false, { tier: 3, kw: 'glaze bar offsets nudge per bar' });
+    ['h', 'v'].forEach(axis => {
+        for (let n = 1; n <= 8; n += 1) {
+            const countKey = axis === 'h' ? 'horizontal_glaze_bars' : 'vertical_glaze_bars';
+            num(`glazebar_${axis}_offset_${n}_mm`, `${axis === 'h' ? 'Horizontal' : 'Vertical'} bar ${n}`, -500, 500, 5, 0, {
+                tier: 3, pool: n, kw: 'glaze bar offset nudge',
+                when: () => v('glazebar_offsets_enabled') && v(countKey) >= n,
+                need: `Bar offsets on, ${n}+ ${axis === 'h' ? 'horizontal' : 'vertical'} bars`,
+                fix: () => { na_set('glazebar_offsets_enabled', true); na_set(countKey, Math.max(v(countKey), n)); } });
+        }
+    });
+
+    // ------------------------------------------------------- Fielded panels (D)
+    na_in('panels');
+    const na_3d = { when: () => v('panel_output_mode') === 'ThreeDimensional', need: 'Panel geometry: 3D', fix: na_force('panel_output_mode', 'ThreeDimensional') };
+    const na_custom = { when: () => v('panel_preset') === 'Custom', need: 'Panel layout: Custom grid', fix: na_force('panel_preset', 'Custom') };
+    sel('panel_preset', 'Panel layout', NA_PANEL_PRESETS, 'OnePanel', { p: NA_D, id: p => na_pre(p) + '_panel_preset', kw: 'fielded panel layout preset' });
+    seg('panel_profile', 'Profile', NA_PROFILES, 'RaisedBevelled', Object.assign({ p: NA_D, id: p => na_pre(p) + '_panel_profile', kw: 'raised bevelled shaker' }, na_3d));
+    cnt('panel_columns', 'Columns', 1, 6, 1, Object.assign({ p: NA_D, id: p => na_pre(p) + '_panel_columns' }, na_custom));
+    cnt('panel_rows', 'Rows', 1, 6, 1, Object.assign({ p: NA_D, id: p => na_pre(p) + '_panel_rows' }, na_custom));
+    seg('panel_output_mode', 'Panel geometry', NA_OUTPUTS, 'ThreeDimensional', { tier: 2, p: NA_D, id: p => na_pre(p) + '_panel_output_mode', kw: 'panel output linework 3d' });
+    num('panel_inset_mm', 'Panel inset', 5, 100, 1, 25, { tier: 2, p: NA_D, id: p => na_pre(p) + '_panel_inset_mm' });
+    num('panel_depth_mm', 'Panel depth', 1, 30, 1, 12, Object.assign({ tier: 2, p: NA_D, id: p => na_pre(p) + '_panel_depth_mm' }, na_3d));
+    num('panel_bevel_width_mm', 'Bevel width', 2, 60, 1, 18, Object.assign({ tier: 2, p: NA_D, id: p => na_pre(p) + '_panel_bevel_width_mm' }, na_3d));
+
+    // ------------------------------------------------------------ Frame & cill
+    na_in('frame');
+    const na_cill = { when: () => v('has_cill'), need: 'Cill on', fix: na_force('has_cill', true) };
+    const na_board = { when: () => v('window_board_enabled'), need: 'Window board on', fix: na_force('window_board_enabled', true) };
+    const na_sides = { when: () => v('advanced_frame_controls'), need: 'Per-side frame widths on', fix: na_force('advanced_frame_controls', true) };
+    num('frame_thickness_mm', 'Frame width', 0, 120, 5, 50, { kw: 'frame thickness face frameless no frame', hint: '0 builds no frame, e.g. leaves set straight into an orangery frame',
+        when: () => !v('advanced_frame_controls'), need: 'Per-side frame widths off', fix: na_force('advanced_frame_controls', false) });
+    num('frame_wall_inset_mm', 'Set back from wall', -50, 150, 5, 0, { kw: 'frame wall inset reveal recess position' });
+    tog('has_cill', 'Cill', true, { kw: 'sill threshold include cill' });
+    num('frame_depth_mm', 'Frame depth', 50, 180, 5, 70, { tier: 2, kw: 'frame depth section' });
+    tog('advanced_frame_controls', 'Per-side frame widths', false, { tier: 2, kw: 'advanced frame controls top bottom left right' });
+    [['top', 'Top'], ['bottom', 'Bottom'], ['left', 'Left'], ['right', 'Right']].forEach(([side, Side]) =>
+        num(`frame_${side}_thickness_mm`, `${Side} frame`, 0, 150, 5, 50, Object.assign({ tier: 2, kw: `frame ${side} width thickness` }, na_sides)));
+    num('cill_height_mm', 'Cill height', 20, 100, 5, 50, Object.assign({ tier: 2, g: 'Cill', kw: 'sill' }, na_cill));
+    num('cill_depth_mm', 'Cill projection', -100, 100, 5, 50, Object.assign({ tier: 2, g: 'Cill', kw: 'sill protrusion stub', hint: 'Negative tucks a stub cill back into the reveal' }, na_cill));
+    tog('paint_cill', 'Paint cill', false, Object.assign({ tier: 2, g: 'Cill', kw: 'sill paint finish' }, na_cill));
+    tog('window_board_enabled', 'Window board', false, { tier: 2, g: 'Window board', p: NA_W, kw: 'internal sill board nosing' });
+    num('window_board_reveal_depth_mm', 'Reveal depth', 10, 800, 5, 250, Object.assign({ tier: 2, g: 'Window board', p: NA_W, kw: 'window board reveal' }, na_board));
+    num('window_board_nosing_overhang_mm', 'Nosing overhang', 20, 100, 1, 30, Object.assign({ tier: 2, g: 'Window board', p: NA_W, kw: 'window board nosing' }, na_board));
+    seg('window_board_nosing_type', 'Nosing', [['1', 'Stepped bullnose'], ['2', 'Bullnose'], ['3', 'Square']], '1', Object.assign({ tier: 2, g: 'Window board', p: NA_W, full: true, kw: 'window board nosing type' }, na_board));
+    tog('window_board_nosing_returns_enabled', 'Nosing returns past reveal', true, Object.assign({ tier: 2, g: 'Window board', p: NA_W, kw: 'window board nosing projection returns' }, na_board));
+
+    // ---------------------------------------------------- Casements / Sashes (W)
+    na_in('sashes');
+    const na_showCas = { when: () => v('show_casements'), need: p => (p === 'sash' ? 'Sashes' : 'Casements') + ' shown', fix: na_force('show_casements', true) };
+    const na_sashOn = Object.assign({ p: ['sash'] }, na_showCas);
+    num('casement_width_mm', p => p === 'sash' ? 'Stiles & rails' : 'Casement width', 20, 250, 5, 65, Object.assign({ p: NA_W, kw: 'casement width stile rail sash',
+        hint: 'All four sides at once. Per-side rails and stiles are under More' }, na_showCas));
+    seg('show_casements', p => p === 'sash' ? 'Sashes' : 'Casements', [[true, 'Show'], [false, 'Glass only']], true, { p: NA_W, kw: 'show casements fixed glazing glass only' });
+    tog('sash_horns_enabled', 'Sash horns', true, Object.assign({ kw: 'horns joggles' }, na_sashOn));
+    seg('sash_horn_type', 'Horn type', [['1', '01'], ['2', '02'], ['3', '03'], ['4', '04']], '1', { p: ['sash'], kw: 'horns joggles profile',
+        when: () => v('show_casements') && v('sash_horns_enabled'), need: 'Sash horns on', fix: () => { na_set('show_casements', true); na_set('sash_horns_enabled', true); } });
+    tog('meeting_rail_position_override', 'Move meeting rail', false, Object.assign({ kw: 'custom meeting rail position' }, na_sashOn));
+    num('meeting_rail_offset_mm', 'Meeting rail offset', -600, 600, 5, 0, { p: ['sash'], kw: 'meeting rail position',
+        when: () => v('show_casements') && v('meeting_rail_position_override'), need: 'Move meeting rail on', fix: () => { na_set('show_casements', true); na_set('meeting_rail_position_override', true); } });
+    tog('casement_sizes_individual', 'Per-side rails & stiles', false, Object.assign({ tier: 2, p: NA_W, kw: 'individual casement sizes rails stiles' }, na_showCas));
+    const na_perSide = { when: () => v('show_casements') && v('casement_sizes_individual'), need: 'Per-side rails & stiles on', fix: () => { na_set('show_casements', true); na_set('casement_sizes_individual', true); } };
+    num('casement_top_rail_mm', 'Top rail', 20, 250, 5, 60, Object.assign({ tier: 2, p: NA_W, kw: 'casement sash top rail' }, na_perSide));
+    num('casement_bottom_rail_mm', 'Bottom rail', 20, 500, 5, 70, Object.assign({ tier: 2, p: NA_W, kw: 'casement sash bottom rail' }, na_perSide));
+    num('casement_left_stile_mm', 'Left stile', 20, 250, 5, 40, Object.assign({ tier: 2, p: NA_W, kw: 'casement sash stile' }, na_perSide));
+    num('casement_right_stile_mm', 'Right stile', 20, 250, 5, 40, Object.assign({ tier: 2, p: NA_W, kw: 'casement sash stile' }, na_perSide));
+    num('sliding_sash_overlap_mm', 'Sash overlap', 0, 60, 1, 40, Object.assign({ tier: 2, kw: 'sliding sash overlap meeting' }, na_sashOn));
+    num('top_sash_bottom_rail_mm', 'Top sash bottom rail', 20, 500, 5, 60, Object.assign({ tier: 2, kw: 'meeting rail' }, na_sashOn));
+    tog('bottom_sash_top_rail_override', 'Own bottom-sash top rail', false, Object.assign({ tier: 2, kw: 'override bottom sash top rail meeting' }, na_sashOn));
+    num('bottom_sash_top_rail_mm', 'Bottom sash top rail', 20, 500, 5, 60, { tier: 2, p: ['sash'], kw: 'meeting rail',
+        when: () => v('show_casements') && v('bottom_sash_top_rail_override'), need: 'Own bottom-sash top rail on', fix: () => { na_set('show_casements', true); na_set('bottom_sash_top_rail_override', true); } });
+    num('casement_depth_mm', p => p === 'sash' ? 'Sash depth' : 'Casement depth', 40, 100, 5, 55, Object.assign({ tier: 2, p: NA_W, kw: 'casement sash depth thickness' }, na_showCas));
+    num('casement_inset_mm', 'Set back in frame', -100, 100, 1, 10, Object.assign({ tier: 2, p: NA_W, kw: 'casement frame inset proud flush', hint: 'Negative brings the casement proud of the frame' }, na_showCas));
+
+    // Per Casement Settings: the picker chooses which casement the five fields edit
+    na_def('pcpick', 'na_pc_pick', 'Casement', { tier: 3, p: ['casement'], g: 'Per casement settings', nosearch: true, when: () => v('show_casements') });
+    const NA_PC = {};
+    const na_pcFields = [
+        ['enabled', 'Own settings for this casement', 'tog', null, false],
+        ['left_stile_mm', 'Left stile', 'num', [20, 250, 5], () => v(v('casement_sizes_individual') ? 'casement_left_stile_mm' : 'casement_width_mm')],
+        ['right_stile_mm', 'Right stile', 'num', [20, 250, 5], () => v(v('casement_sizes_individual') ? 'casement_right_stile_mm' : 'casement_width_mm')],
+        ['top_rail_mm', 'Top rail', 'num', [20, 250, 5], () => v(v('casement_sizes_individual') ? 'casement_top_rail_mm' : 'casement_width_mm')],
+        ['bottom_rail_mm', 'Bottom rail', 'num', [20, 500, 5], () => v(v('casement_sizes_individual') ? 'casement_bottom_rail_mm' : 'casement_width_mm')],
+        ['inset_mm', 'Set back in frame', 'num', [-100, 100, 1], () => v('casement_inset_mm')]
+    ];
+    na_pcFields.forEach(([field, label, type, range, dflt]) => {
+        const base = { tier: 3, p: ['casement'], g: 'Per casement settings', ss: 'one casement', id: `casement_overrides[<casement>].${field}`, kw: 'per casement individual override casement settings',
+                       get: () => { const rec = NA_PC[UI.pc]; return rec && field in rec ? rec[field] : (typeof dflt === 'function' ? dflt() : dflt); },
+                       set: val => { NA_PC[UI.pc] = Object.assign({}, NA_PC[UI.pc], { [field]: val }); },
+                       changed: () => !!(NA_PC[UI.pc] && field in NA_PC[UI.pc]),
+                       reset: () => { if (NA_PC[UI.pc]) delete NA_PC[UI.pc][field]; } };
+        if (field === 'enabled') {
+            tog('pc_' + field, label, false, Object.assign(base, { when: () => v('show_casements'), need: 'Casements shown', fix: na_force('show_casements', true) }));
+        } else {
+            num('pc_' + field, label, range[0], range[1], range[2], 0, Object.assign(base, { when: () => v('show_casements') && v('pc_enabled'), need: 'Own settings for this casement on',
+                fix: () => { na_set('show_casements', true); na_set('pc_enabled', true); } }));
+        }
+    });
+
+    // ------------------------------------------------------------------ Finish
+    na_in('finish');
+    sw('frame_material_id', 'Frame finish', NA_FINISH, 'MAT120__GenericWood', { kw: 'material colour color paint timber frame finish' });
+    sw('leaf_material_id', 'Leaf finish', NA_FINISH, 'MAT120__GenericWood', { p: NA_HD, id: p => na_pre(p) + '_leaf_material_id', kw: 'material colour color paint door leaf finish' });
+    sel('handle_asset_key', 'Handle', [['Na__ExteriorDoor__Handle__Scroll', 'Scroll lever']], 'Na__ExteriorDoor__Handle__Scroll', Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_asset_key', kw: 'handle ironmongery lever hardware' }, na_notFixed));
+    seg('double_door_handle_pairing', 'Handles', [['Single', 'Active leaf only'], ['Paired', 'Both leaves']], 'Paired', Object.assign({ tier: 2, p: ['double'], kw: 'handle pairing ironmongery' }, na_notFixed));
+    num('handle_height_mm', 'Handle height', 700, 1400, 5, 900, Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_height_mm', kw: 'handle ironmongery' }, na_notFixed));
+    num('handle_backset_mm', p => p === 'double' ? 'From meeting stile' : 'From latch stile', 20, 250, 5, 40, Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_backset_mm', kw: 'handle position backset ironmongery' }, na_notFixed));
+    sw('handle_material_id', 'Handle finish', NA_HANDLES, 'MAT615__Metal__Ironmongery__Chrome', Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_material_id', kw: 'handle ironmongery colour material' }, na_notFixed));
+    sw('edge_colour_frame_id', 'Frame edges', NA_EDGES, 'MTE102__LineColour__SoftBlack__L20', { tier: 3, g: 'Edge colours', kw: 'edge line colour' });
+    sw('edge_colour_casement_id', 'Casement edges', NA_EDGES, 'MTE103__LineColour__DarkGrey__L40', { tier: 3, g: 'Edge colours', p: NA_W, kw: 'edge line colour' });
+    sw('edge_colour_glazebar_id', 'Glaze bar edges', NA_EDGES, 'MTE103__LineColour__DarkGrey__L40', { tier: 3, g: 'Edge colours', kw: 'edge line colour' });
+    sw('edge_colour_leaded_id', 'Lead line edges', NA_EDGES, 'MTE104__LineColour__MidGrey__L60', { tier: 3, g: 'Edge colours', kw: 'edge line colour lead' });
+    sw('edge_colour_fielded_panel_id', 'Fielded panel edges', NA_EDGES, 'MTE103__LineColour__DarkGrey__L40', { tier: 3, g: 'Edge colours', p: NA_D, kw: 'edge line colour' });
+    sw('edge_colour_window_board_id', 'Window board edges', NA_EDGES, 'MTE103__LineColour__MediumDarkGrey__L50', { tier: 3, g: 'Edge colours', p: NA_W, kw: 'edge line colour' });
+
+    // ------------------------------------------------------------------ Output
+    na_in('output');
+    tog('fuse_parts', 'Fuse parts', false, { kw: 'merge weld solid single group', hint: 'On in all 9 saved presets. Worth making the default' });
+    tog('show_dimensions', 'Dimensions in preview', true, { tier: 2, kw: 'show dimensions 2d', hint: 'Also a toggle in the preview header' });
+    tog('show_swing_arcs', '2D swing arcs', true, Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_show_swing_arcs', kw: 'swing arcs plan' }, na_notFixed));
+    tog('create_open_state_copy', 'Open-state copy', true, Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_create_open_state_copy', kw: 'open copy state' }, na_notFixed));
+    // endregion
+
+    // =========================================================================
+    // REGION | State
+    // =========================================================================
+    const S = {};
+    const UI = { product: 'casement', collapsed: {}, more: {}, adv: {}, query: '', changedOnly: false, leafSide: 'left', pc: 0,
+                 active: 0, measured: null, measuring: false, selected: false, live: false, nameOpen: false };
+    const na_res = (x, p) => (typeof x === 'function') ? x(p) : x;
+    function na_defOf(prm, p) {
+        const d = prm.d;
+        if (typeof d === 'function') return d(p);
+        if (d && typeof d === 'object' && !Array.isArray(d)) return (p in d) ? d[p] : d._;
+        return d;
+    }
+    function na_get(k) {
+        const prm = NA_BY_KEY[k];
+        if (prm && prm.get) return prm.get();
+        if (k in S) return S[k];
+        return prm ? na_defOf(prm, UI.product) : undefined;
+    }
+    function na_set(k, val) {
+        const prm = NA_BY_KEY[k];
+        if (prm && prm.set) prm.set(val); else S[k] = val;
+    }
+    const na_applies = (prm, p) => !prm.p || prm.p.includes(p);
+    const na_ok = prm => !prm.when || !!prm.when();
+    const na_rid = (prm, p) => prm.id ? na_res(prm.id, p) : prm.k;
+    function na_isChanged(prm) {
+        if (prm.get) return prm.changed ? prm.changed() : false;
+        return (prm.k in S) && JSON.stringify(S[prm.k]) !== JSON.stringify(na_defOf(prm, UI.product));
+    }
+    function na_reset(prm) {
+        if (prm.reset) prm.reset(); else delete S[prm.k];
+    }
+    const na_optLabel = k => { const prm = NA_BY_KEY[k]; const o = (prm.o || []).find(x => JSON.stringify(x[0]) === JSON.stringify(na_get(k))); return o ? o[1] : ''; };
+    const na_clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+    function na_evalNum(text) {
+        const s = String(text).replace(/mm|°/gi, '').trim();
+        if (!s || !/^[\d\s+\-*/().]+$/.test(s)) return null;
+        try { const x = Function('"use strict";return (' + s + ')')(); return Number.isFinite(x) ? Math.round(x * 10) / 10 : null; }
+        catch (err) { return null; }
+    }
+    const NA_ESC = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const $ = (s, r) => (r || document).querySelector(s);
+    function na_el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+
+    function na_loadUi() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('na-easp-mock-ui') || 'null');
+            if (saved && NA_PRODUCTS.some(x => x.key === saved.product)) Object.assign(UI, { product: saved.product, collapsed: saved.collapsed || {}, more: saved.more || {}, adv: saved.adv || {} });
+        } catch (err) { /* private window or blocked storage: start fresh */ }
+    }
+    function na_saveUi() {
+        try { localStorage.setItem('na-easp-mock-ui', JSON.stringify({ product: UI.product, collapsed: UI.collapsed, more: UI.more, adv: UI.adv })); }
+        catch (err) { /* storage unavailable: nothing to remember */ }
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Casement List (for Per Casement Settings)
+    // =========================================================================
+    function na_casementList() {
+        const cols = v('mullions') + 1, rows = v('transoms') + 1, per = v('casements_per_opening');
+        const list = [];
+        for (let r = 0; r < rows; r += 1) {
+            for (let c = 0; c < cols; c += 1) {
+                for (let k = 0; k < per; k += 1) {
+                    const bits = [];
+                    if (cols > 1) bits.push(`light ${c + 1}`);
+                    if (rows > 1) bits.push(r === 0 ? 'top row' : `row ${r + 1}`);
+                    if (per > 1) bits.push(per === 2 ? (k === 0 ? 'left' : 'right') : `#${k + 1}`);
+                    list.push(`Casement ${list.length + 1}${bits.length ? ' (' + bits.join(', ') + ')' : ''}`);
+                }
+            }
+        }
+        return list;
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Controls
+    // =========================================================================
+    let MOUNTED = [];
+    const NA_COMP_ICON = {
+        FullyGlazed: '<svg viewBox="0 0 24 34"><rect class="o" x="2" y="2" width="20" height="30" rx="1"/><rect class="g" x="5.5" y="5" width="13" height="23"/></svg>',
+        GlazedOverFielded: '<svg viewBox="0 0 24 34"><rect class="o" x="2" y="2" width="20" height="30" rx="1"/><rect class="g" x="5.5" y="5" width="13" height="12"/><rect class="f" x="5.5" y="20" width="13" height="8.5"/></svg>',
+        FullyFielded: '<svg viewBox="0 0 24 34"><rect class="o" x="2" y="2" width="20" height="30" rx="1"/><rect class="f" x="5.5" y="5" width="13" height="10.5"/><rect class="f" x="5.5" y="18" width="13" height="10.5"/></svg>'
+    };
+
+    function na_buildCtl(prm, mode) {
+        const p = UI.product;
+        const label = na_res(prm.l, p);
+        const t = prm.t;
+        const wide = prm.full || ['cards', 'sw', 'eq', 'pcpick'].includes(t) || (t === 'seg' && prm.o.length > 3);
+        const el = na_el('div', `na-ctl na-ctl--${t}${wide ? ' na-wide' : ''}`);
+        el.dataset.k = prm.k;
+        const lab = `<span class="na-lbl"${prm.hint ? ` title="${NA_ESC(prm.hint)}"` : ''}><span>${NA_ESC(label)}</span><i class="na-chg" title="Changed from default"></i><button class="na-rst" type="button" title="Reset to default" tabindex="-1">↺</button></span>`;
+        let sync = () => {};
+
+        if (t === 'num') {
+            const min = na_res(prm.min, p), max = na_res(prm.max, p);
+            el.innerHTML = lab + `<input class="na-range" type="range" min="${min}" max="${max}" step="${prm.step}" aria-label="${NA_ESC(label)}"><span class="na-numbox"><input class="na-num" type="text" inputmode="decimal" spellcheck="false" aria-label="${NA_ESC(label)}"><em>${NA_ESC(prm.u || '')}</em></span>`;
+            const r = $('.na-range', el), n = $('.na-num', el);
+            const commit = val => { na_set(prm.k, na_clamp(val, min, max)); na_refresh(); n.value = na_get(prm.k); };
+            r.addEventListener('input', () => { na_set(prm.k, +r.value); na_refresh(); });
+            n.addEventListener('change', () => { const x = na_evalNum(n.value); n.classList.toggle('na-bad', x == null); if (x != null) commit(x); });
+            n.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { const x = na_evalNum(n.value); n.classList.toggle('na-bad', x == null); if (x != null) { commit(x); n.select(); } }
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); commit(+na_get(prm.k) + (e.key === 'ArrowUp' ? 1 : -1) * prm.step * (e.shiftKey ? 10 : 1)); }
+            });
+            n.addEventListener('focus', () => n.select());
+            sync = () => { const val = na_get(prm.k); r.value = val; if (document.activeElement !== n) { n.value = val; n.classList.remove('na-bad'); } };
+        }
+        else if (t === 'count') {
+            el.innerHTML = lab + '<span class="na-step"><button type="button" data-d="-1" aria-label="Fewer">−</button><output></output><button type="button" data-d="1" aria-label="More">+</button></span>';
+            const [dn, up] = el.querySelectorAll('.na-step button'), out = $('output', el);
+            [dn, up].forEach(b => b.addEventListener('click', () => { na_set(prm.k, na_clamp(+na_get(prm.k) + +b.dataset.d, prm.min, prm.max)); na_refresh(); }));
+            sync = () => { const val = +na_get(prm.k); out.textContent = val; dn.disabled = val <= prm.min; up.disabled = val >= prm.max; };
+        }
+        else if (t === 'seg') {
+            el.innerHTML = lab + `<span class="na-seg">${prm.o.map((o, i) => `<button type="button" data-i="${i}">${NA_ESC(o[1])}</button>`).join('')}</span>`;
+            const bs = el.querySelectorAll('.na-seg button');
+            bs.forEach(b => b.addEventListener('click', () => { na_set(prm.k, prm.o[+b.dataset.i][0]); na_refresh(); }));
+            sync = () => { const cur = JSON.stringify(na_get(prm.k)); bs.forEach(b => b.setAttribute('aria-pressed', JSON.stringify(prm.o[+b.dataset.i][0]) === cur)); };
+        }
+        else if (t === 'tog') {
+            el.innerHTML = lab + '<button type="button" class="na-switch" role="switch"><i></i></button>';
+            const s = $('.na-switch', el);
+            s.setAttribute('aria-label', label);
+            el.addEventListener('click', e => { if (e.target.closest('.na-rst')) return; na_set(prm.k, !na_get(prm.k)); na_refresh(); });
+            sync = () => s.setAttribute('aria-checked', !!na_get(prm.k));
+        }
+        else if (t === 'sel') {
+            el.innerHTML = lab + `<select class="na-select" aria-label="${NA_ESC(label)}">${prm.o.map(o => `<option value="${NA_ESC(o[0])}">${NA_ESC(o[1])}</option>`).join('')}</select>`;
+            const s = $('select', el);
+            s.addEventListener('change', () => { na_set(prm.k, s.value); na_refresh(); });
+            sync = () => { s.value = na_get(prm.k); };
+        }
+        else if (t === 'sw') {
+            el.innerHTML = lab + `<span class="na-swname"></span><span class="na-sws">${prm.set.map((s, i) => `<button type="button" class="na-swc" data-i="${i}" title="${NA_ESC(s.n)}" aria-label="${NA_ESC(s.n)}" style="--c:${s.c}"></button>`).join('')}</span>`;
+            const bs = el.querySelectorAll('.na-swc'), name = $('.na-swname', el);
+            bs.forEach(b => b.addEventListener('click', () => { na_set(prm.k, prm.set[+b.dataset.i].id); na_refresh(); }));
+            sync = () => { const cur = na_get(prm.k); bs.forEach(b => b.setAttribute('aria-pressed', prm.set[+b.dataset.i].id === cur)); name.textContent = na_swatch(prm.set, cur).n; };
+        }
+        else if (t === 'cards') {
+            el.innerHTML = lab + `<span class="na-cards">${prm.o.map((o, i) => `<button type="button" class="na-card" data-i="${i}">${NA_COMP_ICON[o[0]]}<span>${NA_ESC(o[1])}</span></button>`).join('')}</span>`;
+            const bs = el.querySelectorAll('.na-card');
+            bs.forEach(b => b.addEventListener('click', () => { na_set(prm.k, prm.o[+b.dataset.i][0]); na_refresh(); }));
+            sync = () => { const cur = na_get(prm.k); bs.forEach(b => b.setAttribute('aria-pressed', prm.o[+b.dataset.i][0] === cur)); };
+        }
+        else if (t === 'eq') {
+            el.innerHTML = lab + '<span class="na-seg"><button type="button" data-m="eq">Equal leaves</button><button type="button" data-m="mm">Set width</button></span><span class="na-numbox"><input class="na-num" type="text" inputmode="decimal" aria-label="Active leaf width"><em>mm</em></span>';
+            const [eqB, mmB] = el.querySelectorAll('.na-seg button'), box = $('.na-numbox', el), n = $('.na-num', el);
+            eqB.addEventListener('click', () => { na_set(prm.k, 'EQ'); na_refresh(); });
+            mmB.addEventListener('click', () => { if (na_get(prm.k) === 'EQ') na_set(prm.k, Math.round(v('width_mm') / 2 / 5) * 5); na_refresh(); });
+            n.addEventListener('change', () => { const x = na_evalNum(n.value); if (x != null) { na_set(prm.k, na_clamp(x, 200, v('width_mm') - 200)); na_refresh(); } });
+            sync = () => { const val = na_get(prm.k), isEq = val === 'EQ'; eqB.setAttribute('aria-pressed', isEq); mmB.setAttribute('aria-pressed', !isEq); box.hidden = isEq; if (!isEq && document.activeElement !== n) n.value = val; };
+        }
+        else if (t === 'pcpick') {
+            el.innerHTML = '<span class="na-lbl"><span>Casement</span></span><select class="na-select" aria-label="Casement"></select><span class="na-pick-note"></span>';
+            const s = $('select', el), note = $('.na-pick-note', el);
+            s.addEventListener('change', () => { UI.pc = +s.value; na_refresh(); });
+            let sig = '';
+            sync = () => {
+                const list = na_casementList();
+                if (UI.pc >= list.length) UI.pc = 0;
+                const nextSig = list.join('|') + JSON.stringify(Object.keys(NA_PC).filter(i => NA_PC[i].enabled));
+                if (nextSig !== sig) { sig = nextSig; s.innerHTML = list.map((x, i) => `<option value="${i}">${NA_ESC(x)}${NA_PC[i] && NA_PC[i].enabled ? ' •' : ''}</option>`).join(''); }
+                s.value = UI.pc;
+                const own = Object.keys(NA_PC).filter(i => +i < list.length && NA_PC[i].enabled).length;
+                note.textContent = `${list.length} in this layout${own ? ` · ${own} with own settings` : ''}`;
+            };
+        }
+        else if (t === 'leafpick') {
+            el.className = 'na-ctl na-ctl--seg na-wide';
+            el.innerHTML = '<span class="na-lbl"><span>Editing</span></span><span class="na-seg"><button type="button" data-s="left">Left leaf</button><button type="button" data-s="right">Right leaf</button></span>';
+            const bs = el.querySelectorAll('.na-seg button');
+            bs.forEach(b => b.addEventListener('click', () => { UI.leafSide = b.dataset.s; na_refresh(); }));
+            sync = () => bs.forEach(b => b.setAttribute('aria-pressed', b.dataset.s === UI.leafSide));
+        }
+
+        const rst = $('.na-rst', el);
+        if (rst) rst.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); na_reset(prm); na_refresh(); });
+        const m = { prm, el, mode, sync: () => { sync(); el.classList.toggle('na-is-chg', na_isChanged(prm)); } };
+        MOUNTED.push(m);
+        return m;
+    }
+
+    const na_inPanel = prm => na_ok(prm) && (!prm.side || prm.side === UI.leafSide);
+    // endregion
+
+    // =========================================================================
+    // REGION | Product Strip
+    // =========================================================================
+    function na_renderProducts() {
+        const host = $('#na-products');
+        const groups = ['Window', 'Exterior door'];
+        host.innerHTML = groups.map(g => `<div class="na-pgroup"><b>${g}</b><div>${NA_PRODUCTS.filter(x => x.group === g).map(x =>
+            `<button type="button" class="na-pchip${x.key === UI.product ? ' na-pchip--on' : ''}" data-p="${x.key}" aria-pressed="${x.key === UI.product}"><svg viewBox="0 0 24 24">${x.icon}</svg>${x.label}</button>`).join('')}</div></div>`).join('');
+        host.querySelectorAll('.na-pchip').forEach(b => b.addEventListener('click', () => na_setProduct(b.dataset.p)));
+    }
+    function na_setProduct(p) {
+        if (p === UI.product) return;
+        UI.product = p;
+        if (!UI.measured) { delete S.width_mm; delete S.height_mm; }                // <-- A pending measurement survives the switch
+        UI.active = 0;
+        na_render();
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Sections
+    // =========================================================================
+    const NA_CHEVRON = '<svg viewBox="0 0 12 12"><path d="M3 4.5 6 7.5 9 4.5"/></svg>';
+    const NA_CARET = '<svg viewBox="0 0 10 10"><path d="M3.5 2 6.5 5 3.5 8"/></svg>';
+
+    function na_sectionParams(sk, p) { return NA_PARAMS.filter(x => x.s === sk && na_applies(x, p)); }
+
+    function na_gridFor(list, mode) {
+        const wrap = na_el('div');
+        const plain = list.filter(x => !x.g);
+        if (plain.length) { const g = na_el('div', 'na-grid'); plain.forEach(x => g.appendChild(na_buildCtl(x, mode).el)); wrap.appendChild(g); }
+        [...new Set(list.filter(x => x.g).map(x => x.g))].forEach(name => {
+            const grp = na_el('div', 'na-group');
+            grp.dataset.group = name;
+            grp.appendChild(na_el('div', 'na-group-head', NA_ESC(name)));
+            const g = na_el('div', 'na-grid');
+            list.filter(x => x.g === name).forEach(x => g.appendChild(na_buildCtl(x, mode).el));
+            grp.appendChild(g);
+            wrap.appendChild(grp);
+        });
+        return wrap;
+    }
+
+    function na_renderSections() {
+        const p = UI.product;
+        const host = $('#na-sections');
+        host.innerHTML = '';
+        const order = na_fam(p) === 'W' ? NA_ORDER_W : NA_ORDER_D;
+        order.forEach(sk => {
+            const prms = na_sectionParams(sk, p);
+            if (!prms.length) return;
+            const t1 = prms.filter(x => x.tier === 1), t2 = prms.filter(x => x.tier === 2), t3 = prms.filter(x => x.tier === 3);
+            const sec = na_el('section', 'na-sec');
+            sec.dataset.s = sk;
+            const top = na_el('div', 'na-sec-top');
+            const head = na_el('button', 'na-sec-head', `${NA_CHEVRON}<span class="na-sec-title">${NA_ESC(NA_SECTIONS[sk].title(p))}</span><span class="na-sec-sum"></span><span class="na-badge" hidden></span>`);
+            head.type = 'button';
+            head.setAttribute('aria-expanded', !UI.collapsed[sk]);
+            top.appendChild(head);
+            const body = na_el('div', 'na-sec-body');
+            body.hidden = !!UI.collapsed[sk];
+            body.appendChild(na_el('div', 'na-offnote'));
+            const live = na_el('div', 'na-sec-live');
+            live.appendChild(na_gridFor(t1, 'panel'));
+
+            // The first disclosure (More, or Advanced when a section has no
+            // Tier 2) sits in the header row, so a shut section costs no extra line.
+            const tierBlock = (tier, list, uiKey, label, inHead) => {
+                const btn = na_el('button', 'na-more' + (inHead ? ' na-more--head' : ''), `${NA_CARET}<span>${label}</span><em></em><b hidden></b>`);
+                btn.type = 'button';
+                btn.dataset.tier = tier;
+                const box = na_el('div', tier === 2 || inHead ? 'na-tier2' : 'na-tier3');
+                box.dataset.tier = tier;
+                box.hidden = !UI[uiKey][sk];
+                btn.setAttribute('aria-expanded', !!UI[uiKey][sk]);
+                btn.addEventListener('click', () => { UI[uiKey][sk] = !UI[uiKey][sk]; box.hidden = !UI[uiKey][sk]; btn.setAttribute('aria-expanded', !!UI[uiKey][sk]); na_updateHeads(); na_saveUi(); });
+                box.appendChild(na_gridFor(list, 'panel'));
+                return [btn, box];
+            };
+            if (t2.length) {
+                const [b2, x2] = tierBlock(2, t2, 'more', 'More', true);
+                top.appendChild(b2);
+                live.appendChild(x2);
+                if (t3.length) { const [b3, x3] = tierBlock(3, t3, 'adv', 'Advanced', false); x2.appendChild(b3); x2.appendChild(x3); }
+            } else if (t3.length) {
+                const [b3, x3] = tierBlock(3, t3, 'adv', 'Advanced', true);
+                top.appendChild(b3);
+                live.appendChild(x3);
+            }
+            head.addEventListener('click', () => {
+                UI.collapsed[sk] = !UI.collapsed[sk];
+                head.setAttribute('aria-expanded', !UI.collapsed[sk]);
+                body.hidden = UI.collapsed[sk];
+                na_updateHeads();
+                na_saveUi();
+            });
+            body.appendChild(live);
+            sec.appendChild(top);
+            sec.appendChild(body);
+            host.appendChild(sec);
+        });
+    }
+
+    function na_updateHeads() {
+        const p = UI.product;
+        document.querySelectorAll('#na-sections .na-sec').forEach(sec => {
+            const sk = sec.dataset.s;
+            const prms = na_sectionParams(sk, p);
+            const changed = prms.filter(x => na_isChanged(x)).length;
+            const badge = $('.na-badge', sec);
+            badge.hidden = !changed;
+            badge.textContent = `${changed} changed`;
+            $('.na-sec-sum', sec).textContent = na_summary(sk);
+            const offText = NA_SECTIONS[sk].off ? NA_SECTIONS[sk].off(p) : '';
+            sec.classList.toggle('na-sec--off', !!offText);
+            const off = $('.na-offnote', sec), live = $('.na-sec-live', sec);
+            off.hidden = !offText;
+            off.textContent = offText;
+            live.hidden = !!offText;
+            sec.querySelectorAll('.na-more').forEach(btn => {
+                const tier = +btn.dataset.tier;
+                const list = prms.filter(x => (tier === 2 ? x.tier >= 2 : x.tier === 3));
+                const own = prms.filter(x => x.tier === tier && na_inPanel(x) && x.t !== 'leafpick' && x.t !== 'pcpick').length;
+                const deeper = list.filter(x => na_inPanel(x)).length;            // <-- Nothing to open (e.g. no mullions yet): no button
+                btn.hidden = !deeper || (btn.classList.contains('na-more--head') && (!!offText || !!UI.collapsed[sk]));
+                const hiddenChanges = list.filter(x => na_isChanged(x)).length;
+                const open = btn.getAttribute('aria-expanded') === 'true';
+                $('em', btn).textContent = open ? '' : `· ${own}`;
+                const b = $('b', btn);
+                b.hidden = open || !hiddenChanges;
+                b.textContent = `${hiddenChanges} changed`;
+                $('span', btn).textContent = open ? (tier === 2 ? 'Less' : 'Hide advanced') : (tier === 2 ? 'More' : 'Advanced');
+            });
+            sec.querySelectorAll('.na-group').forEach(grp => {
+                grp.hidden = ![...grp.querySelectorAll('.na-ctl')].some(c => !c.hidden);
+            });
+        });
+    }
+
+    function na_summary(sk) {
+        const p = UI.product;
+        switch (sk) {
+            case 'size': return `${v('width_mm')} × ${v('height_mm')} mm${UI.measured ? ' · measured' : ''}`;
+            case 'layout': {
+                if (na_fam(p) === 'W') {
+                    const m = v('mullions'), t = v('transoms'), per = v('casements_per_opening');
+                    return `${m + 1} light${m ? 's' : ''} wide · ${t + 1} high${p === 'casement' && per > 1 ? ` · ${per} per light` : ''}`;
+                }
+                if (p === 'single') return v('fixed_panels') ? 'Fixed panel' : `${v('swing_side')} hinged · opens ${v('swing_direction').toLowerCase()}`;
+                if (p === 'double') return (v('fixed_panels') ? 'Fixed pair' : `Active ${v('active_leaf').toLowerCase()} · opens ${v('swing_direction').toLowerCase()}`) + (v('active_leaf_width_mm') === 'EQ' ? ' · equal leaves' : ` · active ${v('active_leaf_width_mm')}`);
+                if (p === 'bifold') return `${v('bifold_door_panel_count')} panels · ${na_optLabel('bifold_door_layout').toLowerCase()}`;
+                return `${v('sliding_door_panel_count')} panels · front slides ${v('sliding_door_mode') === 'FrontSlidesLeft' ? 'left' : 'right'}`;
+            }
+            case 'leaves': return na_optLabel('leaf_composition') + (v('leaf_composition') === 'GlazedOverFielded' ? ` · midrail ${v('mid_rail_width_mm')}` : '') + (p === 'double' && !v('double_door_leaf_settings_linked') ? ' · leaves differ' : '');
+            case 'glazing': {
+                const h = v('horizontal_glaze_bars'), vb = v('vertical_glaze_bars');
+                const bits = [h || vb ? `${h} × ${vb} bars` : 'No bars'];
+                if (v('glazebar_margin_enabled')) bits.push('margins');
+                if (v('glazebar_gothic_arch_enabled')) bits.push('gothic arches');
+                if (v('leaded_glass_enabled')) bits.push('leaded');
+                return bits.join(' · ');
+            }
+            case 'panels': return na_optLabel('panel_preset') + (v('panel_output_mode') === 'Linework' ? ' · linework' : ' · ' + na_optLabel('panel_profile').toLowerCase());
+            case 'frame': {
+                const f = v('advanced_frame_controls') ? 'per-side frame' : (+v('frame_thickness_mm') === 0 ? 'No frame' : `${v('frame_thickness_mm')} frame`);
+                return [f, `set back ${v('frame_wall_inset_mm')}`, v('has_cill') ? `cill ${v('cill_height_mm')}` : 'no cill'].join(' · ') + (na_fam(p) === 'W' && v('window_board_enabled') ? ' · board' : '');
+            }
+            case 'sashes': {
+                if (!v('show_casements')) return 'Glass only';
+                if (p === 'sash') return `${v('casement_width_mm')} stiles · horns ${v('sash_horns_enabled') ? na_optLabel('sash_horn_type') : 'off'}${v('meeting_rail_position_override') ? ' · rail moved' : ''}`;
+                return `${v('casement_sizes_individual') ? 'Per-side' : v('casement_width_mm')} rails & stiles · set back ${v('casement_inset_mm')}`;
+            }
+            case 'finish': return na_swatch(NA_FINISH, v('frame_material_id')).n + (NA_HD.includes(p) ? ` frame · ${na_swatch(NA_FINISH, v('leaf_material_id')).n.toLowerCase()} leaf` : '');
+            case 'output': return [v('fuse_parts') ? 'Fused' : 'Separate parts'].concat(NA_HD.includes(p) && v('show_swing_arcs') && !v('fixed_panels') ? ['swing arcs'] : []).join(' · ');
+        }
+        return '';
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Search
+    // =========================================================================
+    const NA_SYN = {
+        sill: ['cill'], threshold: ['cill'], color: ['colour', 'finish'], colour: ['finish', 'edge'], paint: ['finish', 'paint'], material: ['finish'],
+        muntin: ['bars'], astragal: ['bars'], georgian: ['bars'], grid: ['bars'], bar: ['bars'], fanlight: ['transom'], toplight: ['transom'],
+        divider: ['mullion', 'transom'], bifold: ['fold'], folding: ['fold'], slide: ['slides', 'sliding'], sliding: ['slides', 'slide'], hinge: ['hinge', 'swing'],
+        handing: ['hinge'], ironmongery: ['handle'], hardware: ['handle'], lever: ['handle'], merge: ['fuse'], weld: ['fuse'], lead: ['lead', 'leaded'],
+        came: ['lead'], arch: ['arch', 'gothic'], arches: ['arch'], lancet: ['gothic'], reveal: ['reveal', 'set back'], recess: ['set back'], inset: ['set back', 'inset'],
+        offset: ['offset', 'nudge'], nudge: ['offset'], horn: ['horns'], horns: ['horn'], glass: ['glazing', 'glazed'], glazing: ['glass', 'glazed'],
+        panel: ['fielded'], thickness: ['width', 'depth'], frameless: ['frame width'], sash: ['casement'], casement: ['sash'], door: ['leaf'], leaves: ['leaf'],
+        dims: ['dimensions'], dimension: ['dimensions'], midrail: ['midrail', 'mid rail'], mid: ['midrail'], kick: ['bottom rail'], head: ['top rail', 'head']
+    };
+    const na_terms = q => q.toLowerCase().replace(/[^a-z0-9\s\-_]/g, ' ').split(/\s+/).filter(Boolean);
+    const na_wordStart = (hay, a) => (' ' + hay).includes(' ' + a);
+
+    function na_haystack(prm, p) {
+        return {
+            L: (na_res(prm.l, p) + (prm.side ? ` ${prm.side} leaf` : '')).toLowerCase(),
+            K: (prm.kw || '').toLowerCase(),
+            I: na_rid(prm, p).toLowerCase(),
+            S: (NA_SECTIONS[prm.s].title(p) + ' ' + (prm.g || '')).toLowerCase(),
+            H: (prm.hint || '').toLowerCase()
+        };
+    }
+    const na_hasWord = (hay, a) => new RegExp('(^|[^a-z0-9])' + a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])').test(hay);
+    function na_score(prm, terms, p) {
+        const h = na_haystack(prm, p);
+        let total = 0;
+        for (const term of terms) {
+            let best = 0;
+            const alts = [[term, 1]].concat((NA_SYN[term] || []).map(a => [a, 0.8]));
+            for (const [a, w] of alts) {
+                let s = 0;
+                if (a.length <= 2) {                                                // <-- "no", "up": whole words only, never a prefix
+                    if (na_hasWord(h.L, a)) s = 28;
+                    else if (na_hasWord(h.K, a)) s = 14;
+                    else if (na_hasWord(h.H, a)) s = 3;
+                }
+                else if (h.L.startsWith(a)) s = 40;
+                else if (na_wordStart(h.L, a)) s = 28;
+                else if (h.L.includes(a)) s = 16;
+                else if (na_wordStart(h.K, a)) s = 14;
+                else if (h.K.includes(a)) s = 10;
+                else if (h.I.includes(a.replace(/\s+/g, '_'))) s = 8;
+                else if (h.S.includes(a)) s = 5;
+                else if (h.H.includes(a)) s = 3;
+                best = Math.max(best, s * w);
+            }
+            if (!best) return 0;
+            total += best;
+        }
+        return total * (prm.tier === 1 ? 1.15 : prm.tier === 3 ? 0.85 : 1);
+    }
+    function na_search(q) {
+        const terms = na_terms(q);
+        if (!terms.length) return [];
+        const p = UI.product;
+        const out = [];
+        NA_PARAMS.forEach(prm => {
+            if (prm.nosearch) return;
+            const here = na_applies(prm, p);
+            if (here && prm.pool > 1 && !na_ok(prm)) return;                    // <-- Mullion 4 offset only once there are 4 mullions
+            const sc = na_score(prm, terms, here ? p : prm.p[0]);
+            if (sc > 0) out.push({ prm, sc, here });
+        });
+        const top = Math.max(0, ...out.map(i => i.sc));
+        return out
+            .filter(i => i.sc >= top * 0.3)                                     // <-- Drop weak tail matches (section-name-only hits)
+            .sort((a, b) => (b.here - a.here) || (b.sc - a.sc) || (a.prm.tier - b.prm.tier));
+    }
+    function na_searchLabel(prm, p) {
+        const suffix = prm.side ? `${prm.side} leaf` : prm.ss;
+        return na_res(prm.l, p) + (suffix ? ` (${suffix})` : '');
+    }
+    function na_hl(text, q) {
+        if (!q) return NA_ESC(text);
+        const needles = [];
+        na_terms(q).forEach(t => { needles.push(t); (NA_SYN[t] || []).forEach(a => needles.push(a)); });
+        const found = needles.filter(n => text.toLowerCase().includes(n)).sort((a, b) => b.length - a.length);
+        if (!found.length) return NA_ESC(text);
+        const re = new RegExp('(' + found.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+        return text.split(re).map((piece, i) => i % 2 ? `<mark>${NA_ESC(piece)}</mark>` : NA_ESC(piece)).join('');
+    }
+    function na_path(prm, p) {
+        const parts = [NA_SECTIONS[prm.s].title(p)];
+        const hasT2 = na_sectionParams(prm.s, p).some(x => x.tier === 2);
+        if (prm.tier >= 2 && (prm.tier === 2 || hasT2)) parts.push('More');
+        if (prm.tier === 3) parts.push('Advanced');
+        if (prm.g) parts.push(prm.g);
+        if (prm.side) parts.push(prm.side === 'left' ? 'Left leaf' : 'Right leaf');
+        return parts.join(' › ');
+    }
+
+    function na_renderResults() {
+        const host = $('#na-results');
+        const p = UI.product;
+        const q = UI.query.trim();
+        MOUNTED = MOUNTED.filter(m => m.mode !== 'search');
+        host.innerHTML = '';
+        let items = q ? na_search(q) : NA_PARAMS.filter(x => !x.nosearch && na_applies(x, p)).map(prm => ({ prm, here: true }));
+        if (UI.changedOnly) items = items.filter(i => i.here && na_isChanged(i.prm));
+        const here = items.filter(i => i.here).slice(0, 40), other = items.filter(i => !i.here).slice(0, 20);
+        if (UI.active >= here.length) UI.active = Math.max(0, here.length - 1);
+
+        const head = na_el('div', 'na-res-head');
+        if (UI.changedOnly) {
+            head.innerHTML = `<span><strong>${here.length}</strong> value${here.length === 1 ? '' : 's'} changed from default in ${NA_LONG[p].toLowerCase()}${q ? ` matching “${NA_ESC(q)}”` : ''}</span>`;
+            if (here.length) {
+                const all = na_el('button', 'na-ghost', 'Reset all');
+                all.type = 'button';
+                all.addEventListener('click', () => { here.forEach(i => na_reset(i.prm)); na_refresh(); na_renderResults(); na_refresh(); na_toast('Every value is back to its default'); });
+                head.appendChild(all);
+            }
+        } else {
+            head.innerHTML = `<span><strong>${here.length}</strong> match${here.length === 1 ? '' : 'es'} in ${NA_LONG[p].toLowerCase()} · ↑↓ to move, Enter to show in panel, Esc to clear</span>`;
+        }
+        host.appendChild(head);
+
+        if (!here.length && !other.length) {
+            host.appendChild(na_el('div', 'na-empty', UI.changedOnly ? 'Nothing changed yet. Every value is at its default.' : `Nothing called “${NA_ESC(q)}”. Try cill, horns, midrail, arch, hinge or reveal.`));
+        }
+
+        here.forEach((item, i) => {
+            const prm = item.prm;
+            const card = na_el('div', 'na-res' + (i === UI.active ? ' na-res--active' : ''));
+            card.dataset.i = i;
+            const top = na_el('div', 'na-res-top', `<span class="na-res-path">${NA_ESC(na_path(prm, p))}</span><code>${NA_ESC(na_rid(prm, p))}</code><button type="button">Show in panel ↗</button>`);
+            $('button', top).addEventListener('click', () => na_jump(prm.k));
+            card.appendChild(top);
+            const m = na_buildCtl(prm, 'search');
+            const lbl = $('.na-lbl > span', m.el);
+            if (lbl) lbl.innerHTML = na_hl(na_searchLabel(prm, p), q);
+            card.appendChild(m.el);
+            const need = na_el('div', 'na-need');
+            need.hidden = true;
+            card.appendChild(need);
+            m.card = card;
+            m.need = need;
+            host.appendChild(card);
+        });
+
+        if (other.length) {
+            const det = na_el('details', 'na-other');
+            det.appendChild(na_el('summary', '', `Other products · ${other.length}`));
+            other.forEach(item => {
+                const prm = item.prm;
+                const target = prm.p[0];
+                const row = na_el('div', 'na-other-row', `<span>${na_hl(na_searchLabel(prm, target), q)}</span>${prm.p.map(x => `<span class="na-pill">${NA_ESC(NA_PRODUCTS.find(y => y.key === x).label)}</span>`).join('')}<button type="button">Switch to ${NA_ESC(NA_LONG[target].toLowerCase())} ↗</button>`);
+                $('button', row).addEventListener('click', () => na_jump(prm.k));
+                det.appendChild(row);
+            });
+            host.appendChild(det);
+        }
+    }
+
+    function na_syncResult(m) {
+        const ok = na_ok(m.prm);
+        m.card.classList.toggle('na-blocked', !ok);
+        m.need.hidden = ok;
+        if (!ok && m.need.dataset.built !== '1') {
+            m.need.dataset.built = '1';
+            m.need.innerHTML = `<span>Shows when: ${NA_ESC(na_res(m.prm.need, UI.product) || 'its switch is on')}</span>`;
+            if (m.prm.fix) {
+                const b = na_el('button', '', 'Turn it on');
+                b.type = 'button';
+                b.addEventListener('click', () => { m.prm.fix(); na_refresh(); });
+                m.need.appendChild(b);
+            }
+        }
+        if (ok) m.need.dataset.built = '';
+    }
+
+    function na_jump(k) {
+        const prm = NA_BY_KEY[k];
+        if (!na_applies(prm, UI.product)) { UI.product = prm.p[0]; if (!UI.measured) { delete S.width_mm; delete S.height_mm; } }
+        UI.query = '';
+        $('#na-q').value = '';
+        UI.changedOnly = false;
+        UI.collapsed[prm.s] = false;
+        if (prm.tier >= 2) UI.more[prm.s] = true;
+        if (prm.tier >= 3) UI.adv[prm.s] = true;
+        if (prm.side) UI.leafSide = prm.side;
+        na_render();
+        const sec = $(`#na-sections .na-sec[data-s="${prm.s}"]`);
+        let target = $(`#na-sections [data-k="${k}"]`);
+        if (!target || target.hidden || target.closest('[hidden]')) {
+            target = sec;
+            const off = NA_SECTIONS[prm.s].off && NA_SECTIONS[prm.s].off(UI.product);
+            na_toast(off || `${na_res(prm.l, UI.product)} shows when: ${na_res(prm.need, UI.product) || 'its switch is on'}`);
+        }
+        if (!target) return;
+        const body = $('#na-body');
+        const r = target.getBoundingClientRect(), br = body.getBoundingClientRect();
+        body.scrollTop += r.top - br.top - body.clientHeight / 2 + r.height / 2;
+        target.classList.remove('na-flash');
+        void target.offsetWidth;
+        target.classList.add('na-flash');
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Preview
+    // =========================================================================
+    const f = n => Math.round(n * 10) / 10;
+    const R = (x, y, w, h, fill, extra) => (w <= 0 || h <= 0) ? '' : `<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" fill="${fill}" class="na-ln"${extra || ''}/>`;
+    const NA_GLASS = '#cfe3ef';
+
+    function na_frameSides() {
+        if (v('advanced_frame_controls')) return { t: +v('frame_top_thickness_mm'), b: +v('frame_bottom_thickness_mm'), l: +v('frame_left_thickness_mm'), r: +v('frame_right_thickness_mm') };
+        const w = +v('frame_thickness_mm');
+        return { t: w, b: w, l: w, r: w };
+    }
+    function na_barPos(n, L, margin) {
+        if (margin && n >= 2) {
+            const m = Math.min(margin, L / 2 - 10);
+            const arr = [m];
+            for (let i = 1; i < n - 1; i += 1) arr.push(m + i * (L - 2 * m) / (n - 1));
+            arr.push(L - m);
+            return arr;
+        }
+        return Array.from({ length: n }, (_, i) => (i + 1) * L / (n + 1));
+    }
+
+    function na_glass(out, g, C, L) {
+        if (g.w <= 4 || g.h <= 4) return;
+        const get = k => L ? +L(k) : +v(k);
+        out.push(R(g.x, g.y, g.w, g.h, NA_GLASS));
+        const hb = get('horizontal_glaze_bars'), vb = get('vertical_glaze_bars'), bw = get('glaze_bar_width_mm');
+        const margin = v('glazebar_margin_enabled') ? +v('glazebar_margin_offset_mm') : 0;
+        const offsets = v('glazebar_offsets_enabled');
+        let top = g.y, gh = g.h;
+        if (v('glazebar_gothic_arch_enabled')) {
+            const n = Math.max(1, +v('glazebar_gothic_arch_amount'));
+            const ah = Math.min(+v('glazebar_gothic_arch_height_mm'), g.h * 0.6);
+            const span = g.w / n, yb = g.y + ah;
+            let d = '';
+            for (let i = 0; i < n; i += 1) {
+                const x0 = g.x + i * span, xm = x0 + span / 2, x1 = x0 + span;
+                const r = Math.max(span / 2, (span * span / 4 + ah * ah) / span);
+                d += `M${f(x0)} ${f(yb)}A${f(r)} ${f(r)} 0 0 1 ${f(xm)} ${f(g.y)}A${f(r)} ${f(r)} 0 0 1 ${f(x1)} ${f(yb)}`;
+            }
+            out.push(`<path d="${d}" fill="none" stroke="#24303b" stroke-width="${f(bw + 4)}"/><path d="${d}" fill="none" stroke="${C.bar}" stroke-width="${f(bw)}"/>`);
+            out.push(R(g.x, yb - bw / 2, g.w, bw, C.bar));
+            top = yb + bw / 2;
+            gh = g.y + g.h - top;
+        }
+        if (hb > 0 && gh > 20) {
+            na_barPos(hb, gh, margin).forEach((c, i) => {
+                const y = top + c - bw / 2 - (+v('glazebar_horizontal_offset_mm') || 0) - (offsets ? +v(`glazebar_h_offset_${i + 1}_mm`) : 0);
+                out.push(R(g.x, na_clamp(y, g.y, g.y + g.h - bw), g.w, bw, C.bar));
+            });
+        }
+        if (vb > 0) {
+            na_barPos(vb, g.w, margin).forEach((c, i) => {
+                const x = g.x + c - bw / 2 + (offsets ? +v(`glazebar_v_offset_${i + 1}_mm`) : 0);
+                out.push(R(na_clamp(x, g.x, g.x + g.w - bw), top, bw, gh, C.bar));
+            });
+        }
+        if (v('leaded_glass_enabled')) {
+            const lh = +v('horizontal_leaded_bars'), lv = +v('vertical_leaded_bars');
+            const thin = v('leaded_centre_lines_only');
+            let d = '';
+            for (let i = 1; i <= lh; i += 1) { const y = g.y + i * g.h / (lh + 1); d += `M${f(g.x)} ${f(y)}H${f(g.x + g.w)}`; }
+            for (let i = 1; i <= lv; i += 1) { const x = g.x + i * g.w / (lv + 1); d += `M${f(x)} ${f(g.y)}V${f(g.y + g.h)}`; }
+            if (d) out.push(thin ? `<path d="${d}" fill="none" class="na-ln"/>` : `<path d="${d}" fill="none" stroke="#4c5258" stroke-width="${+v('leaded_width_mm')}"/>`);
+        }
+    }
+
+    function na_casementSides(index) {
+        const base = v('casement_sizes_individual')
+            ? { t: +v('casement_top_rail_mm'), b: +v('casement_bottom_rail_mm'), l: +v('casement_left_stile_mm'), r: +v('casement_right_stile_mm') }
+            : (w => ({ t: w, b: w, l: w, r: w }))(+v('casement_width_mm'));
+        const own = UI.product === 'casement' && NA_PC[index] && NA_PC[index].enabled ? NA_PC[index] : null;
+        if (!own) return base;
+        return { t: own.top_rail_mm != null ? +own.top_rail_mm : base.t, b: own.bottom_rail_mm != null ? +own.bottom_rail_mm : base.b,
+                 l: own.left_stile_mm != null ? +own.left_stile_mm : base.l, r: own.right_stile_mm != null ? +own.right_stile_mm : base.r };
+    }
+    function na_sashBox(out, box, sides, C) {
+        out.push(R(box.x, box.y, box.w, box.h, C.frame));
+        na_glass(out, { x: box.x + sides.l, y: box.y + sides.t, w: box.w - sides.l - sides.r, h: box.h - sides.t - sides.b }, C);
+    }
+
+    function na_drawWindow(out, op, C) {
+        const p = UI.product;
+        const m = +v('mullions'), mw = +v('mullion_width_mm');
+        const lw = (op.w - m * mw) / (m + 1);
+        const edges = [];
+        for (let i = 1; i <= m; i += 1) {
+            let x = op.x + i * lw + (i - 1) * mw;
+            if (v('mullion_offsets_enabled')) x += +v(`mullion_offset_${i}_mm`);
+            edges.push(x);
+        }
+        for (let i = 0; i < edges.length; i += 1) {
+            const lo = (i ? edges[i - 1] + mw : op.x) + 30;
+            const hi = op.x + op.w - (m - i) * (mw + 30);
+            edges[i] = na_clamp(edges[i], lo, hi);
+        }
+        const cols = [];
+        let cx = op.x;
+        edges.forEach(e => { cols.push([cx, e]); cx = e + mw; });
+        cols.push([cx, op.x + op.w]);
+
+        const isSash = p === 'sash';
+        const t = isSash ? 0 : +v('transoms'), tw = +v('transom_width_mm');
+        const ys = [];
+        for (let n = 1; n <= t; n += 1) ys.push(na_clamp(op.y + +v(`transom_${n}_y_mm`), op.y + 40, op.y + op.h - tw - 40));
+        ys.sort((a, b) => a - b);
+        const rows = [];
+        let ry = op.y;
+        ys.forEach(y => { if (y > ry + 20) { rows.push([ry, y]); ry = y + tw; } });
+        rows.push([ry, op.y + op.h]);
+
+        edges.forEach(e => out.push(R(e, op.y, mw, op.h, C.frame)));
+        ys.forEach(y => out.push(R(op.x, y, op.w, tw, C.frame)));
+
+        let index = 0;
+        rows.forEach(([y0, y1]) => cols.forEach(([x0, x1]) => {
+            const cell = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+            if (!v('show_casements')) { na_glass(out, cell, C); return; }
+            if (isSash) { na_drawSashPair(out, cell, C); return; }
+            const per = +v('casements_per_opening'), sw = cell.w / per;
+            for (let k = 0; k < per; k += 1) { na_sashBox(out, { x: cell.x + k * sw, y: cell.y, w: sw, h: cell.h }, na_casementSides(index), C); index += 1; }
+        }));
+    }
+
+    function na_drawSashPair(out, c, C) {
+        const sides = na_casementSides(-1);
+        const ov = +v('sliding_sash_overlap_mm');
+        const mid = na_clamp(c.y + c.h / 2 - (v('meeting_rail_position_override') ? +v('meeting_rail_offset_mm') : 0), c.y + 150, c.y + c.h - 150);
+        const topBox = { x: c.x, y: c.y, w: c.w, h: mid - c.y + ov / 2 };
+        const botBox = { x: c.x, y: mid - ov / 2, w: c.w, h: c.y + c.h - (mid - ov / 2) };
+        const topRail = +v('top_sash_bottom_rail_mm');
+        const botRail = v('bottom_sash_top_rail_override') ? +v('bottom_sash_top_rail_mm') : topRail;
+        na_sashBox(out, botBox, { t: botRail, b: sides.b, l: sides.l, r: sides.r }, C);  // <-- Seen from outside, the top sash runs in front
+        na_sashBox(out, topBox, { t: sides.t, b: topRail, l: sides.l, r: sides.r }, C);
+        if (v('sash_horns_enabled')) {
+            const hl = 55, y0 = topBox.y + topBox.h, type = v('sash_horn_type');
+            [[topBox.x, sides.l, 1], [topBox.x + topBox.w, sides.r, -1]].forEach(([edge, w, dir]) => {
+                const x0 = edge, x1 = edge + dir * w;
+                const shapes = {
+                    1: `M${f(x0)} ${f(y0)}V${f(y0 + hl)}H${f(x1)}V${f(y0)}Z`,
+                    2: `M${f(x0)} ${f(y0)}V${f(y0 + hl)}L${f(x1)} ${f(y0 + hl * 0.45)}V${f(y0)}Z`,
+                    3: `M${f(x0)} ${f(y0)}V${f(y0 + hl * 0.55)}Q${f(x0)} ${f(y0 + hl)} ${f(x1)} ${f(y0 + hl)}V${f(y0)}Z`,
+                    4: `M${f(x0)} ${f(y0)}V${f(y0 + hl)}H${f(x0 + dir * w * 0.45)}V${f(y0 + hl * 0.6)}H${f(x1)}V${f(y0)}Z`
+                };
+                out.push(`<path d="${shapes[type] || shapes[1]}" fill="${C.frame}" class="na-ln"/>`);
+            });
+        }
+    }
+
+    function na_leafLookup(side) {
+        const base = `double_door_${side}_`;
+        if (UI.product !== 'double' || v('double_door_leaf_settings_linked') || !v(base + 'leaf_override_enabled')) return k => v(k);
+        const map = { leaf_composition: 'leaf_composition', mid_rail_width_mm: 'mid_rail_width_mm', fielded_section_height_mm: 'fielded_section_height_mm',
+                      panel_preset: 'panel_preset', horizontal_glaze_bars: 'horizontal_glaze_bars', vertical_glaze_bars: 'vertical_glaze_bars',
+                      glaze_bar_width_mm: 'glaze_bar_width_mm', panel_columns: 'panel_columns', panel_rows: 'panel_rows', panel_profile: 'panel_profile',
+                      panel_output_mode: 'panel_output_mode', panel_inset_mm: 'panel_inset_mm', panel_bevel_width_mm: 'panel_bevel_width_mm',
+                      stile_width_mm: 'panel_stile_width_mm', top_rail_mm: 'panel_top_rail_width_mm', bottom_rail_mm: 'panel_bottom_rail_width_mm' };
+        return k => map[k] ? v(base + map[k]) : v(k);
+    }
+
+    function na_panels(out, a, C, L) {
+        if (a.w <= 10 || a.h <= 10) return;
+        const presets = { OnePanel: [1, 1], TwoVertical: [2, 1], TwoHorizontal: [1, 2], FourPanel: [2, 2], SixPanel: [2, 3] };
+        const preset = L('panel_preset');
+        const [cols, rows] = preset === 'Custom' ? [+L('panel_columns'), +L('panel_rows')] : (presets[preset] || [1, 1]);
+        const mun = Math.min(70, a.w * 0.14, a.h * 0.14);
+        const cw = (a.w - (cols - 1) * mun) / cols, rh = (a.h - (rows - 1) * mun) / rows;
+        const is3d = L('panel_output_mode') === 'ThreeDimensional';
+        const raised = L('panel_profile') === 'RaisedBevelled';
+        const bev = Math.min(+L('panel_bevel_width_mm'), cw / 3, rh / 3);
+        const ins = Math.min(+L('panel_inset_mm') * 0.4, cw / 6, rh / 6);
+        for (let r = 0; r < rows; r += 1) {
+            for (let c = 0; c < cols; c += 1) {
+                const x = a.x + c * (cw + mun), y = a.y + r * (rh + mun);
+                out.push(R(x, y, cw, rh, 'rgba(0,0,0,.10)'));
+                if (!is3d) { out.push(R(x + ins, y + ins, cw - 2 * ins, rh - 2 * ins, 'none')); continue; }
+                if (raised) out.push(R(x + bev, y + bev, cw - 2 * bev, rh - 2 * bev, 'rgba(255,255,255,.22)'));
+                else out.push(R(x + ins, y + ins, cw - 2 * ins, rh - 2 * ins, 'rgba(0,0,0,.08)'));
+            }
+        }
+    }
+
+    function na_drawLeaf(out, lf, C) {
+        const L = na_leafLookup(lf.side);
+        const sw = +L('stile_width_mm'), tr = +L('top_rail_mm'), br = +L('bottom_rail_mm');
+        out.push(R(lf.x, lf.y, lf.w, lf.h, C.leaf));
+        const inn = { x: lf.x + sw, y: lf.y + tr, w: lf.w - 2 * sw, h: lf.h - tr - br };
+        if (inn.w > 10 && inn.h > 10) {
+            const comp = L('leaf_composition');
+            if (comp === 'FullyGlazed') na_glass(out, inn, C, L);
+            else if (comp === 'FullyFielded') na_panels(out, inn, C, L);
+            else {
+                const fh = Math.min(+L('fielded_section_height_mm'), inn.h * 0.7), mr = +L('mid_rail_width_mm');
+                const fy = inn.y + inn.h - fh;
+                na_glass(out, { x: inn.x, y: inn.y, w: inn.w, h: fy - mr - inn.y }, C, L);
+                na_panels(out, { x: inn.x, y: fy, w: inn.w, h: fh }, C, L);
+            }
+        }
+        if (lf.handle) {
+            const hy = lf.y + lf.h - +v('handle_height_mm'), back = +v('handle_backset_mm');
+            const px = lf.latch === 'right' ? lf.x + lf.w - back - 22 : lf.x + back;
+            out.push(`<rect x="${f(px)}" y="${f(hy - 75)}" width="22" height="150" rx="6" fill="${C.handle}" class="na-ln"/>`);
+            const lx = lf.latch === 'right' ? px - 110 + 11 : px + 11;
+            out.push(`<rect x="${f(lx)}" y="${f(hy - 9)}" width="110" height="18" rx="8" fill="${C.handle}" class="na-ln"/>`);
+        }
+    }
+
+    function na_leaves(op) {
+        const p = UI.product;
+        const fixed = v('fixed_panels');
+        if (p === 'single') {
+            const hinge = v('swing_side');
+            return [{ x: op.x, y: op.y, w: op.w, h: op.h, side: 'left', hinge, latch: hinge === 'Left' ? 'right' : 'left', handle: !fixed, angle: +v('opening_angle_deg') }];
+        }
+        if (p === 'double') {
+            const aw = v('active_leaf_width_mm'), act = v('active_leaf');
+            const a = aw === 'EQ' ? op.w / 2 : na_clamp(+aw, 200, op.w - 200);
+            const lw = act === 'Left' ? a : op.w - a;
+            const paired = v('double_door_handle_pairing') === 'Paired';
+            return [
+                { x: op.x, y: op.y, w: lw, h: op.h, side: 'left', hinge: 'Left', latch: 'right', handle: !fixed && (paired || act === 'Left'), angle: +v('left_opening_angle_deg') },
+                { x: op.x + lw, y: op.y, w: op.w - lw, h: op.h, side: 'right', hinge: 'Right', latch: 'left', handle: !fixed && (paired || act === 'Right'), angle: +v('right_opening_angle_deg') }
+            ];
+        }
+        if (p === 'bifold') {
+            const n = +v('bifold_door_panel_count'), w = op.w / n;
+            return Array.from({ length: n }, (_, i) => ({ x: op.x + i * w, y: op.y, w, h: op.h, side: 'left', i, n }));
+        }
+        const n = +v('sliding_door_panel_count'), lap = 50, w = (op.w + (n - 1) * lap) / n;
+        const leaves = Array.from({ length: n }, (_, i) => ({ x: op.x + i * (w - lap), y: op.y, w, h: op.h, side: 'left', i, n }));
+        const frontIndex = v('sliding_door_mode') === 'FrontSlidesRight' ? 0 : n - 1;
+        const front = leaves.splice(frontIndex, 1)[0];
+        front.front = true;
+        leaves.push(front);
+        return leaves;
+    }
+
+    function na_drawDoor(out, op, C, extras) {
+        const p = UI.product;
+        const leaves = na_leaves(op);
+        leaves.forEach(lf => na_drawLeaf(out, lf, C));
+        const fs = Math.max(op.w, op.h) * 0.045;
+        if (p === 'bifold') {
+            const layout = v('bifold_door_layout'), n = leaves.length;
+            leaves.forEach(lf => {
+                let dir;
+                if (layout === 'AllOneWay') dir = v('bifold_door_open_side') === 'Left' ? -1 : 1;
+                else if (layout === 'MasterSlaves') dir = v('bifold_door_master_side') === 'Left' ? -1 : 1;
+                else dir = lf.i < n / 2 ? -1 : 1;
+                const master = layout === 'MasterSlaves' && lf.i === (v('bifold_door_master_side') === 'Left' ? 0 : n - 1);
+                extras.below.push(`<text x="${f(lf.x + lf.w / 2)}" y="__Y__" font-size="${f(fs)}" text-anchor="middle" class="na-dimt">${master ? 'M' : (dir < 0 ? '←' : '→')}</text>`);
+            });
+        }
+        if (p === 'slider') {
+            const front = leaves[leaves.length - 1];
+            const dir = v('sliding_door_mode') === 'FrontSlidesRight' ? '→' : '←';
+            out.push(`<text x="${f(front.x + front.w / 2)}" y="${f(front.y + front.h * 0.5)}" font-size="${f(fs * 2.2)}" text-anchor="middle" fill="rgba(20,30,40,.45)">${dir}</text>`);
+        }
+        return leaves;
+    }
+
+    function na_drawElevation() {
+        const p = UI.product;
+        const Wd = +v('width_mm'), Ht = +v('height_mm');
+        const C = {
+            frame: na_swatch(NA_FINISH, v('frame_material_id')).c,
+            leaf: na_swatch(NA_FINISH, NA_HD.includes(p) ? v('leaf_material_id') : v('frame_material_id')).c,
+            handle: na_swatch(NA_HANDLES, v('handle_material_id')).c
+        };
+        C.bar = na_fam(p) === 'D' ? C.leaf : C.frame;
+        const out = [];
+        const fsd = na_frameSides();
+        if (fsd.t || fsd.b || fsd.l || fsd.r) {
+            out.push(`<path d="M0 0H${Wd}V${Ht}H0Z M${fsd.l} ${fsd.t}V${Ht - fsd.b}H${Wd - fsd.r}V${fsd.t}Z" fill="${C.frame}" fill-rule="evenodd" class="na-ln"/>`);
+        }
+        const cillH = v('has_cill') ? +v('cill_height_mm') : 0;
+        if (cillH) out.push(R(-35, Ht, Wd + 70, cillH, C.frame));
+        const op = { x: fsd.l, y: fsd.t, w: Wd - fsd.l - fsd.r, h: Ht - fsd.t - fsd.b };
+        const extras = { below: [] };
+        let leaves = null;
+        if (op.w > 40 && op.h > 40) {
+            if (na_fam(p) === 'W') na_drawWindow(out, op, C);
+            else leaves = na_drawDoor(out, op, C, extras);
+        }
+        const M = Math.max(Wd, Ht), fs = M * 0.05, off = M * 0.06;
+        let bottom = Ht + cillH;
+        if (extras.below.length) {
+            const y = bottom + fs * 1.7;
+            extras.below.forEach(s => out.push(s.replace('__Y__', f(y))));
+            bottom = y + fs * 0.4;
+        }
+        let minX = -50;
+        if (v('show_dimensions')) {
+            const yD = bottom + off, t = off * 0.22, xD = -off;
+            out.push(`<path d="M0 ${f(yD)}H${Wd}M0 ${f(yD - t)}V${f(yD + t)}M${Wd} ${f(yD - t)}V${f(yD + t)}" class="na-dim"/>`);
+            out.push(`<text x="${f(Wd / 2)}" y="${f(yD + fs * 1.25)}" font-size="${f(fs)}" text-anchor="middle" class="na-dimt">${Wd}</text>`);
+            out.push(`<path d="M${f(xD)} 0V${Ht}M${f(xD - t)} 0H${f(xD + t)}M${f(xD - t)} ${Ht}H${f(xD + t)}" class="na-dim"/>`);
+            const tx = xD - fs * 0.55;
+            out.push(`<text x="${f(tx)}" y="${f(Ht / 2)}" font-size="${f(fs)}" text-anchor="middle" transform="rotate(-90 ${f(tx)} ${f(Ht / 2)})" class="na-dimt">${Ht}</text>`);
+            bottom = yD + fs * 1.6;
+            minX = tx - fs * 0.9;
+        } else {
+            bottom += 50;
+        }
+        const maxX = Wd + 60;
+        const pad = M * 0.03;
+        const vb = [f(minX - pad), f(-60 - pad), f(maxX - minX + 2 * pad), f(bottom + 60 + 2 * pad)];
+        return { svg: `<svg viewBox="${vb.join(' ')}" preserveAspectRatio="xMidYMid meet">${out.join('')}</svg>`, leaves };
+    }
+
+    function na_drawPlan(leaves) {
+        const Wd = +v('width_mm');
+        const fsd = na_frameSides();
+        const inset = Math.max(0, +v('frame_wall_inset_mm')), fd = +v('frame_depth_mm'), wall = Math.max(300, inset + fd + 40);
+        const t = +v('leaf_thickness_mm');
+        const C = na_swatch(NA_FINISH, v('frame_material_id')).c, CL = na_swatch(NA_FINISH, v('leaf_material_id')).c;
+        const out = [];
+        out.push(`<rect x="-420" y="0" width="420" height="${wall}" fill="#d9dde2" class="na-ln"/><rect x="${Wd}" y="0" width="420" height="${wall}" fill="#d9dde2" class="na-ln"/>`);
+        if (fsd.l) out.push(R(0, inset, fsd.l, fd, C));
+        if (fsd.r) out.push(R(Wd - fsd.r, inset, fsd.r, fd, C));
+        const inward = v('swing_direction') === 'Inward';
+        const y0 = inward ? inset + fd - t / 2 : inset + t / 2;
+        let minY = -80, maxY = wall + 80;
+        (leaves || []).forEach(lf => {
+            const fixed = v('fixed_panels');
+            const a = na_clamp(fixed ? 0 : lf.angle, 0, 179.5) * Math.PI / 180;
+            const hx = lf.hinge === 'Left' ? lf.x : lf.x + lf.w;
+            const dirX = lf.hinge === 'Left' ? 1 : -1, dirY = inward ? 1 : -1;
+            const ex = hx + dirX * lf.w * Math.cos(a), ey = y0 + dirY * lf.w * Math.sin(a);
+            out.push(`<line x1="${f(hx)}" y1="${f(y0)}" x2="${f(ex)}" y2="${f(ey)}" stroke="#24303b" stroke-width="${f(t + 6)}" stroke-linecap="butt"/><line x1="${f(hx)}" y1="${f(y0)}" x2="${f(ex)}" y2="${f(ey)}" stroke="${CL}" stroke-width="${f(t)}"/>`);
+            if (!fixed && v('show_swing_arcs') && a > 0.01) {
+                const cxp = hx + dirX * lf.w;
+                const sweep = (lf.hinge === 'Left') === inward ? 1 : 0;
+                out.push(`<path d="M${f(cxp)} ${f(y0)}A${f(lf.w)} ${f(lf.w)} 0 0 ${sweep} ${f(ex)} ${f(ey)}" fill="none" class="na-dim" stroke-dasharray="6 5"/>`);
+            }
+            minY = Math.min(minY, ey - 60);
+            maxY = Math.max(maxY, ey + 60);
+        });
+        const fs = Wd * 0.05;
+        out.push(`<text x="${f(Wd / 2)}" y="${f(maxY + fs)}" font-size="${f(fs)}" text-anchor="middle" class="na-dimt">Inside</text>`);
+        out.push(`<text x="${f(Wd / 2)}" y="${f(minY - fs * 0.4)}" font-size="${f(fs)}" text-anchor="middle" class="na-dimt">Outside</text>`);
+        const top = minY - fs * 1.6, bot = maxY + fs * 1.6;
+        return `<svg viewBox="${f(-460)} ${f(top)} ${f(Wd + 920)} ${f(bot - top)}" preserveAspectRatio="xMidYMid meet">${out.join('')}</svg>`;
+    }
+
+    function na_drawPreview() {
+        const p = UI.product;
+        const el = na_drawElevation();
+        const canvas = $('#na-canvas');
+        const dual = NA_HD.includes(p);
+        canvas.classList.toggle('na-canvas--dual', dual);
+        canvas.innerHTML = `<div class="na-cell"><span>Elevation</span>${el.svg}</div>` + (dual ? `<div class="na-cell"><span>Plan</span>${na_drawPlan(el.leaves)}</div>` : '');
+        $('#na-dims-toggle').setAttribute('aria-pressed', !!v('show_dimensions'));
+        const badge = $('#na-size-badge');
+        badge.textContent = `${v('width_mm')} × ${v('height_mm')}${UI.measured ? ' · measured' : ''}`;
+        badge.classList.toggle('na-size-badge--measured', !!UI.measured);
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Dock, Selection and Toast
+    // =========================================================================
+    const na_selectedId = () => na_fam(UI.product) === 'W' ? 'AWN014' : 'ADR007';
+    const na_nextId = () => na_fam(UI.product) === 'W' ? 'AWN015' : 'ADR008';
+    let na_toastTimer = 0;
+    function na_toast(msg) {
+        const t = $('#na-toast');
+        t.textContent = msg;
+        t.classList.add('na-toast--on');
+        clearTimeout(na_toastTimer);
+        na_toastTimer = setTimeout(() => t.classList.remove('na-toast--on'), 2800);
+    }
+
+    function na_updateDock() {
+        const status = $('#na-dock-status');
+        const text = $('span', status);
+        status.className = 'na-dock-status';
+        if (UI.measuring) { status.classList.add('na-dock-status--amber'); text.textContent = 'Click two corners of the opening in the model… (Esc cancels)'; }
+        else if (UI.measured) { status.classList.add('na-dock-status--amber'); text.textContent = `Measured ${UI.measured.w} × ${UI.measured.h}. Adjust anything, then press ② to insert it into the opening.`; }
+        else if (UI.selected && UI.live) { status.classList.add('na-dock-status--green'); text.textContent = `Live: every change goes straight to ${na_selectedId()}.`; }
+        else if (UI.selected) { status.classList.add('na-dock-status--green'); text.textContent = `Editing ${na_selectedId()}. Changes apply when you press Update.`; }
+        else text.textContent = `Nothing selected. Set it up, then insert. The next one is ${na_nextId()}.`;
+        const mBtn = $('#na-measure');
+        mBtn.classList.toggle('na-measuring', UI.measuring);
+        $('span', mBtn).textContent = UI.measuring ? 'Picking points…' : (UI.measured ? 'Measure again' : 'Measure opening');
+        $('#na-insert-measured').disabled = !UI.measured || UI.measuring;
+        const up = $('#na-update');
+        up.disabled = !UI.selected || UI.live;
+        up.textContent = UI.selected && UI.live ? 'Live' : (UI.selected ? `Update ${na_selectedId()}` : 'Update');
+        $('#na-live').setAttribute('aria-checked', UI.live);
+    }
+
+    function na_renderSelected() {
+        const box = $('#na-selected');
+        box.hidden = !UI.selected;
+        if (!UI.selected) return;
+        const id = na_selectedId();
+        box.innerHTML = `<div class="na-selected-row"><span class="na-idchip">${id}</span><span>${NA_LONG[UI.product]} · selected in the model</span><button class="na-link" type="button">${UI.nameOpen ? 'Hide name & notes' : 'Name & notes'}</button></div>
+            <div class="na-namefields"${UI.nameOpen ? '' : ' hidden'}><span>Name suffix</span><input type="text" placeholder="e.g. GroundFloor__BayWindow"><code>${id}__…__<span class="na-suffix"></span></code><span>Description</span><input type="text" placeholder="Notes for this element"></div>`;
+        $('.na-link', box).addEventListener('click', () => { UI.nameOpen = !UI.nameOpen; na_renderSelected(); });
+        const suffix = $('.na-namefields input', box);
+        if (suffix) suffix.addEventListener('input', () => { $('.na-suffix', box).textContent = suffix.value.replace(/\s+/g, ''); });
+    }
+
+    function na_updateChangedChip() {
+        const n = NA_PARAMS.filter(x => !x.nosearch && na_applies(x, UI.product) && na_isChanged(x)).length;
+        const chip = $('#na-chg');
+        $('span', chip).textContent = `Changed · ${n}`;
+        chip.classList.toggle('na-chgchip--none', !n && !UI.changedOnly);
+        chip.classList.toggle('na-chgchip--on', UI.changedOnly);
+    }
+
+    function na_measure() {
+        if (UI.measuring) return;
+        UI.measuring = true;
+        na_updateDock();
+        setTimeout(() => {
+            const pool = na_fam(UI.product) === 'W' ? [[1045, 1350], [905, 1210], [1630, 1180], [1210, 1500]] : (UI.product === 'bifold' || UI.product === 'slider' ? [[3420, 2390], [2980, 2105]] : [[1790, 2105], [935, 2060], [1650, 2440]]);
+            const [w, h] = pool[Math.floor(Math.random() * pool.length)];
+            S.width_mm = w;
+            S.height_mm = h;
+            UI.measuring = false;
+            UI.measured = { w, h };
+            na_refresh();
+            na_toast(`Opening measured: ${w} × ${h} mm. ② is ready right next to it.`);
+            if (!UI.query && !UI.changedOnly) {
+                document.querySelectorAll('#na-sections [data-k="width_mm"], #na-sections [data-k="height_mm"]').forEach(c => { c.classList.remove('na-flash'); void c.offsetWidth; c.classList.add('na-flash'); });
+            }
+        }, 1100);
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Render + Refresh
+    // =========================================================================
+    function na_render() {
+        MOUNTED = [];
+        na_renderProducts();
+        na_renderSelected();
+        const searching = !!UI.query.trim() || UI.changedOnly;
+        $('#na-sections').hidden = searching;
+        $('#na-preview').hidden = searching;
+        $('#na-results').hidden = !searching;
+        na_renderSections();
+        if (searching) na_renderResults();
+        na_refresh();
+        na_saveUi();
+    }
+
+    function na_refresh() {
+        MOUNTED.forEach(m => {
+            m.sync();
+            if (m.mode === 'panel') m.el.hidden = !na_inPanel(m.prm);
+            else na_syncResult(m);
+        });
+        na_updateHeads();
+        na_drawPreview();
+        na_updateDock();
+        na_updateChangedChip();
+    }
+    // endregion
+
+    // =========================================================================
+    // REGION | Wiring
+    // =========================================================================
+    function na_setQuery(q, changedOnly) {
+        UI.query = q;
+        if (changedOnly !== undefined) UI.changedOnly = changedOnly;
+        UI.active = 0;
+        $('#na-q').value = q;
+        const searching = !!q.trim() || UI.changedOnly;
+        $('#na-sections').hidden = searching;
+        $('#na-preview').hidden = searching;
+        $('#na-results').hidden = !searching;
+        if (searching) na_renderResults(); else MOUNTED = MOUNTED.filter(m => m.mode !== 'search');
+        na_refresh();
+        $('#na-body').scrollTop = 0;
+    }
+
+    const qInput = $('#na-q');
+    qInput.addEventListener('input', () => na_setQuery(qInput.value));
+    qInput.addEventListener('keydown', e => {
+        const cards = document.querySelectorAll('#na-results .na-res');
+        if (e.key === 'Escape') { na_setQuery('', false); qInput.blur(); return; }
+        if (!cards.length) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            UI.active = na_clamp(UI.active + (e.key === 'ArrowDown' ? 1 : -1), 0, cards.length - 1);
+            cards.forEach((c, i) => c.classList.toggle('na-res--active', i === UI.active));
+            cards[UI.active].scrollIntoView({ block: 'nearest' });
+        }
+        if (e.key === 'Enter') {
+            const m = MOUNTED.filter(x => x.mode === 'search')[UI.active];
+            if (m) na_jump(m.prm.k);
+        }
+    });
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); qInput.focus(); qInput.select(); }
+        if (e.key === 'Escape' && UI.measuring) { UI.measuring = false; na_updateDock(); na_toast('Measure cancelled'); }
+    });
+    $('#na-chg').addEventListener('click', () => na_setQuery(UI.query, !UI.changedOnly));
+
+    $('#na-measure').addEventListener('click', na_measure);
+    $('#na-insert-measured').addEventListener('click', () => { na_toast(`Inserted ${na_nextId()} into the measured opening`); UI.measured = null; na_refresh(); });
+    $('#na-insert-cursor').addEventListener('click', () => na_toast(`Click in the model to place ${na_nextId()}. Esc cancels.`));
+    $('#na-update').addEventListener('click', () => na_toast(`Updated ${na_selectedId()}`));
+    $('#na-live').addEventListener('click', () => {
+        if (!UI.selected) { na_toast('Live Mode needs an element selected in the model'); return; }
+        UI.live = !UI.live;
+        na_updateDock();
+    });
+    $('#na-dims-toggle').addEventListener('click', () => { na_set('show_dimensions', !v('show_dimensions')); na_refresh(); });
+    $('#na-presets').addEventListener('click', () => na_toast('Opens the Presets Gallery, filtered to ' + NA_LONG[UI.product].toLowerCase()));
+    $('#na-settings').addEventListener('click', () => na_toast('Settings & developer tools'));
+    document.querySelectorAll('[data-toast]').forEach(b => b.addEventListener('click', () => na_toast(b.dataset.toast)));
+    $('#na-demo-select').addEventListener('change', e => { UI.selected = e.target.checked; if (!UI.selected) UI.live = false; na_renderSelected(); na_updateDock(); });
+
+    document.querySelectorAll('[data-try]').forEach(b => b.addEventListener('click', () => {
+        const [kind, arg] = b.dataset.try.split(':');
+        if (kind === 'q') { na_setQuery(arg, false); qInput.focus(); }
+        if (kind === 'product') { na_setQuery('', false); na_setProduct(arg); }
+        if (kind === 'measure') na_measure();
+        if (kind === 'changed') na_setQuery('', true);
+        $('#na-dialog').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }));
+    // endregion
+
+    // =========================================================================
+    // REGION | Scroll Map (design notes figure)
+    // =========================================================================
+    function na_drawScrollMap() {
+        const cols = [
+            { title: 'Now · casement', total: 2155, blocks: [['Tabs', 0, 113], ['Preview', 113, 478], ['Dimensions', 478, 1124], ['Glaze bars', 1124, 1442], ['Cill & frame', 1442, 1698], ['Options', 1698, 2086], ['', 2086, 2155]],
+              marks: [['Measure', 71], ['Product type', 1745], ['Insert at measured', 2098]], gap: '2,027 px' },
+            { title: 'Now · double doors', total: 3137, blocks: [['Tabs', 0, 113], ['Preview', 113, 521], ['Dimensions', 521, 782], ['Glaze bars', 782, 1100], ['Cill & frame', 1100, 1356], ['Options', 1356, 1695], ['Double Doors', 1695, 3068], ['', 3068, 3137]],
+              marks: [['Measure', 71], ['Product type', 1400], ['Insert at measured', 3080]], gap: '3,009 px' },
+            { title: 'Proposed · casement', total: 1200, pinned: true, blocks: [['Product + search', 0, 188], ['Preview', 188, 482], ['Tier 1 sections', 482, 1117], ['Dock', 1117, 1200]],
+              marks: [['Measure → Insert', 1165]], gap: 'side by side' }
+        ];
+        const k = 0.075, colW = 118, gap = 30, top = 34, left = 6;
+        const H = top + 3137 * k + 16, Wt = left + cols.length * colW + (cols.length - 1) * gap + 70;
+        let s = `<svg viewBox="0 0 ${Wt} ${f(H)}" role="img" aria-label="Scroll length and where Measure, product type and insert sit, now and proposed">`;
+        cols.forEach((c, ci) => {
+            const x = left + ci * (colW + gap);
+            s += `<text x="${x}" y="14" font-size="11" font-weight="700" fill="#1b222a">${c.title}</text>`;
+            s += `<text x="${x}" y="27" font-size="10" fill="#687380">${c.pinned ? 'fits 780 × 1200, dock pinned' : c.total.toLocaleString('en-GB') + ' px of scroll'}</text>`;
+            c.blocks.forEach(([name, a, b], bi) => {
+                const y = top + a * k, h = (b - a) * k;
+                const fill = c.pinned && name === 'Dock' ? '#fff2dc' : (bi % 2 ? '#eef1f4' : '#f7f8fa');
+                s += `<rect x="${x}" y="${f(y)}" width="${colW}" height="${f(h)}" fill="${fill}" stroke="#dce1e6"/>`;
+                if (name && h >= 11) s += `<text x="${x + 6}" y="${f(y + Math.min(h / 2 + 3.5, 13))}" font-size="9.5" fill="#687380">${name}</text>`;
+            });
+            c.marks.forEach(([name, at]) => {
+                const y = top + at * k;
+                const amber = name !== 'Product type' && name !== 'Product';
+                const col = amber ? '#e08600' : '#3a7fd5';
+                s += `<line x1="${x - 3}" x2="${x + colW + 3}" y1="${f(y)}" y2="${f(y)}" stroke="${col}" stroke-width="2"/>`;
+                s += `<circle cx="${x + colW + 3}" cy="${f(y)}" r="3" fill="${col}"/>`;
+                s += `<text x="${x + colW - 4}" y="${f(y - 3)}" font-size="9" font-weight="700" text-anchor="end" fill="${amber ? '#9c5d00' : '#245fa8'}">${name}</text>`;
+            });
+            const m0 = c.marks.find(m => m[0] === 'Measure' || m[0] === 'Measure → Insert');
+            const m1 = c.marks.find(m => m[0] === 'Insert at measured');
+            if (m0 && m1) {
+                const y0 = top + m0[1] * k, y1 = top + m1[1] * k, bx = x + colW + 12;
+                s += `<path d="M${bx - 4} ${f(y0)}H${bx}V${f(y1)}H${bx - 4}" fill="none" stroke="#e08600" stroke-width="1.2"/>`;
+                s += `<text x="${bx + 4}" y="${f((y0 + y1) / 2)}" font-size="9.5" font-weight="700" fill="#9c5d00" transform="rotate(90 ${bx + 4} ${f((y0 + y1) / 2)})" text-anchor="middle">${c.gap}</text>`;
+            } else {
+                const y = top + 1150 * k;
+                s += `<text x="${x + colW + 9}" y="${f(y + 3)}" font-size="9.5" font-weight="700" fill="#9c5d00">${c.gap}</text>`;
+            }
+        });
+        s += '</svg>';
+        $('#na-scrollmap').innerHTML = s;
+    }
+    // endregion
+
+    na_loadUi();
+    na_render();
+    na_drawScrollMap();
+}());
+</script>
+</body>
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

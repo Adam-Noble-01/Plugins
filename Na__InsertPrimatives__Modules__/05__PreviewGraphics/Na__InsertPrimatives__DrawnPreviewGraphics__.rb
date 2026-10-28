@@ -35,7 +35,8 @@ module Na__InsertPrimatives
 
     NA_DRAWN_PLANE_FILL_COLOR    = Sketchup::Color.new(  0, 120, 255,  70)
     NA_DRAWN_PLANE_BORDER_COLOR  = Sketchup::Color.new(  0, 110, 235, 230)
-    NA_DRAWN_VOLUME_FILL_COLOR   = Sketchup::Color.new(255, 150,  30,  62)
+    NA_DRAWN_PLANE_GLASS_FILL    = Sketchup::Color.new(  0, 120, 255,  26)    # <-- Drawn Plane with Transparent on: the same blue, see-through
+    NA_DRAWN_VOLUME_FILL_COLOR  = Sketchup::Color.new(255, 150,  30,  62)
     NA_DRAWN_VOLUME_BORDER_COLOR = Sketchup::Color.new(226, 118,   0, 235)
     NA_DRAWN_ANCHOR_COLOR        = Sketchup::Color.new(  0, 190,  70)
     NA_DRAWN_GUIDE_COLOR         = Sketchup::Color.new(120, 120, 120, 160)
@@ -922,8 +923,9 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
     # FUNCTION | Summary Card Beside the Cursor for a Rectangle
+    # `note` is an optional third line (the Drawn Plane says "Edges only" there).
     # ------------------------------------------------------------
-    def self.Na__DrawnPreview__SummarisePlane(view, anchor_point, u_len, v_len)
+    def self.Na__DrawnPreview__SummarisePlane(view, anchor_point, u_len, v_len, note = nil)
         width_mm  = Na__InsertPrimatives.Na__DrawnFormat__Mm(u_len).abs
         height_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(v_len).abs
 
@@ -931,6 +933,7 @@ module Na__InsertPrimatives
             "W #{width_mm} x H #{height_mm} mm",
             "Area #{Na__InsertPrimatives.Na__DrawnFormat__AreaM2(u_len, v_len)} m2"
         ]
+        lines << note.to_s unless note.to_s.empty?
 
         Na__InsertPrimatives.Na__DrawnPreview__DrawWorldLabel(view, anchor_point, lines)
     end

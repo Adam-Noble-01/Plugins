@@ -1,0 +1,23 @@
+@font-face {
+  font-family: "modus-icons";
+  src: url("modus-icons.woff2?c4bb45902d0128b5e3dbe72679509a5e") format("woff2"),
+url("modus-icons.woff?c4bb45902d0128b5e3dbe72679509a5e") format("woff");
+}
+
+.modus-icons {
+  font-family: "modus-icons";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'liga';
+}

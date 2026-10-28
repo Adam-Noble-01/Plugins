@@ -79,6 +79,21 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Activate the Pipework Tool (Along a Selection, or Drawn)
+    # ------------------------------------------------------------
+    # The tool reads the selection in its own activate, so this is the
+    # same three lines as every other tool.
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnPipeTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnPipeTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Activate the Deep Push/Pull Tool the Camera Calls For
     # ------------------------------------------------------------
     # ONE entry point, two tools. The menu item, the keyboard shortcut and the
@@ -103,6 +118,18 @@ module Na__InsertPrimatives
                 DrawnPushPullTool.new
             end
 
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Project Tool
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnProjectTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnProjectTool.new
         model.select_tool(tool)
         tool
     end
@@ -151,6 +178,33 @@ module Na__InsertPrimatives
         return nil unless model
 
         tool = DrawnOvoloTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Scale Tool
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnScaleTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnScaleTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Vertex Move Tool
+    # ------------------------------------------------------------
+    # The selection at this moment is the scope, so the tool reads it as it
+    # activates; nothing has to be handed across here.
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnVertexMoveTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnVertexMoveTool.new
         model.select_tool(tool)
         tool
     end
@@ -217,6 +271,13 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Switch to the Pipework Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetPipeMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnPipeTool
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Switch to the Click-and-Drag Pitched Roof Tool
         # ------------------------------------------------------------
         def Na__DrawnMode__SetPitchedRoofMode
@@ -235,6 +296,13 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def Na__DrawnMode__SetPushPullMode
             Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnPushPullTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Project Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetProjectMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnProjectTool
         end
         # ---------------------------------------------------------------
 
@@ -263,6 +331,20 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def Na__DrawnMode__SetOvoloMode
             Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOvoloTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Scale Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetScaleMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnScaleTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Vertex Move Tool
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetVertexMoveMode
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnVertexMoveTool
         end
         # ---------------------------------------------------------------
 
@@ -297,14 +379,15 @@ module Na__InsertPrimatives
         # next one would make a pair of them feel like a chore.
         # ------------------------------------------------------------
         def Na__DrawnMode__ToggleToolOption(option_id)
-            state   = Na__InsertPrimatives.Na__ToolOptions__Toggle(option_id)
+            Na__InsertPrimatives.Na__ToolOptions__Toggle(option_id)
             caption = Na__InsertPrimatives.Na__ToolOptions__CaptionFor(option_id)
+            enabled = Na__InsertPrimatives.Na__ToolOptions__Enabled?(option_id)    # <-- Not Toggle's answer: a cycle answers with its value, which is never "on"
 
             view = Sketchup.active_model ? Sketchup.active_model.active_view : nil
             view.invalidate if view
 
             Sketchup::set_status_text(caption, SB_PROMPT)
-            { :caption => caption, :enabled => state }
+            { :caption => caption, :enabled => enabled }
         end
         # ---------------------------------------------------------------
 

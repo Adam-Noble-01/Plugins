@@ -95,6 +95,18 @@
 # - Faces selected before the tool starts are pushed together. More than ten
 #   ask first (5.1.22): CTRL+A and the shortcut must not push a whole model.
 #
+# SURFACES PUSH AS ONE — JOINT (5.2.14, DrawnPushPullJoint):
+# - A face on a smoothed surface (faces joined by soft edges: what Entity Info
+#   calls a Surface) brings the whole surface with it: every face along its
+#   own normal, every corner mitred, so a curved fascia pushes out as one
+#   continuous band instead of a fan of boxes. Preselected faces that touch
+#   push the same way. The faces round it stretch where they can (a flat roof
+#   above the fascia grows to meet it) and get new sides where they cannot.
+# - Joint Surfaces is the tool's option, on by default: SHIFT+TAB, the
+#   right-click menu or its Shortcuts command switch it off, and every face
+#   is pushed on its own again. SHIFT slope and SHIFT+ALT follow are single-
+#   face modes and stand down on a surface.
+#
 # PUSHED INTO THE SOLID, THE PREVIEW IS THE VOLUME REMOVED (5.1.22):
 # - The orange preview is depth-tested, which is right for a push OUT: the
 #   new slab stands in front of the model. Pushed IN, every line of it is
@@ -115,6 +127,7 @@ require_relative 'Na__InsertPrimatives__DrawnPushPull__Commit__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Revise__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__QuadOffset__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Follow__'
+require_relative 'Na__InsertPrimatives__DrawnPushPull__Joint__'
 require_relative 'Na__InsertPrimatives__DrawnPushPull__Preselect__'
 
 module Na__InsertPrimatives
@@ -132,6 +145,7 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnPushPullRevise                     # <-- The push half of the revise contract
         include Na__InsertPrimatives::DrawnPushPullQuadOffset                 # <-- Quad lines: offset, array, divide. After Revise, so its overrides sit in front
         include Na__InsertPrimatives::DrawnPushPullFollow                     # <-- SHIFT+ALT: every corner along its own edge
+        include Na__InsertPrimatives::DrawnPushPullJoint                      # <-- Surfaces push as one. Before Preselect, so a batch's super reaches it
 
         include Na__InsertPrimatives::DrawnPushPullPreselect
 
@@ -183,6 +197,7 @@ module Na__InsertPrimatives
             @na_pp_seam_healed = 0
             @na_pp_stretched   = false
             @na_pp_split       = nil
+            @na_pp_joint       = nil                                          # <-- The surface this face pushes with, or nil for one face
         end
         # ---------------------------------------------------------------
 
@@ -216,6 +231,8 @@ module Na__InsertPrimatives
                 'ARROWS lock the measured axis: Right X, Left Y, Up Z, Down releases',
                 'Hold SHIFT to push along the NEIGHBOURING face instead — a roof runs on down its own rake',
                 'Hold SHIFT+ALT to FOLLOW — every corner runs along its own edge, so a taper stays a taper',
+                'A face on a smoothed surface pushes the WHOLE surface as one — every face along its own normal',
+                'SHIFT+TAB switches JOINT surfaces off and on — off, one face at a time as native',
                 'TAB toggles QUAD mode — the extrusion keeps its start loop as edges, no face',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
                 'With QUADS on, hover near a quad line to grab its whole ring — drag along the run to offset a new one',
@@ -251,7 +268,8 @@ module Na__InsertPrimatives
         # than leaving the user pressing a key that does nothing.
         # ------------------------------------------------------------
         def na_drawn__slope_mode?
-            @na_shift_held && !@na_pp_slope.nil? && !na_drawn__follow_requested?   # <-- SHIFT+ALT is follow, not slope
+            @na_shift_held && !@na_pp_slope.nil? && !na_drawn__follow_requested? &&   # <-- SHIFT+ALT is follow, not slope
+                !na_jp__active?                                                    # <-- One face's neighbour; a surface has none to follow
         end
         # ---------------------------------------------------------------
 
@@ -629,6 +647,8 @@ module Na__InsertPrimatives
         # disagree about which of the two the user is about to get.
         # ------------------------------------------------------------
         def na_drawn__loop_cut_mode?
+            return na_jp__loop_cut? if na_jp__active?                         # <-- Round a surface only where the faces round it run with it
+
             Na__InsertPrimatives.Na__EdgeLoops__IsCut?(na_drawn__quad_mode?, na_drawn__world_travel_distance)
         end
         # ---------------------------------------------------------------
@@ -636,7 +656,8 @@ module Na__InsertPrimatives
         # FUNCTION | What TAB Does in This Tool
         # ------------------------------------------------------------
         def na_drawn__tab_hint
-            "TAB quads #{na_drawn__quad_mode? ? 'ON' : 'OFF'}"
+            joint = na_jp__supported? ? "  SHIFT+TAB joint #{na_jp__enabled? ? 'ON' : 'OFF'}" : ''
+            "TAB quads #{na_drawn__quad_mode? ? 'ON' : 'OFF'}#{joint}"
         end
         # ---------------------------------------------------------------
 
@@ -645,9 +666,11 @@ module Na__InsertPrimatives
         def na_drawn__plane_description
             return na_qo__plane_description if na_qo__active? || na_qo__hovering?
             return 'No face grabbed' unless @na_pp_target
-            return 'Loose geometry face' if @na_pp_target[:depth].to_i.zero?
 
-            "In #{Na__InsertPrimatives.Na__DeepPick__PathLabel(@na_pp_target)}"
+            what = na_jp__active? ? 'surface' : 'face'
+            return "Loose geometry #{what}" if @na_pp_target[:depth].to_i.zero?
+
+            "#{na_jp__active? ? 'Surface in' : 'In'} #{Na__InsertPrimatives.Na__DeepPick__PathLabel(@na_pp_target)}"
         end
         # ---------------------------------------------------------------
 
@@ -765,6 +788,7 @@ module Na__InsertPrimatives
         def na_drawn__adopt_target(target)
             if na_drawn__same_target?(target)
                 @na_pp_target = target                                        # <-- Keep the fresh path, reuse the cached geometry
+                na_jp__refresh(target)                                        # <-- A lookup while the surface stands where it stood
                 return false
             end
 
@@ -775,6 +799,7 @@ module Na__InsertPrimatives
             @na_pp_fingerprint = na_drawn__target_fingerprint(target)
             @na_pp_slope       = Na__InsertPrimatives.Na__SlopePush__Best(target)
             na_drawn__follow_refresh(target)                                  # <-- The rail at every corner, for SHIFT+ALT
+            na_jp__refresh(target)                                            # <-- The surface this face belongs to, when Joint is on
             true
         end
         # ---------------------------------------------------------------
@@ -926,6 +951,7 @@ module Na__InsertPrimatives
         def na_drawn__preview_points
             return na_pps__preview_points if na_pps__active? && !na_qo__active?
             return na_qo__preview_points if na_qo__active? || na_qo__hovering?
+            return na_jp__preview_points(@na_pp_joint) if na_jp__active?
             return [] if @na_pp_loop.nil? || @na_pp_loop.empty?
             return @na_pp_loop unless @na_state == :picking_depth
 
@@ -968,6 +994,7 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__draw_hover(view)
             return na_qo__draw_hover(view) if na_qo__hovering?
+            return na_jp__draw_hover(view, @na_pp_joint) if na_jp__active?  # <-- The whole surface lights up, as the Select tool takes it
             return if @na_pp_triangles.nil? || @na_pp_triangles.empty?
 
             quads = na_drawn__quad_mode?
@@ -1007,6 +1034,7 @@ module Na__InsertPrimatives
         # ------------------------------------------------------------
         def na_drawn__draw_push_preview(view)
             return na_qo__draw_preview(view) if na_qo__active?
+            return na_jp__draw_push(view, @na_pp_joint) if na_jp__active?
             return if @na_pp_loop.nil? || @na_pp_loop.empty?
 
             # In quad mode the start loop is not just where the face was, it is
@@ -1245,6 +1273,7 @@ module Na__InsertPrimatives
         def na_drawn__status_detail
             return na_pps__status if na_pps__active? && !na_qo__active?
             return na_qo__status_detail if na_qo__active? || na_qo__hovering?
+            return na_jp__status_detail if na_jp__active?
 
             quads = na_drawn__quad_mode? ? ' QUADS' : ''
             slope = na_drawn__slope_hint
@@ -1277,6 +1306,8 @@ module Na__InsertPrimatives
         # and the grid fragment says so — so the no-neighbour line stays quiet.
         # ------------------------------------------------------------
         def na_drawn__slope_hint
+            return " — #{@na_jp_note}" if @na_jp_note && !na_jp__active?
+            return '' if na_jp__active?                                       # <-- A surface's own status line says what SHIFT does not
             return " —#{na_drawn__follow_note.sub(/\A ·/, '')}" if na_drawn__follow_requested?
             return " — SHIFT slope #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} (+ALT: every corner its own edge)" if na_drawn__slope_mode?
             return ' — SHIFT: no sloped neighbour here (+ALT: every corner its own edge)' if @na_shift_held && !@na_ctrl_held && @na_pp_target
@@ -1331,8 +1362,13 @@ module Na__InsertPrimatives
             end
 
             # *4 or /7 while dragging a face: a loop cut turned into an array,
-            # or refused with the reason when the drag is not a cut.
-            return na_qo__convert_cut_drag(text, view) if Na__InsertPrimatives.Na__QuadRings__ArrayEntry?(text)
+            # or refused with the reason when the drag is not a cut. A
+            # surface's ring is not one face's ring, so it takes a distance.
+            if Na__InsertPrimatives.Na__QuadRings__ArrayEntry?(text)
+                raise ArgumentError, '*N and /N array one face\'s loop cut — a surface takes a distance' if na_jp__active?
+
+                return na_qo__convert_cut_drag(text, view)
+            end
 
             tokens = Na__InsertPrimatives.Na__DrawnVcb__ParseEntry(text)
             raise ArgumentError, 'push takes a single distance' if tokens.length > 1

@@ -107,8 +107,8 @@ module Na__InsertPrimatives
                 'TAB swaps round-over and cove — mid-drag, or straight after a cut to re-cut it',
                 'After cutting, keep typing: 60 re-cuts at R60, 24s re-cuts it with 24 sides',
                 'Double-click an edge to round it at the last radius placed (remembered in the model)',
-                'Type C chamfer, R radius, O ogee, V ovolo on their own to swap the profile, keeping the edges',
-                'For a quarter round or cove with a step, use Deep Ovolo (V): 40,5 is R40 with a 5 mm step',
+                'SHIFT+TAB steps the profile — Chamfer, Fillet, Ogee, Ovolo — keeping the edges and the drag',
+                'For a quarter round or cove with a step, use Deep Ovolo (SHIFT+TAB twice): 40,5 is R40 with a 5 mm step',
                 'The edge must border exactly two faces'
             ]
         end
@@ -443,9 +443,12 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     # Bind in Preferences -> Shortcuts against the Extensions menu item, or call
     # directly: Na__InsertPrimatives.Na__InsertPrimatives__DeepFillet
+    # Pressed while one of the four edge tools runs, it hands the edges and
+    # the drag over, as the right-click menu does (5.2.9, DrawnChamferHotSwap).
     # ------------------------------------------------------------
     def self.Na__InsertPrimatives__DeepFillet
-        Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnFilletTool
+        Na__InsertPrimatives.Na__HotSwap__ToProfile(:fillet) ||
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnFilletTool
     end
     # ---------------------------------------------------------------
 

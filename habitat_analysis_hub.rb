@@ -15,7 +15,7 @@ module HabitatAnalysisHub
     EXTENSION.creator = "SketchUp"
     EXTENSION.description = TRANSLATIONS.get("EXTENSION.DESCRIPTION")
     # ensure that if we ever change where the version is defined that the build script is also updated
-    EXTENSION.version = "0.2.3".freeze
+    EXTENSION.version = "0.2.5".freeze
     EXTENSION.copyright = "Copyright #{EXTENSION.creator} 2026"
     Sketchup.register_extension(EXTENSION, true)
 

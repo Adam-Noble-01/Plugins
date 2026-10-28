@@ -28,10 +28,30 @@
 #   2.4m,600mm  suffixes mm | cm | m, bare numbers are mm
 #   BKSP        release the last pinned axis and go back to dragging it
 #
+# POPUP SUBMENU OPTIONS (see Na__InsertPrimatives__AppData__ToolOptions__.rb):
+#   Face         on: the plane is a face. Off: the four edges only, no face.
+#                The same setting as the click-to-place Plane's Plane Faces.
+#   Transparent  the new group CONTAINER is painted with the indexed material
+#                MAT011__ModelingUtility__Transparent, as Drawn Volume does.
+#   2D Orbit Lock  on (default): in a parallel view, AltGr / Ctrl+Alt cannot
+#                orbit or pan the camera (SketchUp 2027's touchpad gestures);
+#                the middle mouse, the Pan tool and the wheel work as ever.
+#                Shared with Drawn Volume. See Camera__ParallelDrawingGuard__
+#                and Camera__AltGrFilter__.
+#
+# CHANGING YOUR MIND MID-DRAG:
+#   Either option can be switched from the popup with the rectangle still on
+#   the cursor (click a corner, right-click, switch, carry on). The drag is
+#   kept, the preview shows what will now be built (outline only, or a
+#   see-through fill) and the click places it with the options as they stand.
+#   A plane already placed keeps its own face and paint: a size typed after
+#   drawing corrects its size only.
+#
 # =============================================================================
 
 require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__DrawnToolShared__'
+require_relative '../06__Tools__DrawnShared/Na__InsertPrimatives__Camera__ParallelDrawingGuard__'
 
 module Na__InsertPrimatives
 
@@ -44,6 +64,7 @@ module Na__InsertPrimatives
     class DrawnPlaneTool
 
         include Na__InsertPrimatives::DrawnToolShared
+        prepend Na__InsertPrimatives::ParallelDrawingGuard                     # <-- Holds a 2D view still against AltGr / Ctrl+Alt orbit (SketchUp 2027)
 
         # INITIALIZE | Tool Constructor
         # ------------------------------------------------------------
@@ -74,15 +95,103 @@ module Na__InsertPrimatives
         # FUNCTION | Console Banner Hint Lines
         # ------------------------------------------------------------
         def na_drawn__activation_hints
-            [
+            hints = [
                 'Click and drag a rectangle, or click once then click again',
                 'Both corners snap to the voxel grid — hold CTRL to snap to vertices instead',
                 'Hold CTRL+SHIFT to snap to a vertex and then round it onto the grid',
                 'TAB cycles the drawing plane: Auto > XY > XZ > YZ',
                 'VCB: 350 pins the width | ,1610 pins the height | 350,1610 places it',
                 'A pinned axis stops following the drag — BKSP releases it again',
-                'Type straight after drawing to correct the plane in place'
+                'Type straight after drawing to correct the plane in place',
+                'Right-click for the menu — Face and Transparent sit under this tool, and switch mid-drag'
             ]
+
+            hints << 'FACE OFF: new planes are the four edges only' unless na_plane__faces_option?
+            hints << 'TRANSPARENT ON: new planes are painted MAT011__ModelingUtility__Transparent' if na_plane__transparent_option?
+            hints
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Options — Read Fresh Every Time
+        # -----------------------------------------------------------------------------
+        #
+        # Never cached on the tool: the popup can switch either one in the
+        # middle of a drag, and the preview, the status line and the commit all
+        # have to agree with the button the user has just clicked.
+
+        # FUNCTION | Is the Plane Built as a Face (Off = Edges Only)?
+        # ------------------------------------------------------------
+        def na_plane__faces_option?
+            Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is the Transparent Material Option Switched On?
+        # ------------------------------------------------------------
+        def na_plane__transparent_option?
+            Na__InsertPrimatives.Na__ToolOptions__Enabled?('plane_transparent')
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Material Name a New Plane's Container Is Painted With
+        # ------------------------------------------------------------
+        def na_plane__container_material
+            na_plane__transparent_option? ? NA_STD_MAT_TRANSPARENT : nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Options in Words, or nil When Both Are at Their Defaults
+        # ------------------------------------------------------------
+        def na_plane__option_words
+            words = []
+            words << 'Edges only'  unless na_plane__faces_option?
+            words << 'Transparent' if na_plane__transparent_option?
+            words.empty? ? nil : words
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Status Fragment Naming the Options That Are Not the Default
+        # ------------------------------------------------------------
+        # The shared summary names every toggle that is ON, which for a Face
+        # that is on by default would put "FACE" on every status line. What
+        # is worth saying is the unusual state, so this says EDGES ONLY.
+        # ------------------------------------------------------------
+        def na_drawn__option_summary
+            words = na_plane__option_words
+            words ? " | #{words.map { |word| word.upcase }.join('+')}" : ''
+        rescue StandardError
+            ''
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | An Option Switched From the Popup — the Drag in Hand Follows
+        # ------------------------------------------------------------
+        # The shared toggle stores the option and redraws. The preview and the
+        # commit read the options fresh, so the rectangle on the cursor is
+        # already what the next click builds; this brings the status line and
+        # the measurements box up to date at once rather than on the next mouse
+        # move, and says the drag was kept.
+        # ------------------------------------------------------------
+        def Na__DrawnMode__ToggleToolOption(option_id)
+            result = super
+
+            @na_last_status_text = nil
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+
+            if @na_state == :picking_b
+                caption = result.is_a?(Hash) ? result[:caption] : result.to_s
+                Sketchup::set_status_text("#{caption} — the plane on the cursor follows, click to place it", SB_PROMPT)
+                @na_last_status_text = nil                                    # <-- So the next mouse move puts the full line back
+            end
+
+            model = Sketchup.active_model
+            model.active_view.invalidate if model
+            result
         end
         # ---------------------------------------------------------------
 
@@ -114,7 +223,11 @@ module Na__InsertPrimatives
         # REGION | Subclass Contract — Preview
         # -----------------------------------------------------------------------------
 
-        # FUNCTION | Draw the Shaded Rectangle and Its Dimensions
+        # FUNCTION | Draw the Rectangle as It Will Be Built, and Its Dimensions
+        # ------------------------------------------------------------
+        # Face off draws the four edges and nothing between them; Transparent
+        # thins the fill. Both are read on every frame, so a switch made in
+        # the popup mid-drag shows on the rectangle at once.
         # ------------------------------------------------------------
         def na_drawn__draw_preview(view)
             points = na_drawn__rectangle_points
@@ -125,13 +238,21 @@ module Na__InsertPrimatives
                 return
             end
 
-            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(
-                view, points, NA_DRAWN_PLANE_FILL_COLOR, NA_DRAWN_PLANE_BORDER_COLOR
-            )
+            if na_plane__faces_option?
+                fill = na_plane__transparent_option? ? NA_DRAWN_PLANE_GLASS_FILL : NA_DRAWN_PLANE_FILL_COLOR
+                Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(view, points, fill, NA_DRAWN_PLANE_BORDER_COLOR)
+            else
+                Na__InsertPrimatives.Na__DrawnPreview__DrawLoop(view, points, NA_DRAWN_PLANE_BORDER_COLOR)
+            end
+
             Na__InsertPrimatives.Na__DrawnPreview__LabelRectangle(
                 view, points, @na_size_u, @na_size_v, na_drawn__locked?(:u), na_drawn__locked?(:v)
             )
-            Na__InsertPrimatives.Na__DrawnPreview__SummarisePlane(view, points[2], @na_size_u, @na_size_v)
+
+            words = na_plane__option_words
+            Na__InsertPrimatives.Na__DrawnPreview__SummarisePlane(
+                view, points[2], @na_size_u, @na_size_v, words ? words.join(' + ') : nil
+            )
         end
         # ---------------------------------------------------------------
 
@@ -247,10 +368,13 @@ module Na__InsertPrimatives
             plane_key   = @na_plane_key
             width_len   = na_drawn__signed_u
             height_len  = na_drawn__signed_v
-            build_faces = Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+            build_faces = na_plane__faces_option?                            # <-- Read at the click, so a mid-drag switch counts
+            material    = na_plane__container_material
 
+            # The material name goes IN to the create call, as it does for the
+            # volume, so the paint and the plane are one Ctrl+Z.
             group = Na__InsertPrimatives.Na__DrawnGeom__CreatePlane(
-                origin, plane_key, width_len, height_len, view, build_faces
+                origin, plane_key, width_len, height_len, view, build_faces, material
             )
 
             unless group
@@ -264,12 +388,13 @@ module Na__InsertPrimatives
                 :origin    => origin,
                 :plane_key => plane_key,
                 :sign_u    => @na_sign_u,
-                :sign_v    => @na_sign_v
+                :sign_v    => @na_sign_v,
+                :faces     => build_faces                                     # <-- A typed correction keeps the plane's own face
             }
 
             na_drawn__reset_pick_state
             na_drawn__arm_revise
-            na_drawn__log_plane('DRAWN PLANE CREATED', origin, plane_key, width_len, height_len, build_faces)
+            na_drawn__log_plane('DRAWN PLANE CREATED', origin, plane_key, width_len, height_len, build_faces, material)
             true
         end
         # ---------------------------------------------------------------
@@ -282,7 +407,12 @@ module Na__InsertPrimatives
 
             width_len   = @na_size_u.to_f.abs * record[:sign_u].to_f
             height_len  = @na_size_v.to_f.abs * record[:sign_v].to_f
-            build_faces = Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+
+            # The face the plane was BUILT with, not the option as it stands
+            # now: switching Face off for the next plane must not strip the
+            # one just drawn when its size is corrected. The paint needs no
+            # such care — it is on the group, and clear! leaves the group.
+            build_faces = record.key?(:faces) ? record[:faces] : na_plane__faces_option?
 
             rebuilt = Na__InsertPrimatives.Na__DrawnGeom__RebuildPlane(
                 record[:group], record[:origin], record[:plane_key],
@@ -296,14 +426,15 @@ module Na__InsertPrimatives
             end
 
             na_drawn__arm_revise                                               # <-- Keep revising while the mouse stays put
-            na_drawn__log_plane('DRAWN PLANE ADJUSTED', record[:origin], record[:plane_key], width_len, height_len, build_faces)
+            painted = record[:group].material ? record[:group].material.name : nil
+            na_drawn__log_plane('DRAWN PLANE ADJUSTED', record[:origin], record[:plane_key], width_len, height_len, build_faces, painted)
             true
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Console Report for a Created or Adjusted Plane
         # ------------------------------------------------------------
-        def na_drawn__log_plane(headline, origin, plane_key, width_len, height_len, build_faces)
+        def na_drawn__log_plane(headline, origin, plane_key, width_len, height_len, build_faces, material = nil)
             Na__InsertPrimatives.Na__Debug__Puts "\n"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
             Na__InsertPrimatives.Na__Debug__Puts headline
@@ -311,7 +442,8 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts "Plane : #{NA_DRAWN_PLANE_LABELS[plane_key]}"
             Na__InsertPrimatives.Na__Debug__Puts "Size  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(height_len).abs}mm"
             Na__InsertPrimatives.Na__Debug__Puts "Area  : #{Na__InsertPrimatives.Na__DrawnFormat__AreaM2(width_len, height_len)} m2"
-            Na__InsertPrimatives.Na__Debug__Puts "Faces : #{build_faces ? 'Enabled' : 'Disabled'}"
+            Na__InsertPrimatives.Na__Debug__Puts "Faces : #{build_faces ? 'Enabled' : 'Disabled — edges only'}"
+            Na__InsertPrimatives.Na__Debug__Puts "Paint : #{material || 'none'}"
             Na__InsertPrimatives.Na__Debug__Puts "Grid  : #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel}"
             Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
         end

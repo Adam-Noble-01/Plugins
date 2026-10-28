@@ -15,6 +15,8 @@ require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnGridSnap__'
 
 module Na__InsertPrimatives
 
+    NA_DRAWN_PLANE_FACES_OPTION = 'plane_faces'.freeze                     # <-- Declared in ToolOptions under :drawn_plane
+
     # -----------------------------------------------------------------------------
     # REGION | Persisted Shared Settings
     # -----------------------------------------------------------------------------
@@ -65,22 +67,21 @@ module Na__InsertPrimatives
 
     # FUNCTION | Shared Plane Face Creation Preference
     # ------------------------------------------------------------
+    # Since 5.1.25 this is the Drawn Plane's "Face" submenu option, read
+    # through ToolOptions on the same registry key. Two caches of one value
+    # would let the submenu and the old Plane Faces button disagree, so
+    # there is only the one, and both buttons go through it.
+    # ------------------------------------------------------------
     def self.Na__DrawnSettings__PlaneFacesEnabled?
-        if @na_drawn_plane_faces.nil?
-            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_PLANE_FACES_KEY, true)
-            @na_drawn_plane_faces = (stored == true || stored == 'true' || stored == 1)
-        end
-
-        @na_drawn_plane_faces
+        Na__InsertPrimatives.Na__ToolOptions__Enabled?(NA_DRAWN_PLANE_FACES_OPTION)
     end
     # ---------------------------------------------------------------
 
     # FUNCTION | Set Shared Plane Face Creation Preference
     # ------------------------------------------------------------
     def self.Na__DrawnSettings__SetPlaneFacesEnabled(enabled)
-        @na_drawn_plane_faces = (enabled ? true : false)
-        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_PLANE_FACES_KEY, @na_drawn_plane_faces)
-        @na_drawn_plane_faces
+        Na__InsertPrimatives.Na__ToolOptions__Set(NA_DRAWN_PLANE_FACES_OPTION, enabled)
+        Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
     end
     # ---------------------------------------------------------------
 

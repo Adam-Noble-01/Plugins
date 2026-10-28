@@ -1,0 +1,85 @@
+
+
+# cd "C:\Users\jamie\AppData\Roaming\SketchUp\SketchUp 2025\SketchUp\Plugins\idk_overlay_entity" rubocop
+
+# rubocop --require rubocop-sketchup
+
+require: rubocop-sketchup
+
+AllCops:
+  TargetRubyVersion: 3.2
+  DisabledByDefault: true
+  DisplayStyleGuide: true
+
+  SketchUp:
+    SourcePath: .
+    EncryptedExtension: false
+    TargetSketchUpVersion: 2025
+
+SketchupDeprecations:
+  Enabled: true
+SketchupPerformance:
+  Enabled: true
+SketchupRequirements:
+  Enabled: true
+SketchupSuggestions:
+  Enabled: true
+SketchupBugs:
+  Enabled: false
+
+# Disable unstable cops
+SketchupBugs/MaterialName:
+  Enabled: false
+SketchupBugs/RenderMode:
+  Enabled: false
+SketchupBugs/UniformScaling:
+  Enabled: false
+
+# Disable stricter structural cops
+SketchupRequirements/FileStructure:
+  Enabled: false
+SketchupRequirements/SketchupExtension:
+  Enabled: false
+SketchupSuggestions/Compatibility:
+  Enabled: false
+Style/StringLiterals:
+  Enabled: true
+  EnforcedStyle: single_quotes
+  ConsistentQuotesInMultiline: false
+  SupportedStyles:
+    - single_quotes
+    - double_quotes
+Layout/TrailingWhitespace:
+  Enabled: false
+SketchupSuggestions/OperationName:
+  Enabled: false
+
+#
+Layout/EmptyLinesAroundModuleBody:
+  Enabled: false
+Layout/EmptyLinesAroundClassBody:
+  Enabled: false
+Layout/EndAlignment:
+  Enabled: true
+Layout/FirstMethodArgumentLineBreak:
+  Enabled: true
+
+#
+Style/Documentation:
+  Enabled: false  
+Style/FrozenStringLiteralComment:
+  Enabled: false  
+Lint/UselessAssignment:
+  Enabled: true
+Lint/ShadowingOuterLocalVariable:
+  Enabled: true
+Lint/DuplicateMethods:
+  Enabled: true
+
+#
+Naming/MethodName:
+  Enabled: false
+Style/BlockDelimiters:
+  Enabled: true  # Enforces `{}` vs `do...end` usage
+Style/HashSyntax:
+  Enabled: false  # Prefer `key: value` over `:key => value`

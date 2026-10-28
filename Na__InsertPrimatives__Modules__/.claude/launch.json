@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "easp-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2027/SketchUp/Plugins/Na__ArchTools__ElementAssemblyStudioPro__Modules__"],
+      "port": 8765
+    }
+  ]
+}

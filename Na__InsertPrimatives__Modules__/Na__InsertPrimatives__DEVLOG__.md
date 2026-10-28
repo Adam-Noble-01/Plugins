@@ -3,6 +3,2441 @@
 
 # =============================================================================
 
+## Version 5.2.16 - 28-Oct-2026 - Primitive Menu: Your Size Sticks, It No Longer Grows Over the VCB
+
+### Reported
+*"the menu keeps growing larger and covering the vcb ... i keep setting the size but it keeps
+reseting itself"*. The screenshot showed the menu running off the foot of the screen, over the
+status bar and the VCB. UserConfig held an outer height of 1320.
+
+### Why It Grew
+The size was already saved, in `02__AppData/Na__InsertPrimatives__UserConfig__Main.json`, never in
+the model. The way it went round was a ratchet:
+- **Two units.** It was read with `get_size`, which SketchUp documents as the outer frame in
+  *logical* pixels, and put back with `set_size`, documented only as "pixels".
+- **The content won.** On every open the window was made as tall as the running tool's buttons
+  whenever they needed more than the remembered height, and on close that taller height was
+  remembered. One visit to Drawn Volume's long submenu fixed the height for every tool.
+- **Every rebuild was a round.** With Menu Opens: With Any Tool the menu is rebuilt on every tool
+  switch, so each switch could only add height.
+- **A second memory.** The `preferences_key` let SketchUp restore its own copy of the size before
+  ours was applied.
+
+### The Fix: the Page Measures Itself
+- **One quantity.** The page reports `window.innerWidth` and `innerHeight`: its content area in
+  CSS pixels. That is the only size ever stored (new key `Na__RightClickMenu__ContentSize`), the
+  moment a resize by the user settles.
+- **A closed loop.** On open, the window is steered until the page says it is that size. Each step
+  asks for the last request plus the error, scaled by how far the page actually moved. So the frame
+  and the display scaling cancel out, whatever units `set_size` uses. It settles in one or two
+  steps.
+- **The content never grows the window.** A menu taller than the size you gave it scrolls, with a
+  thin scrollbar.
+- **First open, or after Reset Menu Position:** the window fits the buttons, but never past 48 px
+  above the foot of the screen's work area, so it stays clear of the status bar and the VCB.
+- **No `preferences_key`.** There is one memory now, ours.
+- **Old data:** the old grown `Na__RightClickMenu__Size` is dropped on the next close, so the menu
+  opens fitted once. Size it, and it stays that size from then on. The position is remembered
+  exactly as before.
+
+### Verified Offline
+114/114 files compile. A new suite, `vm_popup`, has 37 checks. It uses a simulated window whose
+`set_size` works in physical pixels while the page reports logical ones, with a 16 x 39 frame, at
+100%, 125%, 150% and 200% scaling. At each scaling:
+- the first open fits the buttons;
+- a 1300 px menu stops above the VCB;
+- the user's resize is stored as the page's size;
+- **twelve reopens alternating a 1250 px and an 820 px menu leave it at exactly the user's size**,
+  steered in at most 4 steps;
+- a smaller size sticks too.
+
+Also checked: the legacy size is dropped, the position is still kept, Reset clears the size, and the
+real UserConfig is untouched by the tests.
+
+### Files
+- `40__UserInterface/..RightClickPopup__.rb`: the sizing region (`OnLayout`, `LearnChrome`,
+  `TargetContentSize`, `FitStep`), the content size memory, placement, no `preferences_key`.
+- `40__UserInterface/..RightClickPopup__Html__.rb`: the body scrolls, `#naMenu` wraps the
+  buttons, `reportLayout` replaces `reportContentHeight`.
+- `02__AppData/..UserConfigLoader__.rb`: the default `ContentSize` replaces `Size`.
+
+### Testing Notes
+- [ ] Reload Plugin Data. The menu opens fitted, clear of the VCB. Drag its foot to the size you want.
+- [ ] Switch tools from the menu a dozen times, Drawn Volume included: the size holds and the long
+      submenu scrolls.
+- [ ] Restart SketchUp: the same size and place.
+- [ ] Check it on a second monitor at a different scaling.
+
+# =============================================================================
+
+## Version 5.2.15 - 28-Oct-2026 - Deep Vertex Move: ALT+Drag the Base Point, Then Move From It
+
+### Asked For
+*"Make it so holding alt and clicking the gimbal base point allows you to drag that point to a
+new vertex, allowing you to use that poiny like a 3d cursor in other software, then this way you
+can set a start point then drag to and end point — like saying to sketchup 'Move eveything from
+THIS point to . . . '"*. The screenshot was a survey model: two picks at the base of a wall, the
+gimbal standing out in the street, and an arrow drawn from the gimbal to the wall corner.
+
+### Placing the Base Point
+- **ALT and press on the gimbal's centre square, drag, let go:** the base point goes where
+  SketchUp's inference puts it (a vertex, an edge, a midpoint, a face). **The picks do not move.**
+  ALT+click, move, click works too.
+- No grid: the point sits on the thing it was taken to. The axes through the old base point are
+  offered as inference too.
+- While placing:
+  - a ghost gimbal follows the cursor, with a dotted leader from where it was;
+  - the label reads *Base point — release to place it here*;
+  - the status line says the picks stay put.
+- **Once placed it is ringed in amber**, and the status line says moves go from it.
+
+### Moving From It
+- Every move measures from the base point. **CTRL-drag the centre square onto the target and
+  everything moves from the base point to the target.** An arrow's travel runs along the axis
+  through it.
+- **It travels with the picks**, so after a move it stands where it was taken to, ready for the
+  next leg.
+- **A retype puts it back with the move it rode**, then moves it again.
+- **It goes back to the middle of the picks** on:
+  - **ESC**, which now resets the base point first, then clears the picks, then leaves the tool;
+  - a new scope;
+  - an undo or any change that is not this tool's (the undo moves the picks back but could not
+    know where the base point had been).
+
+### ALT Without the Old Trouble (5.1.24, 5.2.12)
+- **Read from Windows at the press.** The mouse flags never carry ALT on Windows, so the press
+  asks user32 whether ALT is down at that moment. It reuses the Camera guard's read-only
+  `Na__CameraGuard__KeyDown?`, high bit only. Nothing is tracked across events, so a key-up eaten
+  by the menu bar cannot leave it stuck.
+- **Where user32 cannot answer** (a Mac), the tool's own ALT key-down counts for 2 s.
+- **A bare ALT is swallowed while the gimbal is up**, as Push/Pull's SHIFT+ALT swallows it, so
+  letting go of it does not open the menu bar in the middle of placing the point.
+- **Ctrl+Alt is passed on:** it is SketchUp 2027's touchpad orbit. ALT on its own is not one of
+  2027's navigation chords, so ALT+drag reaches the tool.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, doubles with real affine maths)
+**114/114 files compile. 198 checks**, 29 of them on the base point:
+- **ALT:** tracked from the key without user32, and user32's answer wins when there is one;
+  swallowed down and up while the gimbal is up; Ctrl+Alt passed on.
+- **Placing:**
+  - ALT on the centre square holds the base point, not the picks; it lands exactly on the
+    inferred vertex; nothing moves and nothing reaches the undo stack;
+  - the status says so on hover and on the way, and the ghost is drawn.
+- **Moving from it:** a CTRL drag to a target moves every pick by target minus base point in one
+  undo step, and the base point arrives at the target.
+- **Retype `0,0,100`:** the picks end 100 up from where they started, the base point 100 above
+  where it was placed.
+- **Resetting:**
+  - ESC resets the base point, then clears the picks;
+  - ALT click-move-click places it; ESC while placing leaves it where it was;
+  - an undo resets it; without ALT the centre square still moves the picks.
+
+### Files
+- **New** `37__System__DeepVertexMove/..DrawnVertexMove__BasePoint__.rb`: reading ALT, the key
+  handlers, placing, cancelling, carrying and drawing the base point.
+- `37__System__DeepVertexMove/..DrawnVertexMoveTool__.rb`: the gimbal origin, the mouse and ESC
+  routing, the status line, the move and the retype carrying the base point, the resets.
+- `01__AppCore/..LoadManifest__.rb`: the BasePoint file.
+- `.cursor/rules/00-InsertPrimatives-ProjectStructure-.mdc`: the folder's line.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Pick the two vertices at the wall base. Hold ALT over the centre square:
+      the status offers the base point. ALT+drag it onto the wall corner and let go. The picks
+      stay, the gimbal stands on the corner, ringed amber.
+- [ ] CTRL-drag the centre square onto the target vertex: everything moves corner to target. One
+      Ctrl+Z.
+- [ ] Let go of ALT after placing: the menu bar must not open. Alt+F with no picks still opens
+      File.
+- [ ] Ctrl+Alt with a touchpad still orbits while the tool is running.
+- [ ] ESC once: the gimbal is back in the middle. ESC again: the picks clear.
+
+# =============================================================================
+
+## Version 5.2.14 - 28-Oct-2026 - Deep Push/Pull: a Smoothed Surface Pushes as One (Joint Surfaces)
+
+### Asked For
+*"Upgrade my PushPull Tool"*, with four screenshots: a curved bay fascia that Entity Info calls a
+**Surface**; Deep Push/Pull pushing its 51 preselected faces; the result, a fan of separate boxes;
+and Fredo's Joint Push Pull thickening the whole band out, the faces round it following.
+*"IF Surface — Extrude together"*.
+
+### What Was Wrong
+- A surface is many faces joined by soft edges. Deep Push/Pull pushed them one at a time.
+  - **Preselected** (the batch, 5.1.22): each face along its own normal. On a curve the normals
+    fan out, so the band opened into separate boxes with wedge-shaped gaps, and every travel edge
+    carried a label (the *640 640 640* clutter).
+  - **Hovered**: the one face under the cursor, as native Push/Pull does.
+
+### How It Works
+- **What goes together** (option on):
+  - **hovering:** the face's surface, every face reached across soft edges, as the Select tool
+    takes it in one click (up to 2000 faces; a bigger one is pushed whole when selected);
+  - **preselected:** selected faces that share an edge, soft or hard, push as one. A face touching
+    no other selected face pushes on its own, as before.
+- **Every face along its own normal, every corner mitred.** Each face's plane moves the push
+  distance. Each corner goes where the moved planes of its faces meet, so the faces stay joined.
+
+| Faces at a corner | The corner travels |
+|---|---|
+| one | along that face's normal (the plain push) |
+| two | the mitre (n1 + n2) / (1 + n1·n2): exact, so every single-curved surface (fascia, barrel, bay) stays flat |
+| three or more | least squares, leaving out directions the normals barely span; a box corner is exact, and a doubly curved face that would bend is folded, soft and smooth |
+
+  - Mitres are capped at 4x the push (about 151° between faces).
+  - Faces folding back on each other (over 170°) are refused.
+  - Pushed past the centre of a tight curve, a face turns inside out. That is refused, with the limit
+    in the message: *the curve allows N mm in at most*. The limit is solved once per surface (each
+    face's area is a quadratic in the distance), so the drag only compares two numbers.
+- **Three routes, chosen per push:**
+
+| Route | When | What happens |
+|---|---|---|
+| **Stretch** | every face round the surface contains the travel where it meets it (a flat roof above a vertical fascia, the caps of a cylinder) | the surface's own vertices move and the faces round it stretch in their planes. Nothing created, no seams; paint, tags and soft edges untouched |
+| **Rebuild** | a corner must stay: a face round it would tilt (the band below a fascia), or an edge is open | the surface is rebuilt one push out, wearing its old paint, tag and texture position. Corners that can slide still slide; the rest get side walls, as native Push/Pull walls a face |
+| **Thicken** | nothing round the surface at all | like a lone face pushed into a box: the original stays as the back, turned round |
+
+- **After a rebuild:**
+  - a wall lying flat beside a face round the surface is healed into it when pushing out, and cut
+    back out of it when pushing in (the wall strip a wider bay now covers);
+  - walls meeting flatter than 35° (round a curve) are softened;
+  - QUADS keeps every start line.
+  - A seam is healed only when SketchUp's own `samedirection?` passes **and** every corner lies on
+    the other face's plane. A tenth of a degree out and the line stays: erasing an edge between
+    faces that are not truly coplanar would delete both.
+- **Everything else carries over:** grid, CTRL, CTRL+SHIFT, arrows, typed sizes, retype after
+  placing (undo + rebuild), double-click repeat, the ghost, one undo step.
+  - QUADS inward is a loop cut round the whole surface, where every corner slides (the ring lands
+    on the faces round it).
+- **Stands down on a surface, saying so:** SHIFT slope, SHIFT+ALT follow, `*N` / `/N`. The 2D
+  variant keeps one face.
+- **The switch:** *Joint Surfaces*, on by default.
+  - right-click menu, under Deep Push/Pull;
+  - **SHIFT+TAB** (plain TAB is still QUADS), mid-drag included;
+  - *Extensions > Na__InsertPrimitives > Deep Push Pull Joint Surfaces*, ticked while on, for a
+    Shortcuts key.
+- **Preview:** the whole surface lights up on hover. Dragging shows the moved surface, a rung from
+  each boundary corner and at most six travel labels; pushing into a solid shows red, through the
+  model.
+- **Coordinates (the 5.1.2 rule):**
+  - the plan is world, through the pick's transformation. Normals come from each loop's transformed
+    points (exact under non-uniform scale) and are turned to the front side (exact when mirrored);
+  - the commit opens the group and reads the plan again there, where reported coordinates are world
+    (identity, no `edit_transform`);
+  - if opening made the group unique, the faces are found again by a world point inside each one;
+  - a group that will not open is edited from outside, points taken back through the inverse.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, API doubles)
+- **Syntax:** 113/113 files compile.
+- **The doubles** (session scratchpad `jp/`):
+  - real affine maths, and the coordinate rule;
+  - `add_face` merges vertices and edges, refuses non-planar points, and turns a face on the ground
+    at the root to face down;
+  - drawing a face inside a coplanar one cuts it out (a notch);
+  - erasing an edge between coplanar faces merges them;
+  - undo restores every entity;
+  - `Face#normal` keeps the front side in an open mirrored group.
+- **jp_core, 196/196:**
+  - the corner solve: box corner exact, near-parallel, nearly coplanar, fold-back, the 4x cap, Jacobi;
+  - surfaces and selection groups;
+  - an angled bay at the root, out and in: roof stretched, soffit ledge, end caps, healed corners;
+  - a bay with square returns: the wall strip cut out pushing out, healed in pushing in;
+  - **each 640 out and 300 in**: a moved + rotated group, three groups deep (one rotated about X),
+    a non-uniformly scaled group, a mirrored group, and a group that will not open. Every face
+    lands exactly the distance along its own **world** normal, flat, facing the way it did, no stray
+    edges, one undo step, undo restores it;
+  - drum stretch and loop cut; a lone panel thickened into a closed, consistently oriented shell;
+    a sunken panel on the ground; an open-topped drum (a lip); three faces of a box;
+  - the coplanar-seam rule; the inside-out limit against face-by-face measurement.
+- **jp_tool, 49/49** (the real tool, through its events):
+  - hover, SHIFT+TAB, grab, drag, type 640, retype 1200 / -400 / `*4` (refused), undo;
+  - double-click repeat, the QUADS loop cut;
+  - preselect: 12 faces become one unit, the rebuilt faces stay selected, batch retype, Joint off;
+  - the shortcut, the 2D variant standing aside, a 2100-face surface.
+- **jp_single, 11/11:** single-face pushes unchanged (Joint off, a hard-edged box face, one
+  preselected face, two separate ones).
+- **Stress:** every face the push adds flipped as it is created; all three suites still pass.
+- **Nineteen deliberate faults, each caught.** Among them: the double coordinate conversion
+  (`plan[:xform]` inside the opened group), no front-side check, points not taken back into local,
+  the mitre without its stretch, orientation skipped, every corner sliding, an open edge not marked,
+  the eigen floor removed, the inside-out limit off or measured against the normal.
+- **Speed (doubles):** per-frame maths 0.07 ms for 51 faces, 3.7 ms for 2000.
+
+### What Offline Cannot Prove (Check Live)
+- SketchUp's own merging: a face drawn inside a coplanar face cutting it; an erased coplanar edge
+  merging two faces; a full ring of coplanar walls healing into an annulus.
+- `Face#normal` on the front side inside an open mirrored group. The result does not depend on
+  which way `add_face` turns a new face: every face is turned after it is added.
+- Texture positions on rebuilt faces (`position_material`): the PDF image material in this model.
+- Which face survives a heal: paint and tag are lent to the wall first. An attribute dictionary on
+  a face round the surface could go with whichever face SketchUp drops.
+
+### Files
+- **New:**
+  - `30__System__DeepPushPull/..DrawnPushPull__JointGeometry__.rb`: `Na__JointPush__*`, the
+    surfaces, the plan, the corner solve, the reach, the routes, the commit geometry;
+  - `..DrawnPushPull__Joint__.rb`: `DrawnPushPullJoint` (`na_jp__*`), hover, preview, SHIFT+TAB,
+    commit, retype and ghost; the shortcut's entry point.
+- **Changed:**
+  - `..DrawnPushPullTool__.rb`: the include, and hooks in adopt, clear, slope, loop cut, preview,
+    status, TAB hint and typed arrays; header and hints;
+  - `..DrawnPushPull__Preselect__.rb`: units (faces sharing an edge push as one), rebuilt faces
+    reselected, batch retype;
+  - `02__AppData/..ToolOptions__.rb`: *Joint Surfaces*;
+  - `01__AppCore/..LoadManifest__.rb`: the two new files, before Preselect;
+  - `../Na__InsertPrimatives__Loader__.rb`: *Deep Push Pull Joint Surfaces*;
+  - `.cursor/rules/00-..ProjectStructure-.mdc`, `01__AppCore/..Main__.rb`: folder map.
+
+### Testing Notes (SketchUp 2027, Windows)
+Reload Plugin Data (or restart). Test in a copy of the bay model.
+- [ ] Hover a face of the curved fascia: the whole band lights up, *Surface 51 faces 1.26 m2*.
+      Drag out 320: one continuous band, the flat roof grows to meet it, no fan, no gaps. A soffit
+      ledge appears where the band met the face below; the ends slide along the wall or get small
+      end caps.
+- [ ] Select the band with one click of the Select tool, then start Deep Push/Pull:
+      *51 preselected faces (51 joined into 1 surface...)*. Push 320: the same result, and the new
+      band stays selected.
+- [ ] After placing, type 600: rebuilt at 600; -200 turns it in. One Ctrl+Z undoes it.
+- [ ] Push in further than the bay's radius: refused, *the curve allows N mm in at most*.
+- [ ] Inside a moved and rotated group, three deep, and in a scaled group: the band lands the
+      typed distance out, measured with the Tape Measure.
+- [ ] A mirrored copy of the group (Flip Along): the band pushes out, not in.
+- [ ] SHIFT+TAB: *JOINT OFF*, a face pushes alone as before; SHIFT+TAB again: on. The right-click
+      menu's *Joint Surfaces* agrees. Extensions > *Deep Push Pull Joint Surfaces* is ticked; bind a
+      key to it in Preferences > Shortcuts.
+- [ ] QUADS (TAB) on: the start loop stays as edges round the band. On a cylinder with caps,
+      dragging in cuts a ring on both caps.
+- [ ] A textured or painted face in the surface, and the painted roof: still textured and painted
+      after a push.
+- [ ] Three faces of a box selected and pushed: the box grows on all three, square corners. A
+      hard-edged face hovered: pushes alone, as ever.
+- [ ] A large smoothed terrain (over 2000 faces) hovered: one face, and the status says to select it.
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP 2027
+
+# =============================================================================
+
+## Version 5.2.13 - 28-Oct-2026 - AltGr Disconnected From SketchUp 2027's Orbit and Pan: Prevented, No Longer Corrected
+
+### Asked For
+5.2.12 tried in SketchUp 2027: *"It doesnt work, there is still an awkward jerking for a second"*,
+and *"look at what options are availbe more broadly to disconnect the pan from alt gr"*.
+
+### Why 5.2.12 Jerked
+- **It corrected after the fact.** SketchUp drew the orbit before (or without) telling a
+  ViewObserver, so the put-back was seen.
+- **It let the Shift+Ctrl+Alt pan through on purpose.** Every AltGr+Shift macro holds exactly
+  that chord: Scale, Axes, Explode, Hidden Geometry, Make Face and more.
+
+### The Options, Looked At Broadly
+| Option | Verdict |
+|---|---|
+| A SketchUp setting | **None for the Ctrl+Alt gesture.** 2027 adds Preferences > Navigation (found in SketchUp.exe): Device *Mouse / Touchpad*, two-finger swipe mode, invert, sensitivity (`NavigationDevice`, `TouchpadTwoFingerMode`...). The one-finger Ctrl+Alt gesture looks like an internal feature flag (`HoverNavigation`) with no user switch. |
+| Internal feature flags (`SketchupFeatureOverrides`) | Not supported, probably server-driven, could break with any update: no. |
+| Ruby API | No veto: `onKeyDown` true is unproven, `onMouseMove` returns nothing that counts, `onMButtonDown` would kill the middle-mouse orbit. |
+| Correction (5.2.12) | Seen as a jerk. |
+| A keyboard layout without AltGr | AltGr+P would arrive as Alt+P, so every AltGr shortcut breaks. |
+| AutoHotkey / PowerToys | Can turn AltGr into a tap, but it is a system-wide keyboard hook and another program to keep running. |
+| **A thread hook on SketchUp's own UI thread** | **Chosen.** It hides Ctrl+Alt from mouse messages only, the shortcuts are untouched, and it stays in-process. |
+
+### How It Works (Windows, `Camera__AltGrFilter__`)
+- **The insight:** SketchUp reads the modifiers on a *mouse* message to start the gesture, and on a
+  *key* message to match a shortcut. Windows keeps them per thread (`GetKeyState`), so the two can
+  be told apart.
+- **The cleaner** (`WH_GETMESSAGE` on SketchUp's UI thread) sees each message as SketchUp takes it
+  from its queue, before SketchUp handles it:
+  - **mouse, wheel, non-client, pointer, hover and raw input, chord held:** Ctrl and Alt are cleared
+    from the thread's key state (`SetKeyboardState`), and `MK_CONTROL` from the message's own key
+    flags. AltGr + a move reads as a plain move: no orbit, no pan;
+  - **any key or character message:** Ctrl and Alt are put back as the keyboard really has them,
+    so AltGr+P, AltGr+[ and every macro still arrive as Ctrl+Alt+key, and AltGr characters type;
+  - **a held Ctrl or Alt repeating:** left hidden (bit 30 of lParam); a repeat is never a shortcut.
+- **The watcher** (`WH_KEYBOARD`, key messages only) puts the cleaner in the moment the chord goes
+  down, and takes it out when it is let go.
+  - **Why two hooks:** on this machine every hook call is a kernel round trip of about 40 µs,
+    measured from Python as well as Ruby. Ordinary messages would pay that all the time.
+  - With AltGr up, only key messages reach Ruby: ordinary messages measured 42.2 µs bare, 42.9 µs
+    with the watcher in.
+- **Started by AltGr+P with AltGr still down:** the cleaner goes in as the tool engages, before the
+  first move.
+- **The key-up went to another window:** the first message that finds the chord up marks the
+  cleaner to retire. The watcher or the tool's next mouse move takes it out; it never unhooks
+  itself from inside its own call.
+- **In-process and thread-scoped:**
+  - not a system-wide hook; nothing injected anywhere; no key remapped; no Windows setting changed;
+  - both hooks come out when they are no longer wanted, on `onQuit` and at Ruby's exit;
+  - the closures are kept for the life of SketchUp;
+  - every call is wrapped so no exception can unwind through user32, and the message is always
+    handed on with `CallNextHookEx`;
+  - the hooks never call the SketchUp API.
+- **Signed bytes:** Fiddle reads a byte as a signed char (0xF0 reads as −16), so every key-state
+  byte is masked to 0..255 before its down bit is tested.
+
+### When It Is On
+| Scope | Chord hidden |
+|---|---|
+| Drawn Plane / Drawn Volume, parallel view, popup > 2D Orbit Lock on (default) | any Ctrl+Alt: AltGr, or left Ctrl + left Alt |
+| Extensions > Na__InsertPrimitives > **AltGr Never Orbits or Pans** (new, off by default, ticked while on) | AltGr (right Alt) only, everywhere in SketchUp, so a deliberate left Ctrl+Alt still navigates |
+
+- The guard decides the first scope. It is re-checked when the tool engages or is released, when
+  the view goes parallel or perspective, on resume, when the popup lock is switched, and when
+  another tab comes to the front (`onActivateModel`). Never per mouse move.
+- The 5.2.12 camera hold stays as the backstop: on a Mac, or for a gesture the filter cannot hide.
+
+### What It Cannot Do
+- **If SketchUp reads the keyboard hardware (`GetAsyncKeyState`)** rather than the thread's key
+  state, hiding the chord cannot stop it. Qt reads Alt with `GetKeyState`, so this is unlikely.
+  - Dev Mode logs *cleaned N mouse messages* when a hook comes out.
+  - A view that still moves while that count rises would say exactly this.
+  - The fallback then is AutoHotkey, on Adam's say-so.
+- **Not proven offline:** that Windows calls the watcher for real key presses. A program cannot post
+  itself keys that do.
+  - Inside the two tools, the tool's own key event puts the cleaner in as well, and its next mouse
+    move takes it out.
+  - Everywhere mode depends on the watcher alone.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, real Windows hooks)
+- **Syntax:** 111/111 files compile.
+- **Real hooks on the test's own thread, 44/44.** Messages went through the thread's real queue,
+  and GetKeyState and the MSG's own flags were read afterwards.
+  - a move with AltGr held reads Ctrl and Alt up, `MK_CONTROL` gone, SHIFT kept;
+  - AltGr+[ and a typed euro read Ctrl+Alt again;
+  - repeats stay hidden; the wheel and non-client moves are cleaned; a peek is untouched;
+  - CTRL alone is untouched; AltGr+P with AltGr down is clean from the first move;
+  - a lost key-up retires the cleaner;
+  - everywhere mode hides AltGr but not left Ctrl+Alt;
+  - switching off hands the real keys back;
+  - an exception still delivers the message; a reload keeps one of each hook.
+  - `WM_POINTER` cannot be posted to oneself, so only its classification was checked.
+- **Guard 131/131** (13 new: the filter follows the tool, perspective, the popup lock, tabs, the
+  Staircase, AltGr pressed in the tool), **tools 32/32**, **Drawn Plane 29/29**, **real user32 7/7**.
+- **Eighteen deliberate faults in the filter and its wiring, each caught.** The guard's seventeen
+  are caught as before.
+
+### Files
+- **New:** `06__Tools__DrawnShared/..Camera__AltGrFilter__.rb`.
+- **Changed:**
+  - `..Camera__ParallelDrawingGuard__.rb`: drives the filter (`Na__CameraGuard__RefreshFilter`,
+    `OptionToggled`, `onActivateModel`); the popup toggle takes effect at once; header;
+  - `../Na__InsertPrimatives__Loader__.rb`: the *AltGr Never Orbits or Pans* command;
+  - `01__AppCore/..LoadManifest__.rb`: the filter file, before the guard;
+  - `02__AppData/..ToolOptions__.rb`, the two tool headers: *orbit or pan*;
+  - `01__AppCore/..Main__.rb`, `.cursor/rules/00-..ProjectStructure-.mdc`: folder map.
+
+### Testing Notes (SketchUp 2027, Windows)
+Reload Plugin Data (or restart), and switch on Dev Mode to see the filter's log.
+- [ ] Top view, parallel. AltGr+[ (Drawn Plane), keep AltGr down, move the mouse and the pad: the
+      view does not move at all. No jerk.
+- [ ] The same with AltGr+P (Drawn Volume), and AltGr+Shift + move (the 2027 pan): nothing moves.
+- [ ] With the tool running: AltGr+[ / AltGr+P / AltGr+V still switch tools, and AltGr macros
+      (AltGr+R, AltGr+B) still run.
+- [ ] Middle mouse still orbits; Shift+middle and the Pan tool still pan; the wheel still zooms.
+- [ ] Draw with CTRL, CTRL+SHIFT, TAB, arrows and typed sizes: as before.
+- [ ] Perspective inside the tool: AltGr orbits as SketchUp ships it (the brief's item 10).
+- [ ] Extensions > AltGr Never Orbits or Pans: on, then in Select or Move AltGr + move does nothing,
+      while left Ctrl + left Alt + pad still orbits. Off again: AltGr orbits as before.
+- [ ] Dev Mode: *ALTGR FILTER: off — N mouse messages cleaned* after using AltGr. If the view
+      moved while N rose, SketchUp reads the hardware: note it.
+- [ ] Type an AltGr character in the measurements box or a dialog (€ on UK): it still types.
+- [ ] Quit SketchUp with a tool running: no crash report.
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP 2027
+
+# =============================================================================
+
+## Version 5.2.12 - 28-Oct-2026 - Drawn Plane & Drawn Volume: 2D Orbit Lock, AltGr No Longer Orbits a Parallel View (SketchUp 2027)
+
+### Asked For
+SketchUp 2027's new touchpad orbit is Ctrl+Alt, and Windows reports AltGr as Ctrl+Alt, so the
+AltGr shortcuts for the planar and volume tools orbit the camera when the hand moves. *"Implement a
+robust, lightweight camera-orientation guard that prevents unintended orbiting while either tool
+is active in PARALLEL PROJECTION mode"*, keeping pan, zoom and a deliberate middle-mouse orbit.
+
+### What SketchUp 2027 Changed (Researched)
+- **The gesture:** 2027 brought the Mac's touchpad controls to Windows. A one-finger gesture with
+  Control+Alt held orbits, Shift+Control+Alt pans ("CMD on macOS"). A one-finger gesture is
+  cursor movement, so with Ctrl+Alt held, moving the mouse or the pad orbits.
+- **Why AltGr sets it off:** Windows reports AltGr as Left Ctrl + Right Alt. An AltGr shortcut
+  holds Ctrl+Alt down until AltGr is let go, so moving the hand before letting go orbits.
+- **No switch:** the release notes name no preference to turn it off, and SketchUp 2027's
+  SharedPreferences.json holds none.
+- **Key-event flags:** 2027.0 fixed `Tool#onKeyDown` / `#onKeyUp` flags *"containing incorrect
+  modifier keys"*. Before 2027, on Windows, they were the keystroke's lParam bits (scan code,
+  previous state, transition): Ctrl down read `0x1D`, Ctrl up `0xC01D`. A mask test read noise.
+  - This plugin never read them (DrawnVolume__Subtract__ says so), so nothing regressed.
+  - The guard reads them from 2027 on, as a fallback signal only.
+- **Also 2027:**
+  - `AppObserver#onCloseModel`;
+  - an active tool stays chosen for its own model across tab switches;
+  - several observers that leaked notices across models were fixed.
+
+| Source | What it gave |
+|---|---|
+| [SketchUp 2027.0 release notes](https://help.sketchup.com/en/release-notes/sketchup-desktop-20270) | the Ctrl+Alt / Shift+Ctrl+Alt touchpad controls, tabs, floating windows, `onCloseModel`, the key-flags fix |
+| [Ruby API release notes](https://ruby.sketchup.com/file.ReleaseNotes.html) | 2027.0: onKeyDown / onKeyUp flags fixed |
+| [Sketchup::Tool](https://ruby.sketchup.com/Sketchup/Tool.html) | implementing onMButtonDown replaces the middle-mouse orbit; suspend / resume for camera tools; returning true from onKeyDown |
+| [Forum: the key flags make no sense](https://forums.sketchup.com/t/the-flags-parameter-to-tool-onkeydown-and-tool-onkeyup-doesnt-make-sense/47273) | what the pre-2027 key flags held |
+| Pages / FrameChangeObserver (API index) | frameChange runs after a scene frame's camera is set and before the frame is shown |
+
+### The Two Tools
+- `DrawnPlaneTool` (*Drawn Plane*) and `DrawnVolumeTool` (*Drawn Volume*), both on the
+  `DrawnToolShared` mixin.
+  - Started by `Na__ModeSwitch__ActivateDrawnPlaneTool` / `..ActivateDrawnVolumeTool`;
+  - from the `NA_DrawPlanePrimitive` / `NA_DrawVolumePrimitive` commands and the popup.
+- **The shortcuts as bound** (SharedPreferences.json):
+  - `Ctrl+Alt+[` runs Drawn Plane;
+  - `Ctrl+Alt+P` and `Ctrl+Alt+V` run Drawn Volume.
+  - The request had P and [ the other way round. Both tools are guarded either way, and no
+    binding was changed.
+- **Not guarded:** `DrawnStairTool` subclasses Drawn Volume but has its own mode key
+  (`:drawn_stair`). Nor is any other tool, plugin or native.
+
+### What the Guard Holds
+- **The camera's orientation:** its direction (zaxis) and its screen-up (yaxis). It cannot turn
+  about any axis, roll included.
+- **Pan and zoom are followed, never undone.** The held view takes every change that turns no
+  axis: a pan moves eye and target together, a parallel zoom changes the height. So the held view
+  is never a stale snapshot.
+  - X/Y panning runs along the screen's own axes in Top, Front, Side and any custom parallel view.
+- **Only while** Drawn Plane or Drawn Volume is the model's tool (or is paused under a camera
+  tool), the camera is parallel, and popup > **2D Orbit Lock** is on (the default).
+- **Perspective is never touched.** Going to perspective forgets the held view. Coming back to
+  parallel holds the view as it is then, never the old one.
+
+### Which Turns Are Undone
+| A turn happens while | Result |
+|---|---|
+| the middle mouse button is down | **kept**: the deliberate orbit, AltGr down or not |
+| a scene is arriving (a frameChange in the last 0.35 s) | **kept**, a NaKeys scene chosen with AltGr included |
+| a camera tool that AltGr started has the view | **undone** until it hands the view back |
+| Ctrl+Alt (AltGr) is held | **undone**: the 2027 touchpad orbit |
+| anything else | **kept**: Ctrl+1 to Ctrl+7, Shift+arrows, `/`, Camera > Previous, the toolbar Orbit |
+
+- A kept turn is the orientation held from then on. After a middle-mouse orbit, the guard holds
+  the view the orbit left.
+- None of Adam's standard-view shortcuts uses Ctrl+Alt (checked in SharedPreferences.json), so
+  none is mistaken for the gesture.
+
+### Prevent or Correct: What the Ruby API Allows
+- **There is no veto.** A tool cannot stop a native orbit before it happens.
+  - `onMouseMove` has no return value that blocks navigation.
+  - Implementing `onMButtonDown` *replaces* the middle-mouse orbit (that is what the API
+    documents it for), so the guard implements neither.
+- **So it corrects, before the frame is seen.** A `ViewObserver` on the tool's own view hears every
+  camera change. An unwanted turn is undone inside that callback by writing the whole held camera
+  back: eye, target, up and height. An orbit swings the eye round its pivot, so the eye it leaves
+  is not a pan anybody made.
+  - A flag stops the write being judged again: no recursion, no oscillation.
+  - No operation is opened, so nothing reaches the undo stack.
+  - One deferred re-check follows each undo, in case SketchUp writes its camera again after its
+    observers.
+  - A pan or zoom costs one camera read and two vector comparisons. The camera is only written
+    when a turn is refused.
+- **One attempt at prevention**, unproven and not relied on. The Ctrl or ALT key-down that
+  completes Ctrl+Alt answers `true` from `onKeyDown` ("do not process"), in case 2027 arms its
+  navigation from key events.
+  - It can only act when AltGr goes down with the tool already running.
+  - Key-ups are never swallowed, so SketchUp cannot miss the end of a gesture.
+  - The tool's own `onKeyDown` runs first, so its CTRL vertex snap still hears the key.
+
+### Telling the Middle Button From AltGr
+- **Windows: the button and key state itself**, read through user32 with Fiddle.
+  - `GetKeyState` moves with the input SketchUp is handling; `GetAsyncKeyState` is the hardware
+    now. Down if either says so, high bit only.
+  - Read only: nothing is hooked, remapped or written, and no Windows setting is touched.
+  - Fiddle ships with SketchUp's own Ruby (2027: fiddle 1.1.6). Point Cloud Viewer already uses it.
+  - **Checked on this machine:** with nothing pressed, `GetKeyState(VK_MENU)` answered **1**,
+    ALT's toggle bit. A plain non-zero test would have read ALT as held.
+- **At a pause (`suspend`):**
+  - middle button down: *middle mouse*, turns kept;
+  - Ctrl+Alt down: *Ctrl+Alt*, turns undone until `resume`, even after AltGr is let go;
+  - anything else: *a command*, turns kept.
+  - On `resume` after a Ctrl+Alt pause, a turn still showing goes back. After a middle-mouse
+    pause, the new view is held.
+- **No user32 (a Mac, or Fiddle missing):** the tool's own key and mouse events, plus the 2027
+  key-event masks.
+  - Ctrl is set and cleared by the mouse flags (MK_CONTROL is a real bit).
+  - ALT is only ever set by them, and forgotten 2 s after it was last seen.
+  - Ctrl+Alt counts as held for 0.25 s past its last sighting.
+
+### Lifecycle and Scope
+- **Prepended** (`ParallelDrawingGuard`) on the two classes, as `RightClickPopupPersist` is: ahead
+  of their mixins, behind the popup's own hook.
+  - `activate` engages and `deactivate` releases.
+  - `suspend` / `resume` are a pause, never a release.
+- **One session per engaged tool, on its own model's view.**
+  - Starting a tool first releases anything left on that model, so starting it again never adds a
+    second observer.
+  - A notice that names another model is ignored.
+- **Tabs and floating windows (2027):** each model is guarded alone. `AppObserver#onCloseModel`
+  lets go of a closed model without touching it.
+- **Reload Plugin Data:**
+  - sessions survive in a module variable;
+  - the reloader drops our running tool first, which releases its session;
+  - a load-time sweep releases any session whose tool is no longer running.
+
+### Popup: 2D Orbit Lock (Default On)
+- Under both tools, as one shared setting (`DrawnOrbitLockEnabled`), the way Face is shared by
+  the two Planes.
+- Off: SketchUp 2027's Ctrl+Alt orbit is back exactly as it ships.
+- Kept off the status line through a new ToolOptions field, `:status => false`. A switch that is
+  on by default would otherwise add the same words to every line.
+
+### Limitations
+- **Correction, not interception.** If SketchUp ever draws a frame before telling its observers,
+  one rotated frame could flash. That cannot be known offline.
+- **Before the tool exists.** Moving the mouse between pressing AltGr and pressing P orbits under
+  the previous tool. That tool is not guarded: the camera is never touched globally.
+- **Undocumented: whether 2027's gesture pauses the tool at all.** The guard covers both a pause
+  classed *Ctrl+Alt* and turns that arrive with the tool still active. Dev Mode logs which.
+- **Unproven: whether the swallowed key stops the gesture.** Dev Mode shows whether turns were
+  still refused after it.
+- **Mac:** the gesture is Ctrl+Cmd, tracked from key events only. Untested.
+- **Unchanged:** AltGr is Ctrl+Alt to the tools too. While it is held after AltGr+P, the mouse
+  flags carry CTRL and the tools snap to vertices, as they always have.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2)
+- **Syntax:** 110/110 files compile. SketchUp 2027's Ruby 3.4 DLL does not start outside SketchUp.
+- **API used, all in the official index (onCloseModel from the 2027 notes):**
+  - `View#add_observer`, `#remove_observer`, `#camera`, `#camera=`, `#model`;
+  - `Camera#set`, `#height=`, `#zaxis`, `#yaxis`, `#perspective?`;
+  - `Pages.add_frame_change_observer`, `.remove_frame_change_observer`;
+  - `Sketchup.add_observer`, `Tools#active_tool`, `#active_tool_id`, `#active_tool_name`,
+    `Model#guid`.
+- **186 checks on the real code, all passing:**
+  - guard 118:
+    - wiring and engage / release;
+    - pan and zoom with and without AltGr;
+    - AltGr orbit, roll and a near half turn refused;
+    - middle mouse kept, then held;
+    - AltGr pauses; standard and custom views; perspective; the lock option;
+    - the deferred check; keys; scenes; two models, a second wrapper and a closed model;
+    - no user32; reloads; the option; AltGr+P with AltGr still down.
+  - tools through the guard 32: Drawn Plane drawn by mouse, typed and revised; TAB, arrows,
+    BKSP, CTRL; Drawn Volume base, depth and SHIFT+TAB; the popup toggle; suspend, resume and
+    deactivate.
+  - Drawn Plane 29 (5.2.11's suite): unchanged, except the option list now ends with the lock.
+  - real user32 7: loaded through SketchUp's own Fiddle 1.1.1, about 8 microseconds per Ctrl+Alt
+    reading.
+- **Seventeen deliberate faults, each caught:**
+  - every turn allowed; the middle button never down; the chord never held;
+  - every pause a command; resume never refusing; scene frames ignored;
+  - perspective held; roll ignored; nothing swallowed;
+  - stale sessions never swept; models compared by identity only;
+  - a held view that never follows; no deferred check;
+  - release leaving the observer on; engage without the sweep;
+  - key-ups swallowed; the guard on every tool.
+
+### Files
+- **New:** `06__Tools__DrawnShared/..Camera__ParallelDrawingGuard__.rb`
+  - the `Na__CameraGuard__*` functions;
+  - the view, app and scene observers;
+  - the `ParallelDrawingGuard` module.
+- **Changed:**
+  - `20__System__DrawnPrimitives/..DrawnPlaneTool__.rb`, `..DrawnVolumeTool__.rb`: prepend the
+    guard; header notes;
+  - `02__AppData/..ToolOptions__.rb`: 2D Orbit Lock, shared by both tools; the `:status` field;
+  - `01__AppCore/..LoadManifest__.rb`: the guard file, before the two tools;
+  - `01__AppCore/..Main__.rb`, `.cursor/rules/00-..ProjectStructure-.mdc`: folder map.
+
+### Testing Notes (SketchUp 2027, Windows)
+Switch on Extensions > Na__InsertPrimitives > Enable Dev Mode first: the Ruby Console then says
+what the guard saw (*orbit refused*, *paused under ... Ctrl+Alt*, *held the view against N steps*).
+- [ ] Reload Plugin Data. The popup under Drawn Plane and Drawn Volume reads *2D Orbit Lock: On*.
+- [ ] Top view, parallel. AltGr+[ (Drawn Plane), keep AltGr down and move the mouse: no turn.
+- [ ] The same with AltGr+P (Drawn Volume).
+- [ ] With the tool running, hold AltGr and sweep the mouse or pad: no turn, no flicker. If a
+      rotated frame flashes, note it.
+- [ ] Shift+AltGr and move: pans. Shift+middle drag pans, the wheel zooms, as before.
+- [ ] Front, Right and a custom parallel view (reached with the middle mouse): pan, zoom, AltGr.
+- [ ] Middle-mouse orbit: it orbits. Let go, then AltGr and move: held at the NEW view.
+- [ ] Draw planes and boxes with CTRL, CTRL+SHIFT, TAB, arrows and typed sizes: as before.
+- [ ] Select, Move, the Staircase: AltGr and move orbits there, as SketchUp ships it.
+- [ ] Shift+P to perspective, AltGr and move: orbits. Back to parallel: held there, no jump back.
+- [ ] Ctrl+1 to Ctrl+7 and Shift+arrows inside the tools: the views still change.
+- [ ] AltGr+R (NaKeys UT__Transparency) inside a tool: if that scene saves a camera, the view
+      goes to it.
+- [ ] Start and stop the tools twenty times: no slowdown, the Console quiet.
+- [ ] Two models in tabs: Drawn Plane in one, AltGr and move in the other: the other orbits.
+      Close a tab: no error.
+- [ ] O (Camera > Previous) after refused orbits: note whether they left extra camera steps.
+- [ ] Popup > 2D Orbit Lock off: AltGr orbits again inside the tools.
+
+### Status: TRIED IN SKETCHUP 2027 — THE VIEW STILL JERKED; SUPERSEDED BY 5.2.13 (PREVENTION)
+
+# =============================================================================
+
+## Version 5.2.11 - 28-Oct-2026 - Pipework: The Bar on Selection, Legs That Line Up With a Vertex, CTRL Keeps the Lock, TAB Planes
+
+### Asked For
+*"Research online how to set up observers in SketchUp efficiently in Ruby API 2027. Make it so
+unless disabled in the menu live observers detect if a pipe object is in selection and if true
+this menu auto appears"* (the Pipework bar, top left) and *"Improve the inferencing, I can't
+inference vertexes properly when trying to set the final pipe position in line with something,
+using arrow keys and control does not lock the inference planar correctly."*
+
+### The Bar on Selection (Popup Option, Default On)
+Select pipes with SketchUp's **Select** tool and the Pipework bar appears top left, without
+starting the Pipework tool. Open a pipe's path to edit and the edit bar (Finish, Discard, Move,
+Line) appears the same way.
+- **It is the real bar:** Ø, R, sides and Bore to click and type, Caps, Edit Path.
+  - Click Ø, type `100`, Enter: the selected pipes are resized, one undo step.
+  - Typing `100,150` with nothing armed works too.
+- **How a drawn bar takes a click.** An overlay cannot be clicked, so:
+  1. the pipe overlay draws the bar;
+  2. when the cursor comes onto it (no mouse button down), the Pipework tool is **pushed over
+     Select** in a bar-only role;
+  3. it **pops** when the cursor leaves the bar, on ESC, on a click away, or when the cursor
+     leaves the view.
+  - Select carries on with its selection untouched.
+  - An armed slot keeps it there until the number is typed (or ESC), wherever the cursor goes.
+  - A few pixels' margin round the bar stops it flickering along the edge.
+- **Only over the Select tool.** Move and Line have no button down between their clicks, so
+  pushing a tool over them half way through would break them.
+- **The bar role is about pipes.** Selected edges wait for the Pipework tool itself, where they
+  are still piped as before.
+- **Right-click on the bar** gives a native menu: *Pipework Tool (This Selection)* and *Hide the
+  Pipework Bar on Selection*. It is not the plugin popup: that dialog belongs to a running tool,
+  and the bar hands back to Select as soon as the cursor moves.
+- **Switch it off:**
+  - Popup > Pipework > **Bar on Selection**;
+  - Extensions > **Pipework Bar on Selection** (ticked while on, can take a shortcut);
+  - right-click on the bar > Hide.
+
+### The Observers (From the Research)
+- **One selection observer, on the active model.**
+  - Its callbacks only forget the answer and schedule one refresh on a timer; they read and
+    change nothing.
+  - The refresh counts the selected pipes, switches the overlay on if there is a bar, and
+    redraws only when there is a bar to show or to take away.
+  - A burst of callbacks (a thousand entities added one by one) makes one refresh.
+- **Every callback is answered alike:** `onSelectionBulkChange`, `onSelectionCleared`,
+  `onSelectionAdded`, `onSelectionRemoved` and the old `onSelectedRemoved` spelling.
+  - Clicking empty space fires `onSelectionCleared`, not `onSelectionBulkChange`.
+  - SketchUp's selection callbacks are known to miss changes, so the draw also checks the
+    selection's count (constant time) against the one counted. A missed callback costs one
+    recount, never a stale bar.
+- **Any transaction marks the answer stale too:** a resize keeps the selection but moves the spec.
+- **SketchUp 2027 tabs:**
+  - the watch follows the model switched to;
+  - attaching the model already watched adds nothing (new-model and activate-model overlap);
+  - `AppObserver#onCloseModel` (new in 2027) lets go of a closed tab without touching it;
+  - the count is kept with the model it was counted for, so a tab switch never shows another
+    model's pipes.
+- **Nothing is ever done inside a callback:** the push and pop are scheduled on a timer too.
+
+| Source | What it settled |
+|---|---|
+| [SelectionObserver docs](https://ruby.sketchup.com/Sketchup/SelectionObserver.html) | the callbacks; clearing fires `onSelectionCleared` |
+| [SketchUp 2027.0 release notes](https://help.sketchup.com/en/release-notes/sketchup-desktop-20270) | tabs, `onCloseModel`, observer fixes, Ruby 3.4 |
+| [sketchup-safe-observer-events](https://github.com/SketchUp/sketchup-safe-observer-events) | defer to a timer, never change the model in a callback |
+| [Observer crash on commit (forum)](https://forums.sketchup.com/t/observer-changes-to-model-ontransactioncommit-causes-crash/104088) | why nothing is done inside `onTransactionCommit` |
+| [HtmlDialog focus (forum)](https://forums.sketchup.com/t/can-htmldialog-yield-focus-to-sketchup-view/123696) | why the bar is not an HtmlDialog: `show` takes the keyboard from the view |
+| [Overlay docs](https://ruby.sketchup.com/Sketchup/Overlay.html) | overlays draw over any tool, cannot be clicked, get `onMouseMove` |
+| [SelectionBulkChanges cop](https://www.rubydoc.info/gems/rubocop-sketchup/1.5.0/RuboCop/Cop/SketchupPerformance/SelectionBulkChanges) | bulk changes and per-entity callbacks |
+
+### Inference: a Locked Leg Lines Up With What Is Under the Cursor
+**The faults:**
+- under an arrow or SHIFT lock the leg followed the pick ray only, so a vertex under the
+  cursor was ignored;
+- CTRL dropped the lock entirely and put the point on the raw inference, off the axis.
+
+**Now a lock still looks at what SketchUp finds under the cursor:**
+
+| Under the cursor | The leg ends | Needs |
+|---|---|---|
+| a vertex, midpoint, intersection or guide point | square across from it, exactly | nothing: the line-up a lock is for |
+| an edge or a guide line | where the lock passes it (on the edge itself; past its ends, or parallel, square across from the picked point) | CTRL |
+| a face | where the lock pierces its plane (none if the lock runs along it) | CTRL |
+| nothing | where the pick ray passes the lock, its length on the grid | as before |
+
+- **CTRL keeps the lock** and works exact; **CTRL+SHIFT** rounds the lined-up length along the
+  lock, and the grid mark shows the rounding.
+- **SketchUp's own point marker is shown** with a dotted guide to the leg's end. The status line
+  reads `IN LINE WITH Endpoint` (SketchUp's own word for it).
+- Without CTRL a lock passes over edges and faces and keeps the grid, so a backdrop wall cannot
+  hijack the leg.
+
+**Coordinates (the CLAUDE.md rule):**
+- The picked point is always world, but a picked edge or face reads in its own coordinates:
+  - local in a closed group;
+  - world in the open one.
+- So each candidate space is tried in turn (the InputPoint's transformation, the pick's
+  instance path, none). Only the space that puts the picked point on the edge or face is kept.
+- A wrong space is refused rather than aimed at.
+- A face's plane is built from its points carried out, not its normal: a scaled group's points
+  carry out by its transformation, its normals do not.
+
+### TAB: the Run Held to a Plane
+- **TAB cycles:** XY plan, XZ front, YZ side, then free again. **SHIFT+TAB** steps back.
+- The plane passes through the last point and is **kept through the clicks**, so a whole run
+  can stay level until TAB lets go.
+- **The point in the plane:**
+  - where the pick ray meets the plane, rounded onto the grid, then laid back into the plane
+    (the grid need not pass through it);
+  - a vertex lines up straight across the plane from it, and with CTRL an edge lines up where
+    it pierces the plane;
+  - a plane seen edge-on lays SketchUp's own point into it.
+- An arrow or SHIFT lock wins while it is on.
+- A see-through square edged in the plane's pole colour (XY blue, XZ green, YZ red) marks it.
+- The status line reads `PLANE XY plan (TAB)`.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2)
+- **Syntax:** 109/109 files compile.
+- **API lint:** the new calls are all in the official index: `Tools#push_tool`, `pop_tool`,
+  `active_tool`, `active_tool_id`, `Selection#add_observer`, `InputPoint#instance_path`,
+  `InstancePath#leaf` and `#transformation`, `degrees_of_freedom`, `tooltip`.
+- **469 checks on the real code, all passing:**
+  - pipe 154, edit 129, Drawn Plane 29, unchanged;
+  - 157 new:
+    - aim 72: vertex, midpoint, guide point, edge (crossing, past its end, parallel), guide
+      line, face (piercing, parallel), CTRL keeping the lock, CTRL+SHIFT, SHIFT's lock, the
+      marker and guide, every TAB case;
+      - a face and an edge **three groups deep, moved, rotated and scaled**, closed and open:
+        a wrong space refused, the instance path's space found, and a double conversion
+        refused;
+      - **after the outer group moves**, lined up where the face now is;
+    - bar 85: the option and its toggle, the watch (once, follows the model, lets go of a
+      closed tab), the count, every callback, one refresh per burst, redraws only when needed;
+      nothing laid out while the cursor is away from the bar;
+      the bar over Select only, the push (never inside the callback, never mid-drag, never over
+      another tool) and the pop (only its own tool); click, type, ESC, a click away, the
+      margin, the native menu, edges left to the tool.
+- **Eleven deliberate faults, each caught:**
+  - CTRL dropping the lock again;
+  - edges and faces lined up without CTRL;
+  - a face's space trusted unchecked;
+  - a TAB point not laid back into the plane;
+  - an edge lined up past its ends;
+  - the bar over any tool;
+  - the push on a drag;
+  - the count never refreshed;
+  - a stale mark that forgets nothing;
+  - no margin;
+  - the bar role forgotten.
+- The old Drawn Plane check *"other tools keep the general Plane Faces button"* was rewritten:
+  another session removed that button this morning (Face lives under Plane and Drawn Plane
+  now), so it expected what is no longer meant.
+
+### Files
+- **New:** `23__System__DrawnPipework/..DrawnPipe__Watch__.rb`
+  - the selection watch and its observer class;
+  - the count;
+  - the bar over Select, the push and the pop;
+  - the option and its toggle entry point.
+- **Changed:**
+  - `..DrawnPipe__Draw__.rb`: the cursor rewritten (lock line, TAB plane, lining up, spaces
+    checked);
+  - `..DrawnPipeTool__.rb`:
+    - the `:bar` role;
+    - TAB, the aim marker and guide, the plane square;
+    - status and hints;
+  - `..DrawnPipe__Overlay__.rb`: draws the bar, `onMouseMove`, the panel line, the name
+    *Pipework*;
+  - `..DrawnPipe__Edit__.rb`:
+    - attach once per model, and the watch with it;
+    - `onCloseModel`;
+    - transactions mark the bar stale;
+  - `..DrawnPipe__Bar__.rb`: Caps read on its own (the bar asks every frame).
+- `02__AppData/..ToolOptions__.rb`: Bar on Selection.
+- `01__AppCore/..LoadManifest__.rb`: the Watch file.
+- `../Na__InsertPrimatives__Loader__.rb`: the Pipework Bar on Selection command.
+
+### Testing Notes
+- [ ] Reload Plugin Data. The overlay keeps the name it was added with (*Pipework Path*) until
+      the model is reopened, then it reads *Pipework*. It gains the bar at the reload.
+- [ ] Select a pipe with the Select tool: the bar appears top left. Click empty space: it goes.
+- [ ] Hover the bar: the button lights. Click Ø, type 100, Enter: the pipe is 100, one Ctrl+Z.
+      Move off the bar: the Select tool is back, the pipe still selected.
+- [ ] Click R, move the cursor away (it stays armed), type 150, Enter.
+- [ ] Select edges and a pipe: the bar resizes the pipe. Start the Pipework tool: it pipes the
+      edges.
+- [ ] Right-click the bar > Hide: no bar. Extensions > Pipework Bar on Selection: back, ticked.
+- [ ] Start Move, then pass over the bar between its clicks: nothing happens (no bar over Move).
+- [ ] Two models in tabs (2027): a pipe selected in one shows the bar there only. Close a tab:
+      no error in the Ruby Console.
+- [ ] HiDPI (Windows scaling over 100%): the bar lights under the cursor, not beside it. If it
+      is offset, say so: Tool and Overlay mouse events should share the pixel kind from 2025.
+- [ ] Draw a pipe, Right arrow (red). Hover a wall corner: the leg stops square across from it,
+      the dotted guide joins them, the status says IN LINE WITH Endpoint.
+- [ ] Same with CTRL held: the lock stays red. Hover a wall face end-on to the leg: the leg stops
+      on the wall. Hover an edge: it stops where it passes the edge.
+- [ ] CTRL+SHIFT over a vertex: the leg's length rounds onto the grid.
+- [ ] TAB: PLANE XY plan. Click a few turns: the run stays at one height. TAB again: XZ front.
+      SHIFT+TAB: back. TAB to free.
+- [ ] Inside a group that is moved, rotated, nested three deep and scaled: CTRL over a face in
+      another closed group lines the leg up on that face.
+
+# =============================================================================
+
+## Version 5.2.10 - 28-Oct-2026 - Pipework: Re-Route a Pipe With a Red Line, Resize It From the Bar, True Pipes With a Bore
+
+### Asked For
+*"make it so it serialises and stores the path coordinates for the creation proxy line and
+recalls that if you right click to edit it the pipework path, then it shows the preview again,
+but with a red sketchup line you can interact, move, add points, create swan necks, direction
+changes etc using sketchups normal linework editing tools, then this path / set of edges proxy
+gets reserialised and stored in the dictionary (like with my other plugins like entity studio
+pro / my profile plugin) aim to make it parametric and modifyable after initial creation ...
+may be worth adding a context menu in the top left like the scale tool uses"* and *"Add
+Internal pipe diamter to a subsection of the menu off by default, when on you can add a
+internal dimension to make true pipes."*
+
+### Edit Pipework Path — the Profile Path Tracer's Edit Path, for Pipes
+Each pipe already kept its route (5.2.5). Now it can be edited:
+1. **Right-click a pipe > Edit Pipework Path** (or the bar's Edit Path).
+   - The solid goes: the line would be hidden inside it.
+   - The route comes out as a **red line** in a group inside the pipe (the Profile Path
+     Tracer's MTE201 red), and the group is opened.
+2. **Edit it with any SketchUp tool.** Move points, draw on with Line, erase legs, make swan
+   necks. The pipe is drawn along the line **live**, whatever tool is in use (see Overlay below).
+3. **Click outside the pipe:**
+   - it is rebuilt along the line;
+   - the line becomes its stored route;
+   - the red line goes.
+   - Right-click **Finish Pipework Path** or **Discard Pipework Path Edit** do the same without
+     hunting for empty space.
+
+| The line ends up | The pipe |
+|---|---|
+| one run | follows it |
+| several runs | the longest stays this pipe; each other run becomes a pipe of its own beside it |
+| erased | keeps the route it had |
+| as it was | is rebuilt as it was |
+| unpipeable (doubles back) | the line stays and says why; not retried until it changes |
+
+- **Arcs survive the round trip:** smooth stretches of the route are drawn as welded curves,
+  so they read back as curves, not as a string of new bends.
+- **Why on leaving** (from the Profile Path Tracer's research):
+  - Move does not fire the edge observers and redo fires none, so leaving the pipe is the
+    reliable moment;
+  - a fingerprint of the line as drawn says whether it changed;
+  - observers only schedule a debounced sweep on a timer, never touching the model.
+- **Undo:**
+  - drawing the line is one step and each edit is yours;
+  - the finish joins your last edit (transparent);
+  - after an undo or redo, a line that comes back waits, and your next change finishes it;
+  - every solve is checked before any operation starts, so a transparent one is never aborted.
+- **Coordinates:** the line is drawn with the pipe closed, in the pipe's own coordinates, and
+  read back only once it is closed again. No conversion in or out.
+
+### The Overlay (SketchUp 2023+)
+- **A `Sketchup::Overlay` draws the pipe along the red line** while the path is out, on every
+  frame, so the pipe follows a point being dragged by SketchUp's own Move tool.
+- **It also draws** the red line over itself (it reads in any edge style), the bends that had
+  to be fitted, and a panel under the bar saying how to finish.
+- **It costs nothing** when no path is being edited.
+- **It is added to every model and switched on by Edit Pipework Path.** It also shows in
+  SketchUp's Overlays panel as *Pipework Path*.
+
+### The Bar (Top Left, as Deep Scale's)
+Deep Scale's own bar renderer, so the two look and behave alike:
+- **Left, the actions of the moment:**
+  - Build (route);
+  - Edit Path (one selected pipe, or the pipe just built);
+  - Finish, Discard, Move, Line (editing a path; Move and Line hand over to SketchUp's tools);
+  - Finish, Close Loop, Back (drawing).
+- **Right, the spec:** Ø, R, sides, Bore.
+  - **Click one, then type a plain number:** the button turns blue in brackets and `100` Enter
+    goes to that slot. It stays armed until it is clicked again or ESC.
+  - **Bore Off** turns the bore on and arms it. Clicking an armed bore makes the pipe solid.
+- **Caps** toggles the ends.
+- **What the spec changes:**
+  - the next pipe, when drawing or building a route;
+  - each selected pipe, when resizing;
+  - the pipe being re-routed, when editing (stored at once, so the preview shows it; built at
+    the finish).
+
+### Resizing Reads Each Pipe's Own Spec (a 5.2.5 Fix)
+- **Before:** typing `100` over a selected pipe read the entry against the next pipe's spec,
+  so a pipe of R200 / 32 sides was also given the next pipe's bend and sides.
+- **Now:** each pipe reads the entry against its own spec. Only the slots typed change, and
+  `+20` adds to its own diameter.
+- **A pipe whose path is out as a red line is left alone, and the reason is said:** rebuilding
+  it would sweep the line away.
+
+### Internal Diameter — True Pipes (Popup Option, Default Off)
+- **The bore can be typed:**
+  - as the 4th value: `80,110,24s,70`;
+  - on its own: `70i`;
+  - as a wall: `5w`;
+  - `0i` makes the pipe solid again.
+- **Typing a bore switches the option on;** `0i` switches it off.
+- **A new diameter keeps the wall:** 80/70 typed to `100` becomes 100/90. The remembered bore
+  is stored as a wall for the same reason, so it can never be left wider than the next pipe.
+- **Refused with the fix named:** a bore leaving no wall, a pipe too small to keep its wall, a
+  bore too thin for its sides.
+- **The mesh:**
+  - the same stations ringed again at the bore, wound inward;
+  - flat end rings with hard rims and soft radial seams;
+  - End Caps does not apply (a hollow pipe's ends are its walls);
+  - a closed loop is two tubes.
+- **Reads `Ø80/70`** in the status line, on the card and in the box.
+
+### Extensions Menu
+**Edit Pipework Path** and **Finish Pipework Path** are commands, so each can take a key in
+Preferences > Shortcuts (no in-tool letters: SketchUp takes them first).
+
+### Verified Offline (SketchUp 2026's Ruby 3.2)
+- **Syntax:** 107/107 files compile.
+- **API lint:** every SketchUp call in the new code is in the official index. Overlay,
+  OverlaysManager, `active_path=`, `add_curve`, `persistent_id` and `tools.active_tool` were
+  checked one by one.
+- **312 checks on the real code, all passing:**
+  - Drawn Plane 29 and the 5.2.5 pipe suite 154, unchanged;
+  - 129 new:
+    - the bore grammar and its refusals;
+    - the remembered wall and the option switching;
+    - the hollow mesh: faces into the bore, end rings, loops;
+    - Edit Path at the root: open, wait inside and one step out, finish unchanged, a moved
+      point, an extra run as its own pipe, an erased line, a refusal never retried, Discard,
+      Finish Now;
+    - arcs and a circle round-tripped as curves;
+    - a passive sweep that waits;
+    - **three groups deep, every level moved and rotated, one scaled:**
+      - the overlay preview on the world route at a true 80;
+      - a dragged corner stored where it was dragged;
+      - after the outer group moves, the line and the preview still on the pipe, standing in
+        the line and in the pipe;
+    - the overlay's registration;
+    - the right-click menu;
+    - the bar: arm and type, bore on, typed and off, caps, edit mode, a click away
+      finishing, a pipe mid-edit left alone;
+    - each pipe resized by its own spec.
+- **Five deliberate faults, each caught:**
+  - a double conversion in the overlay (caught only once a parent group moves, the trap in
+    the 5.1.2 notes);
+  - a non-transparent finish;
+  - resizing against the shared spec;
+  - bore faces wound outward;
+  - finishing while still inside.
+
+### Files
+- **New** in `23__System__DrawnPipework/`:
+  - `..DrawnPipe__Edit__.rb`: open, read back, finish, sweep, observers, right-click menu,
+    entry points;
+  - `..DrawnPipe__Overlay__.rb`: `DrawnPipeEditOverlay`;
+  - `..DrawnPipe__Bar__.rb`: `DrawnPipeBar`.
+- **Changed:**
+  - `..DrawnPipe__Spec__.rb`: the bore, the wall, `MarkForSlot`;
+  - `..DrawnPipe__Solver__.rb`: bore rings;
+  - `..DrawnPipe__Build__.rb`: hollow mesh, `CreateSibling`, `RebuildSolved`, route
+    replacement, `InnerDiameter`;
+  - `..DrawnPipe__Preview__.rb`: bore rims;
+  - `..DrawnPipeTool__.rb`: edit mode, the bar, per-pipe resize, one door for typed text.
+- `02__AppData/..ToolOptions__.rb`: Internal Diameter.
+- `01__AppCore/..LoadManifest__.rb`: the three new files.
+- `../Na__InsertPrimatives__Loader__.rb`: Edit / Finish Pipework Path commands.
+
+### Testing Notes
+- [ ] Reload Plugin Data. The right-click items and the observers install as the new Edit file
+      first loads (guarded, so later reloads add no second handler). The Extensions entries
+      append at the end of the submenu until the next restart.
+- [ ] Build an L pipe. Right-click it > Edit Pipework Path. The solid becomes a see-through
+      preview on a red line, and the bar shows Finish, Discard, Move, Line.
+- [ ] Bar > Move: drag the corner up. The preview follows live. Click outside the pipe: it
+      rebuilds along the line, and the line is gone.
+- [ ] Edit again, draw on from the end with Line, then click outside: the pipe is longer.
+      Draw a separate line inside the edit: it becomes a second pipe.
+- [ ] Edit again, erase everything, click outside: the pipe is as it was. Ctrl+Z steps back.
+- [ ] Bar: click Ø, type 100, Enter. Then R, 150. Then Bore Off (it turns green, 90), type 80.
+- [ ] Popup > Pipework > Internal Diameter On: new pipes are hollow (Ø80/70). Type 0i: solid.
+- [ ] Select two pipes of different bends, type 90: both 90, each keeps its own bend.
+- [ ] A pipe in a group that is moved, rotated, nested and scaled: Edit Path puts the line on
+      the pipe, and a dragged point lands where it was dragged.
+- [ ] After a finish, Ctrl+Z: the line comes back and waits; any change (or Edit Pipework Path)
+      finishes it again.
+
+# =============================================================================
+
+## Version 5.2.9 - 28-Oct-2026 - Deep Scale: Dimensions Flat in the Box's Planes, Loose Geometry; Edge Tools: SHIFT+TAB Steps the Profile
+
+### Asked For
+- *"Yes, fix Chamfer"*: Deep Chamfer's C R O G V letters had the same fault as Deep Scale's
+  (5.2.6), with SketchUp's own shortcut running on each letter.
+- *"Update the dimensions so they arent arbitrarily aligned to the camera ... 'Flatter' to the
+  planes they represent"*, with a marked-up screenshot. X and Y run along the bottom edges with
+  extension lines laid level on the ground; Z runs up the front-left edge with its extension
+  lines level too.
+- *"Make it you can use on loose geometry, but if there is no group or component then it
+  dosnt try to store anything ... align the bounding box the the current axis (as you may be
+  working inside a group ... or even deeper ... all of the axis transformations need to be
+  accounted for"*.
+
+### Edge Tools: SHIFT+TAB Steps the Profile
+- **SHIFT+TAB** goes Chamfer → Fillet → Ogee → Ovolo → Chamfer, carrying the banked edges, the
+  drag and the size exactly as the right-click menu does. **TAB** stays each profile's own
+  switch: round or cove, turn round, ovolo or cavetto.
+- **A held TAB switches once.** Its repeats reach the NEW tool, which never saw the press and may
+  not know SHIFT is down. A module-level flag (`Na__HotSwap__TabDown`) swallows them until the
+  key-up, or 1.5 s after the last repeat if a key-up is lost.
+- **The four Extensions commands hand over too.** Deep Chamfer, Deep Fillet, Deep Ogee and Deep
+  Ovolo are the commands keys are bound to in Preferences > Shortcuts. Pressed while one of the
+  four runs (`Na__HotSwap__ActiveTool`, registered on activate and cleared on deactivate), the
+  command swaps the profile and keeps the edges; with none running it starts its tool as before.
+  So binding R to Deep Fillet gives a working R.
+- **The letters are gone**, along with the Enter-after-a-letter rule they needed. `x` and `r`
+  typed into the box are ordinary entries again. Deep Ovolo's own command, pressed while it runs
+  as a cavetto, still gives the ovolo back (it was V).
+
+### Deep Scale: Dimensions Flat in the Box's Planes
+- **Built in 3D, as a drawn SketchUp dimension is.** Each dimension runs along a box edge and
+  stands off along ANOTHER of the object's own axes, so its line, extension lines and arrows lie
+  in one face plane of the box and foreshorten with it. Until now the stand-off was at right
+  angles on the screen, tied to the camera.
+- **The convention, from the markup** (`Na__ScalePreview__DimensionPlan`, with "up" the
+  object's axis nearest the model's blue):
+  - **a level axis (X, Y):** along the bottom edge of the side facing the camera, standing off
+    level towards the camera, so it lies in the plane the object stands on;
+  - **the up axis (Z):** up the vertical edge at the left of the outline, standing off level
+    towards the camera along whichever side faces it most.
+- **Never pointing at the eye.** Looking square at a face (an elevation), the stand-off would aim
+  at the camera, so it turns: X drops below the bottom edge and Z goes out to the left, as on a
+  drawing. An axis seen end-on still gets no dimension.
+- **Always outside the outline.** If the stand-off would carry a dimension into the object on
+  screen, it moves to the opposite edge and stands off the other way.
+- **Still the set distance on screen.** The stand-off is measured with a short probe along it
+  and scaled to the Offset setting (12 / 24 / 40 / 64 px), so it reads the same at any zoom.
+  Each extension line follows its own end's direction (in perspective the two differ slightly),
+  and the arrows spread along the stand-off so they lie in the plane too.
+
+### Deep Scale: Loose Geometry
+- **Select loose edges and faces, or several objects, and start the tool**, or click loose
+  geometry to take it and everything connected to it (it is selected, as the native Scale tool
+  would). One group or component selected is that object, as before.
+- **Boxed in the axes you are drawing in** (`Na__ScaleFrame__ContextAxes`):
+  - inside an open group, its own red, green and blue however deep, through `Model#edit_transform`,
+    which is the whole stack in one matrix, moved, turned and scaled alike. This is the open
+    group's axis directions, the use the coordinate rule allows it;
+  - at the root, the model's drawing axes, so Tools > Axes is followed.
+  The points report world in the open context, so the box is taken through the inverse of those
+  axes: the geometry's own box, never the world box around it.
+- **Scaled where it lies:** one `transform_entities` with the field as a world transformation,
+  in the open context, which takes world (the documented case). Groups in a mixed selection take
+  the same transformation whole. One undo step. Refused if another group has been opened since.
+- **No stretch planes:** loose geometry has no definition to save them on. The switch, CTRL and
+  the centre lines stay out of it, and the line under the bar says why and points to Make Group.
+- **The frame** (`Na__ScaleFrame__BuildLoose`) carries `:loose`, `:entities` and `:context`.
+  `Na__ScaleFrame__Assemble` is the measured half that object and loose frames now share. A cheap
+  sampled fingerprint keeps it current through undo and redo, and it is let go when the
+  geometry goes or another group opens.
+
+### Verified Offline
+SketchUp 2026's Ruby 3.2 against the doubles:
+- **Syntax:** 104/104 plugin files compile.
+- **513 checks in nine suites, all passing.** The two new suites cover:
+  - **H, the edge tools' keys:**
+    - letters are left to SketchUp;
+    - SHIFT+TAB goes all the way round;
+    - a held TAB is swallowed across the swap and does not flip the fillet to a cove;
+    - plain TAB still works;
+    - not with CTRL;
+    - a command hands a bank over, keeps the profile already running, and starts its tool
+      when none runs.
+  - **I, dimensions and loose geometry:**
+    - **The markup's 3/4 view:** each edge and stand-off as marked; the extension lines run
+      along -Y on screen; the dimension line is parallel to its edge, 24 px off, zoomed in
+      and out.
+    - **Other views:** the elevation and plan turns; a box turned 50 degrees in all keeps to
+      its own axes.
+    - **Loose geometry at the root:** boxed, scaled in place, no planes, its own ghost.
+    - **Loose geometry three deep, every level moved AND rotated:** boxed in the open
+      group's axes; scaling X moves only X in those axes, with no shear.
+    - **Inside a scaled group:** world sizes count the scale.
+    - **Context changes:** another group opened lets it go, and a stale commit is refused.
+    - **Click and mixed selections:** a click takes the connected geometry and not its
+      neighbour; two groups scale together in one step.
+- The doubles gained `Vector3d#length=` (SketchUp has it), `transform_entities` under the
+  coordinate rule, `Face#edges` and `all_connected`.
+
+### Files
+- `31__System__DeepChamfer/..DrawnChamfer__HotSwap__.rb`: SHIFT+TAB, `Na__HotSwap__TabDown`,
+  `Na__HotSwap__ActiveTool` and `__ToProfile`, `na_hs__profile`, `na_hs__next_profile`,
+  `na_hs__same_profile`. The letters are gone.
+- `..DrawnChamferTool__.rb`: registers on activate, a plain Enter, and the hints. The Ogee,
+  Fillet and Ovolo tools have new hints, and their entry points hand over.
+- `35__System__DeepScale/..DrawnScale__Preview__.rb`:
+  - the 3D `DimensionLayout`;
+  - its helpers: `DimensionPlan`, `SightLine`, `FacingEnd`, `LowerEnd`, `LeftEnd`, `KeepOutside`,
+    `EdgeMiddle(World)`, `StandOff`, `Unit`;
+  - `DrawDimension` with per-end extension lines and flat arrows.
+- `..DrawnScale__Frame__.rb`: `Assemble`, `ContextAxes`, `BuildLoose`, `LooseWorldPoints`,
+  `LooseFingerprint`, `LooseName`, `CollectGhostLoose`.
+- `..DrawnScale__Commit__.rb`: `Na__ScaleCommit__ScaleLoose`.
+- `..DrawnScaleTool__.rb`:
+  - taking loose geometry: `na_scale__take_loose`, `na_scale__adopt`, `na_scale__planes_of`;
+  - keeping it current and picking it: `na_scale__refresh_loose`, `na_scale__loose_at`,
+    `na_scale__holds_loose?`;
+  - no planes for a loose frame, plus its hover, click and status text.
+- `..DrawnScale__Planes__.rb`, `..DrawnScale__Overlay__.rb`, `..DrawnScale__Keys__.rb`: loose
+  frames get no plane offer, a hint and a tip.
+- `.cursor/rules/00-InsertPrimatives-ProjectStructure-.mdc`: the 31 line.
+
+### Testing Notes
+- [ ] Deep Chamfer with three edges banked: SHIFT+TAB four times goes round the profiles with the
+      edges kept. Hold SHIFT+TAB down: it steps once.
+- [ ] Bind R to Deep Fillet in Preferences > Shortcuts. Mid-chamfer, press R: it swaps to the
+      fillet and keeps the drag.
+- [ ] Deep Scale on a box in a 3/4 view: X and Y lie flat on the ground in front and to the side,
+      and Z stands up the left edge with level extension lines, as in the markup. In a front
+      elevation, X sits below and Z to the left.
+- [ ] Select some loose faces at the root and start Deep Scale: the box is snug and the grips
+      scale it. Undo is one step.
+- [ ] Open a group that is moved, rotated and inside two more, select loose geometry in it, and
+      start Deep Scale: the box lines up with that group's axes. Type an X size: it grows along
+      the group's red only.
+- [ ] Click loose geometry with nothing selected: it and everything connected to it is taken and
+      selected.
+- [ ] Stretch Planes on, with loose geometry held: no centre lines, and the line under the bar
+      points to Make Group.
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP
+
+# =============================================================================
+
+## Version 5.2.8 - 28-Oct-2026 - Deep Vertex Move: Vertex Size, Squares Scaled on a Log Curve, Hidden Squares Hidden
+
+### Asked For
+*"The scaling needs to be more logarithmic see? too big far away too small close up"*, with two
+screenshots: a zoomed-out box with big squares, and a zoomed-in face with tiny ones. And *"Add a
+subsection under the tool under visibility mode to toggle small medium or large base verttex
+size then that size is scaled when zoomed"*.
+
+### Why 5.2.7 Hit Both Clamps
+The size was the base times the zoom ratio, a straight 1/zoom. Every doubling of the zoom
+halved or doubled the squares, so any real zoom range ran straight into 12 px one way and 4 px
+the other. Both screenshots show exactly that.
+
+### Now: a Base Size, Scaled Gently
+- **Vertex Size** in the tool's submenu, right under Visible Only: **Small 5 px, Medium 8 px
+  (default), Large 11 px**, remembered between sessions.
+- **The zoom scales that base on a log curve:** base × (1 + 0.12 × ln zoom), about 8% per
+  doubling. Zoomed in 4× on Medium is 6.7 px and zoomed out 4× is 9.3 px; 5.2.7 gave 4 and 12.
+  The direction is unchanged (smaller zoomed in, bigger zoomed out), and the size stays within
+  0.6–1.5× the base at any zoom.
+- The picks' orange squares follow the same size, never smaller than the red.
+
+### Squares Behind Faces, Hidden With Visible Only
+The screenshots show squares floating over the face: the box's back corners, drawn through the
+front face. **SketchUp draws a tool's points on top of the model**, so 5.2.4's "hidden behind a
+face" comment was wrong, and Visible Only filtered what a box takes but not what is drawn.
+- With Visible Only on, the squares are filtered by the same raytests: only vertices the camera
+  can see are offered. Off, every vertex is drawn, which is right: the box then sees through.
+- **SketchUp redraws on every frame of an orbit**, so the scope is not raytested per frame. The
+  last answer stands while the camera moves, and the scope is scanned again once it has been
+  still for 0.2 s. The scan also refills the box's and the click's cache.
+- Above 3,000 vertices in scope the squares are not filtered, to keep the view responsive.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, doubles with real affine maths)
+**104/104 files compile. 169 checks**, 47 of them on this release's ground:
+- Medium is 8 px at the reference zoom; 4× out and in give the log values, under 1.5× apart.
+- Clamped at 0.6× and 1.5× far beyond; Small 5, Large 11.
+- The menu steps Small, Medium, Large, with Vertex Size listed under Visible Only in every view.
+- With Visible Only, a front view draws the four front corners only. Moving the camera to the
+  right re-scans, and only the +X end is drawn. Off, all eight again.
+
+### Files
+- `37__System__DeepVertexMove/..DrawnVertexMoveTool__.rb`: the base sizes, the log curve, the
+  filtered and cached square points.
+- `37__System__DeepVertexMove/..DrawnVertexMove__Filters__.rb`: `na_vm__sight_for`, the scan,
+  and the settle timer; an option change clears every cached sighting.
+- `02__AppData/..ToolOptions__.rb`: `vertex_dot_size`.
+
+### Testing Notes
+- [ ] Reload Plugin Data. The submenu: Visible Only, then Vertex Size: Medium.
+- [ ] Zoom from far out to close in on the box: the squares change a little, not a lot.
+- [ ] Small and Large: the base changes, and the zoom still scales it gently.
+- [ ] Visible Only on: the squares over the front face (the back corners) are gone. Orbit: they
+      follow a moment after the camera stops.
+
+# =============================================================================
+
+## Version 5.2.7 - 28-Oct-2026 - Deep Vertex Move: Visible Only, a 2D Depth Limit, Muted Squares, Grab a Pick
+
+### Asked For
+After trying 5.2.4 (*"GREAT WORK!"*), with three screenshots, four changes:
+1. *"In the menu under the tool add a subsection button … a toggle for select visible only, when
+   on if the box selection selected verteces covered by faces (not visible to the camera) then
+   discard"*.
+2. *"Make unselected verteces red squares that scale with zooming (smaller when zoomed in) at the
+   current zoom level shown make them 2x bigger, make the red less garish … rgb(131, 10, 10)"*.
+3. *"Make a parrallell projection version like with push pull, but … set a depth of selection
+   from a first visible plane"*. The example: the vertices of a window reveal in a front
+   elevation, without the rest of the building beyond the wall. *"this mode should be
+   conterxtual and only appear as a option in the menu when in parrallell projhect 2d camera
+   views."*
+4. *"grab a single vertex and move and holding control inference other verteces (behaviour like
+   the push tool tool inference with control and control + shift)"*.
+
+### 1. Visible Only (the Tool's Submenu, Any View)
+- **A box or a click takes only what the camera can see.** One `Model#raytest` per vertex from
+  the eye (perspective), or from far in front along the view direction (parallel). A hit within
+  0.5 mm of the vertex is the vertex's own face. Hidden geometry and hidden tags do not block.
+- **Cached per camera and per scope walk**, so a box dragged over the same vertices raytests each
+  once. A box over more than 4,000 vertices counts without them while dragging and checks on
+  release (its label says so).
+- **Said out loud:** the status bar carries `VISIBLE ONLY`; a box reports *Added 2 vertices (2
+  hidden behind faces left out)*.
+
+### 2. The Unpicked Vertices Are Muted Red Squares
+- **rgb(131, 10, 10) filled squares**, the picks left out (they keep their orange square, drawn
+  on top and never smaller than the red).
+- **Size follows the zoom the way it was asked, the inverse of geometry:** 8 px when the scope's
+  box fills 40% of the view's diagonal, smaller as the view zooms in on it, bigger as it zooms
+  out, clamped to 4–12 px. The 5.2.4 dots were 4 px, so 8 px is the asked-for double at a
+  working zoom. Flipping the direction is one line (`na_vm__dot_px`) if it reads backwards.
+- Still drawn in the model (depth-tested), so squares behind faces stay hidden.
+
+### 3. Depth Limit and Depth Plane (Parallel Views Only)
+- **Listed only while the camera is in parallel projection:** the tool filters them out of its
+  own submenu otherwise (`Na__DrawnMode__ToolOptions`), and the limit only applies there.
+  Orbit into perspective and every box sees the whole depth again.
+- **Depth Limit** steps Off / 100 / 150 / 225 / 300 / 450 / 600 / 1000 mm. With a depth set, a
+  box keeps only the vertices within that depth behind:
+  - **the picked plane**, once **Depth Plane** has been clicked and then a face (the wall face
+    in the elevation). It is shaded in muted red while the limit is in force, so every box
+    measures from the same wall;
+  - otherwise **the box's first visible plane**: the front-most vertex it takes, so boxing a
+    reveal measures from the wall face round the opening.
+- Depth runs along the line of sight, away from the camera. A picked face that is not square to
+  the view is honoured as the slanted plane it is. Clicking Depth Plane again clears it; ESC
+  disarms a pending pick.
+- **Said out loud:** the status bar reads `DEPTH 300 mm from the first visible plane` (or the
+  picked plane). A box reports *… 2 deeper than 300 mm behind the first visible plane left out*,
+  and its label shows the depth while dragging.
+- It is the same tool in every view, not a second class as Push/Pull's 2D is. The 2D difference
+  is only which vertices a box may take, so the menu is where it lives.
+
+### 4. Take a Pick by Itself
+- **Press on a picked vertex and drag:** the picks move from THAT vertex, as the first point
+  of SketchUp's own Move. Hovering a pick rings it in amber and the status says so. The
+  gimbal still rides on the picks' centre.
+- **Snaps as Push/Pull's:**
+  - **plain:** on the grid, each axis rounded on the plane facing the camera;
+  - **CTRL:** that vertex lands exactly on the point the inference finds;
+  - **CTRL+SHIFT:** it lands there, then rounds.
+  ARROWS lock the axis through the vertex.
+- **Inference starts on the vertex itself:** an InputPoint picked ON it, so SketchUp offers its
+  edges' directions as well as the axes through it. Hover another vertex, then move along an
+  axis, and SketchUp's from-point alignment shows.
+- **Press-drag-release only.** A click on a pick is just a click: it never leaves the picks on
+  the mouse. In a 2D view it takes the vertex stacked behind.
+- **SHIFT alone still means remove;** CTRL+SHIFT on a pick holds it, as the snap.
+
+### Also
+- **Stacked vertices in 2D:** within a pixel, a click that adds prefers an unpicked vertex, a
+  SHIFT-click prefers a picked one, then the nearer the camera wins. Clicking the same spot
+  again takes the next vertex behind.
+- **Box and face messages** are written a beat later through the tool's notice. In 5.2.4 the
+  release pushed the composed status line straight over them, so they were never seen.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, doubles with real affine maths)
+**104/104 files compile. 159 checks:** the 122 of 5.2.4 (one updated: the manifest now holds six
+files) and 37 new, on the REAL tool:
+- **Visible Only:** in a front view the back corners hide behind the front face, a box takes 2 of
+  4, and the status says why. A `Model#raytest` double meets every face three deep.
+- **Menu:** all three options in 2D, Visible Only alone in perspective.
+- **Depth Limit:** 300 drops the back corners (500 deep), 600 keeps them.
+- **Depth Plane:** a picked plane 250 mm in front leaves the back (750) out at 600. The button
+  arms, picks, offers to clear and clears; ESC disarms; the limit is off in perspective.
+- **Squares:** picks left out, rgb(131, 10, 10), smaller zoomed in and bigger zoomed out,
+  clamped 4–12, one draw call.
+- **Grab:**
+  - hover offers it and the status says so; a click moves nothing;
+  - CTRL lands that vertex exactly on the inferred point, the other picks keeping their places;
+  - CTRL+SHIFT 52.3 becomes 50; SHIFT alone does not grab.
+
+### Files
+- **New** `37__System__DeepVertexMove/..DrawnVertexMove__Filters__.rb`: the raytest, the depth
+  maths, the filters as the tool uses them, the plane pick, and the submenu overrides.
+- `37__System__DeepVertexMove/..DrawnVertexMove__Select__.rb`: clicks prefer and honour the
+  filters, boxes filter and report, the box label, and notices instead of inline status.
+- `37__System__DeepVertexMove/..DrawnVertexMoveTool__.rb`: the squares, taking a pick, plane
+  arming, ESC, the depth in the status line, and the header and hints.
+- `02__AppData/..ToolOptions__.rb`: `vertex_visible_only`, `vertex_depth_limit`,
+  `vertex_depth_plane`.
+- `01__AppCore/..LoadManifest__.rb`: the Filters file.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Right-click while in the tool: **Visible Only** under Deep Vertex Move.
+      Switch it on, box the end of a box from a 3D view: only the corners you can see.
+- [ ] The red squares: muted, picks orange. Zoom in, they shrink; zoom out, they grow (4–12 px).
+      If that reads backwards, it is one line to flip.
+- [ ] A front elevation scene (parallel): right-click shows **Depth Limit** and **Depth Plane**;
+      a perspective view does not. Depth Limit 300, box a window reveal: the reveal comes, the
+      back wall does not.
+- [ ] Depth Plane, then click the wall face: it shades red; boxes now measure from it.
+- [ ] Pick one vertex, press on it and drag with CTRL onto another vertex: it lands there. Hover
+      another vertex, then move along an axis: SketchUp's dotted alignment line appears.
+- [ ] With a section plane active, try Visible Only: whether `Model#raytest` sees geometry the
+      section cuts away is untested, and it would hide vertices that are in view.
+
+# =============================================================================
+
+## Version 5.2.6 - 27-Oct-2026 - Deep Scale: Crash Hardening, Planes That Say How to Add Them, SHIFT+TAB Not Letters
+
+### Asked For
+*"You cant use hotkeys like p or d as it just calls other tools"*, *"the planes keep crashing
+models look for bugs"* and *"Its not clear how to create planes or how to add more"*.
+
+### What the Crash Dumps Say
+Read from the BugSplat minidumps in `%LOCALAPPDATA%\Temp`. There are no symbols, so frames were
+named from the Qt and ntdll export tables:
+- **The four crashes from 17:10 to 17:36 are one bug.** SketchUp repaints a window (an expose
+  event, through its application-wide event filter) and touches an object already freed: a
+  lock in freed memory. The write to `0x24` is a critical section's missing debug info; the
+  17:10 one is a garbage lock pointer.
+- **In three of the four the repaint ran inside SketchUp's own right-click menu loop**
+  (`QMenu::exec`) with Ruby running inside it. That happens when the popup's timer opens the
+  HtmlDialog, or when a dialog callback runs.
+- **The same signature is in a dump from 23 Oct**, before Deep Scale existed: the right-click
+  popup path is shared, and stretch geometry alone is not the trigger.
+- The logs end with two Ruby operations back to back before two of them, and the sessions ran
+  SketchUp's validity check.
+- None of this proves the trigger without symbols or a live repro. So every risky pattern on
+  the path is fixed below.
+
+### Fixed — the Right-Click Popup (Every Tool's)
+- **Never torn down and rebuilt in one pass.** Right-click with the popup already open for the
+  same tool: that window is brought forward (and to the click, At Cursor). Open for another
+  tool: closed now, its replacement built 0.15 s later. Until now every right-click closed the
+  open popup's browser window and built a new one in the same pass, inside SketchUp's menu
+  loop.
+- **A popup action closes the window on the timer**, not from inside that window's own
+  callback.
+
+### Fixed — the Stretch
+- **Every definition is edited from inside its own context.** The object was entered (the
+  0.4.19 rule), but the parts a plane runs through were still edited from outside, from the
+  object's context. That is the edit the DeepPick hub calls unsupported: the change lands and
+  the display cache does not. Now the stretch walks down one context at a time: the object,
+  each part a plane crosses, then the parts inside those. Parts with no plane through them are
+  carried from their parent's open context. There is no `edit_transform` in the maths and
+  nothing is edited from outside. The `transformation = transformation` and
+  `invalidate_bounds` refresh tricks are gone.
+- **Still one undo step**, with no next_transparent ever left waiting. Every edit starts
+  transparent and next_transparent, and the user's context is always restored last, so the
+  last pull lands on that restore. If a shared object will not open after being made unique,
+  its step is closed off with an empty transparent edit.
+- **Never closed all the way.** A shrink could close the gap at a plane to exactly nothing, so
+  details either side landed on each other: zero-length edges and faces folded flat, the
+  geometry SketchUp's validity check repairs. Now 1 mm always survives (`NA_SCALE_MIN_GAP`):
+  - the drag stops there;
+  - a typed size past it is refused;
+  - the commit measures the real geometry before touching anything
+    (`Na__ScaleCommit__CheckRoom`), for objects too big for the ghost to have seen every point.
+- **No impossible numbers.** A field holding NaN, infinity or a factor of zero or less is
+  refused before the model is touched. A move vector that is not finite aborts the edit.
+- **Nothing drawn far off-screen.** Deep Scale's own `draw2d` and `draw_text` calls skip points
+  that project to NaN or beyond 100,000 px, which is what a point a hair in front of the eye
+  does.
+- **A context that will not open stops the stretch and says so.** Before, it fell back to the
+  outside edit.
+
+### Keys: SHIFT+TAB, Not Letters
+- **Why the letters never worked:** SketchUp handles its own shortcuts before the tool's
+  `onKeyDown`, and returning true does not stop them. So P ran Push/Pull and D the Dimension
+  tool. Deep Chamfer's C R O G V (5.1.22) have the same problem: C Circle, R Rectangle,
+  O Orbit, G Make Component.
+- **TAB** is About Centre, as before. **SHIFT+TAB** switches Stretch Planes, the plugin's
+  second-switch key (Drawn Volume's Subtraction, 5.1.24): once per press, mid-drag too, and the
+  drag re-solves. **ARROWS** pick one axis. **CTRL** offers a plane (below).
+- Every switch is still a command under Extensions > Na__InsertPrimitives > Deep Scale Options,
+  for Preferences > Shortcuts. Bind P to Stretch Planes there to have P.
+- `x1.5` is a factor again.
+
+### Adding Planes: Every Click Adds
+- **A click on a centre line adds a plane.** Until now a click without CTRL REPLACED the
+  axis's planes, which read as "one plane at a time".
+- **Hold CTRL anywhere over the object** (or within 40 px of its outline), with Stretch Planes
+  on or off. A plane follows the cursor along the axis whose centre line is nearest, or the
+  axis an ARROW names. Click to add it; if Stretch Planes was off it switches on. SHIFT adds a
+  mirrored pair, as on the line. Mid-drag, CTRL is still the point snap.
+- **A line of help under the handle bar**, for the state the planes are in:
+  - none yet: click a dashed centre line, or hold CTRL;
+  - some: how many, how to add another, drag a diamond to move one, DEL or a double-click
+    removes one, Clear Stretch Planes removes them all;
+  - CTRL held: which axis, an ARROW for another, SHIFT for a pair;
+  - Planes off on an object that has planes: SHIFT+TAB switches them on.
+- The offer's label reads *click to add a plane here* or *click to add plane 3 on X*, and the
+  status line and key hints say the same. Switching Stretch Planes on says how to add one.
+- Centre lines are 2 px dashed (4 px solid under the cursor) and catch the cursor 9 px off
+  (was 6).
+
+### Verified Offline
+SketchUp 2026's Ruby 3.2 against the doubles:
+- **Syntax:** 103/103 plugin files compile.
+- **444 checks in seven suites, all passing.** The new and changed checks cover:
+  - **The stretch, against an independent oracle:** every point lands where the oracle puts
+    it, at the root, three deep (moved and rotated, from the root and with outer groups open),
+    in a scaled parent, on a scaled instance, with a shared definition and with a shared
+    nested panel.
+  - **How it edits:** every vertex move and part carry is made inside an open context, and
+    each crossed part is entered for its own edit. The user's context is restored last, it
+    stays one undo step, and no next_transparent is left open.
+  - **The shrink floor:** shrinking to where a panel end meets a plane line is refused with
+    nothing touched (the floor is 702 mm with the margin; it was 700). The drag floor stops
+    1 mm short of closing.
+  - **Contexts that will not open:** reported, with nothing edited from outside. When the
+    object was shared, the make_unique step is closed off.
+  - **Keys:**
+    - SHIFT+TAB switches on and off, once per press, mid-drag too;
+    - TAB is still About Centre;
+    - letters are left to SketchUp, a typed `p` is not a switch, and `x1.25` is a factor.
+  - **Adding planes:**
+    - a second click on a line adds a plane;
+    - CTRL with Planes off offers a plane, draws only the offer, adds it and switches Planes on;
+    - an ARROW names CTRL's axis;
+    - CTRL far off the object offers nothing, and just off the outline it does;
+    - mid-drag, CTRL stays the point snap.
+  - **Hints and guards:** the hint text for each state; the screen guards (far off and NaN);
+    and a NaN field refused.
+  - **The popup:**
+    - the same tool gets the same window brought forward, and At Cursor moves it;
+    - another tool's popup is closed now and the new one built on a later tick;
+    - an action closes the window on the timer.
+
+### Files
+- `35__System__DeepScale/..DrawnScale__Commit__.rb`:
+  - the walk: `Na__ScaleCommit__Stretch`, `__StretchContext`, `__Enter`, `__Restore`,
+    `__ClosePending`, `__Result`;
+  - the room check: `__CheckRoom`, `__CollectCoords`;
+  - `ApplyField` and `ApplyToPart` are gone, and `CarryPartPlanes` no longer reads an open
+    definition's box.
+- `..DrawnScale__Field__.rb`: `NA_SCALE_MIN_GAP`, `StretchMinDelta(..., keep)`,
+  `Na__ScaleField__Finite?`.
+- `..DrawnScale__Keys__.rb`: letters out, SHIFT+TAB in, `na_scale__switch_caption`.
+- `..DrawnScale__Planes__.rb`: every click adds; `na_scale__ctrl_axis` and
+  `na_scale__ctrl_offer?` (the CTRL offer works with Planes off); `na_scale__draw_plane_hint`
+  and `na_scale__plane_hint_lines`.
+- `..DrawnScale__Preview__.rb`: `Na__ScalePreview__Sane?`, `Na__ScalePreview__DrawWorldLabel`,
+  the guards, the heavier centre line.
+- `..DrawnScale__Overlay__.rb`: tips without letters.
+- `..DrawnScaleTool__.rb`: CTRL in hover and press (`na_scale__begin_ctrl_plane`), the hint, the
+  status and key hints, the activation lines, no letter Enter.
+- `40__UserInterface/..RightClickPopup__.rb`: `ShowPrimitiveMenu` reuses an open popup;
+  `BuildMenu`, `MoveToClick` and `NA_POPUP_REBUILD_DELAY_S` are new; `RunAction` closes on the
+  timer.
+- `..\Na__InsertPrimatives__Loader__.rb`: Deep Scale Options status texts without letters
+  (they show after a restart).
+- `.cursor/rules/00-InsertPrimatives-ProjectStructure-.mdc`: the 35 line.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Right-click in Deep Scale three times with the popup left open: no new
+      window each time (anchored, it stays put; At Cursor, it follows).
+- [ ] Toggle Stretch Planes from the popup, then pick Deep Push Pull from it: the popup closes and
+      the tool switches.
+- [ ] A door with nested rails and a glass group, planes through the panels: stretch it wider,
+      orbit, undo, redo, orbit. The rails stretch and redraw at once, one Ctrl+Z takes it all
+      back, and Fix Problems finds nothing.
+- [ ] The same door copied: stretch one copy; the other is untouched.
+- [ ] Shrink as far as the drag allows: it stops 1 mm before details meet. Type a smaller size:
+      refused, with the floor in the message.
+- [ ] SHIFT+TAB switches Stretch Planes; P and D do what SketchUp's own P and D do.
+- [ ] Planes on: click a centre line twice and get two planes. Hold CTRL over the door with
+      Planes off: a plane follows the cursor; click, and Planes switches on with the plane kept.
+- [ ] The help line under the bar changes with each step above.
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP
+
+# =============================================================================
+
+## Version 5.2.5 - 27-Oct-2026 - Pipework: Pipe Along a Selection or Draw It, Bends to a Radius; Building Parts
+
+### Asked For
+*"Change 'Roof' to Building parts and move staircase after roof, rename Draw to Draw Primitives.
+In building parts create a new pipework tool that takes a users selection and creates a pip to
+a specified diameter and bend radius ... 80,110,24s ... if no edges selected then instead use
+the pipework tool drawing ... AIM TO BUILD THE ULTIMATE PIPEWORK TOOL FOR SKETCHUP"*
+
+### The Menu
+- **Draw → Draw Primitives:** Drawn Plane, Drawn Volume, Drawn Cylinder.
+- **Roof → Building Parts:** Pitched Roof, Hipped Roof, Staircase, **Pipework** (new).
+- The Extensions submenu follows: Staircase and Pipework now sit after the roofs (in place on the
+  next restart; a reload appends Pipework at the end, as every new entry does).
+
+### Pipework — Three Ways In
+Decided by what is selected when the tool starts:
+
+| Selected | Mode | What happens |
+|---|---|---|
+| edges | **Route** | every run through them is shown as pipe at once. Click or Enter builds; typing a spec builds at that spec |
+| pipes this tool built | **Resize** | type a spec: they are rebuilt from the route each keeps. A click draws a new run instead |
+| nothing usable | **Draw** | click the start and every turn, as the Line tool, with the pipe on the cursor |
+
+### The Spec — 80,110,24s
+- **Diameter, CENTRELINE bend radius, sides.** Positional, any slot empty: `,150`, `,,32s`.
+- **Named:** `80d` / `d80`, `110r` / `r110`, `24s`. Relative: `+20`, `r+20`, `+8s`. Units: `2.4m`, `60cm`.
+- **0r = mitred elbows.**
+- **Sides are the plugin's Circle Sides**, so `24s` and the popup's Circle Sides button are one
+  setting (shared with Drawn Cylinder). Cycling it in the popup re-solves the preview at once.
+- **Remembered** between sessions.
+- **Refused with the fix named, never clamped:**
+  - a bend no wider than the pipe: *type 80,0 for mitred elbows, or a bend radius over 40*;
+  - a pipe too thin for its sides: *try 31s*.
+- **Typed straight after building, it resizes what was just built** (one undo step, *Adjust Pipe*).
+
+### Drawing a Run
+- **Cursor:** SketchUp's inference from the last point, then the grid.
+  - **ARROWS** lock the leg to red / green / blue (released by the click);
+  - **SHIFT** holds the leg's direction while held;
+  - **CTRL** snaps to vertices exactly; **CTRL+SHIFT** rounds the vertex onto the grid;
+  - a locked leg snaps its LENGTH to the grid, so a run started off-grid stays square.
+- **Typed while drawing:** `1200` sets the leg the way the cursor points, `[x,y,z]` places a
+  point, `<dx,dy,dz>` an offset (drawing axes, mm). A spec mid-run changes the pipe and keeps the
+  run.
+- **Finish:** Enter, a double click, or a click on the last point. **A click on the first point
+  closes a loop.** Press-drag-release places a leg too. BKSP takes back a point, ESC drops the
+  run.
+- **A run that will not build** (one that doubles back) is refused with the point named and
+  KEPT, so BKSP can fix it.
+
+### Along a Selection
+- **The selected edges are a graph.** Runs go end to end, or end to junction:
+  - a tee becomes three capped pipes meeting at its centre;
+  - a ring of edges is a closed loop: no caps, no seam;
+  - a loop hanging off a junction is built closed.
+- **Arcs are already bends:** a vertex inside an arc or circle (and a straight's tangent joint
+  into one) is mitred softly, never filleted again. A welded polyline's real corners still bend
+  (over 30°).
+- **One undo step for the whole selection.**
+- **A run that cannot be piped** is drawn red, refused, and the rest are still built.
+- **The new pipes are left selected**, so the tool starts straight into Resize on them.
+
+### The Geometry
+- **Bends are true torus slices.** A bend of radius R starts R·tan(θ/2) back along each leg.
+  - **Legs too short for two bends share the room:** both shrink by the same factor (*bend at
+    point 3 tightened to R75 to fit its legs*).
+  - **One that would end up no wider than the pipe is mitred instead** (said too).
+  - **Tightened and mitred corners are labelled on the preview** in the pinned orange.
+- **Mitres** are cut on the bisector plane, so the ring lies on both cylinders exactly.
+- **No twist:** each ring is carried through a bend by the same rotation that turns the pipe (a
+  rotation-minimising frame). The first ring puts a flat facet up, down and to each side, so a
+  pipe sits flush on a floor or a wall.
+- **A loop that leaves its plane comes back turned.** The seam is re-indexed by whole facets and
+  the remaining fraction (under half a facet) is spread evenly round the loop.
+- **One mesh per pipe** (`fill_from_mesh`), each edge's softness decided, not guessed:
+  - **soft:** the long edges of a round pipe (6 sides and up), bend rings, arc rings;
+  - **hard:** cap outlines, real mitre seams, a 3- to 5-sided duct's long edges;
+  - every side quad is flat by construction; a twisted loop's few non-flat ones split on a soft
+    diagonal.
+- **One group per run, `01__DrawnPipe__80mm`.** Each keeps its route, curve flags, spec, caps and
+  up in its own coordinates (`Na__InsertPrimatives__Pipe` attributes). That is what makes
+  **resize-any-time** work with no coordinate conversion. A copied pipe is made unique before
+  it is resized; a renamed group keeps its name.
+
+### Popup Options (under Pipework)
+- **End Caps** (default On): Off builds open tubes, for ends hidden in walls. A resize keeps each
+  pipe's own caps.
+- **Erase Path** (default Off): after piping a selection, erase its loose route edges. **An edge
+  bounding a face is never erased**, and the status line says how many were kept.
+
+### Coordinates
+World throughout, as the Coordinate Rule asks of a tool that reads the selection and writes into
+the active context:
+- selected vertices, InputPoints and pick rays are all world;
+- each new group is pinned to the world identity before the mesh goes in;
+- a resize works in the group's own coordinates, where its stored route lives.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2; the 2027 Ruby 3.4 DLL will not boot outside SketchUp)
+- **Syntax:** 103/103 files compile. **API lint:** every SketchUp call (58) is in the official
+  method index.
+- **154 checks on the real code**, doubles that reproduce the coordinate rule:
+  - the spec grammar and its refusals;
+  - the solver:
+    - straight, L, a U tightened to R75, a U mitred, R0 mitres on both cylinders;
+    - a closed square, a twisted 3D loop closed without a jump;
+    - reversal, collinear and duplicate points, a drawn arc, an arc tighter than the pipe,
+      vertical runs;
+  - the mesh: counts, outward faces, soft and hard edges, caps, ducts, soft diagonals;
+  - the route reader: L, tee, loop, loop with a tail, a line running into an arc;
+  - **edges three groups deep, every level moved and rotated, one non-uniformly scaled:**
+    - the pipe lands on the world route at a true 80 diameter;
+    - it is resized in place;
+    - after the outer group moves, it is resized where it now is;
+  - draw mode: grid, the bend forming on the cursor, typed length, RIGHT lock, typed offset, a
+    mid-run spec, BKSP, Enter, resize after, closing a loop, double click, the reversal kept,
+    ESC, press-drag-release, SHIFT direction;
+  - route options: Erase Path sparing a face edge, End Caps off, a refused run beside a good
+    one, one undo step;
+  - the popup: the submenu, and the Draw Primitives / Building Parts order.
+- **Three deliberate faults are each caught:**
+  - no world pin (5 checks fail);
+  - no loop-twist fix (2 fail);
+  - inverted edge softness (4 fail).
+- Drawn Plane's 29 checks still pass.
+
+### Files
+- **New** `23__System__DrawnPipework/`:
+  - `..DrawnPipe__Spec__.rb`: spec, grammar, validation;
+  - `..DrawnPipe__Route__.rb`: selection to runs;
+  - `..DrawnPipe__Solver__.rb`: `DrawnPipeSolver`, pure maths;
+  - `..DrawnPipe__Build__.rb`: mesh, groups, stored route;
+  - `..DrawnPipe__Preview__.rb`;
+  - `..DrawnPipe__Draw__.rb`: `DrawnPipeDraw`, the draw mode;
+  - `..DrawnPipeTool__.rb`: `DrawnPipeTool`, and `Na__InsertPrimatives__DrawPipe`.
+- `01__AppCore/..LoadManifest__.rb`, `..Main__.rb` (header), `..ModeSwitch__.rb` (activate,
+  `Na__DrawnMode__SetPipeMode`).
+- `02__AppData/..ToolOptions__.rb`: End Caps, Erase Path.
+- `40__UserInterface/..RightClickPopup__.rb` (`setPipeMode`) and `..Html__.rb` (headings,
+  button).
+- `../Na__InsertPrimatives__Loader__.rb`: the Pipework command and menu order.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Right-click: Draw Primitives, Building Parts (Pitched Roof, Hipped
+      Roof, Staircase, Pipework), Modify, Edge Treatments.
+- [ ] Draw an L of lines, select it, Pipework: the pipe shows at once. Type `80,110,24s`: built.
+      Type `100,150`: the same pipe resizes.
+- [ ] Select a rectangle's four edges: one closed loop, no caps, no seam.
+- [ ] A tee of three lines: three pipes meeting at its centre.
+- [ ] An arc between two lines: the arc stays the arc; only the real corners bend.
+- [ ] Nothing selected: click, click, UP for a riser, click, type `1200`, Enter. Then click the
+      first point of a new run to close a loop.
+- [ ] A U with a short middle leg: the bends tighten and are labelled; status says so.
+- [ ] Select an old pipe, start Pipework, type `60`: it resizes where it stands, even after
+      moving its group.
+- [ ] Erase Path on: loose route edges go, an edge on a face stays. End Caps off: open tubes.
+- [ ] Inside a group that is moved, rotated and nested, and inside a scaled one: the pipe sits
+      on the lines at the typed diameter.
+
+# =============================================================================
+
+## Version 5.2.4 - 27-Oct-2026 - Deep Vertex Move: Box-Pick Vertices at Any Depth, Move Them With a Gimbal
+
+### Asked For
+*"a new tool for selecting and manipulating deeply nested verteces and moving / stretching
+them"*: a selection of groups, components or loose geometry tells the tool *"ONLY EFFECT THE
+VERTECES IN THESE ITEMS"*, then a box selector (drag adds, SHIFT removes), a gimbal *"in the
+stle of the one from my pointcloud tool"* dragged to move the picks, the default 5 mm snap,
+and *"the same control + snap and control + shift snap behaviour from the push pull tool"*.
+
+### Using It
+- **Select, then start it.** Extensions > Na__InsertPrimitives > **Deep Vertex Move**
+  (`NA_DeepVertexMove`, shortcut assignable), or **Deep Vertex Move** under Modify in the
+  right-click menu. The selection is the **scope**: every vertex inside it at any depth is a
+  candidate (small grey dots), and nothing outside it can be picked, so nothing outside it moves.
+- **Nothing selected?** The tool picks the scope first: click a group, component or loose face
+  (SHIFT removes), box to add what lies wholly inside, then **ENTER** or a **double-click**.
+- **Picking vertices:** drag a **box** to add, **SHIFT+box** to remove, **click** a vertex to add
+  it, **SHIFT+click** to remove it, **double-click a face** to add its corners. The box sees
+  through the model, as SketchUp's does: box the end of a box in a side view and the hidden
+  corners come too, which is what a stretch wants. Picks are orange squares drawn on top.
+- **The gimbal** is the point cloud Move gimbal (90 px arrows, amber when hot, white centre,
+  dashed guide while dragging), in the middle of the picks' box. **Drag an arrow** to move
+  along it; **drag the centre square** to move freely on the frame plane that faces you.
+  Release, or click again, to place. The edges round the picks stretch in orange as you drag.
+- **The scope follows the selection:** click another group in the Outliner while the tool runs
+  and that is the scope; picks still inside it are kept.
+
+### Snapping — Push/Pull's Three Modes
+| Held | Arrow drag | Centre-square drag |
+|---|---|---|
+| nothing | travel along the arrow rounded to the grid step | offset rounded along each axis |
+| CTRL | travel read off the vertex the inference finds, exact | the gimbal lands exactly on the vertex |
+| CTRL+SHIFT | that vertex's travel, then rounded (orange mark shows the correction) | the same, each axis rounded |
+
+The step is the popup's **Snap Grid** (5 mm unless changed). The TRAVEL is rounded, as Push/Pull
+rounds its distance, so picks that start on the grid end on it. The picks' centre is what lines
+up with the vertex: one vertex lands on it, a picked face end lines up with it along the arrow.
+
+### Keys and Typing
+- **ARROWS** lock a running move to an axis (Right red, Left green, Up blue, Down lets go),
+  without a jump. **TAB** swaps the gimbal between the drawing axes and the axes of the
+  innermost group the picks share, so a rotated window stretches along its own width.
+- **BKSP** takes the last pick back; **ESC** cancels a move, then clears the picks (BKSP brings
+  them back), then leaves.
+- **Measurements box:** while dragging, `300` is 300 the way the mouse went and `+50` / `-25`
+  adjust the live distance; `X,Y,Z` is a signed offset along the gimbal's axes (an empty slot
+  keeps the drag's). **Straight after a move** a typed value corrects it, as Push/Pull's
+  retype: `1200` makes it 1200, `-1200` turns it round, `X,Y,Z` replaces it. With picks but no
+  move yet, `X,Y,Z` moves them by that offset.
+
+### Why It Lands Right at Any Depth
+Every point in the tool is world. The scope walk turns each local vertex into world once, the
+product of the transformations down its path; the drag and the preview never leave world. The
+commit groups the picks by the collection that owns them and opens each through
+`Na__DeepPick__ExecuteInContext` (the route every deep edit here takes since the 5.0 stale-display
+saga): inside the open context positions read global and the vector is taken as global, so the
+move IS the world offset. Where SketchUp will not open a context, it is edited from outside with
+the offset brought into the definition's space through the inverse of its world transformation.
+Through a scaled instance that local vector comes out shorter or longer by the scale, which is
+what lands the vertex the right world distance away.
+
+The picks are found again **inside** the opened context **by world position**, never trusted by
+object: opening a group can hand back a fresh definition (a copy made unique), and the objects
+picked a moment ago would then belong to the copies left behind. The move itself is
+`Na__SlopePush__MoveVertices`, already measuring a witness vertex and correcting once.
+
+### Faces That Would Bend Are Folded First
+A face is flat or it is not a face. Before the move, every face whose corners would no longer lie
+in one plane is split along its own triangulation (`Face#mesh`), the fold lines soft and smooth,
+so it stays whole and still reads as one surface. A stretch never bends anything: lift one box
+corner straight up and only the top folds (the walls under it stay in their planes); pull it out
+on the diagonal and all three faces round it fold.
+
+### Undo
+One step per group opened, which for picks inside one group, the usual case, is one. Picks spread
+over several groups are one step each (ExecuteInContext chains the open, the edit and the close
+into each step). An undo while the tool runs walks the scope again and the picks follow.
+
+### Verified Live (SketchUp 2027.0.267, a blank model)
+- A box three groups deep, every level moved and rotated (15°, 20°, 30° about blue): its four end
+  corners moved 300 mm along world X from the model root with `transform_by_vectors` and the local
+  vector the commit computes. Error **0.000 mm** on every corner, no face lost.
+- The tool itself was not driven in SketchUp: the SketchUp window used was closed during the
+  session, and the one opened afterwards had your project in it, so it was left alone.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, doubles with real affine maths)
+SketchUp 2027's Ruby 3.4 will not boot outside SketchUp (`ruby_setup` returns 6), so the 2026
+interpreter ran the checks. **103/103 files compile. 122 checks**, the REAL modules and the REAL
+tool class driven by mouse, key and measurements-box events:
+- the scope walk three deep (rotated about blue and red), a scaled group, a loose face, a locked
+  group skipped, hidden objects left out and shown with Hidden Objects on;
+- the commit both ways, opened context and outside edit: the end of the three-deep box moves 300 mm
+  along world X to 1e-6 mm, the far end does not move, the user is back where they stood; a world
+  move through a ×2 group; inside an open group; a loose vertex;
+- folding: one corner straight up folds the top only, on the diagonal folds all three, every face
+  left flat, folds soft and smooth;
+- the box takes the four end corners (front and back) and the gimbal sits in their middle; the red
+  arrow rounds 127 mm to 125; CTRL lands on the vertex exactly (1600.3); CTRL+SHIFT rounds 102.3
+  to 100 with the mark 2.3 mm off; the centre square rounds each axis and never moves toward the
+  camera; UP locks it to blue mid-drag;
+- typed 300 mid-drag, then 500 (not 800) and -200 as retypes in one undo step; `0,0,50`; `20`
+  keeping the direction; an undo while running carries the picks back;
+- ESC, BKSP, SHIFT+click, SHIFT+box; TAB onto a rotated group three deep and `100,0,0` along its
+  own red axis; the scope picker (click, box, ENTER), double-click a face, the scope following
+  the selection; every draw state;
+- the hotkey entry, the mode switch, the popup button (highlighted while running) and its callback,
+  the manifest.
+
+### Files
+- **New** `37__System__DeepVertexMove/`:
+  - `..DrawnVertexMove__Scope__.rb`: the scope walk, the find-it-again index, the gimbal frame and
+    centre;
+  - `..DrawnVertexMove__Gimbal__.rb`: the gimbal on screen, hit tests, axis and plane ray maths,
+    drawing;
+  - `..DrawnVertexMove__Commit__.rb`: the batched move through ExecuteInContext, stale-context
+    re-walk, folding;
+  - `..DrawnVertexMove__Select__.rb`: box, click, double-click, the pick history, the scope picker,
+    the screen cache;
+  - `..DrawnVertexMoveTool__.rb`: the tool.
+- `01__AppCore/..LoadManifest__.rb`, `..Main__.rb` (folder map), `..ModeSwitch__.rb`
+  (`Na__ModeSwitch__ActivateDrawnVertexMoveTool`, `Na__DrawnMode__SetVertexMoveMode`).
+- `40__UserInterface/..RightClickPopup__Html__.rb` and `..RightClickPopup__.rb`: the button and
+  `setVertexMoveMode`.
+- `Na__InsertPrimatives__Loader__.rb`: the `NA_DeepVertexMove` command and its menu entry.
+- `.cursor/rules/00-InsertPrimatives-ProjectStructure-.mdc`: the folder's line.
+
+### Testing Notes
+- [ ] Reload Plugin Data (or restart). Select a group holding a box, start Deep Vertex Move: grey
+      dots on its corners, the status bar reads `Scope 1 item, 8 vertices`.
+- [ ] Box the end of the box in a side view: four orange squares, the gimbal in their middle.
+      Drag red out: the box stretches in 5 mm steps. Release: one Ctrl+Z undoes it.
+- [ ] CTRL and point at another object's corner: the end lands exactly level with it.
+      CTRL+SHIFT: rounded, the orange square beside the inference dot.
+- [ ] The same in a box inside a group that is moved AND rotated, nested three deep, and in a
+      scaled group: the move goes where the arrow points, the far end stays put.
+- [ ] TAB with picks inside a rotated group: the arrows turn to the group's axes; drag red and
+      the box stretches along its own length.
+- [ ] Pick one top corner and drag blue: the top folds (Hidden Geometry shows the fold), the
+      walls stay flat.
+- [ ] Type 300 mid-drag; then 500 after placing; then -200. One Ctrl+Z takes the move back.
+- [ ] Picks spread over two separate groups: both move; that is one Ctrl+Z per group.
+- [ ] Start with nothing selected: click a group, ENTER, and its vertices are offered.
+- [ ] A copied group (Move + CTRL): move vertices in one copy and check whether the other copy
+      follows. Opening a group for editing normally makes it unique; whether
+      `Model#active_path=` does the same is untested.
+- [ ] Watch for the grey dots flickering on faces (they are drawn in the model, depth-tested).
+
+# =============================================================================
+
+## Version 5.2.3 - 27-Oct-2026 - Deep Scale: the Dimensions Mirror What Is Typed; Stretch Planes Kept Clean
+
+### Asked For
+*"The text isnt reactive make it so these mirror the vcb text to make it feel more
+interactive"*, with a screenshot of a clicked width dimension reading `[1000 mm]` while a size
+was typed. And *"Are the stretch planes stored in an object dictionary? how are they stored for
+each object? how are they cleaned if orphaned or nested?"*
+
+### The Dimension Mirrors the Measurements Box
+SketchUp hands a tool what was typed only on Enter. So Deep Scale keeps its own copy, a key at
+a time, from the same key events that feed the box: digits, `. , + - * /`, a unit or an `x`
+after a number, and BKSP.
+- **The dimension being typed into shows it as it grows:** `[12|]`, `[1200|]`, `[1.2m|]`,
+  `[+50|]`, in the orange of a typed value.
+- **Positional entries fill each dimension:** `1000,,24` puts `[1000]` on X and `[24|]` on Z,
+  with the caret on the one still being typed. During a drag the entry goes to the grip's axes.
+  A plane being typed shows `X plane  [320|] from the low end`.
+- **As soon as the text reads as a size, the preview shows it:** the amber box, the ghost, the
+  live dimensions, and a label such as `X 1200 mm (+200)` · `Enter applies it, ESC cancels`.
+  It outranks a drag in hand, because it is what Enter will apply. Half-typed text (`12c`,
+  `1.`) is shown in the dimension without a preview.
+- **It is a mirror only.** The value applied is still the box's own text, handed over by
+  SketchUp with the Enter, so a misread key can make the mirror wrong for a moment, never the
+  model. Enter, ESC and a click all end it.
+- **The box is no longer written while typing:** a mouse move that changed the live value used
+  to be able to replace the text being typed.
+- **ESC while typing clears only the typing;** the dimension stays clicked. A second ESC lets
+  go of it.
+
+### Where the Stretch Planes Live
+- **On the definition, not the instance.** Dictionary `Na__InsertPrimatives__StretchPlanes`,
+  keys `Na__StretchPlanes__XMm`, `YMm` and `ZMm`, each a sorted list of positions in the
+  definition's own axes, in mm.
+- **Why the definition:** the planes describe its geometry, in its own axes. So every copy of a
+  component shares where it may stretch, a native Scale of one copy does not move them, and
+  they travel with the component into another model or the library. Undo takes them back.
+- **Per object:** a group normally has a definition of its own, so its planes are its own.
+  Copies of a component share theirs. A stretch of a shared object makes it unique and copies
+  the planes across; the other copies keep theirs.
+- **Orphans (new):** a plane left outside the object, its geometry edited away with another
+  tool or squeezed out by a stretch, is ignored when read and dropped at the next write (any
+  plane placed, moved or removed, and every stretch). An object with no planes has no
+  dictionary at all. A definition nothing uses any more keeps its planes until Purge Unused
+  removes it, planes and all; nothing else refers to them.
+- **Nested (new):** a part's planes are its own, on its own definition. A part carried whole by
+  a parent's stretch keeps them, since its axes moved with it. A part a parent's plane runs
+  through is opened and stretched, and its planes now move with its geometry
+  (`Na__ScaleCommit__CarryPartPlanes`), along every part axis that lines up with the parent's.
+  A plane square to a part turned at an angle would be sheared by the stretch; those are left
+  where they were. A shared part made unique gets a copy of its planes.
+
+### Verified Offline
+SketchUp 2026's Ruby 3.2 against the doubles, as in 5.2.0:
+- **Syntax:** 94/94 plugin files compile.
+- **387 checks in six suites, all passing,** the new 43 covering:
+  - the echo, key by key, with BKSP, SHIFT+= and a unit;
+  - the mirror on the clicked dimension, on positional entries and over a drag, and on a plane;
+  - the live preview and its status line, and no preview for half-typed text;
+  - no writes to the box while typing, and the value back after ESC;
+  - ESC twice, and a click abandoning an entry;
+  - orphans ignored on read and pruned on write;
+  - a nested panel's planes carried by its parent's stretch, a plane on an unstretched axis
+    left alone, and a turned part's planes kept.
+
+### Files
+- `35__System__DeepScale/..DrawnScale__Keys__.rb`: the echo (`na_scale__echo_key`,
+  `na_scale__key_char`, `na_scale__typing?`); every entry ends it.
+- `..DrawnScaleTool__.rb`: `na_scale__typed_field` (one reading for the Enter and the mirror),
+  `na_scale__typed_state`, `na_scale__draw_change` (drag and typing share it),
+  `na_scale__change_lines`, `na_scale__typing_detail`, the box left alone while typing, ESC.
+- `..DrawnScale__Overlay__.rb`, `..DrawnScale__Preview__.rb`: typed text in the dimensions, the
+  `:typing` pill.
+- `..DrawnScale__Planes__.rb`: the typed plane label; plane writes prune orphans.
+- `..DrawnScale__Field__.rb`: `Na__ScalePlanes__Prune`; the storage rules in the header.
+- `..DrawnScale__Commit__.rb`: `Na__ScaleCommit__CarryPartPlanes`.
+
+### Testing Notes
+- [ ] Click the width and type 1200: the dimension reads `[1200|]` and the amber preview
+      follows every key. Enter applies it; ESC clears only the typing.
+- [ ] Nothing clicked, type `1000,,2400`: the X and Z dimensions each show their part.
+- [ ] Mid-drag, type 1500: the preview jumps to 1500; Enter places it.
+- [ ] Just after placing a plane, type 320: the plane's label mirrors it.
+- [ ] A part with its own planes inside a door; stretch the door through the part: the part's
+      planes move with it (check in Deep Scale on the part, double-clicked).
+- [ ] Narrow a door with Push/Pull until a plane is outside it, then place another plane: the
+      orphan has gone from the dictionary (Window > Attribute Inspector, or the planes drawn).
+
+# =============================================================================
+
+## Version 5.2.2 - 27-Oct-2026 - Deep Project: a Target Through the Face Cuts and Extends
+
+### Asked For
+*"It fails if even the slightest of parts touches, change this so it cuts and extends to make it
+more forgiving"*, with screenshots of 5.2.1 refusing: a box's side face, a sloped plane catching
+one corner, and the red card *that target crosses the face*.
+
+### Cut and Extend
+- **A target plane that passes through the face is no longer refused.** Each corner runs along
+  the travel to the plane: out when the plane is in front of it, back when it is behind. The face
+  lands flat on the target, so the end of a box is trimmed and extended to a slope in one click.
+  A plane that only just catches a corner is the same case, which is the one that bit.
+- **It is built by sliding, never by pushpull.** pushpull goes one way only, and a cut and extend
+  goes both. So it takes:
+  - **STRETCH**, where the faces round this one hold the travel (a box along its normal, or along
+    one of its own edges or axes): they lengthen on one side and shorten on the other;
+  - **FOLLOW** (SHIFT+ALT), where every corner keeps to its own edge.
+- **Where neither applies it is refused before the click, with the way out:** *the faces round it
+  do not run along the travel — SHIFT+ALT cuts and extends each corner along its own edge
+  instead*. The commit refuses the same way as a backstop (`NA_PROJECT_MIXED_REFUSAL`, one string
+  for both).
+- **The corners going back are held to the solid**, as a pure cut back already was: a corner may
+  not run past the far end of the edge behind it. Only those corners are asked.
+- **QUADS** stretches the same way and re-stitches the start loop. Where the face cut back, the
+  loop ends up in mid-air and sweeps itself off, so the quad line is kept only where the face went
+  out.
+
+### What It Shows
+- The landed face in orange. Its outline and every rung are drawn on top in screen space, because
+  half of it is inside the solid: orange rungs where a corner goes out, cutter red where one goes
+  back.
+- Cut-back corners carry a minus: `−120` beside `394`.
+- The card and status line read *Cut and extend — cut back 120, extend 394 mm*, and the undo step
+  is *Deep Project (Cut and Extend)*.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2, doubles with real affine maths)
+- **Syntax:** 90/90 files compile.
+- **181 checks** (geometry 59, build routes 42, tool events 80), adding:
+  - a plane through a 4 m wall top, and one catching a corner by 0.2 mm at 1°: both land flat;
+  - a box side face three deep, every level moved and rotated, through a 40° plane: STRETCH,
+    corners out AND back, every face of the box still flat;
+  - the tilted box on world blue: refused in the preview, and by the commit's backstop, with
+    nothing moved;
+  - FOLLOW through a frustum: every corner on its own edge, every face flat;
+  - a thin slab whose back corners would leave its underside: refused before the click;
+  - the real tool clicked through it: the card, the status, the on-top draw, the placement.
+- One 5.2.1 check was updated. Its "kilometres away" plane had been refused only because it
+  crossed the face. It now lands 420 m away, under the 2000 m limit, so the limit is tested with a
+  plane 3 km up instead.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Your screenshot: the box's side face, the sloped plane through its
+      corner. Orange out, red back, the card says *Cut and extend*. Click: the side lies on the
+      slope, and top and bottom stay flat. One Ctrl+Z.
+- [ ] The same with the edge lock along the box's long edge.
+- [ ] A slanted direction the faces round it do not hold (UP on a tilted box): the red card
+      names SHIFT+ALT. SHIFT+ALT: it builds.
+- [ ] QUADS on: the quad line survives only where the face went out.
+
+### Files
+- `36__System__DeepProject/`:
+  - `..Geometry__.rb`: `Land` no longer refuses `:mixed`; `Na__Project__CutExtendText`;
+    `NA_PROJECT_MIXED_REFUSAL`.
+  - `..Commit__.rb`: `:mixed` routes to STRETCH or the backstop refusal; the run-back room is
+    asked of the corners going back only; the undo name.
+  - `..DrawnProjectTool__.rb`: `na_pj__solve` (the preview refusal); `na_pj__stretchable?` and
+    `na_pj__local_direction`; reaches for `:mixed`; the status text.
+  - `..Preview__.rb`: `na_pj__draw_cut_and_extend`, `na_pj__draw_on_top`, the minus label, the
+    card.
+
+# =============================================================================
+
+## Version 5.2.1 - 27-Oct-2026 - Deep Project: Carry Any Face On to a Plane, a Point or an Object
+
+### Asked For
+*"add a new tool for projecting a deeply nested face until it hits a target object / plan
+selected"*: take the face the way Deep Push/Pull does, pick the target face or object, preview it
+in the established style, use the push tool's projection types and hotkeys, and *"select a deep
+nested edge and set a direction (a toggle to flip direction once the edge is selected)"*.
+*"AIM: Create the ultimate projection tool."*
+
+### Two Clicks, No Distance
+- **Click a face at any depth** (or preselect several), **then click what it should reach.** The
+  result is previewed live before the second click, in Deep Push/Pull's colours: orange where the
+  face grows, red through the model where it cuts back, magenta for QUADS. Every rung carries its
+  own figure, because on a tilted target every corner travels its own distance.
+- **A face** is its PLANE. Each corner runs on to it by itself, so the end face lands IN the plane:
+  wall tops take the roof pitch.
+- **CTRL** makes the target a POINT, through SketchUp's own inference: the face stops level with
+  it. **CTRL+SHIFT** rounds that height onto the grid, as the push tool rounds a vertex-snapped
+  travel.
+- **SHIFT+TAB** is OBJECT mode (also *Object Target* in the right-click submenu): the group or
+  component under the cursor. The face travels rigidly and stops at FIRST CONTACT: a corner on a
+  triangle, a vertex of the object reaching the face, or edge against edge (two squares turned 45°
+  touch nowhere near a corner of either). A selected group outranks the one under the cursor; an
+  object that holds the face is refused, in red, with the reason across it.
+
+### Directions: the Push Tool's, Plus an Edge
+| Key | The face travels |
+|---|---|
+| nothing | along its normal |
+| SHIFT (held) | along the neighbouring face's slope (`Na__SlopePush__Best`) |
+| SHIFT+ALT (held) | FOLLOW: every corner along its own edge (`Na__FollowPush__*`) |
+| RIGHT / LEFT / UP | along red / green / blue; the same arrow releases; edge-on is refused with a beep |
+| click an edge, or DOWN over one | parallel to that edge, at any depth (Move's magenta lock) |
+| DOWN again, or over nothing | the direction flips |
+
+A locked edge or axis outranks the held keys, stays locked from one projection to the next, and
+BKSP releases it. TAB is QUADS, the push tool's own setting.
+
+### One Number per Corner
+- Every corner travels along a motion `m` scaled so `m · n = 1`: its whole journey is one height,
+  `V + h·m`. To a plane, `h = (P0 − V)·np / (m·np)`.
+- Dividing by the dot makes `m` sense-free. A plane is reached whichever side of the face it lies
+  on, so the flip only decides which way an OBJECT is looked for. Left on auto, outward is tried
+  first, then back through the face.
+
+### Refused Before the Click, With the Reason
+- A plane that crosses the face (part would go out, part back in).
+- A travel that runs along the plane, or one that would go kilometres.
+- A FOLLOW corner past the end of its edge; a cut back past the far end of the solid.
+- Nothing of the object that way (*DOWN looks the other way*); an offset bigger than the gap.
+
+### The Measurements Box Is an Offset
+- `25` stops 25 short (square to a plane; along the travel for an object), `-25` runs 25 past, `0`
+  clears. It stays set, named in the status line, until BKSP.
+- **After placing,** typing re-makes the projection at the new offset (undo, rebuild, ghost
+  replay) through `DrawnReviseShared`.
+- **A double-click on a face** carries it to the LAST target, so a run of wall tops goes up to one
+  roof plane at one double-click each.
+
+### How It Builds (Inside the Face's Own Context, One Ctrl+Z)
+- **FOLLOW:** the corners slide along their rails.
+- **STRETCH:** every face round it already contains the travel, so the corners slide and nothing
+  new is made.
+- **PUSH:** pushpull goes part of the way, and the pushed face is found again by its interior
+  point. The start ring is re-stitched, so a wall pushpull welded into its neighbour cannot be
+  bent. Every corner is then placed on the target, and coplanar seams are healed unless QUADS.
+- **LOOP CUT:** QUADS on and the target inside the solid: a ring is drawn where the target crosses
+  it.
+- Every corner is measured after the move; one off by 0.1 mm rolls the operation back.
+
+### Coordinates
+- The geometry is world. The commit reads the face again after its context opens and converts at
+  the edges of one function: the identity when entered, the pick's transformation when not.
+- Normals come from the world outline (Newell), turned to agree with the pick's, so a corner lands
+  true in a non-uniformly scaled group too.
+
+### Verified Offline (SketchUp 2026's Ruby 3.2 through ctypes, doubles with real affine maths)
+- **Syntax:** 90/90 files compile. SketchUp 2027's Ruby 3.4 DLL does not start outside SketchUp.
+- **Geometry, 53 checks:** a roof pitch, a plane below, crossing / parallel / own-plane refusals,
+  ±25 offsets whichever way the plane normal points, a point and its grid rounding, an edge
+  direction and its flip, follow rails and their reach, and object contact by corner, by vertex and
+  edge to edge, auto and forced sense, and a slanted travel through the shadow filter.
+- **Build routes, 27 checks:**
+  - a box three deep with every level moved AND rotated;
+  - a sheared prism carried along its own side edge;
+  - non-uniform (2, 3, 0.5) scale, and uniform 2× three deep with a 50 offset;
+  - an open (entered) context;
+  - follow on a frustum;
+  - an inward cut, and one past the floor refused;
+  - PUSH through a tilted box on world blue;
+  - the loop cut ring.
+- **The real tool through its events, 73 checks:** hover, grab, plane / point / object targets,
+  edge lock and flip, arrows, SHIFT+TAB, TAB, offsets, BKSP order, placing, retype 50 and 0,
+  double-click repeat, three preselected piers in one operation, the eleven-face question, ESC.
+- **Not covered offline:** real `pushpull`, entering contexts with `active_path=`, and SketchUp's
+  undo. The Testing Notes below cover them.
+
+### Testing Notes
+- [ ] Reload Plugin Data. *Deep Project* is under Modify in the right-click menu, with *Object
+      Target: Off* beneath it, and in Extensions > Na__InsertPrimitives.
+- [ ] A wall box in a group moved and rotated, three deep, and a roof in another group. Click the
+      wall top, hover the roof's underside: the top lands on it, every corner with its own
+      figure. Click. One Ctrl+Z undoes it and leaves you in the context you were in.
+- [ ] The same in a scaled group, and in one scaled unevenly.
+- [ ] Type `25`: re-made 25 short. `-25`: 25 past. `0`: back on the roof.
+- [ ] Double-click another wall top: it goes up to the same roof.
+- [ ] Preselect four wall tops, start the tool, click the roof: all four, one Ctrl+Z.
+- [ ] CTRL over a vertex: the face stops level with it. CTRL+SHIFT: the height is rounded.
+- [ ] Hover a rafter edge: it lights magenta. Click it: the wall top runs up the rafter's slant to
+      the roof. DOWN flips it.
+- [ ] SHIFT+TAB, hover a slab group above a column: the column top stops at first contact. The
+      slab is outlined blue with its name; the column's own group, red.
+- [ ] Arrow UP on a tilted box top (a PUSH): the new walls are parallelograms, with no bent faces
+      and no stray edges.
+- [ ] TAB (QUADS), project a box top down into itself: a ring at the target, nothing moves.
+- [ ] A plane under a box's floor: a red card, *past the far end of the solid*, before any click.
+
+### Files
+- **New** `36__System__DeepProject/`:
+  - `..DrawnProject__Geometry__.rb`: motions, planes, solve, object scan and contact;
+  - `..Target__.rb`: targets, edge lock, keys;
+  - `..Commit__.rb`: contexts and routes;
+  - `..Revise__.rb`: offset retype, last-target repeat, ghost;
+  - `..Preview__.rb`;
+  - `..DrawnProjectTool__.rb`.
+- `01__AppCore`: the LoadManifest entries, ModeSwitch (`Na__ModeSwitch__ActivateDrawnProjectTool`,
+  `Na__DrawnMode__SetProjectMode`) and the Main folder map.
+- `02__AppData/..ToolOptions__.rb`: `:drawn_project => project_hit_object`.
+- `40__UserInterface`: the *Deep Project* button and its `setProjectMode` callback.
+- Root `Na__InsertPrimatives__Loader__.rb`: the `NA_DeepProject` command and the `project` menu
+  entry.
+- `.cursor/rules`: the 36 folder line and `na_pj__*`.
+- Numbered 36 because Deep Scale (5.2.0, built alongside) took 35.
+
+# =============================================================================
+
+## Version 5.2.0 - 27-Oct-2026 - Deep Scale: Grips, Dimensions You Type Into, Control Handles and Stretch Planes
+
+### Asked For
+*"Add a scale tool to our primatives tool"* that shows dimensions you can click and type into,
+controls which scale grips show, and has Stretch Planes, *"which stretch an object between cut
+planes instead of scaling everything in it"*. Planes are dropped on a centre line and dragged
+into place, snapping to points, edges and faces; *"User presses control to add and set a
+additional stretch plane, mulitple may be inserted"*. Live preview, one Undo step, planes saved
+with the object, a right-click setting for dimension size and offset, and *"USE OUR ESTABLISHED
+PREVIEW SYSTEM"*. Four reference screenshots of a scale extension came with it: a window with
+grips and three dimensions, a row of grip buttons, and a door with red stretch planes.
+
+### Taking an Object
+- **Select a group or component and start the tool**, or start it and click one. Hovering
+  offers it in the blue target box. Locked objects are skipped, as everywhere in the plugin.
+- **Double-click inside it** to take the part under the cursor (a sash, a panel) without
+  opening anything. **BKSP** comes back out a level. That is the "Deep" in the name.
+- Menu: Extensions > Na__InsertPrimitives > **Deep Scale** (`NA_DeepScale`, shortcut
+  assignable), and **Deep Scale** under Modify in the right-click menu.
+
+### Grips
+- SketchUp's 26: 6 face grips (one axis), 12 edge grips (two), 8 corners (three).
+- **Drag to scale; release, or click again, to place.** Enter places a held drag.
+- **Sizes snap to the grid, not the travel:** a door 1049 wide drags to 1050, 1055, 1060.
+- **CTRL** snaps the grip to a point the inference finds, unrounded.
+- **SHIFT** frees a corner, or makes a face or edge grip uniform. **TAB** scales about the
+  centre (both ends move). Both re-solve mid-drag.
+- A grip on the far side is hollow and loses every tie to the near side.
+- **In an elevation** an axis is seen end-on, and every grip that pulls it sits on top of one
+  that does not. Those are thinned out: a front view shows the 8 outline grips only, and its
+  corners pull X and Z and are uniform, like a corner.
+
+### Control Handles
+- **The bar at the top left of the view:** All, Faces, Corners, X, Y, Z. One click; it is the
+  Handles option of the right-click menu, so it is remembered between sessions.
+- **The arrows pick one axis for a moment** (Right X, Left Y, Up Z, Down lets go) without
+  changing what is remembered, and aim typing at that axis: RIGHT, 1200, Enter.
+- The bar also carries **Planes**, **Centre** and **Dims**, green when on. It stands at a fixed
+  place, for the reason the popup is anchored: a control that moves cannot be learned.
+
+### Hotkeys
+> **Superseded in 5.2.6:** the letters never worked. SketchUp runs its own shortcut (P Push/Pull,
+> D Dimension...) before a tool sees the key. Stretch Planes is SHIFT+TAB now; see 5.2.6.
+
+Asked for mid-build: *"You didnt add any hotkey handling"*, with the Shortcuts list showing
+Deep Scale on its own. Two ways in, one dispatcher (`na_scale__hotkey`), so they can never
+disagree with the bar or the popup:
+- **Letters typed on their own while scaling**, the Deep Chamfer way (5.1.22): **A** all,
+  **F** faces, **C** corners, **X / Y / Z** one axis (stored, like the bar), **P** Stretch
+  Planes, **D** Dimensions. Taken on the key and swallowed, so SketchUp's own shortcut on the
+  letter (C circle, P push/pull, Z zoom) does not run as well. Not mid-entry (`120cm`, `1.5x`),
+  not with CTRL, SHIFT or ALT down, once per press. Letter + Enter in the box works too, and
+  the Enter habit adds straight after a letter does not place a held drag.
+- **Commands for Preferences > Shortcuts:** Extensions > Na__InsertPrimitives > **Deep Scale
+  Options** > Handles All / Faces / Corners / X Only / Y Only / Z Only, Next Handle Set,
+  Stretch Planes, About Centre, Dimensions, Clear Stretch Planes. Ticked when in force.
+  Pressed with Deep Scale not running, a command starts it first.
+- `x1.5` is no longer a factor spelling, since X on its own is now a key: `1.5x` and `*1.5` are.
+
+### Dimensions You Type Into
+- The size on three edges, in the axis colours, outside the outline. The edge used is the one
+  furthest out on screen (below, or to the left, in a near tie). A label that would reach back
+  over the object is pushed out until it clears.
+- **Click one and type:** `1200` sets it, `+50` / `-25` change it, `1.5x` scales it. It
+  resizes at once. The clicked one is orange in brackets. Click it again, or ESC, to let go.
+- With nothing clicked the box takes **X,Y,Z** in order: `1200,,2400` leaves Y alone.
+- Straight after a drag, typing corrects what was placed, holding the end the drag held.
+
+### Stretch Planes
+- **Planes on:** each axis gets a dashed centre line. Press on it to drop a cut plane and drag
+  it into place. It snaps to a point, to an edge or face square across the axis, or else to the
+  grid, measured from the low end. The label reads both distances: `X plane 296 | 754 mm`.
+- **CTRL adds a plane** to the ones the axis has; a plain press starts the axis again.
+  **SHIFT drops a mirrored pair** about the middle. Drag a diamond to move a plane (SHIFT moves
+  its mirror too); **DEL** or a **double-click** removes it; right after placing one, a typed
+  distance from the low end sets it exactly.
+- **Saved on the definition** in `Na__InsertPrimatives__StretchPlanes`, local mm per axis, so
+  every copy shares them, a reopened file keeps them, and Ctrl+Z takes one back.
+
+| Planes on the axis | What a grip does |
+|---|---|
+| none | scales: the object's own transformation changes, as SketchUp's Scale does |
+| one | the object comes apart at the plane; both ends keep their size |
+| several | each plane opens by an equal share; whatever lies between two planes moves whole |
+
+- So a plane through each panel of a door widens the panels and leaves the stiles, the muntin
+  and the rails' ends exactly as they were. A third plane is a third place to stretch, never a
+  plane that does nothing.
+- **A point ON a plane goes with the outer side**, so planes snapped to the inner faces of the
+  stiles leave both stiles whole.
+- **A stretch cannot turn inside out:** a drag stops where the nearest points either side of
+  a plane would meet, and a typed size past that is refused with the size that fits.
+- A nested group or component with no plane through it is carried whole; one a plane runs
+  through is opened and stretched the same way, all the way down.
+- **One object changes, not every copy:** a shared definition, or a shared part a plane runs
+  through, is made unique first and its planes copied across. Parts carried whole stay shared.
+
+### The Preview (the established system)
+Nothing in the model changes until release. Everything is drawn through the DrawnPreview
+palette and helpers, in screen space like the subtract cutter, because the ghost of a stretch
+lies mostly inside the object until it is placed:
+- the object's own box in the target blue, faded and dashed once a drag starts;
+- the new box in the preview amber, filled thin on top (`DrawFilledBoxOnTop`);
+- **every edge of the object as an amber ghost**, mapped through the same field the commit
+  uses (up to 6,000 points; past that the amber box stands in);
+- the planes riding to where the stretch takes them;
+- live dimensions in amber, and a label at the grip: `X 2074 mm (+1025)`, `X stretches at 2
+  planes, +512 each`.
+
+### Right-Click Settings
+Under Deep Scale: **Handles** (All, Faces (XYZ), Corners, X / Y / Z only), **Stretch Planes**,
+**About Centre**, **Dimensions**, **Dimension Size** (Small, Medium, Large, Extra Large),
+**Dimension Offset** (12, 24, 40, 64 px) and **Clear Stretch Planes**. To carry them,
+`ToolOptions` gained two kinds beside the toggle: `:cycle` (steps through `:values`, stays
+white, like Snap Grid) and `:action` (does something, stores nothing). Toggles behave exactly
+as before. The generic `Na__DrawnMode__ToggleToolOption` now answers `:enabled` from
+`Na__ToolOptions__Enabled?`, because a cycle answers Toggle with its value.
+
+### The Coordinate Rule
+- The frame's world transform is the first instance below the open context (world) times each
+  one below it (local to its parent). A path that no longer hangs off the open context is
+  refused, never drawn somewhere plausible.
+- **The stretch enters the object's own context** (`Na__DeepPick__ExecuteInContext`, the 0.4.19
+  lesson). Inside, its geometry reports global, so each point goes to the object's axes through
+  `edit_transform.inverse`, moves there, and comes back. Nested parts are closed and local; the
+  walk carries each one's transform down. `transform_by_vectors` and `transform!` are handed
+  vectors and transforms in the space each collection reports.
+- **A plain scale** is `transform!` from the context the object lives in, where its transform
+  reads as world; if that context cannot be opened, the change goes into the parent's space.
+- **One undo step:** the stretch runs transparent inside the context entry, as the push does. A
+  `make_unique` has to run before the context opens, so it runs first with `next_transparent`
+  and pulls the rest into its step.
+
+### Read Against the Brief
+- The pasted brief gives *Ctrl / Option for symmetric pairs*; the request's own line gives
+  Ctrl to add another plane. The request's line wins: **CTRL adds**, and the mirrored pair
+  moved to **SHIFT** (ALT is brittle in this plugin, 5.1.24).
+- During a grip drag CTRL is the plugin's point snap, so About Centre is **TAB** and the bar's
+  Centre button, not CTRL as in SketchUp's own Scale.
+
+### Verified Offline
+SketchUp 2026's bundled Ruby 3.2, through ctypes, against doubles that reproduce the coordinate
+rule (an open collection reports and takes global, a closed one local):
+- **Syntax:** 90/90 plugin files compile.
+- **344 checks in five suites, all passing:**
+  - options, field and frame (96): toggle / cycle / action, every slice, the tie rule, the
+    anchors, the limits, typed entries, grips under a rotated, non-uniformly scaled
+    transform, and the world transform three deep from the root and with groups open;
+  - commits (95): an independent oracle checks that every vertex at every depth lands at
+    world × field(local). At the root; three deep with every level moved AND rotated (from the
+    root, with the outer group open, two deep open, about the centre, shrinking); in a scaled
+    parent; on a non-uniformly scaled instance; a shared definition; a shared nested part; a
+    context that refuses to open; and plain scales. Each is one undo step under SketchUp's
+    merge rules;
+  - the tool in a front elevation (88) and in perspective (20): hover, grips, dimensions,
+    typing, the bar, arrows, TAB, SHIFT, CTRL, planes (place, CTRL add, mirror, drag, ESC,
+    DEL, double-click), a stretch drag with its ghost, the limit, popup options, double-click
+    inside and BKSP out, ESC all the way out;
+  - hotkeys (45): every letter, the cases where a letter must not switch (mid-entry, CTRL,
+    SHIFT, ALT), a held key, letter + Enter, the Enter after a letter, the dispatcher with and
+    without Deep Scale running, and the loader run against menu doubles (the Options submenu
+    right after Deep Scale, eleven commands, ticks, no duplicates on a second load).
+- SketchUp 2027's Ruby 3.4 DLL would not start offline, but SketchUp 2027 itself (Ruby 3.4.9)
+  loaded the tool at startup and ran it.
+
+### Status: IMPLEMENTED — NOT YET VERIFIED IN SKETCHUP
+Not seen by any offline check: real text metrics, real undo counting, and whether nested parts
+stretched from inside the open object redraw at once (the 0.4.19 risk). If one does not, the
+follow-up is opening each one's context, the way the subtract batches do.
+
+### Files
+- **New** `35__System__DeepScale/`:
+  - `..DrawnScale__Frame__.rb`: the object's box, grips, world transform, the ghost walk.
+  - `..DrawnScale__Field__.rb`: the field, plane storage and snapping, typed sizes.
+  - `..DrawnScale__Commit__.rb`: scale and stretch commits, plane saves.
+  - `..DrawnScale__Preview__.rb`: stateless screen-space drawing.
+  - `..DrawnScale__Planes__.rb` (`DrawnScalePlanes`): placing, moving, removing planes.
+  - `..DrawnScale__Overlay__.rb` (`DrawnScaleOverlay`): the handle bar, the dimensions.
+  - `..DrawnScale__Keys__.rb` (`DrawnScaleKeys`): the letters, the commands' dispatcher.
+  - `..DrawnScaleTool__.rb` (`DrawnScaleTool`): the tool and `Na__InsertPrimatives__DeepScale`.
+- `02__AppData/..ToolOptions__.rb`: `:cycle` and `:action`, `Value` / `SetValue`, the seven
+  Deep Scale options.
+- `01__AppCore/..ModeSwitch__.rb`: `Na__ModeSwitch__ActivateDrawnScaleTool`,
+  `Na__DrawnMode__SetScaleMode`, the `:enabled` answer.
+- `01__AppCore/..LoadManifest__.rb`, `..Main__.rb`: the seven files, the folder map.
+- `40__UserInterface/..RightClickPopup__.rb`, `..Html__.rb`: `setScaleMode`, the button.
+- `Na__InsertPrimatives__Loader__.rb`: `NA_DeepScale` and the `scale` menu entry; the Deep
+  Scale Options submenu (`NA_DeepScale_*`, eleven commands) through
+  `Na__InsertPrimatives__NestedSubmenu`, `..RunScaleHotkey` and `..ScaleHotkeyState`.
+- `.cursor/rules`: the 35 folder line and `na_scale__*`.
+
+### Testing Notes
+- [ ] Reload Plugin Data, select a door, start Deep Scale: blue box, grips, three dimensions,
+      the bar at the top left.
+- [ ] Drag the right face grip: amber box and ghost follow; release; one Ctrl+Z undoes it.
+- [ ] Click the width dimension, type 1200, Enter: it resizes at once. Then `+50`, `1.5x`.
+- [ ] Bar X: two grips. LEFT for a moment, DOWN lets go. Restart: X is remembered.
+- [ ] Letters while scaling: X, Y, Z, A, F, C, P, D. Then C with a value half-typed (`12`):
+      it goes into the box. Ctrl+C still copies; Alt+F still opens File.
+- [ ] Preferences > Shortcuts, filter `scale`: the eleven Deep Scale Options commands; give
+      Stretch Planes a key and press it in the Select tool: Deep Scale starts with planes on.
+- [ ] Planes on: click the X centre line through the left panels, CTRL+click through the right
+      ones, drag the right grip out: panels widen, stiles keep their size. Reopen the file:
+      the planes are still there.
+- [ ] SHIFT+click: a mirrored pair. Drag a diamond; DEL; double-click a diamond.
+- [ ] A part inside the door that a plane runs through: does it redraw at once?
+- [ ] A copy of a shared window component: stretch one, the others keep their size.
+- [ ] Right-click: Dimension Size and Offset step and the dimensions follow; Clear Stretch Planes.
+- [ ] A front view: only the 8 outline grips; the depth grips are gone.
+- [ ] Coordinate rule: a box in a group moved and rotated, nested three deep, plus a scaled
+      group. Scale and stretch at each level, from the root and with the outer group open.
+
+# =============================================================================
+
+## Version 5.1.25 - 27-Oct-2026 - Drawn Plane: Face and Transparent, Switched Mid-Drag; Edge Treatments
+
+### Asked For
+*"Upgrade draw plane so it functions more like the volume. 1. Add the transparent material
+option 2. Add the ability to toggle on / off the face so edges only plane 3. Ensure its
+forgiving i.e. you can change your mind and change options in the menu whilst your drawing"*,
+then *"Put these in their own category called Edge Treatments"* (Chamfer, Fillet, Ogee, Ovolo).
+
+### Two Options Under Drawn Plane
+The popup now hangs a submenu off Drawn Plane, as it does off Drawn Volume:
+
+| Option | Default | What it does |
+|---|---|---|
+| **Face** | On | Off builds the four edges only, no face |
+| **Transparent** | Off | Paints the new group container MAT011__ModelingUtility__Transparent |
+
+- **Face is the old Plane Faces setting**, not a second copy: same registry key
+  (`DrawnPlaneFacesEnabled`), so a stored "faces off" carries over and the click-to-place
+  Plane follows the same switch. `Na__DrawnSettings__PlaneFacesEnabled?` now reads it through
+  ToolOptions, so there is one cache and the two buttons can never disagree.
+- **The general "Plane Faces" button steps aside while Drawn Plane runs**, because the
+  submenu carries the same switch. Every other tool still shows it.
+- **Transparent works exactly as the volume's:** the material goes into the create call, so
+  the paint and the plane are one Ctrl+Z. On an edges-only plane it is still painted, so a face
+  added later inherits the tint.
+- **The status line names the unusual state**, `| EDGES ONLY` and `| TRANSPARENT`, rather
+  than `FACE` on every line.
+
+### Changing Your Mind Mid-Drag
+Click a corner, right-click, switch either option, carry on:
+- **The drag is kept:** anchor, size and pinned dimensions.
+- **The preview shows what will be built:** Face off draws the outline only; Transparent
+  thins the fill to a see-through blue. The summary card adds *Edges only* / *Transparent*.
+- **The status line says so:** *Face: Off — the plane on the cursor follows, click to place it*.
+- **The click reads the options as they stand at that moment.**
+
+A plane already placed keeps its own face and paint. A size typed straight after drawing now
+rebuilds with the face the plane was BUILT with; before, it re-read the setting, so switching
+Face off for the next plane stripped the face off the last one when its size was corrected.
+
+### Edge Treatments
+Deep Chamfer, Deep Fillet, Deep Ogee and Deep Ovolo / Cavetto move from Modify to a new
+**Edge Treatments** heading. Modify keeps Deep Push / Pull, Deep Project and Deep Scale.
+
+### Verified Offline (SketchUp 2026's bundled Ruby 3.2; the 2027 Ruby 3.4 DLL will not boot outside SketchUp)
+- **Syntax:** 90/90 files compile.
+- **29 checks** on the real DrawnPlaneTool, ToolOptions, DrawnSettings and popup builder
+  (geometry calls recorded, not built): the option table; the old button and the submenu
+  writing one setting; a stored faces-off honoured; Face and Transparent switched mid-drag
+  keeping the drag and changing the preview, card and status line; the commit building edges
+  only and painted; a typed correction keeping the face; the next plane taking the new
+  options; the submenu, the general button standing aside, and the Edge Treatments order.
+
+### Files
+- `02__AppData/..ToolOptions__.rb`: the `:drawn_plane` options.
+- `02__AppData/..DrawnSettings__.rb`: Plane Faces reads and writes through ToolOptions.
+- `04__GeometryHelpers/..DrawnGeometry__.rb`: `Na__DrawnGeom__CreatePlane` takes a container material.
+- `05__PreviewGraphics/..DrawnPreviewGraphics__.rb`: `NA_DRAWN_PLANE_GLASS_FILL`; an optional
+  note line on `Na__DrawnPreview__SummarisePlane`.
+- `20__System__DrawnPrimitives/..DrawnPlaneTool__.rb`: header, hints, the options region,
+  the `Na__DrawnMode__ToggleToolOption` override, preview, commit, revise, console report.
+- `40__UserInterface/..RightClickPopup__Html__.rb`: the Plane Faces button stands aside; the
+  Edge Treatments heading.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Drawn Plane, right-click: Face: On and Transparent: Off sit under it,
+      and the bottom Plane Faces button is gone (it is back under any other tool).
+- [ ] Click one corner, right-click, Face: Off, back to the model: the rectangle is an outline
+      on the cursor. Click: the plane is four edges, no face.
+- [ ] Same with Transparent: the fill thins; the plane is painted MAT011 (Entity Info shows it
+      on the group). One Ctrl+Z removes plane and paint together.
+- [ ] Draw a plane, switch Face off, type `900,450`: the plane resizes and keeps its face.
+- [ ] Click-to-place Plane: its bottom Plane Faces button follows what Drawn Plane set.
+- [ ] Menu headings: Modify (Push / Pull, Project, Scale), then Edge Treatments.
+
+# =============================================================================
+
 ## Version 5.1.24 - 22-Oct-2026 - Drawn Volume: SHIFT+TAB Switches Subtraction, Not ALT+SHIFT
 
 ### Asked For

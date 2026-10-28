@@ -18,7 +18,7 @@ module TT
   # Plugin information
   PLUGIN_ID       = 'TT_Lib2'.freeze
   PLUGIN_NAME     = 'TT_Lib²'.freeze
-  PLUGIN_VERSION  = '2.15.1'.freeze
+  PLUGIN_VERSION  = '2.16.0'.freeze
 
 
   ### EXTENSION ### ------------------------------------------------------------
@@ -35,7 +35,7 @@ module TT
     ex = SketchupExtension.new( PLUGIN_NAME, loader)
     ex.description = 'Library of shared functions used by other extensions.'
     ex.version     = PLUGIN_VERSION
-    ex.copyright   = 'Thomas Thomassen © 2010-2024'
+    ex.copyright   = 'Thomas Thomassen © 2010-2026'
     ex.creator     = 'Thomas Thomassen (thomas@thomthom.net)'
     Sketchup.register_extension( ex, true )
   end

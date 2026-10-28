@@ -1,0 +1,248 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap');
+
+body {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 9pt;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background-color: #ccc;
+  margin-top: 0px;
+  margin-bottom: 5px;
+}
+
+/* Keyframes for notification fade in and out */
+@-webkit-keyframes fadein {
+  from { bottom: 0; opacity: 0; }
+  to { bottom: 30px; opacity: 1; }
+}
+
+@keyframes fadein {
+  from { bottom: 0; opacity: 0; }
+  to { bottom: 30px; opacity: 1; }
+}
+
+@-webkit-keyframes fadeout {
+  from { bottom: 30px; opacity: 1; }
+  to { bottom: 0; opacity: 0; }
+}
+
+@keyframes fadeout {
+  from { bottom: 30px; opacity: 1; }
+  to { bottom: 0; opacity: 0; }
+}
+
+/* Scrollbar Style fix for Light Mode */
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 10px; /* Width of vertical scrollbar */
+  height: 10px; /* Height of horizontal scrollbar */
+}
+
+/* Scrollbar Track */
+::-webkit-scrollbar-track {
+  background: #f1f1f1; /* Light gray background */
+  border-radius: 5px;
+}
+
+/* Scrollbar Handle */
+::-webkit-scrollbar-thumb {
+  background: #ccc; /* Gray scrollbar */
+  border-radius: 5px;
+}
+
+/* Scrollbar Handle on Hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #999; /* Darker gray when hovered */
+}
+
+/* For scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ccc #f1f1f1;
+}
+
+[data-bs-theme="dark"] #darkModeToggle img {
+  filter: invert(1) brightness(1.2);
+}
+
+#darkModeToggle {
+  padding: 0.25rem;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+#darkModeToggle:focus,
+#darkModeToggle:active {
+  outline: none;
+  box-shadow: none;
+  background: none;
+}
+
+[data-bs-theme="dark"] .tree-cell.name-cell {
+  color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .tree-cell.dash-cell {
+  color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .tree-cell.arrow-cell {
+  color: #e0e0e0 !important;
+}
+
+/* Invert icon in dark mode */
+[data-bs-theme="dark"] .icon-button img {
+  filter: invert(1) brightness(1.2);
+}
+
+/* Style for language icon button */
+.icon-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  margin: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+/* Optional hover effect */
+.icon-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.icon-button img {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+
+.icon-button:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: inherit !important;
+  border: none !important;
+}
+
+.sortable-ghost {
+  opacity: 0.7;
+  border: 2px dashed #aaa;
+  background-color: #f8f9fa;
+}
+
+#message {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-left: 2px solid #007bff;
+  padding: 0.2rem 0.5rem;
+  margin-top: 0.25rem;
+  border-radius: 0.2rem;
+  min-height: auto;
+  gap: 0.5rem;
+}
+
+#message .btn-close {
+  font-size: 0.75rem;
+  padding: 0.25rem;
+  margin: 0;
+  line-height: 1;
+  align-self: center;
+  transform: translateY(-4px); /* ⬆ nudges button upward */
+}
+
+.form-range {
+  max-width: 350px;
+  min-width: 120px; /* increased from 70px */
+}
+
+.form-label {
+  white-space: nowrap;
+}
+
+#applyOverlayPosition {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  height: auto; /* let padding control height */
+  margin-top: 0px; /* nudge up slightly */
+}
+
+/* Add spacing between switch label and toggle */
+.form-switch .form-label {
+  margin-left: 0.5rem;
+}
+
+/* Add spacing between checkbox and label */
+.form-check .form-check-label {
+  margin-left: 0.4rem;
+}
+
+/* Force alerts to be fully opaque and readable */
+.alert {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 90%;
+  z-index: 9999;
+
+  display: flex;                /* NEW: make content and X line up */
+  align-items: center;
+  justify-content: space-between;
+
+  border-radius: 6px !important;
+  padding: 0.75rem 3.25rem !important;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  opacity: 1 !important;
+  gap: 1rem;                    /* Space between message and close button */
+}
+
+.alert .btn-close {
+  margin-left: auto;       /* push it to the end */
+  font-size: 1rem;
+}
+
+.alert-info {
+  background-color: #0dcaf0 !important;
+  color: #000 !important;
+}
+
+.alert-warning {
+  background-color: #fff3cd !important;
+  color: #212529 !important;
+}
+
+.alert-danger {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+}
+
+.edit-description-button {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  margin: 0;
+  box-shadow: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-description-button:hover {
+  background-color: rgba(0, 0, 0, 0.05); /* optional subtle hover */
+  border-radius: 4px;
+}

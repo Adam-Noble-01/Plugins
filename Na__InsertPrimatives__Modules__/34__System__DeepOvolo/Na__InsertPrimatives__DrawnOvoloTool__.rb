@@ -33,7 +33,8 @@
 # TAB — OVOLO OR CAVETTO:
 # - TAB swaps the convex ovolo for the concave cavetto, and back: mid-drag on
 #   the preview, straight after a cut by re-cutting it, otherwise for the next
-#   one. V typed on its own, in any of the edge tools, always gives the ovolo.
+#   one. Deep Ovolo's own menu command, pressed while it runs as a cavetto,
+#   gives the ovolo back; SHIFT+TAB into it keeps the kind last used.
 #
 # THE LIMIT:
 # - The faces' reach is measured as a setback. The largest radius is that,
@@ -108,7 +109,7 @@ module Na__InsertPrimatives
                 "48s smooths the arc (now #{Na__InsertPrimatives.Na__DrawnSettings__CircleSegments} circle sides)",
                 'After cutting, keep typing: 60 re-cuts at R60, ,2 re-steps it, 60,2 does both',
                 'Double-click an edge to mould it at the last radius placed (remembered in the model)',
-                'Type C chamfer, R radius, O ogee, V ovolo on their own to swap the profile, keeping the edges',
+                'SHIFT+TAB steps the profile — Chamfer, Fillet, Ogee, Ovolo — keeping the edges and the drag',
                 'The edge must border exactly two faces'
             ]
         end
@@ -411,7 +412,7 @@ module Na__InsertPrimatives
 
 
         # -----------------------------------------------------------------------------
-        # REGION | TAB and V — Ovolo or Cavetto
+        # REGION | TAB — Ovolo or Cavetto
         # -----------------------------------------------------------------------------
 
         # FUNCTION | What TAB Does in This Tool
@@ -429,9 +430,9 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | V Typed While Deep Ovolo Runs: Back to the Ovolo
+        # FUNCTION | Deep Ovolo's Command Pressed While It Runs: Back to the Ovolo
         # ------------------------------------------------------------
-        def na_hs__same_profile_letter(profile)
+        def na_hs__same_profile(profile)
             return super unless profile == :ovolo && Na__InsertPrimatives.Na__DrawnSettings__OvoloCavetto?
 
             Na__InsertPrimatives.Na__DrawnSettings__SetOvoloCavetto(false)
@@ -755,9 +756,12 @@ module Na__InsertPrimatives
     # ------------------------------------------------------------
     # Bind in Preferences -> Shortcuts against the Extensions menu item, or call
     # directly: Na__InsertPrimatives.Na__InsertPrimatives__DeepOvolo
+    # Pressed while one of the four edge tools runs, it hands the edges and
+    # the drag over, as the right-click menu does (5.2.9, DrawnChamferHotSwap).
     # ------------------------------------------------------------
     def self.Na__InsertPrimatives__DeepOvolo
-        Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOvoloTool
+        Na__InsertPrimatives.Na__HotSwap__ToProfile(:ovolo) ||
+            Na__InsertPrimatives.Na__ModeSwitch__ActivateDrawnOvoloTool
     end
     # ---------------------------------------------------------------
 
