@@ -1,0 +1,1765 @@
+/* =============================================================================
+   ELEMENT ASSEMBLY STUDIO PRO - SECTION LAYOUT STYLES (V2.0.0)
+   =============================================================================
+   FILE       : Na__AssemblyStudio__UiFeature__Styles__SectionLayout__.css
+   PURPOSE    : The V2.0.0 interface: the one-line top bar, each configurator
+                tab's pinned head (product strip, parameter search, preview),
+                the section cards with their More / Advanced tiers, compact
+                two-to-a-line controls, the search results and the pinned
+                action dock.
+
+   CASCADE NOTE
+   - Imported LAST by the CoreUi index, after the combined legacy bundle, so
+     equal-specificity rules here win. Control restyles are scoped under
+     .na-lay-sec / .na-lay-results so the Settings and Presets pages, which
+     share the control classes, keep their own look.
+   - Each control is tagged with data-na-lay-kind (slider, toggle, binary,
+     segmented, select, eq, cards, expandable) by Na__Ui__SectionLayout; the
+     layout per kind keys off that attribute.
+   ============================================================================= */
+
+/* =============================================================================
+   TOKENS
+   ============================================================================= */
+
+:root {
+    --na-lay-page        : #eff1f3;
+    --na-lay-card        : #ffffff;
+    --na-lay-line        : #dce1e6;
+    --na-lay-line-soft   : #eceff2;
+    --na-lay-ink         : #1b222a;
+    --na-lay-ink-2       : #3a4450;
+    --na-lay-mute        : #687380;
+    --na-lay-faint       : #9aa3ad;
+    --na-lay-tint        : #f7f8fa;
+    --na-lay-blue        : #3a7fd5;
+    --na-lay-blue-ink    : #245fa8;
+    --na-lay-blue-soft   : #e8f1fc;
+    --na-lay-green       : #3c9a48;
+    --na-lay-green-ink   : #2b7535;
+    --na-lay-amber       : #e08600;
+    --na-lay-amber-ink   : #9c5d00;
+    --na-lay-amber-soft  : #fff2dc;
+    --na-lay-mono        : 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace;
+}
+
+body {
+    background-color     : var(--na-lay-page);
+}
+
+.na-main-content {
+    background-color     : var(--na-lay-page);
+}
+
+/* =============================================================================
+   TOP BAR - logo, configurator tabs, Presets, Settings
+   ============================================================================= */
+
+.na-tab-strip.na-topbar {
+    display              : flex;
+    align-items          : stretch;
+    justify-content      : flex-start;
+    gap                  : 10px;
+    min-height           : 44px;
+    padding              : 0 10px 0 12px;
+    background           : var(--na-lay-card);
+    border-bottom        : 1px solid var(--na-lay-line);
+}
+
+.na-topbar__brand {
+    display              : flex;
+    align-items          : center;
+    gap                  : 8px;
+    padding-right        : 4px;
+}
+
+.na-topbar__logo {
+    height               : 22px;
+    width                : auto;
+    display              : block;
+}
+
+.na-topbar__wordmark,
+.na-topbar__subtitle {
+    display              : none;
+}
+
+.na-topbar .na-tab-bar {
+    background           : none;
+    border               : 0;
+    padding              : 0;
+    gap                  : 2px;
+    align-items          : stretch;
+}
+
+.na-topbar .na-tab {
+    display              : inline-flex;
+    align-items          : center;
+    padding              : 0 12px;
+    background           : none;
+    border               : 0;
+    border-bottom        : 2px solid transparent;
+    border-radius        : 0;
+    font-size            : 12.5px;
+    font-weight          : 600;
+    color                : var(--na-lay-mute);
+}
+
+.na-topbar .na-tab:hover {
+    background           : none;
+    color                : var(--na-lay-ink);
+}
+
+.na-topbar .na-tab.na-tab-active {
+    background           : none;
+    color                : var(--na-lay-ink);
+    border-color         : transparent;
+    border-bottom-color  : var(--na-lay-blue);
+}
+
+.na-topbar .na-tab-strip__actions.na-topbar__tools {
+    margin-left          : auto;
+    display              : flex;
+    align-items          : center;
+    gap                  : 6px;
+    padding              : 0;
+}
+
+.na-topbar .na-tab-strip__actions .na-topbar__tool {
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 6px;
+    height               : 30px;
+    padding              : 0 10px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+    font-family          : inherit;
+    font-size            : 12px;
+    color                : var(--na-lay-ink-2);
+    cursor               : pointer;
+}
+
+.na-topbar .na-tab-strip__actions .na-topbar__tool:hover {
+    background           : var(--na-lay-tint);
+    border-color         : #c4ccd4;
+}
+
+.na-topbar svg {
+    width                : 15px;
+    height               : 15px;
+    fill                 : none;
+    stroke               : currentColor;
+    stroke-width         : 2;
+    stroke-linecap       : round;
+    stroke-linejoin      : round;
+}
+
+.na-topbar .na-tab-strip__actions .na-tab.na-tab--icon {
+    width                : 32px;
+    height               : 30px;
+    padding              : 0;
+    justify-content      : center;
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-topbar .na-tab-strip__actions .na-tab.na-tab--icon.na-tab-active {
+    background           : var(--na-lay-blue-soft);
+    border-color         : var(--na-lay-blue);
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-topbar .na-tab-strip__presets-actions {
+    margin-left          : auto;
+}
+
+/* The presets pages swap in their own tabs and Back button; the tools above
+   out-rank the PresetsLibrary stylesheet's hide rule, so it is restated here. */
+body.na-presets-mode .na-topbar .na-tab-strip__actions.na-topbar__tools {
+    display              : none;
+}
+
+@media (min-width: 1000px) {
+    .na-topbar__wordmark {
+        display          : inline;
+        font-size        : 12px;
+        font-weight      : 700;
+        color            : var(--na-lay-ink-2);
+        letter-spacing   : 0.01em;
+    }
+}
+
+/* =============================================================================
+   PINNED TAB HEAD - product strip, search, preview
+   ============================================================================= */
+
+.na-panel-top {
+    position             : sticky;
+    top                  : 0;
+    z-index              : 30;
+    background           : var(--na-lay-page);
+    padding-bottom       : 6px;
+}
+
+.na-panel-toolbar {
+    background           : var(--na-lay-card);
+    border-bottom        : 1px solid var(--na-lay-line);
+    padding              : 8px 12px;
+}
+
+/* --------------------------------------------------------------- Product strip */
+
+.na-lay-products {
+    display              : flex;
+    align-items          : flex-end;
+    flex-wrap            : wrap;
+    gap                  : 14px;
+    margin-bottom        : 8px;
+}
+
+.na-lay-products:empty {
+    display              : none;
+}
+
+.na-lay-chipgroup {
+    display              : flex;
+    flex-direction       : column;
+    gap                  : 4px;
+}
+
+.na-lay-chipgroup > b {
+    padding-left         : 2px;
+    font-size            : 9.5px;
+    font-weight          : 700;
+    letter-spacing       : 0.1em;
+    text-transform       : uppercase;
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-chipgroup > div {
+    display              : flex;
+    flex-wrap            : wrap;
+    gap                  : 4px;
+}
+
+.na-lay-chip {
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 6px;
+    height               : 34px;
+    padding              : 0 11px 0 8px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 7px;
+    font-family          : inherit;
+    font-size            : 12.5px;
+    font-weight          : 600;
+    color                : var(--na-lay-ink-2);
+    cursor               : pointer;
+}
+
+.na-lay-chip svg {
+    width                : 20px;
+    height               : 20px;
+    fill                 : none;
+    stroke               : currentColor;
+    stroke-width         : 1.4;
+    stroke-linecap       : round;
+    stroke-linejoin      : round;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-chip:hover {
+    border-color         : #bfc8d1;
+}
+
+.na-lay-chip.na-lay-chip--on {
+    background           : var(--na-lay-blue-soft);
+    border-color         : var(--na-lay-blue);
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-lay-chip.na-lay-chip--on svg {
+    color                : var(--na-lay-blue);
+}
+
+/* ---------------------------------------------------------------- Search row */
+
+.na-lay-searchrow {
+    display              : flex;
+    gap                  : 8px;
+}
+
+.na-lay-search {
+    position             : relative;
+    flex                 : 1;
+    min-width            : 0;
+}
+
+.na-lay-search svg {
+    position             : absolute;
+    left                 : 10px;
+    top                  : 50%;
+    width                : 15px;
+    height               : 15px;
+    transform            : translateY(-50%);
+    fill                 : none;
+    stroke               : var(--na-lay-faint);
+    stroke-width         : 2;
+    pointer-events       : none;
+}
+
+.na-lay-search input {
+    width                : 100%;
+    height               : 34px;
+    padding              : 0 70px 0 32px;
+    background           : var(--na-lay-tint);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 7px;
+    font-family          : inherit;
+    font-size            : 13px;
+    color                : var(--na-lay-ink);
+    outline              : none;
+}
+
+.na-lay-search input:focus {
+    background           : var(--na-lay-card);
+    border-color         : var(--na-lay-blue);
+    box-shadow           : 0 0 0 3px rgba(58, 127, 213, 0.15);
+}
+
+.na-lay-search kbd {
+    position             : absolute;
+    right                : 8px;
+    top                  : 50%;
+    transform            : translateY(-50%);
+    padding              : 1px 5px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 4px;
+    font                 : 600 10.5px var(--na-font-family);
+    color                : var(--na-lay-faint);
+    pointer-events       : none;
+}
+
+.na-lay-chg {
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 6px;
+    height               : 34px;
+    padding              : 0 11px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 7px;
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-ink-2);
+    white-space          : nowrap;
+    cursor               : pointer;
+}
+
+.na-lay-chg i {
+    width                : 7px;
+    height               : 7px;
+    border-radius        : 50%;
+    background           : var(--na-lay-blue);
+}
+
+.na-lay-chg.na-lay-chg--none {
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-chg.na-lay-chg--none i {
+    background           : var(--na-lay-line);
+}
+
+.na-lay-chg.na-lay-chg--on {
+    background           : var(--na-lay-blue-soft);
+    border-color         : var(--na-lay-blue);
+    color                : var(--na-lay-blue-ink);
+}
+
+/* ------------------------------------------------------------------- Preview */
+
+.na-lay-preview {
+    margin               : 8px 12px 0;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 9px;
+    overflow             : hidden;
+}
+
+.na-lay-preview.na-lay-preview--hidden {
+    display              : none !important;
+}
+
+.na-lay-preview.na-door-viewport-section {
+    padding-bottom       : 0;
+}
+
+.na-lay-preview__head {
+    display              : flex;
+    align-items          : center;
+    gap                  : 6px;
+    flex-wrap            : wrap;
+    padding              : 5px 8px 5px 12px;
+    border-bottom        : 1px solid var(--na-lay-line-soft);
+}
+
+.na-lay-preview__head h2 {
+    margin               : 0;
+    font-size            : 11px;
+    font-weight          : 700;
+    letter-spacing       : 0.08em;
+    text-transform       : uppercase;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-preview__size {
+    padding              : 2px 7px;
+    background           : var(--na-lay-tint);
+    border-radius        : 5px;
+    font                 : 600 11.5px var(--na-lay-mono);
+    color                : var(--na-lay-ink-2);
+}
+
+.na-lay-preview__size:empty {
+    display              : none;
+}
+
+.na-lay-preview__spacer {
+    flex                 : 1;
+}
+
+.na-lay-preview__tool {
+    padding              : 3px 8px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+    font-family          : inherit;
+    font-size            : 11.5px;
+    color                : var(--na-lay-ink-2);
+    cursor               : pointer;
+}
+
+.na-lay-preview__tool:hover {
+    background           : var(--na-lay-tint);
+}
+
+.na-lay-preview__tool[aria-pressed="true"] {
+    background           : var(--na-lay-blue-soft);
+    border-color         : #b8d2f2;
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-lay-preview .na-lay-preview__tool:disabled,
+.na-lay-preview .na-lay-preview__tool.na-btn-disabled {
+    background           : var(--na-lay-card) !important;
+    border-color         : var(--na-lay-line) !important;
+    color                : var(--na-lay-faint) !important;
+    opacity              : 0.7;
+    cursor               : default !important;
+}
+
+.na-lay-preview .na-canvas-wrapper {
+    height               : 236px;
+    border               : 0;
+    border-radius        : 0;
+    background           : linear-gradient(#fafbfc, #f1f3f5);
+}
+
+.na-lay-preview #na-door-plan-wrapper,
+.na-lay-preview #na-door-elevation-wrapper {
+    height               : 236px;
+}
+
+.na-lay-preview .na-door-dual-viewport {
+    gap                  : 0;
+    padding              : 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.na-lay-preview .na-door-viewport-cell {
+    position             : relative;
+    gap                  : 0;
+    min-width            : 0;
+}
+
+.na-lay-preview .na-door-viewport-cell + .na-door-viewport-cell {
+    border-left          : 1px solid var(--na-lay-line-soft);
+}
+
+.na-lay-preview .na-door-viewport-label {
+    position             : absolute;
+    top                  : 6px;
+    left                 : 10px;
+    z-index              : 1;
+    font-size            : 10px;
+    font-weight          : 700;
+    letter-spacing       : 0.08em;
+    color                : var(--na-lay-faint);
+    pointer-events       : none;
+}
+
+.na-lay-preview .na-resize-handle {
+    height               : 8px;
+    background           : var(--na-lay-card);
+    border               : 0;
+    border-top           : 1px solid var(--na-lay-line-soft);
+}
+
+/* =============================================================================
+   SELECTED ELEMENT STRIP (Window Info / Door Info)
+   ============================================================================= */
+
+.na-selected-strip {
+    margin               : 8px 12px 0;
+    padding              : 6px 10px;
+    background           : var(--na-lay-card);
+    border               : 1px solid #b9dcbf;
+    border-left          : 3px solid var(--na-lay-green);
+    border-radius        : 8px;
+}
+
+.na-selected-strip__row {
+    display              : flex;
+    align-items          : center;
+    flex-wrap            : wrap;
+    gap                  : 10px;
+    font-size            : 12px;
+}
+
+.na-selected-strip__id {
+    padding              : 2px 7px;
+    background           : #e9f5eb;
+    border-radius        : 5px;
+    font                 : 600 12px var(--na-lay-mono);
+    color                : var(--na-lay-green-ink);
+}
+
+.na-selected-strip .na-info-name-preview {
+    display              : inline;
+    margin               : 0;
+    font-size            : 11.5px;
+}
+
+.na-selected-strip__dates {
+    font-size            : 11px;
+    color                : var(--na-lay-mute);
+}
+
+.na-selected-strip__toggle {
+    margin-left          : auto;
+    padding              : 0;
+    background           : none;
+    border               : 0;
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-blue-ink);
+    cursor               : pointer;
+}
+
+.na-selected-strip__fields {
+    display              : none;
+    grid-template-columns: 120px minmax(0, 1fr);
+    align-items          : center;
+    gap                  : 6px 10px;
+    margin-top           : 8px;
+}
+
+.na-selected-strip--open .na-selected-strip__fields {
+    display              : grid;
+}
+
+/* =============================================================================
+   SECTIONS
+   ============================================================================= */
+
+.na-lay-sections,
+.na-lay-results {
+    padding              : 8px 12px 12px;
+}
+
+.na-lay-sections[hidden],
+.na-lay-results[hidden] {
+    display              : none;
+}
+
+.na-lay-sec {
+    margin-bottom        : 7px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 9px;
+}
+
+.na-lay-sec[hidden] {
+    display              : none;
+}
+
+.na-lay-sec__top {
+    display              : flex;
+    align-items          : center;
+}
+
+.na-lay-sec__head {
+    flex                 : 1;
+    min-width            : 0;
+    display              : flex;
+    align-items          : center;
+    gap                  : 8px;
+    padding              : 8px 12px;
+    background           : none;
+    border               : 0;
+    border-radius        : 9px;
+    font-family          : inherit;
+    text-align           : left;
+    cursor               : pointer;
+}
+
+.na-lay-sec__head:hover {
+    background           : var(--na-lay-tint);
+}
+
+.na-lay-sec__head svg {
+    flex                 : none;
+    width                : 12px;
+    height               : 12px;
+    fill                 : none;
+    stroke               : var(--na-lay-mute);
+    stroke-width         : 2;
+    transition           : transform 0.15s;
+}
+
+.na-lay-sec__head[aria-expanded="false"] svg {
+    transform            : rotate(-90deg);
+}
+
+.na-lay-sec__title {
+    font-size            : 13px;
+    font-weight          : 700;
+    color                : var(--na-lay-ink);
+    white-space          : nowrap;
+}
+
+.na-lay-sec--off .na-lay-sec__title {
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-sec__sum {
+    flex                 : 1;
+    min-width            : 0;
+    overflow             : hidden;
+    text-overflow        : ellipsis;
+    white-space          : nowrap;
+    font-size            : 12px;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-sec__badge,
+.na-lay-more b {
+    flex                 : none;
+    padding              : 1px 7px;
+    background           : var(--na-lay-blue-soft);
+    border-radius        : 9px;
+    font-size            : 10.5px;
+    font-weight          : 700;
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-lay-sec__badge[hidden],
+.na-lay-more b[hidden],
+.na-lay-more[hidden] {
+    display              : none;
+}
+
+.na-lay-sec__body {
+    padding              : 0 12px 10px;
+}
+
+.na-lay-sec__body[hidden] {
+    display              : none;
+}
+
+.na-lay-offnote {
+    padding              : 7px 10px;
+    background           : var(--na-lay-tint);
+    border-radius        : 6px;
+    font-size            : 12px;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-offnote[hidden] {
+    display              : none;
+}
+
+/* --------------------------------------------------- More / Advanced buttons */
+
+.na-lay-more {
+    display              : flex;
+    align-items          : center;
+    gap                  : 6px;
+    width                : 100%;
+    margin-top           : 8px;
+    padding              : 7px 0 1px;
+    background           : none;
+    border               : 0;
+    border-top           : 1px dashed var(--na-lay-line);
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-blue-ink);
+    text-align           : left;
+    cursor               : pointer;
+}
+
+.na-lay-more svg {
+    width                : 10px;
+    height               : 10px;
+    fill                 : none;
+    stroke               : currentColor;
+    stroke-width         : 2.4;
+    transition           : transform 0.15s;
+}
+
+.na-lay-more[aria-expanded="true"] svg {
+    transform            : rotate(90deg);
+}
+
+.na-lay-more em {
+    font-style           : normal;
+    font-weight          : 600;
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-more.na-lay-more--head {
+    flex                 : none;
+    width                : auto;
+    margin               : 0 4px 0 0;
+    padding              : 4px 10px 4px 8px;
+    border               : 0;
+    border-radius        : 6px;
+    white-space          : nowrap;
+}
+
+.na-lay-more.na-lay-more--head:hover {
+    background           : var(--na-lay-blue-soft);
+}
+
+/* --------------------------------------------------------------- Tier boxes */
+
+.na-lay-tier[hidden] {
+    display              : none;
+}
+
+.na-lay-tier--2 {
+    margin-top           : 6px;
+    padding-top          : 4px;
+    border-top           : 1px dashed var(--na-lay-line);
+}
+
+.na-lay-tier--3 {
+    margin-top           : 6px;
+    padding              : 6px 10px 8px;
+    background           : var(--na-lay-tint);
+    border-left          : 2px solid #c9d3de;
+    border-radius        : 0 7px 7px 0;
+}
+
+.na-lay-group__head {
+    margin               : 10px 0 2px;
+    font-size            : 10.5px;
+    font-weight          : 700;
+    letter-spacing       : 0.08em;
+    text-transform       : uppercase;
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-group[hidden],
+.na-lay-grid[hidden] {
+    display              : none;
+}
+
+/* ---------------------------------------------------------------- The grids */
+
+.na-lay-grid {
+    display              : grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap           : 20px;
+    row-gap              : 2px;
+}
+
+.na-lay-grid > .na-lay-wide {
+    grid-column          : 1 / -1;
+}
+
+/* =============================================================================
+   LAYOUT-LEVEL HIDING
+   ============================================================================= */
+
+.na-lay-off,
+.na-lay-dep-off,
+.na-lay-side-off {
+    display              : none !important;
+}
+
+/* =============================================================================
+   COMPACT CONTROLS (inside sections and search results only)
+   ============================================================================= */
+
+.na-lay-sec .na-control-item,
+.na-lay-results .na-control-item {
+    gap                  : 0;
+    min-height           : 32px;
+    border-radius        : 6px;
+}
+
+.na-lay-sec .na-control-label,
+.na-lay-results .na-control-label {
+    justify-content      : flex-start;
+    gap                  : 4px;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink-2);
+    min-width            : 0;
+}
+
+/* Long labels ("Handle Position from Meeting Stile") wrap rather than lose
+   their ending: the end of a label is usually the part that matters. */
+.na-lay-sec .na-control-label > span:first-child,
+.na-lay-results .na-control-label > span:first-child {
+    white-space          : normal;
+    line-height          : 1.25;
+    padding-left         : 0;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink-2);
+}
+
+/* ------------------------------------------------------------------ Sliders */
+
+.na-lay-sec [data-na-lay-kind="slider"],
+.na-lay-results [data-na-lay-kind="slider"] {
+    display              : grid;
+    grid-template-columns: minmax(70px, 40%) minmax(0, 1fr);
+    align-items          : center;
+    column-gap           : 8px;
+}
+
+.na-lay-sec [data-na-lay-kind="slider"] .na-control-value,
+.na-lay-results [data-na-lay-kind="slider"] .na-control-value {
+    display              : none;
+}
+
+.na-lay-sec .na-slider-container,
+.na-lay-results .na-slider-container {
+    gap                  : 8px;
+    min-width            : 0;
+}
+
+.na-lay-sec .na-slider,
+.na-lay-results .na-slider {
+    min-width            : 40px;
+    height               : 4px;
+    background           : #dfe4ea;
+}
+
+.na-lay-sec .na-slider::-webkit-slider-thumb,
+.na-lay-results .na-slider::-webkit-slider-thumb {
+    width                : 14px;
+    height               : 14px;
+    background           : var(--na-lay-blue);
+    border               : 2px solid #ffffff;
+    box-shadow           : 0 0 0 1px rgba(36, 95, 168, 0.35);
+}
+
+.na-lay-sec .na-slider-input,
+.na-lay-results .na-slider-input {
+    flex                 : none;
+    width                : 66px;
+    height               : 27px;
+    padding              : 0 6px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 5px;
+    font-family          : var(--na-lay-mono);
+    font-size            : 12px;
+}
+
+.na-lay-sec .na-slider-input:focus,
+.na-lay-results .na-slider-input:focus {
+    width                : 130px;
+    border-color         : var(--na-lay-blue);
+    box-shadow           : 0 0 0 3px rgba(58, 127, 213, 0.14);
+}
+
+/* ------------------------------------------------------- Switches (toggles) */
+
+.na-lay-sec .na-toggle-container,
+.na-lay-results .na-toggle-container {
+    min-height           : 32px;
+    gap                  : 10px;
+}
+
+.na-lay-sec .na-toggle,
+.na-lay-results .na-toggle {
+    flex                 : none;
+    width                : 32px;
+    height               : 18px;
+    border-radius        : 9px;
+    background           : #cfd5dc;
+}
+
+.na-lay-sec .na-toggle.na-active,
+.na-lay-results .na-toggle.na-active {
+    background           : var(--na-lay-blue);
+}
+
+.na-lay-sec .na-toggle-knob,
+.na-lay-results .na-toggle-knob {
+    top                  : 2px;
+    left                 : 2px;
+    width                : 14px;
+    height               : 14px;
+    background           : #ffffff;
+    box-shadow           : 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.na-lay-sec .na-toggle.na-active .na-toggle-knob,
+.na-lay-results .na-toggle.na-active .na-toggle-knob {
+    left                 : 16px;
+}
+
+/* -------------------------------- Two-option switches drawn as a button pair */
+
+.na-lay-sec .na-binary-toggle,
+.na-lay-results .na-binary-toggle {
+    flex                 : none;
+    gap                  : 2px;
+    padding              : 2px;
+    background           : var(--na-lay-tint);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+}
+
+.na-lay-sec .na-binary-toggle__track,
+.na-lay-results .na-binary-toggle__track {
+    display              : none;
+}
+
+.na-lay-sec .na-binary-toggle__option,
+.na-lay-results .na-binary-toggle__option {
+    flex                 : none;
+    padding              : 3px 10px;
+    border-radius        : 4px;
+    font-size            : 12px;
+    color                : var(--na-lay-ink-2);
+    text-align           : center;
+}
+
+.na-lay-sec .na-binary-toggle--left  .na-binary-toggle__option--left,
+.na-lay-sec .na-binary-toggle--right .na-binary-toggle__option--right,
+.na-lay-results .na-binary-toggle--left  .na-binary-toggle__option--left,
+.na-lay-results .na-binary-toggle--right .na-binary-toggle__option--right {
+    background           : #ffffff;
+    color                : var(--na-lay-blue-ink);
+    font-weight          : 600;
+    box-shadow           : 0 1px 2px rgba(18, 28, 40, 0.14);
+}
+
+/* --------------------------------------------- Segmented (multi-option) rows */
+
+.na-lay-sec [data-na-lay-kind="segmented"],
+.na-lay-results [data-na-lay-kind="segmented"],
+.na-lay-sec .na-lay-picker {
+    display              : flex;
+    flex-direction       : row;
+    align-items          : center;
+    justify-content      : space-between;
+    gap                  : 10px;
+}
+
+.na-lay-sec .na-lay-picker .na-toggle-container {
+    flex                 : 1;
+}
+
+.na-lay-sec .na-segmented-toggle,
+.na-lay-results .na-segmented-toggle {
+    flex                 : none;
+    flex-wrap            : wrap;
+    padding              : 2px;
+    background           : var(--na-lay-tint);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+}
+
+.na-lay-sec .na-segmented-toggle__option,
+.na-lay-results .na-segmented-toggle__option {
+    flex                 : none;
+    padding              : 3px 9px;
+    border-radius        : 4px;
+    font-size            : 12px;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-lay-sec .na-segmented-toggle__option--active,
+.na-lay-results .na-segmented-toggle__option--active {
+    background           : #ffffff;
+    color                : var(--na-lay-blue-ink);
+    font-weight          : 600;
+    box-shadow           : 0 1px 2px rgba(18, 28, 40, 0.14);
+}
+
+/* ------------------------------------------------------------------ Selects */
+
+.na-lay-sec [data-na-lay-kind="select"],
+.na-lay-results [data-na-lay-kind="select"] {
+    display              : flex;
+    flex-direction       : row;
+    align-items          : center;
+    justify-content      : space-between;
+    gap                  : 10px;
+}
+
+.na-lay-sec .na-select,
+.na-lay-results .na-select {
+    max-width            : 62%;
+    height               : 28px;
+    padding              : 0 6px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 5px;
+    font-family          : inherit;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink);
+}
+
+/* --------------------------------------------------- EQ / mm leaf width field */
+
+.na-lay-sec .na-eq-number-input,
+.na-lay-results .na-eq-number-input {
+    height               : 27px;
+    background           : var(--na-lay-card);
+    border-radius        : 5px;
+    font-family          : var(--na-lay-mono);
+    font-size            : 12px;
+}
+
+/* ----------------------------------------- Material swatches (finish rows) */
+
+.na-lay-sec [data-na-lay-kind="cards"],
+.na-lay-results [data-na-lay-kind="cards"],
+.na-lay-sec .na-lay-block {
+    padding              : 3px 0 5px;
+}
+
+.na-lay-block__label {
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-lay-sec [data-na-lay-kind="cards"] .na-control-label::after,
+.na-lay-results [data-na-lay-kind="cards"] .na-control-label::after,
+.na-lay-block__label::after {
+    content              : attr(data-na-picked);
+    margin-left          : 8px;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-sec .na-material-cards-container,
+.na-lay-results .na-material-cards-container {
+    gap                  : 6px;
+    padding              : 4px 0 0;
+}
+
+.na-lay-sec .na-material-card,
+.na-lay-results .na-material-card {
+    width                : 32px;
+    padding              : 2px;
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+}
+
+.na-lay-sec .na-material-card:hover,
+.na-lay-results .na-material-card:hover {
+    transform            : none;
+    border-color         : var(--na-lay-blue);
+    box-shadow           : none;
+}
+
+.na-lay-sec .na-material-swatch,
+.na-lay-results .na-material-swatch {
+    height               : 24px;
+    margin               : 0;
+    border-radius        : 4px;
+}
+
+.na-lay-sec .na-material-name,
+.na-lay-results .na-material-name {
+    display              : none;
+}
+
+.na-lay-sec .na-material-card-selected,
+.na-lay-results .na-material-card-selected {
+    border-width         : 1px;
+    border-color         : transparent;
+    outline              : 2px solid var(--na-lay-blue);
+    outline-offset       : 1px;
+    box-shadow           : none;
+}
+
+/* ------------------- Switch groups: an expandable whose open state is a setting */
+
+.na-lay-switchgroup > .na-expandable-header {
+    min-height           : 32px;
+    margin               : 0;
+    padding              : 0;
+    background           : none;
+    border               : 0;
+    border-radius        : 0;
+}
+
+.na-lay-switchgroup > .na-expandable-header:hover {
+    background           : none;
+}
+
+.na-lay-switchgroup .na-expandable-title {
+    font-size            : 12.5px;
+    font-weight          : 400;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-lay-switchgroup > .na-expandable-header > .na-expandable-arrow {
+    position             : relative;
+    flex                 : none;
+    width                : 32px;
+    height               : 18px;
+    background           : #cfd5dc;
+    border-radius        : 9px;
+    transform            : none;
+}
+
+.na-lay-switchgroup > .na-expandable-header > .na-expandable-arrow::before {
+    content              : '';
+    position             : absolute;
+    top                  : 2px;
+    left                 : 2px;
+    width                : 14px;
+    height               : 14px;
+    margin               : 0;
+    padding              : 0;
+    background           : #ffffff;
+    border               : 0;
+    border-radius        : 50%;
+    box-shadow           : 0 1px 2px rgba(0, 0, 0, 0.25);
+    transform            : none;
+    transition           : left 0.15s;
+}
+
+.na-lay-switchgroup > .na-expandable-header.na-expanded > .na-expandable-arrow {
+    background           : var(--na-lay-blue);
+}
+
+.na-lay-switchgroup > .na-expandable-header.na-expanded > .na-expandable-arrow::before {
+    left                 : 16px;
+    margin               : 0;
+    transform            : none;
+}
+
+.na-lay-switchgroup > .na-expandable-content {
+    padding              : 2px 0 4px 10px;
+    margin-left          : 2px;
+    background           : none;
+    border               : 0;
+    border-left          : 2px solid var(--na-lay-blue-soft);
+    border-radius        : 0;
+}
+
+.na-lay-switchgroup > .na-expandable-content.na-expanded {
+    display              : grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap           : 20px;
+}
+
+.na-lay-switchgroup > .na-expandable-content .na-control-item {
+    padding              : 0;
+}
+
+/* ------------------------------ Flattened boxes (Per Casement Settings list) */
+
+.na-lay-flatten > .na-expandable-header {
+    display              : none;
+}
+
+.na-lay-flatten > .na-expandable-content {
+    display              : block !important;
+    padding              : 0;
+    background           : none;
+    border               : 0;
+}
+
+.na-lay-sec .na-casement-override__fields {
+    display              : grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap           : 20px;
+}
+
+.na-lay-sec .na-casement-override__fields[style*="display: none"],
+.na-lay-sec .na-casement-override__fields[style*="display:none"] {
+    display              : none;
+}
+
+/* ----------------------------------------------------- Flash after a jump */
+
+.na-lay-flash {
+    animation            : na-lay-flash 1.4s ease-out;
+}
+
+@keyframes na-lay-flash {
+    0%, 30% { background: #fff1c9; box-shadow: 0 0 0 4px #fff1c9; }
+    100%    { background: transparent; box-shadow: 0 0 0 4px transparent; }
+}
+
+/* =============================================================================
+   SEARCH RESULTS
+   ============================================================================= */
+
+.na-lay-res-head {
+    display              : flex;
+    align-items          : center;
+    flex-wrap            : wrap;
+    gap                  : 8px;
+    margin               : 2px 2px 8px;
+    font-size            : 12px;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-res-head strong {
+    color                : var(--na-lay-ink);
+}
+
+.na-lay-res-head__keys {
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-res-head .na-btn {
+    margin-left          : auto;
+}
+
+.na-lay-res {
+    margin-bottom        : 6px;
+    padding              : 6px 10px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 8px;
+}
+
+.na-lay-res.na-lay-res--active {
+    border-color         : var(--na-lay-blue);
+    box-shadow           : 0 0 0 3px rgba(58, 127, 213, 0.12);
+}
+
+.na-lay-res__top {
+    display              : flex;
+    align-items          : center;
+    gap                  : 8px;
+    margin-bottom        : 1px;
+    font-size            : 11px;
+    color                : var(--na-lay-faint);
+}
+
+.na-lay-res__path {
+    white-space          : nowrap;
+}
+
+.na-lay-res__top code {
+    min-width            : 0;
+    overflow             : hidden;
+    text-overflow        : ellipsis;
+    white-space          : nowrap;
+    font                 : 10.5px var(--na-lay-mono);
+    color                : #8a94a0;
+}
+
+.na-lay-res__action {
+    flex                 : none;
+    padding              : 0;
+    background           : none;
+    border               : 0;
+    font-family          : inherit;
+    font-size            : 11.5px;
+    font-weight          : 600;
+    color                : var(--na-lay-blue-ink);
+    white-space          : nowrap;
+    cursor               : pointer;
+}
+
+.na-lay-res__top .na-lay-res__action:first-of-type {
+    margin-left          : auto;
+}
+
+.na-lay-res__label {
+    padding              : 4px 0;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-lay-res mark,
+.na-lay-res-other mark {
+    padding              : 0 1px;
+    background           : #fff0b8;
+    border-radius        : 2px;
+    color                : inherit;
+}
+
+.na-lay-res .na-lay-lent {
+    max-width            : 560px;
+}
+
+/* A lent control shows in its card even when its section would hide it */
+.na-lay-results .na-lay-lent[data-na-lay-kind="slider"] {
+    display              : grid !important;
+}
+
+.na-lay-results .na-lay-lent[data-na-lay-kind="segmented"],
+.na-lay-results .na-lay-lent[data-na-lay-kind="select"] {
+    display              : flex !important;
+}
+
+.na-lay-results .na-lay-lent:not([data-na-lay-kind="slider"]):not([data-na-lay-kind="segmented"]):not([data-na-lay-kind="select"]) {
+    display              : block !important;
+}
+
+.na-lay-res--blocked .na-lay-lent,
+.na-lay-res--blocked .na-lay-res__label {
+    opacity              : 0.45;
+    pointer-events       : none;
+}
+
+.na-lay-res__need {
+    display              : flex;
+    align-items          : center;
+    gap                  : 8px;
+    margin-top           : 2px;
+    font-size            : 11.5px;
+    color                : var(--na-lay-amber-ink);
+}
+
+.na-lay-res__need[hidden] {
+    display              : none;
+}
+
+.na-lay-res__need button {
+    padding              : 1px 7px;
+    background           : var(--na-lay-amber-soft);
+    border               : 1px solid #f1cf94;
+    border-radius        : 5px;
+    font-family          : inherit;
+    font-size            : 11px;
+    font-weight          : 600;
+    color                : var(--na-lay-amber-ink);
+    cursor               : pointer;
+}
+
+.na-lay-res-other {
+    margin-top           : 10px;
+    padding              : 6px 10px;
+    background           : var(--na-lay-tint);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 8px;
+}
+
+.na-lay-res-other summary {
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-ink-2);
+    cursor               : pointer;
+}
+
+.na-lay-res-other__row {
+    display              : flex;
+    align-items          : center;
+    flex-wrap            : wrap;
+    gap                  : 8px;
+    padding              : 5px 0;
+    border-top           : 1px solid var(--na-lay-line-soft);
+    font-size            : 12px;
+}
+
+.na-lay-res-other__row button {
+    margin-left          : auto;
+    padding              : 0;
+    background           : none;
+    border               : 0;
+    font-family          : inherit;
+    font-size            : 11.5px;
+    font-weight          : 600;
+    color                : var(--na-lay-blue-ink);
+    white-space          : nowrap;
+    cursor               : pointer;
+}
+
+.na-lay-pill {
+    padding              : 0 6px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 9px;
+    font-size            : 10.5px;
+    color                : var(--na-lay-mute);
+}
+
+.na-lay-res-empty {
+    padding              : 30px 10px;
+    text-align           : center;
+    color                : var(--na-lay-mute);
+}
+
+/* =============================================================================
+   ACTION DOCK - pinned to the foot of the dialog
+   ============================================================================= */
+
+.na-dock {
+    flex-shrink          : 0;
+    padding              : 5px 12px 9px;
+    background           : var(--na-lay-card);
+    border-top           : 1px solid var(--na-lay-line);
+    box-shadow           : 0 -6px 16px -12px rgba(18, 28, 40, 0.3);
+}
+
+body[data-na-active-tab="settings"] .na-dock,
+body.na-presets-mode .na-dock {
+    display              : none;
+}
+
+body[data-na-active-tab="windows"] .na-dock [data-na-dock-tab="doors"],
+body[data-na-active-tab="doors"] .na-dock [data-na-dock-tab="windows"] {
+    display              : none !important;
+}
+
+/* ------------------------------------------------------- Status / hint line */
+
+.na-dock__status {
+    display              : flex;
+    align-items          : center;
+    gap                  : 10px;
+    min-height           : 24px;
+    padding-bottom       : 5px;
+}
+
+.na-dock .na-status-bar {
+    flex                 : 1;
+    min-width            : 0;
+    padding              : 3px 8px;
+    border               : 0;
+    border-radius        : 6px;
+    font-size            : 11.5px;
+}
+
+.na-dock .na-status-bar:not(.na-hidden) + .na-dock__hint {
+    display              : none;
+}
+
+.na-dock__hint {
+    flex                 : 1;
+    min-width            : 0;
+    display              : flex;
+    align-items          : center;
+    gap                  : 6px;
+    padding              : 0 2px;
+    font-size            : 11.5px;
+    color                : var(--na-lay-mute);
+}
+
+.na-dock__hint::before {
+    content              : '';
+    flex                 : none;
+    width                : 7px;
+    height               : 7px;
+    border-radius        : 50%;
+    background           : var(--na-lay-faint);
+}
+
+.na-dock__hint[data-na-tone="amber"]::before {
+    background           : var(--na-lay-amber);
+}
+
+.na-dock__hint[data-na-tone="green"]::before {
+    background           : var(--na-lay-green);
+}
+
+/* ---------------------------------------------------------------- Buttons */
+
+.na-dock__row {
+    display              : flex;
+    align-items          : center;
+    flex-wrap            : wrap;
+    gap                  : 8px;
+}
+
+.na-dock__flow {
+    display              : flex;
+    align-items          : center;
+    padding              : 3px;
+    background           : var(--na-lay-amber-soft);
+    border               : 1px solid #f3d6a6;
+    border-radius        : 9px;
+}
+
+.na-dock .na-dock__step {
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 7px;
+    height               : 36px;
+    padding              : 0 12px 0 6px;
+    background           : #ffffff;
+    border               : 1px solid #f0cf97;
+    border-radius        : 7px;
+    font-family          : inherit;
+    font-size            : 12.5px;
+    font-weight          : 600;
+    line-height          : 1;
+    color                : var(--na-lay-amber-ink);
+    white-space          : nowrap;
+    cursor               : pointer;
+    opacity              : 1;
+}
+
+.na-dock .na-dock__step b {
+    display              : inline-grid;
+    place-items          : center;
+    width                : 20px;
+    height               : 20px;
+    border-radius        : 50%;
+    background           : var(--na-lay-amber);
+    font-size            : 11px;
+    color                : #ffffff;
+}
+
+.na-dock .na-dock__step:hover:not(:disabled) {
+    border-color         : var(--na-lay-amber);
+}
+
+#na-btn-measure.na-dock__step:hover:not(.na-btn-measure-active) {
+    background           : #ffffff;
+    border-color         : var(--na-lay-amber);
+    color                : var(--na-lay-amber-ink);
+}
+
+.na-dock #na-btn-measure.na-btn-measure-active {
+    background           : var(--na-lay-amber) !important;
+    border-color         : var(--na-lay-amber) !important;
+    color                : #ffffff !important;
+    animation            : na-dock-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.na-dock #na-btn-measure.na-btn-measure-active b {
+    background           : #ffffff;
+    color                : var(--na-lay-amber-ink);
+}
+
+.na-dock .na-dock__step--go:disabled,
+.na-dock .na-dock__step--go.na-btn-disabled {
+    background           : transparent !important;
+    border-color         : transparent !important;
+    color                : #c49a5c !important;
+    opacity              : 1;
+    cursor               : default !important;
+}
+
+.na-dock .na-dock__step--go:disabled b,
+.na-dock .na-dock__step--go.na-btn-disabled b {
+    background           : #e7c48d;
+}
+
+.na-dock .na-dock__step--go.na-btn-create-measure-ready {
+    background           : var(--na-lay-amber) !important;
+    border-color         : var(--na-lay-amber) !important;
+    color                : #ffffff !important;
+    box-shadow           : 0 2px 6px -2px rgba(224, 134, 0, 0.6);
+    cursor               : pointer !important;
+}
+
+.na-dock .na-dock__step--go.na-btn-create-measure-ready b {
+    background           : #ffffff;
+    color                : var(--na-lay-amber-ink);
+}
+
+.na-dock .na-dock__step--go.na-btn-create-measure-ready:hover {
+    background           : #c97800 !important;
+    border-color         : #c97800 !important;
+}
+
+@keyframes na-dock-pulse {
+    from { box-shadow: 0 0 0 0 rgba(224, 134, 0, 0.45); }
+    to   { box-shadow: 0 0 0 5px rgba(224, 134, 0, 0); }
+}
+
+.na-dock__arrow {
+    width                : 22px;
+    text-align           : center;
+    font-weight          : 700;
+    color                : #d39b45;
+}
+
+.na-dock__sep {
+    width                : 1px;
+    height               : 30px;
+    margin               : 0 2px;
+    background           : var(--na-lay-line);
+}
+
+.na-dock .na-dock__btn {
+    height               : 38px;
+    padding              : 0 14px;
+    border-radius        : 8px;
+    font-size            : 12.5px;
+    font-weight          : 600;
+    white-space          : nowrap;
+}
+
+.na-dock .na-btn-primary.na-dock__btn {
+    background           : var(--na-lay-blue);
+    border-color         : var(--na-lay-blue);
+}
+
+.na-dock .na-btn-primary.na-dock__btn:hover {
+    background           : var(--na-lay-blue-ink);
+    border-color         : var(--na-lay-blue-ink);
+}
+
+.na-dock .na-btn-success.na-dock__btn {
+    background           : var(--na-lay-green);
+    border-color         : var(--na-lay-green);
+}
+
+.na-dock .na-btn-success.na-dock__btn:hover:not(:disabled) {
+    background           : var(--na-lay-green-ink);
+    border-color         : var(--na-lay-green-ink);
+}
+
+/* ---------------------------------------------------------------- Live Mode */
+
+.na-dock .na-dock-live {
+    flex                 : none;
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 7px;
+    margin-left          : auto;
+    padding              : 2px 2px;
+    background           : none;
+    border               : 0;
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-ink-2);
+    cursor               : pointer;
+}
+
+.na-dock .na-dock-live.na-btn-live-active {
+    background           : none !important;
+    border-color         : transparent !important;
+    color                : var(--na-lay-green-ink) !important;
+}
+
+.na-dock-live__switch {
+    position             : relative;
+    flex                 : none;
+    width                : 32px;
+    height               : 18px;
+    border-radius        : 9px;
+    background           : #cfd5dc;
+    transition           : background 0.15s;
+}
+
+.na-dock-live__switch::before {
+    content              : '';
+    position             : absolute;
+    top                  : 2px;
+    left                 : 2px;
+    width                : 14px;
+    height               : 14px;
+    border-radius        : 50%;
+    background           : #ffffff;
+    box-shadow           : 0 1px 2px rgba(0, 0, 0, 0.25);
+    transition           : left 0.15s;
+}
+
+.na-dock-live.na-btn-live-active .na-dock-live__switch {
+    background           : var(--na-lay-green);
+}
+
+.na-dock-live.na-btn-live-active .na-dock-live__switch::before {
+    left                 : 16px;
+}
+
+/* =============================================================================
+   FOOTER
+   ============================================================================= */
+
+.na-app-footer {
+    margin-top           : 12px;
+    padding              : 12px 16px 16px;
+}
+
+/* =============================================================================
+   NARROW DIALOG
+   ============================================================================= */
+
+@media (max-width: 600px) {
+    .na-lay-grid,
+    .na-lay-switchgroup > .na-expandable-content.na-expanded,
+    .na-lay-sec .na-casement-override__fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .na-dock__sep {
+        display          : none;
+    }
+
+    .na-dock__flow {
+        width            : 100%;
+    }
+
+    .na-dock .na-dock__step {
+        flex             : 1;
+        min-width        : 0;
+    }
+
+    .na-dock .na-dock__step span {
+        overflow         : hidden;
+        text-overflow    : ellipsis;
+    }
+
+    .na-dock .na-dock__btn {
+        flex             : 1;
+    }
+
+    .na-dock .na-dock-live {
+        margin-left      : 0;
+    }
+
+    .na-topbar .na-tab {
+        padding          : 0 8px;
+        font-size        : 12px;
+    }
+
+    .na-topbar__tool span {
+        display          : none;
+    }
+}
+
+/* =============================================================================
+   SHORT DIALOG - a pinned head would leave the sections too little room, so the
+   product strip, search and preview scroll away with the page
+   ============================================================================= */
+
+@media (max-height: 820px), (max-width: 600px) {
+    .na-panel-top {
+        position         : static;
+    }
+}
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

@@ -8,12 +8,18 @@
      AUTHOR     : Noble Architecture
      PURPOSE    : Main HtmlDialog layout for Element Assembly Studio Pro.
 
-     CHANGES vs v1 (Window Configurator Tool):
-     - Brand header now shows logo + "Element Assembly Studio Pro" wordmark.
-     - Live Mode + Measure Opening buttons MOVED out of the top bar onto the
-       tab strip line, right-aligned.
-     - All script src/link href paths point at the new modular structure.
-     - bezier.js + maker.js prefetches removed (audit confirmed unused).
+     CHANGES IN V2.0.0 (UI overhaul):
+     - One top bar: logo, the two configurator tabs, Presets and Settings.
+     - Each configurator tab opens with a pinned head: the product strip (one
+       click for any product), the parameter search with its Changed chip,
+       and the preview.
+     - The controls are still BUILT into the na-controls-* / na-door-controls-*
+       containers, now kept hidden in a staging box. Na__Ui__SectionLayout
+       moves each control into its section and tier (see the LayoutMap file of
+       each system); every id the bridges and Ruby look up is unchanged.
+     - Every action sits in the pinned dock at the foot of the dialog:
+       (1) Measure Opening -> (2) Insert at Measured Point side by side, then
+       Create at Cursor, Update and Live Mode. The status bar lives there too.
      ============================================================================= -->
 
 <head>
@@ -24,33 +30,24 @@
     <link rel="stylesheet" href="03__Style__AppStylesheets/Na__AssemblyStudio__CoreUi__Styles__Index__.css">
 </head>
 
-<body>
+<body data-na-active-tab="windows">
 
     <!-- ==========================================================================
-         REGION | Top Chrome — pinned header (brand bar + tab strip)
-         Both elements live inside .na-top-chrome so the flex layout in body
-         keeps them above the scroll boundary at all times. The user can scroll
-         as far as they like and the tab buttons, Live Mode, and Measure Opening
-         are always visible — like freezing the top rows of a spreadsheet.
+         REGION | Top Chrome - logo, tabs, Presets, Settings (never scrolls)
+         The presets pages swap the tabs for their own pair and a Back button
+         (body.na-presets-mode, see the PresetsLibrary stylesheet).
          ========================================================================== -->
     <div class="na-top-chrome">
-
-        <!-- Brand Header (logo left, EASP wordmark right) -->
-        <header class="na-brand-header">
-            <div class="na-brand-header__left">
+        <div class="na-tab-strip na-topbar">
+            <div class="na-topbar__brand">
                 <img src="01__AppAssets__ElementAssemblyStudio/Na__AssemblyStudio__Brand__NobleLogo__.png"
-                     class="na-brand-header__logo"
+                     class="na-topbar__logo"
                      alt="Noble Architecture"
                      onerror="this.style.display='none'">
+                <span id="na-brand-title" class="na-topbar__wordmark">Element Assembly Studio Pro</span>
+                <span id="na-brand-subtitle" class="na-topbar__subtitle">by Noble Architecture</span>
             </div>
-            <div class="na-brand-header__right">
-                <span id="na-brand-title" class="na-brand-header__title">Element Assembly Studio Pro</span>
-                <span id="na-brand-subtitle" class="na-brand-header__subtitle">by Noble Architecture</span>
-            </div>
-        </header>
 
-        <!-- Tab Strip (tab buttons left, Live Mode / Measure Opening right) -->
-        <div class="na-tab-strip">
             <nav id="na-tab-bar" class="na-tab-bar na-tab-strip__tabs" role="tablist">
                 <button id="na-tab-button-windows"
                         class="na-tab na-tab-active"
@@ -59,7 +56,7 @@
                         aria-selected="true"
                         data-na-tab-id="windows"
                         onclick="Na_TabRouter.na_activateTab('windows')">
-                    Windows
+                    Windows &amp; Ext. Doors
                 </button>
                 <button id="na-tab-button-doors"
                         class="na-tab"
@@ -70,32 +67,10 @@
                         onclick="Na_TabRouter.na_activateTab('doors')">
                     Interior Doors
                 </button>
-                <button id="na-tab-button-settings"
-                        class="na-tab"
-                        role="tab"
-                        aria-controls="na-tab-settings"
-                        aria-selected="false"
-                        data-na-tab-id="settings"
-                        onclick="Na_TabRouter.na_activateTab('settings')">
-                    Settings
-                </button>
             </nav>
 
-            <div class="na-tab-strip__actions">
-                <button id="na-btn-live"
-                        class="na-btn na-btn-secondary"
-                        onclick="Na_AppContext.na_dispatch_live_toggle()">
-                    Live Mode
-                </button>
-                <button id="na-btn-measure"
-                        class="na-btn na-btn-secondary"
-                        onclick="Na_AppContext.na_dispatch_measure()">
-                    Measure Opening
-                </button>
-            </div>
-
             <!-- Presets page tab bar (hidden until body.na-presets-mode swaps it
-                 in for the main tabs — see PresetsLibrary stylesheet) -->
+                 in for the main tabs - see PresetsLibrary stylesheet) -->
             <nav id="na-presets-tab-bar" class="na-tab-bar na-tab-strip__presets-tabs" role="tablist">
                 <button id="na-tab-button-presets"
                         class="na-tab"
@@ -117,6 +92,28 @@
                 </button>
             </nav>
 
+            <div class="na-tab-strip__actions na-topbar__tools">
+                <button id="na-btn-presets-open"
+                        type="button"
+                        class="na-topbar__tool"
+                        title="Start from a saved preset"
+                        onclick="Na_PresetsUI.na_open_from_main(Na_AppContext.na_get_active_tab())">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    <span>Presets</span>
+                </button>
+                <button id="na-tab-button-settings"
+                        class="na-tab na-tab--icon"
+                        role="tab"
+                        aria-controls="na-tab-settings"
+                        aria-selected="false"
+                        aria-label="Settings &amp; Developer Tools"
+                        title="Settings &amp; Developer Tools"
+                        data-na-tab-id="settings"
+                        onclick="Na_TabRouter.na_activateTab('settings')">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+                </button>
+            </div>
+
             <div class="na-tab-strip__presets-actions">
                 <button id="na-btn-presets-back"
                         class="na-btn na-btn-secondary"
@@ -125,22 +122,16 @@
                 </button>
             </div>
         </div>
-
     </div>
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
-         REGION | Main Content — scrollable area beneath the pinned top chrome
+         REGION | Main Content - scrolls beneath the top chrome, above the dock
          ========================================================================== -->
     <main class="na-main-content">
 
-    <!-- Status Bar (shared across tabs) -->
-    <div id="na-status-bar" class="na-status-bar na-hidden">
-        <span id="na-status-message"></span>
-    </div>
-
     <!-- ==========================================================================
-         REGION | Tab Panel - Windows
+         REGION | Tab Panel - Windows & Exterior Doors
          ========================================================================== -->
     <div id="na-tab-windows"
          class="na-tab-panel na-tab-active"
@@ -148,129 +139,112 @@
          aria-labelledby="na-tab-button-windows"
          data-na-tab-id="windows">
 
-        <section class="na-section na-viewport-section">
-            <div class="na-section-header">
-                <div class="na-section-header__lead">
-                    <h2>2D Preview</h2>
-                    <button id="na-btn-presets-gallery" class="na-btn na-btn-small" onclick="Na_PresetsUI.na_open_from_main('windows')">Presets Gallery</button>
-                </div>
-                <div class="na-viewport-controls">
-                    <button class="na-btn na-btn-small" onclick="Na_Viewport.na_resetView()">Reset View</button>
-                    <button id="na-btn-reset-elements" class="na-btn na-btn-small" onclick="na_resetElements()">Reset Elements</button>
-                    <button class="na-btn na-btn-small" onclick="na_exportDxf()">Export DXF</button>
+        <!-- Pinned head: product strip, search, preview -->
+        <div id="na-panel-top-windows" class="na-panel-top">
+            <div class="na-panel-toolbar">
+                <div id="na-lay-products-windows" class="na-lay-products" aria-label="Product"></div>
+                <div class="na-lay-searchrow">
+                    <label class="na-lay-search">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        <input id="na-search-windows"
+                               type="search"
+                               autocomplete="off"
+                               spellcheck="false"
+                               aria-label="Search every setting"
+                               placeholder="Search every setting: cill, horns, midrail, hinge&hellip;">
+                        <kbd>Ctrl F</kbd>
+                    </label>
+                    <button id="na-chg-windows" type="button" class="na-lay-chg na-lay-chg--none"
+                            aria-pressed="false" title="List every setting changed from its default">
+                        <i></i><span>Changed &middot; 0</span>
+                    </button>
                 </div>
             </div>
-            <div id="na-canvas-wrapper" class="na-canvas-wrapper">
-                <svg id="na-viewport-svg" class="na-viewport-svg"></svg>
-            </div>
-            <!-- Shared dual plan + elevation viewport for the hinged exterior door
-                 products (Double Door and Single Door). Both render through the
-                 ExtDoorCommon generators, so they share one pair of canvases. -->
-            <div id="na-ext-door-dual-viewport" class="na-door-dual-viewport" style="display:none;">
-                <div class="na-door-viewport-cell">
-                    <div class="na-door-viewport-label">Plan View</div>
-                    <div id="na-ext-door-plan-wrapper" class="na-canvas-wrapper">
-                        <svg id="na-ext-door-plan-svg" class="na-viewport-svg"></svg>
+
+            <section id="na-preview-windows" class="na-lay-preview">
+                <div class="na-lay-preview__head">
+                    <h2>Preview</h2>
+                    <span id="na-preview-size-windows" class="na-lay-preview__size"></span>
+                    <span class="na-lay-preview__spacer"></span>
+                    <button id="na-btn-dims-windows" type="button" class="na-lay-preview__tool" aria-pressed="true"
+                            title="Dimensions in the preview (Output &gt; More)"
+                            onclick="na_toggleWindowPreviewDimensions()">Dimensions</button>
+                    <button type="button" class="na-lay-preview__tool" onclick="Na_Viewport.na_resetView()">Reset View</button>
+                    <button id="na-btn-reset-elements" type="button" class="na-lay-preview__tool"
+                            title="Bring back every glaze bar, casement and transom segment clicked off in the preview"
+                            onclick="na_resetElements()">Reset Elements</button>
+                    <button type="button" class="na-lay-preview__tool" onclick="na_exportDxf()">Export DXF</button>
+                </div>
+                <div id="na-canvas-wrapper" class="na-canvas-wrapper"
+                     title="Click a glaze bar, casement or transom to remove it">
+                    <svg id="na-viewport-svg" class="na-viewport-svg"></svg>
+                </div>
+                <!-- Shared dual plan + elevation viewport for the hinged exterior door
+                     products (Double Door and Single Door). Both render through the
+                     ExtDoorCommon generators, so they share one pair of canvases. -->
+                <div id="na-ext-door-dual-viewport" class="na-door-dual-viewport" style="display:none;">
+                    <div class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Plan</div>
+                        <div id="na-ext-door-plan-wrapper" class="na-canvas-wrapper">
+                            <svg id="na-ext-door-plan-svg" class="na-viewport-svg"></svg>
+                        </div>
+                    </div>
+                    <div class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Elevation</div>
+                        <div id="na-ext-door-elevation-wrapper" class="na-canvas-wrapper">
+                            <svg id="na-ext-door-elevation-svg" class="na-viewport-svg"></svg>
+                        </div>
                     </div>
                 </div>
-                <div class="na-door-viewport-cell">
-                    <div class="na-door-viewport-label">Elevation View</div>
-                    <div id="na-ext-door-elevation-wrapper" class="na-canvas-wrapper">
-                        <svg id="na-ext-door-elevation-svg" class="na-viewport-svg"></svg>
-                    </div>
-                </div>
+                <div id="na-viewport-resize-handle" class="na-resize-handle" title="Drag to resize the preview"></div>
+            </section>
+        </div>
+
+        <!-- The element selected in the model (shown by the bridge). The fixed
+             <ID>__<Type>__ head is owned by Ruby and read by TrueVision /
+             ValeVision; the Component Name field only adds an Outliner tail. -->
+        <section id="na-window-info" class="na-selected-strip na-hidden">
+            <div class="na-selected-strip__row">
+                <span id="na-info-window-id" class="na-selected-strip__id">-</span>
+                <span id="na-info-component-name-preview" class="na-info-name-preview"></span>
+                <span class="na-selected-strip__dates">Created <span id="na-info-created">-</span> &middot; Modified <span id="na-info-modified">-</span></span>
+                <button type="button" class="na-selected-strip__toggle"
+                        onclick="this.closest('.na-selected-strip').classList.toggle('na-selected-strip--open')">Name &amp; Notes</button>
             </div>
-            <div id="na-viewport-resize-handle" class="na-resize-handle" title="Drag to resize viewport"></div>
-        </section>
-
-        <section class="na-section">
-            <div class="na-section-header"><h2>Dimensions</h2></div>
-            <div id="na-controls-primary" class="na-controls-grid"></div>
-        </section>
-
-        <section class="na-section">
-            <div class="na-section-header"><h2>Glaze Bars</h2></div>
-            <div id="na-controls-glazebars" class="na-controls-grid"></div>
-        </section>
-
-        <section class="na-section">
-            <div class="na-section-header"><h2>Cill &amp; Frame</h2></div>
-            <div id="na-controls-cill-frame" class="na-controls-grid"></div>
-        </section>
-
-        <section class="na-section">
-            <div class="na-section-header"><h2>Options</h2></div>
-            <div id="na-controls-options" class="na-controls-grid"></div>
-        </section>
-
-        <!-- Window Board. Appears while Include Window Board (OPTIONS) is on,
-             windows only. -->
-        <section id="na-section-window-board" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Window Board</h2></div>
-            <div id="na-controls-window-board" class="na-controls-grid"></div>
-        </section>
-
-        <!-- Exterior Single Door. Named to match the Double Doors section it is
-             the one-leaf sibling of; both build from the same ExtDoorCommon
-             fielded-panel controls. -->
-        <section id="na-section-door-panel" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Single Door</h2></div>
-            <div id="na-controls-door-panel" class="na-controls-grid"></div>
-        </section>
-
-        <section id="na-section-sliding-door" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Sliding Door</h2></div>
-            <div id="na-controls-sliding-door" class="na-controls-grid"></div>
-        </section>
-
-        <section id="na-section-multifold-door" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Multi-Folding Door</h2></div>
-            <div id="na-controls-multifold-door" class="na-controls-grid"></div>
-        </section>
-
-        <section id="na-section-double-door" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Double Doors</h2></div>
-            <div id="na-controls-double-door" class="na-controls-grid"></div>
-        </section>
-
-        <section class="na-section na-actions-section">
-            <button id="na-btn-create" class="na-btn na-btn-primary na-btn-large" onclick="na_createWindowAtCursor()">Create at Cursor</button>
-            <button id="na-btn-create-at-measurement" class="na-btn na-btn-create-measure na-btn-large na-btn-disabled" onclick="na_createWindowAtMeasurement()" disabled>Create At<br>Measurement Point</button>
-            <button id="na-btn-update" class="na-btn na-btn-success na-btn-large" onclick="na_updateWindow()" disabled>Update Window</button>
-        </section>
-
-        <section id="na-window-info" class="na-section na-window-info na-hidden">
-            <div class="na-section-header"><h2>Window Info</h2></div>
-            <div class="na-info-grid">
-                <div class="na-info-item"><span class="na-info-label">Window ID:</span><span id="na-info-window-id" class="na-info-value">-</span></div>
-
-                <!-- Component Name — appended AFTER the fixed <ID>__<Type>__ head.
-                     The head is owned by Ruby and read by TrueVision / ValeVision;
-                     this field only ever adds an Outliner-grouping tail. -->
-                <div class="na-info-item na-info-item-full">
-                    <span class="na-info-label">Component Name:</span>
-                    <input type="text"
-                           id="na-info-component-name"
-                           class="na-info-input"
-                           placeholder="e.g. GroundFloor__BayWindow"
-                           title="Appended to the component name after the fixed ID and type. Press Enter to apply."
-                           value="">
-                    <span id="na-info-component-name-preview" class="na-info-name-preview"></span>
-                </div>
-
-                <div class="na-info-item na-info-item-full">
-                    <span class="na-info-label">Description:</span>
-                    <input type="text"
-                           id="na-info-description"
-                           class="na-info-input"
-                           placeholder="Notes for this window (not used in the component name)"
-                           value="">
-                </div>
-
-                <div class="na-info-item"><span class="na-info-label">Created:</span><span id="na-info-created" class="na-info-value">-</span></div>
-                <div class="na-info-item"><span class="na-info-label">Modified:</span><span id="na-info-modified" class="na-info-value">-</span></div>
+            <div class="na-selected-strip__fields">
+                <label class="na-info-label" for="na-info-component-name">Component Name</label>
+                <input type="text"
+                       id="na-info-component-name"
+                       class="na-info-input"
+                       placeholder="e.g. GroundFloor__BayWindow"
+                       title="Appended to the component name after the fixed ID and type. Press Enter to apply."
+                       value="">
+                <label class="na-info-label" for="na-info-description">Description</label>
+                <input type="text"
+                       id="na-info-description"
+                       class="na-info-input"
+                       placeholder="Notes for this window (not used in the component name)"
+                       value="">
             </div>
         </section>
+
+        <div id="na-lay-sections-windows" class="na-lay-sections"></div>
+        <div id="na-lay-results-windows" class="na-lay-results" hidden></div>
+
+        <!-- Build containers: MainUiLogic builds every control here, then the
+             section layout moves each one out into its section. Kept (hidden)
+             because the visibility helpers still address these ids. -->
+        <div id="na-lay-staging-windows" class="na-lay-staging" hidden>
+            <div id="na-controls-primary"></div>
+            <div id="na-controls-glazebars"></div>
+            <div id="na-controls-cill-frame"></div>
+            <div id="na-controls-options"></div>
+            <section id="na-section-window-board" style="display:none;"><div id="na-controls-window-board"></div></section>
+            <section id="na-section-door-panel" style="display:none;"><div id="na-controls-door-panel"></div></section>
+            <section id="na-section-sliding-door" style="display:none;"><div id="na-controls-sliding-door"></div></section>
+            <section id="na-section-multifold-door" style="display:none;"><div id="na-controls-multifold-door"></div></section>
+            <section id="na-section-double-door" style="display:none;"><div id="na-controls-double-door"></div></section>
+        </div>
     </div>
     <!-- endregion ============================================================== -->
 
@@ -283,88 +257,88 @@
          aria-labelledby="na-tab-button-doors"
          data-na-tab-id="doors">
 
-        <header class="na-header na-header-secondary">
-            <div class="na-header-left">
-                <h2 class="na-tab-heading">Interior Door Configurator</h2>
+        <div id="na-panel-top-doors" class="na-panel-top">
+            <div class="na-panel-toolbar">
+                <div id="na-lay-products-doors" class="na-lay-products" aria-label="Door type"></div>
+                <div class="na-lay-searchrow">
+                    <label class="na-lay-search">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        <input id="na-search-doors"
+                               type="search"
+                               autocomplete="off"
+                               spellcheck="false"
+                               aria-label="Search every setting"
+                               placeholder="Search every setting: lining, architrave, handle, hand&hellip;">
+                        <kbd>Ctrl F</kbd>
+                    </label>
+                    <button id="na-chg-doors" type="button" class="na-lay-chg na-lay-chg--none"
+                            aria-pressed="false" title="List every setting changed from its default">
+                        <i></i><span>Changed &middot; 0</span>
+                    </button>
+                </div>
             </div>
-        </header>
 
-        <section class="na-section na-viewport-section na-door-viewport-section">
-            <div class="na-section-header">
-                <div class="na-section-header__lead">
-                    <h2>2D Preview</h2>
-                    <button id="na-btn-presets-gallery-doors" class="na-btn na-btn-small" onclick="Na_PresetsUI.na_open_from_main('doors')">Presets Gallery</button>
+            <section id="na-preview-doors" class="na-lay-preview na-door-viewport-section">
+                <div class="na-lay-preview__head">
+                    <h2>Preview</h2>
+                    <span id="na-preview-size-doors" class="na-lay-preview__size"></span>
+                    <span class="na-lay-preview__spacer"></span>
+                    <button type="button" class="na-lay-preview__tool" onclick="Na_DoorViewport &amp;&amp; Na_DoorViewport.na_resetView()">Reset View</button>
                 </div>
-                <div class="na-viewport-controls">
-                    <button class="na-btn na-btn-small" onclick="Na_DoorViewport && Na_DoorViewport.na_resetView()">Reset View</button>
-                </div>
-            </div>
-            <div class="na-door-dual-viewport">
-                <div class="na-door-viewport-cell">
-                    <div class="na-door-viewport-label">Plan View</div>
-                    <div id="na-door-plan-wrapper" class="na-canvas-wrapper">
-                        <svg id="na-door-plan-svg" class="na-viewport-svg"></svg>
+                <div class="na-door-dual-viewport">
+                    <div class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Plan</div>
+                        <div id="na-door-plan-wrapper" class="na-canvas-wrapper">
+                            <svg id="na-door-plan-svg" class="na-viewport-svg"></svg>
+                        </div>
+                    </div>
+                    <div class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Elevation</div>
+                        <div id="na-door-elevation-wrapper" class="na-canvas-wrapper">
+                            <svg id="na-door-elevation-svg" class="na-viewport-svg"></svg>
+                        </div>
                     </div>
                 </div>
-                <div class="na-door-viewport-cell">
-                    <div class="na-door-viewport-label">Elevation View</div>
-                    <div id="na-door-elevation-wrapper" class="na-canvas-wrapper">
-                        <svg id="na-door-elevation-svg" class="na-viewport-svg"></svg>
-                    </div>
-                </div>
+                <div id="na-door-viewport-resize-handle" class="na-resize-handle" title="Drag to resize the preview"></div>
+            </section>
+        </div>
+
+        <section id="na-door-info" class="na-selected-strip na-hidden">
+            <div class="na-selected-strip__row">
+                <span id="na-info-door-id" class="na-selected-strip__id">-</span>
+                <span class="na-selected-strip__dates">Created <span id="na-info-door-created">-</span> &middot; Modified <span id="na-info-door-modified">-</span></span>
+                <button type="button" class="na-selected-strip__toggle"
+                        onclick="this.closest('.na-selected-strip').classList.toggle('na-selected-strip--open')">Notes</button>
             </div>
-            <div id="na-door-viewport-resize-handle" class="na-resize-handle" title="Drag to resize preview"></div>
+            <div class="na-selected-strip__fields">
+                <label class="na-info-label" for="na-info-door-description">Description</label>
+                <input type="text" id="na-info-door-description" class="na-info-input" placeholder="e.g. GroundFloor__Hall" value="">
+            </div>
         </section>
 
-        <section class="na-section">
-            <div class="na-section-header"><h2>Opening &amp; Lining</h2></div>
-            <div id="na-door-controls-opening" class="na-controls-grid"></div>
-        </section>
-        <section class="na-section">
-            <div class="na-section-header"><h2>Panel &amp; Swing</h2></div>
-            <div id="na-door-controls-panel" class="na-controls-grid"></div>
-        </section>
-        <section class="na-section">
-            <div class="na-section-header"><h2>Architrave</h2></div>
-            <div id="na-door-controls-architrave" class="na-controls-grid"></div>
-        </section>
-        <section class="na-section">
-            <div class="na-section-header"><h2>Handle</h2></div>
-            <div id="na-door-controls-handle" class="na-controls-grid"></div>
-        </section>
-        <section class="na-section">
-            <div class="na-section-header"><h2>Options</h2></div>
-            <div id="na-door-controls-options" class="na-controls-grid"></div>
-        </section>
+        <div id="na-lay-sections-doors" class="na-lay-sections"></div>
+        <div id="na-lay-results-doors" class="na-lay-results" hidden></div>
 
-        <section id="na-door-joinery-finish-section" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Joinery Finish</h2></div>
+        <!-- Build containers: Na_DoorUI rebuilds every control here on each
+             mount, then the section layout moves them into their sections. -->
+        <div id="na-lay-staging-doors" class="na-lay-staging" hidden>
+            <div id="na-door-controls-opening"></div>
+            <div id="na-door-controls-panel"></div>
+            <div id="na-door-controls-architrave"></div>
+            <div id="na-door-controls-handle"></div>
+            <div id="na-door-controls-options"></div>
+        </div>
+
+        <!-- Swatch rows filled by Na_FrameFinishCards; placed into Hardware and
+             Finish by the section layout. -->
+        <div id="na-door-joinery-finish-section" class="na-lay-block" style="display:none;">
+            <div class="na-lay-block__label">Joinery Finish</div>
             <div id="na-door-joinery-finish-cards" class="na-material-cards-container"></div>
-        </section>
-
-        <section id="na-door-handle-finish-section" class="na-section" style="display:none;">
-            <div class="na-section-header"><h2>Handle Finish</h2></div>
+        </div>
+        <div id="na-door-handle-finish-section" class="na-lay-block" style="display:none;">
+            <div class="na-lay-block__label">Handle Finish</div>
             <div id="na-door-handle-finish-cards" class="na-material-cards-container"></div>
-        </section>
-
-        <section class="na-section na-actions-section">
-            <button id="na-btn-door-create" class="na-btn na-btn-primary na-btn-large" onclick="na_createDoorAtCursor()">Create at Cursor</button>
-            <button id="na-btn-door-create-at-measurement" class="na-btn na-btn-create-measure na-btn-large na-btn-disabled" onclick="na_createDoorAtMeasurement()" disabled>Create At<br>Measurement Point</button>
-            <button id="na-btn-door-update" class="na-btn na-btn-success na-btn-large" onclick="na_updateDoor()" disabled>Update Door</button>
-        </section>
-
-        <section id="na-door-info" class="na-section na-window-info na-hidden">
-            <div class="na-section-header"><h2>Door Info</h2></div>
-            <div class="na-info-grid">
-                <div class="na-info-item"><span class="na-info-label">Door ID:</span><span id="na-info-door-id" class="na-info-value">-</span></div>
-                <div class="na-info-item na-info-item-full">
-                    <span class="na-info-label">Description:</span>
-                    <input type="text" id="na-info-door-description" class="na-info-input" placeholder="e.g. GroundFloor__Hall" value="">
-                </div>
-                <div class="na-info-item"><span class="na-info-label">Created:</span><span id="na-info-door-created" class="na-info-value">-</span></div>
-                <div class="na-info-item"><span class="na-info-label">Modified:</span><span id="na-info-door-modified" class="na-info-value">-</span></div>
-            </div>
-        </section>
+        </div>
     </div>
     <!-- endregion ============================================================== -->
 
@@ -414,10 +388,7 @@
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
-         REGION | App Footer — shared across every tab
-         Sits inside the scroll container after whichever tab panel is visible,
-         so the last real section of a tab always has clear space beneath it
-         and reads as a section rather than as a footnote pinned to the edge.
+         REGION | App Footer - shared across every tab
          ========================================================================== -->
     <footer class="na-app-footer">
         <span class="na-app-footer__brand">Element Assembly Studio Pro</span>
@@ -427,6 +398,68 @@
 
     </main>
     <!-- endregion (Main Content) =============================================== -->
+
+    <!-- ==========================================================================
+         REGION | Action Dock - pinned to the foot of the dialog
+         Measure and Insert at Measured Point sit side by side as steps 1 and 2.
+         Each tab's own Insert / Create / Update buttons show while it is active
+         (body[data-na-active-tab] against data-na-dock-tab). The ids, handlers
+         and the classes the bridges paint are the ones they always used.
+         ========================================================================== -->
+    <footer id="na-dock" class="na-dock" aria-label="Actions">
+        <div class="na-dock__status">
+            <div id="na-status-bar" class="na-status-bar na-hidden">
+                <span id="na-status-message"></span>
+            </div>
+            <div id="na-dock-hint" class="na-dock__hint"></div>
+            <button id="na-btn-live"
+                    type="button"
+                    class="na-dock-live"
+                    aria-pressed="false"
+                    title="Send every change straight to the selected element"
+                    onclick="Na_AppContext.na_dispatch_live_toggle()">
+                <span class="na-dock-live__switch" aria-hidden="true"></span>
+                <span class="na-dock-live__label">Live Mode</span>
+            </button>
+        </div>
+        <div class="na-dock__row">
+            <div class="na-dock__flow">
+                <button id="na-btn-measure"
+                        type="button"
+                        class="na-dock__step"
+                        onclick="Na_AppContext.na_dispatch_measure()">
+                    <b>1</b><span>Measure Opening</span>
+                </button>
+                <span class="na-dock__arrow" aria-hidden="true">&rarr;</span>
+                <button id="na-btn-create-at-measurement"
+                        type="button"
+                        data-na-dock-tab="windows"
+                        class="na-dock__step na-dock__step--go na-btn-create-measure na-btn-disabled"
+                        onclick="na_createWindowAtMeasurement()"
+                        disabled>
+                    <b>2</b><span>Insert at Measured Point</span>
+                </button>
+                <button id="na-btn-door-create-at-measurement"
+                        type="button"
+                        data-na-dock-tab="doors"
+                        class="na-dock__step na-dock__step--go na-btn-create-measure na-btn-disabled"
+                        onclick="na_createDoorAtMeasurement()"
+                        disabled>
+                    <b>2</b><span>Insert at Measured Point</span>
+                </button>
+            </div>
+            <span class="na-dock__sep" aria-hidden="true"></span>
+            <button id="na-btn-create" type="button" data-na-dock-tab="windows"
+                    class="na-btn na-btn-primary na-dock__btn" onclick="na_createWindowAtCursor()">Create at Cursor</button>
+            <button id="na-btn-door-create" type="button" data-na-dock-tab="doors"
+                    class="na-btn na-btn-primary na-dock__btn" onclick="na_createDoorAtCursor()">Create at Cursor</button>
+            <button id="na-btn-update" type="button" data-na-dock-tab="windows"
+                    class="na-btn na-btn-success na-dock__btn" onclick="na_updateWindow()" disabled>Update Window</button>
+            <button id="na-btn-door-update" type="button" data-na-dock-tab="doors"
+                    class="na-btn na-btn-success na-dock__btn" onclick="na_updateDoor()" disabled>Update Door</button>
+        </div>
+    </footer>
+    <!-- endregion ============================================================== -->
 
 
     <!-- ==========================================================================
@@ -441,6 +474,12 @@
     <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__MainShell__.js"></script>
     <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Controls__.js"></script>
     <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__Events__.js"></script>
+
+    <!-- AppCore section layout, parameter search and action dock (V2.0.0). Must
+         load before the LayoutMap files, which register with the layout. -->
+    <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__SectionLayout__.js"></script>
+    <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__ParameterSearch__.js"></script>
+    <script src="02__Src__AppModules/01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__ActionDock__.js"></script>
 
     <!-- WindowSystem schema (needs to load before WindowSystem MainUiLogic) -->
     <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js"></script>
@@ -458,6 +497,9 @@
 
     <!-- @delegate: 02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js -->
     <script src="02__Src__AppModules/34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js"></script>
+
+    <!-- WindowSystem section layout map: every Windows & Exterior Doors control's section and tier -->
+    <script src="02__Src__AppModules/20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__LayoutMap__.js"></script>
 
     <!-- ExteriorDoorCommon shared leaf resolver factory -- MUST load before the
          ExtDouble / ExtSingleDoor resolvers, which bind it at load time -->
@@ -532,6 +574,7 @@
 
     <!-- InteriorDoor system tab modules (loaded last; uses shared Ui Controls/Events from AppCore) -->
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js"></script>
+    <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__LayoutMap__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__PanelDesignDrawer__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__PlanGenerator__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Viewport__ElevationGenerator__.js"></script>

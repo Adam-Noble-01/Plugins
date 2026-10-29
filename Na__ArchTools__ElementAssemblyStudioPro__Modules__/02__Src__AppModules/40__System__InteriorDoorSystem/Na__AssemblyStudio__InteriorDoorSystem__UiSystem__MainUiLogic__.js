@@ -66,6 +66,8 @@
     var na_plan_instance        = null;                                       // <-- Na__Viewport__Instance for plan view
     var na_elevation_instance   = null;                                       // <-- Na__Viewport__Instance for elevation view
     var na_resize_bound         = false;                                      // <-- Guard so drag handlers are only bound once
+    var na_ui_change_listeners  = [];                                         // <-- Called after every render (section layout, search)
+    var na_layout_bound         = false;                                      // <-- Guard so the layout listener is added once
 
 // endregion -------------------------------------------------------------------
 
@@ -989,6 +991,7 @@
     // SUB FUNCTION | Re-render the Plan and Elevation Viewports
     // ------------------------------------------------------------
     function na_schedule_rerender() {
+        na_notify_ui_change_listeners();                                     // <-- Section layout and search hear now; the preview repaints next frame
         if (na_rerender_pending) return;
         na_rerender_pending = true;
         window.requestAnimationFrame(function () {
@@ -1074,6 +1077,7 @@
     Na_DoorUI.na_mount = function (initialConfig) {
         if (initialConfig) Na_DoorUI.na_set_active_config(initialConfig);
         na_init_preview_resize();
+        na_clear_section_layout();                                            // <-- A remount (selection, measurement) arrives without an unmount
 
         na_mount_section('na-door-controls-opening',    window.NA_DOOR_OPENING_CONFIG);
         na_mount_section('na-door-controls-panel',      window.NA_DOOR_PANEL_TAB_CONFIG);
@@ -1096,13 +1100,42 @@
         na_sync_panel_design_visibility();
         na_sync_door_type_visibility();
         na_sync_leaf_size_controls();
+        na_mount_section_layout();
         Na_DoorUI.na_render(na_active_config);
     };
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Hand the Freshly Built Controls to the Section Layout
+    // ------------------------------------------------------------
+    // The controls are built into the na-door-controls-* containers as
+    // before; Na__Ui__SectionLayout moves each into its section and tier
+    // (see the InteriorDoorSystem LayoutMap). The previous mount's nodes were
+    // removed by na_unmount, or are removed here on a remount without one.
+    function na_mount_section_layout() {
+        var layout = window.Na__Ui__SectionLayout;
+        if (!layout || typeof layout.na_mount !== 'function' || !layout.na_get_spec('doors')) return;
+
+        layout.na_mount('doors');
+        if (!na_layout_bound) {
+            na_layout_bound = true;
+            Na_DoorUI.na_add_change_listener(function () { layout.na_request_refresh('doors'); });
+            if (window.Na__Ui__ParameterSearch) window.Na__Ui__ParameterSearch.na_bind('doors');
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Clear the Section Layout's Copies Before a Rebuild
+    // ------------------------------------------------------------
+    function na_clear_section_layout() {
+        var layout = window.Na__Ui__SectionLayout;
+        if (layout && typeof layout.na_clear === 'function') layout.na_clear('doors');
+    }
     // ---------------------------------------------------------------
 
     // FUNCTION | Unmount the Door Tab (Clear Listeners and Containers)
     // ------------------------------------------------------------
     Na_DoorUI.na_unmount = function () {
+        na_clear_section_layout();
         na_change_listeners.forEach(function (cleanup) {
             try { cleanup(); } catch (err) { /* swallow */ }
         });
@@ -1137,7 +1170,81 @@
 
         if (na_plan_instance)      na_plan_instance.na_render(renderConfig);
         if (na_elevation_instance) na_elevation_instance.na_render(renderConfig);
+        na_notify_ui_change_listeners();
     };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Register a Callback Run After Every Render
+    // ------------------------------------------------------------
+    // Every control change, config load and mount ends in a render, so this
+    // is the one place the section layout and the search hear about changes.
+    Na_DoorUI.na_add_change_listener = function (listener) {
+        if (typeof listener === 'function') na_ui_change_listeners.push(listener);
+    };
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Tell Every Change Listener the Config Moved
+    // ------------------------------------------------------------
+    function na_notify_ui_change_listeners() {
+        na_ui_change_listeners.forEach(function (listener) {
+            try { listener(na_active_config); }
+            catch (err) { console.error('[Na_DoorUI] Change listener failed:', err); }
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Return the Working Config as the Controls See It
+    // ------------------------------------------------------------
+    // Unlike na_get_active_config (the Ruby payload), this keeps the UI-only
+    // leaf-size keys and the unified ArchitraveEnabled flag the section
+    // summaries and layout rules read.
+    Na_DoorUI.na_get_ui_config = function () {
+        return Object.assign({}, na_active_config);
+    };
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Apply a Value From Outside Its Control
+    // ------------------------------------------------------------
+    // Used by the door type chips, the parameter search's resets and its
+    // "Turn It On" fixes. Redraws the control, then takes the same path a
+    // click on it would.
+    Na_DoorUI.na_apply_control_value = function (id, value) {
+        na_set_control_dom(id, value);
+        na_handle_control_change(id, value);
+    };
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Redraw One Control to Show a Value (No Events Fired)
+    // ------------------------------------------------------------
+    function na_set_control_dom(id, value) {
+        var descriptor = na_find_descriptor(id);
+        var type = descriptor ? descriptor.type : '';
+        if (type === 'slider') {
+            na_set_slider_control_value(id, Number(value));
+            return;
+        }
+        if (type === 'checkbox') {
+            var toggle = document.getElementById(id + '-toggle');
+            if (!toggle) return;
+            toggle.setAttribute('data-value', value ? 'true' : 'false');
+            toggle.classList.toggle('na-active', !!value);
+            return;
+        }
+        if (type === 'binary_toggle') {
+            var binary = document.getElementById(id + '-btoggle');
+            var options = (descriptor && descriptor.options) || [];
+            if (!binary || options.length < 2) return;
+            var isRight = String(value) === String(options[1].value);
+            binary.setAttribute('data-value', value);
+            binary.classList.toggle('na-binary-toggle--right', isRight);
+            binary.classList.toggle('na-binary-toggle--left', !isRight);
+            return;
+        }
+        if (type === 'select') {
+            var select = document.getElementById(id + '-select');
+            if (select) select.value = value;
+        }
+    }
     // ---------------------------------------------------------------
 
 

@@ -3,6 +3,118 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.0.0 - 28-Oct-2026 - Panel Rework: Product Strip, Sections in Order, Parameter Search and One Action Dock
+
+### Context
+The Windows & Exterior Doors panel had been added to one control at a time, and the order had stopped making sense. Measured on the live dialog: the product choice sat in OPTIONS about 1,700px down, below the size, frame and glaze bars it decides; Measure Opening was in the tab strip and Create at Measurement Point 2,000-3,000px below it; the frame was split across three sections and the cill across two; and a default casement was 29 controls in one column, 2,155px long, with double doors at 48 controls and 3,137px.
+
+The design was worked out first as a mockup, `85__Docs__AppDocumentation/Na__AssemblyStudio__UiMockup__WindowsAndExteriorDoors__.html`, which also records the analysis and how often your 9 saved presets change each setting. V2.0.0 builds that design into the plugin, with one change from review: door handles have their own Hardware section ahead of Finish instead of sharing it. The Interior Doors tab is redone in the same style.
+
+### Feature Summary
+- **Top bar.** The two configurator tabs (Windows & Ext. Doors, Interior Doors), then Presets and Settings on the right. Measure Opening and Live Mode have moved to the dock.
+- **Product strip.** One click picks Casement, Sliding Sash, Single, Double, Bifold or Sliding, in place of the Product and Type toggles in OPTIONS. The Interior Doors tab has Single Door and Double Door chips.
+- **Sections in the order you would say it.** Each section header shows a one-line summary (`900 × 1200 mm`, `2 lights wide · 1 high`, `50 frame · set back 0 · cill 50`) and a count of changed values.
+- **Three tiers in every section.** Tier 1 is always shown. Tier 2 is behind More, and Tier 3 behind Advanced inside More. A closed tier that holds changes says so ("More · 2 changed"), so a changed value is never out of sight. Which sections and tiers are open is kept in the dialog's local storage, so it survives a reload.
+- **Hardware** for single and double doors: handle, handle pairing (double doors), handle height, position from the stile and handle finish, all in Tier 1. A fixed panel shows a note in its place.
+- **Fields that only matter when something is on now hide until it is.** Cill sizes need Include Cill. Mullion Width and Individual Mullion Offsets need a mullion. Frame Thickness gives way to the four per-side thicknesses. Window board fields need Include Window Board, and the per-leaf fields need Link Leaf Settings off.
+- **Compact rows, two to a line** at the dialog's 780px; one column below 600px.
+- **Parameter search** (Ctrl+F) across every control, nested ones included.
+  - It knows synonyms: sill, muntin, fanlight, ironmongery and merge find Cill, Bars, Transom, Handle and Fuse.
+  - The real control appears in the result, so it can be changed there. **Show in Panel** opens its section and tier and flashes it.
+  - A control that is hidden says what it needs ("Include Cill on") and offers **Turn It On**.
+  - Settings that belong to another product are listed apart, with a Switch button.
+  - The arrow keys move through the results, Enter jumps and Esc clears.
+- **Changed** (beside the search) lists every value that differs from its default, each with its own Reset.
+- **One pinned action dock.** ① Measure Opening and ② Insert at Measured Point sit side by side, then Create at Cursor, Update and Live Mode. A hint line says what comes next: measuring, measured, editing the selected element, live, or nothing selected.
+- **The selected element's details** (the old Window Info) show at the top while you are editing it.
+- **The preview, product strip and search stay pinned** while the sections scroll, in dialogs at least 821px tall and 601px wide. Shorter or narrower dialogs let them scroll away, so the sections keep their room.
+- **Advanced Frame Controls is now called Per-Side Frame Thickness**, which is what it does.
+- **Fix:** Update Window was enabled whenever the preview was valid, even with nothing selected. It now needs a selected element too.
+
+### Section Order
+| Product | Sections |
+|---|---|
+| Casement, Sliding Sash | Size · Lights & Dividers · Glazing · Frame & Cill · Casements (Sashes) · Finish · Output |
+| Single, Double, Bifold, Sliding | Size · Opening · Leaves · Glazing · Fielded Panels · Frame & Cill · Hardware (single and double) · Finish · Output |
+| Interior Doors | Opening & Wall · Leaf & Swing · Panel Design · Architrave · Hardware · Finish · Output |
+
+The rare settings are in Advanced:
+- Per-mullion and per-bar offsets.
+- Per Casement Settings, one casement at a time.
+- Per-Leaf Overrides with a Left/Right picker.
+- The six Edge Colours.
+
+### How the Layout Works
+- The systems still build their controls exactly as before, into their old containers, which now sit in a hidden staging block per tab. The new `Na__Ui__SectionLayout` moves each control into its section, tier and group by its `data-control-id`, reading a LayoutMap per tab. Controls, events, configs and the Ruby bridges are unchanged.
+- The existing visibility helpers still set `style.display` on the controls. The layout adds its own hide classes on top: wrong product, a layout-level rule (`showIf`), or the leaf the picker is not editing.
+- Every id the Ruby side calls is kept, including `na-btn-measure`, `na-btn-create-at-measurement`, `na-btn-update`, `na-btn-live`, `na-window-info` and the door equivalents.
+- A control added to a config without a slot in its LayoutMap still appears, under Output › Advanced › Other, with a console warning. The new LayoutCoverage spec fails on it, and on a slot whose control has been renamed or removed.
+- The Interior Doors tab rebuilds its controls on every mount (selection, measurement). The layout takes the old ones out first, so a control never appears twice.
+
+### Nothing Saved Moves
+- The product strip writes the same keys the Product and Type toggles did (`ui_element_category` plus `ui_window_type` or `ui_exterior_door_type`, and `Na__DoorConfig__DoorType` for interior doors). Saved windows, doors and presets load and build exactly as before.
+- No default value changed.
+
+### Files Changed
+- `01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__SectionLayout__.js` **(new)**: sections, tiers, groups, summaries, changed badges, the product strip and the leaf picker.
+- `01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__ParameterSearch__.js` **(new)**: search, synonyms, Turn It On, Other Products, Changed.
+- `01__AppCore/Na__AssemblyStudio__AppCore__UiSystem__ActionDock__.js` **(new)**: the dock's hint line.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__LayoutMap__.js` **(new)**: where every Windows & Exterior Doors control lives.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__LayoutMap__.js` **(new)**: the same for Interior Doors.
+- `03__Style__AppStylesheets/Na__AssemblyStudio__UiFeature__Styles__SectionLayout__.css` **(new)**, imported last by `Na__AssemblyStudio__CoreUi__Styles__Index__.css`.
+- `Na__AssemblyStudio__UiLayout__.html`: top bar, product strip, search, pinned head, staging blocks, the dock.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`:
+  - Mounts the layout and adds change listeners.
+  - Adds `na_setProduct` (the product strip) and `na_applyControlChange` (search and Turn It On).
+  - The product switch moved into `na_applyProductModeChange`.
+  - Update needs a selected element.
+- `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js`:
+  - Mounts and clears the layout.
+  - Adds change listeners, `na_get_ui_config` and `na_apply_control_value`.
+- `01__AppCore/Na__AssemblyStudio__AppCore__AppContext__.js`: publishes the active tab on `<body>` for the dock, and labels the Live Mode switch.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`: Advanced Frame Controls relabelled Per-Side Frame Thickness.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__LayoutCoverage__Spec__.js` **(new)**: 18 assertions over the shipped configs and LayoutMaps.
+- `85__Docs__AppDocumentation/Na__AssemblyStudio__UiMockup__WindowsAndExteriorDoors__.html`: Hardware split out of Finish for doors, to match.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.0.0.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__LayoutCoverage__Spec__.js"
+```
+Expect `18 passed, 0 failed`. The other eight suites are unchanged:
+
+| Suite | Expected |
+|---|---|
+| ArithmeticEvaluator | `108` |
+| CasementOverrides | `82` |
+| ComponentName | `32` |
+| DoorTypeSwitch | `71` |
+| ExteriorDoorParity | `109` |
+| MeasureOpening | `16` |
+| MullionMath | `76` |
+| WindowBoard | `79` |
+
+Tested so far:
+- The dialog page in a browser, with the Ruby calls simulated, at 780 × 1200 and at phone width.
+- Every product.
+- Search, Turn It On and Show in Panel.
+- A selected element, a measurement and clearing.
+- Material swatches arriving.
+- Interior Doors remounts.
+- Presets and Settings.
+
+**Not yet tested inside SketchUp.** After Reload Plugin:
+1. The Windows & Ext. Doors tab opens on the product strip. Click Double: the sections switch to the door order, and Hardware sits before Finish with the handle controls showing.
+2. In the dock, Measure Opening and pick an opening. ② Insert at Measured Point lights up beside it, and inserts at the measured point.
+3. Select a window. Its details show at the top, Update Window is enabled and Live Mode works from the dock. Click empty space: Update is disabled again.
+4. Ctrl+F and type `sill`: the cill controls appear in the results. Switch Include Cill off and search again: the result says "Include Cill on" and Turn It On fixes it.
+5. Interior Doors: the Single and Double chips, the Hardware handle finish cards, the Finish joinery cards, and Measure and Insert from the dock.
+6. Open Presets: the dock is hidden, and Back brings it back.
+7. Make the dialog shorter than 821px: the preview scrolls away with the sections.
+8. Select a window and a door saved before V2.0.0, and apply a preset: each loads and rebuilds unchanged.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V1.9.1 - 26-Oct-2026 - Gothic Arch Windows Export to DXF, and Measure Opening Keeps Glaze Bar Offsets
 
 ### Context

@@ -42,6 +42,7 @@ const Na_DynamicUI = (function() {
     let _updateCallback = null;                                      // External update callback function
     let _svgValid = false;                                           // SVG preview validation state
     let _casementOverrideSignature = null;                           // Casement list the Per Casement Settings were last built for
+    const _changeListeners = [];                                     // Called after every config change (section layout, search)
 
     // MODULE CONSTANT | Hinged Exterior Door Products Sharing the Dual Viewport
     // ------------------------------------------------------------
@@ -189,11 +190,48 @@ const Na_DynamicUI = (function() {
 
         // Set default values
         na_setDefaults();
-        
+
         // Initial render
         na_onConfigChange();
-        
+
+        // Move the built controls into their sections and tiers
+        na_mountSectionLayout();
+
         console.log('[NA_UI] Dynamic UI initialized');
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Hand the Built Controls to the Shared Section Layout
+    // ------------------------------------------------------------
+    // The controls are built into the na-controls-* containers exactly as
+    // before; Na__Ui__SectionLayout then moves each one, listeners and all,
+    // into its section and tier (see the WindowSystem LayoutMap). Skipped
+    // when the layout is not loaded, so the containers keep the controls.
+    function na_mountSectionLayout() {
+        const layout = window.Na__Ui__SectionLayout;
+        if (!layout || typeof layout.na_mount !== 'function' || !layout.na_get_spec('windows')) return;
+
+        layout.na_mount('windows');
+        na_addChangeListener(() => layout.na_request_refresh('windows'));
+        if (window.Na__Ui__ParameterSearch) window.Na__Ui__ParameterSearch.na_bind('windows');
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Register a Callback Run After Every Config Change
+    // ------------------------------------------------------------
+    // @param {Function} listener - Called with the live config
+    function na_addChangeListener(listener) {
+        if (typeof listener === 'function') _changeListeners.push(listener);
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Tell Every Change Listener the Config Moved
+    // ------------------------------------------------------------
+    function na_notifyChangeListeners() {
+        _changeListeners.forEach(listener => {
+            try { listener(_config); }
+            catch (err) { console.error('[NA_UI] Change listener failed:', err); }
+        });
     }
     // ---------------------------------------------------------------
     
@@ -322,23 +360,71 @@ const Na_DynamicUI = (function() {
         // exclusive subtype. Legacy boolean mode flags are derived here so
         // Ruby DialogCallbacks keep working unchanged.
         if (id === 'ui_element_category' || id === 'ui_window_type' || id === 'ui_exterior_door_type') {
-            const previousModeId = na_resolveActiveProductModeId();
-            na_syncModeFlagsFromHierarchy();
-            const nextModeId = na_resolveActiveProductModeId();
-            if (nextModeId !== previousModeId) {
-                if (nextModeId === 'sliding_sash_window') {
-                    na_applySlidingSashCasementDefaults();
-                } else if (nextModeId) {
-                    na_transposeSharedDoorSettings(previousModeId, nextModeId);
-                    na_applyDoorModeDefaultDimensions(nextModeId);
-                    if (nextModeId === 'double_door_mode') na_seedDoubleDoorActiveLeafWidth();
-                }
-            } else if (nextModeId === 'double_door_mode' && id === 'ui_exterior_door_type') {
-                na_seedDoubleDoorActiveLeafWidth();
-            }
+            na_applyProductModeChange(na_resolveActiveProductModeId(), id);
         }
 
         na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Apply the Consequences of a Product Change
+    // ------------------------------------------------------------
+    // Shared by the old Product / Window Type / Door Type toggles and the
+    // product strip. Derives the legacy mode flags, then seeds what a freshly
+    // chosen product starts with: sliding sash rails, a door type's opening
+    // size, the shared door settings carried across, an equal leaf split.
+    // @param {string|null} previousModeId - Mode before the hierarchy keys changed
+    // @param {string|null} triggerId      - Control that changed (re-choosing
+    //                                       Double re-seeds the equal split)
+    function na_applyProductModeChange(previousModeId, triggerId) {
+        na_syncModeFlagsFromHierarchy();
+        const nextModeId = na_resolveActiveProductModeId();
+        if (nextModeId !== previousModeId) {
+            if (nextModeId === 'sliding_sash_window') {
+                na_applySlidingSashCasementDefaults();
+            } else if (nextModeId) {
+                na_transposeSharedDoorSettings(previousModeId, nextModeId);
+                na_applyDoorModeDefaultDimensions(nextModeId);
+                if (nextModeId === 'double_door_mode') na_seedDoubleDoorActiveLeafWidth();
+            }
+        } else if (nextModeId === 'double_door_mode' && triggerId === 'ui_exterior_door_type') {
+            na_seedDoubleDoorActiveLeafWidth();
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Switch Product in One Step (Product Strip)
+    // ------------------------------------------------------------
+    // One chip names both levels of the old hierarchy (Window or Exterior
+    // Doors, then the type), so both keys are written before the mode change
+    // runs: Casement -> Single Door is one switch, not two.
+    // @param {string} category    - 'Window' | 'ExteriorDoors'
+    // @param {string} productType - Window: 'Casement' | 'SlidingSash';
+    //                               Door: 'Single' | 'Double' | 'MultiFold' | 'Sliding'
+    function na_setProduct(category, productType) {
+        const previousModeId = na_resolveActiveProductModeId();
+        _config.ui_element_category = (category === 'ExteriorDoors') ? 'ExteriorDoors' : 'Window';
+        if (_config.ui_element_category === 'ExteriorDoors') _config.ui_exterior_door_type = productType;
+        else _config.ui_window_type = productType;
+
+        ['ui_element_category', 'ui_window_type', 'ui_exterior_door_type'].forEach(id => {
+            na_updateControlValue(id, _config[id]);
+        });
+        na_applyProductModeChange(previousModeId, null);
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Apply a Value From Outside Its Control
+    // ------------------------------------------------------------
+    // Used by the parameter search (a reset, a "Turn It On" fix) and the
+    // preview's Dimensions button. The change takes exactly the path a click
+    // on the control takes, then the control is redrawn to match. Transom
+    // heights arrive in their stored (bottom-origin) form, as defaults are.
+    function na_applyControlChange(id, value) {
+        const uiValue = na_isTransomHeightControl(id) ? na_convertInternalTransomHeightToUi(value) : value;
+        na_onControlChange(id, uiValue);
+        na_updateControlValue(id, _config[id]);
     }
     // ---------------------------------------------------------------
 
@@ -638,6 +724,8 @@ const Na_DynamicUI = (function() {
         if (typeof na_sendLiveUpdate === 'function') {
             na_sendLiveUpdate();
         }
+
+        na_notifyChangeListeners();
     }
     // ---------------------------------------------------------------
 
@@ -2249,7 +2337,7 @@ const Na_DynamicUI = (function() {
         
         if (updateBtn) {
             updateBtn.textContent = na_resolveUpdateButtonLabel();
-            if (_svgValid) {
+            if (_svgValid && na_isElementSelected()) {
                 updateBtn.disabled = false;
                 updateBtn.classList.remove('na-btn-disabled');
             } else {
@@ -2263,6 +2351,17 @@ const Na_DynamicUI = (function() {
             resetElementsBtn.disabled = !hasHiddenElements;
             resetElementsBtn.classList.toggle('na-btn-disabled', !hasHiddenElements);
         }
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Is an Element Selected in the Model (Update Has a Target)
+    // ------------------------------------------------------------
+    // na_isEditMode is the WindowSystem Bridge's own flag. The bridge switched
+    // Update off on deselect, but every later change switched it back on, so
+    // Update sat enabled with nothing to update. Without the bridge (the spec
+    // harnesses) Update keeps its old rule: a valid preview is enough.
+    function na_isElementSelected() {
+        return (typeof na_isEditMode === 'undefined') ? true : na_isEditMode === true;
     }
     // ---------------------------------------------------------------
     
@@ -2573,13 +2672,17 @@ const Na_DynamicUI = (function() {
 
     // HELPER | Replace One Material-Card Control In Place
     // ------------------------------------------------------------
+    // The control is looked for across the whole dialog first: the section
+    // layout has moved it out of its build container into its section, and
+    // it must be replaced where it now sits.
     function na_replace_material_card_control(container, descriptor) {
         if (!container || !descriptor || !window.Na__Ui__Controls) return;
 
         const currentValue = (_config && _config[descriptor.id]) || descriptor.default;
         const renderConfig = Object.assign({}, descriptor, { default: currentValue });
         const newHtml = window.Na__Ui__Controls.na_createControl(renderConfig);
-        const existing = container.querySelector('[data-control-id="' + descriptor.id + '"]');
+        const selector = '[data-control-id="' + descriptor.id + '"]';
+        const existing = document.querySelector(selector) || container.querySelector(selector);
 
         if (existing) existing.outerHTML = newHtml;
         else container.insertAdjacentHTML('beforeend', newHtml);
@@ -2608,7 +2711,10 @@ const Na_DynamicUI = (function() {
         na_getActiveExtDoorProduct: na_getActiveExtDoorProduct,
         na_resetHiddenElements: na_resetHiddenElements,
         na_rebuild_frame_finish_control: na_rebuild_frame_finish_control,
-        na_rebuild_edge_colour_controls: na_rebuild_edge_colour_controls
+        na_rebuild_edge_colour_controls: na_rebuild_edge_colour_controls,
+        na_setProduct: na_setProduct,
+        na_applyControlChange: na_applyControlChange,
+        na_addChangeListener: na_addChangeListener
     };
     
 })();

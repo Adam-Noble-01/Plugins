@@ -54,11 +54,22 @@
         btn.classList.toggle('na-hidden', !!hidden);
     }
 
+    // The dock's Live button carries a switch graphic beside its label, so
+    // only the label span is rewritten when there is one.
     function na_paint_live_button(isOn) {
         var btn = na_get_button(NA_BTN_LIVE_ID);
         if (!btn) return;
-        btn.textContent = isOn ? 'Live Mode ON' : 'Live Mode';
+        var label = btn.querySelector('.na-dock-live__label');
+        if (label) label.textContent = isOn ? 'Live Mode On' : 'Live Mode';
+        else       btn.textContent   = isOn ? 'Live Mode ON' : 'Live Mode';
         btn.classList.toggle(NA_BTN_LIVE_ACTIVE_CLS, !!isOn);
+        btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+    }
+
+    // The stylesheet shows the dock buttons of the active tab only
+    // (body[data-na-active-tab] against each button's data-na-dock-tab).
+    function na_publish_active_tab_to_body(tabId) {
+        if (document.body && tabId) document.body.setAttribute('data-na-active-tab', tabId);
     }
 
     function na_clear_measure_active() {
@@ -222,6 +233,7 @@
     Na_AppContext.na_on_tab_changed = function (tabId) {
         na_clear_measure_active();
         Na_AppContext.na_apply_visibility();
+        na_publish_active_tab_to_body(tabId || na_resolve_active_tab());
         na_sync_presets_mode(tabId || na_resolve_active_tab());
         na_sync_live_button_to_tab();
         na_publish_active_tab(tabId || na_resolve_active_tab());
@@ -248,6 +260,7 @@
 
     Na_AppContext.na_init = function () {
         Na_AppContext.na_apply_visibility();
+        na_publish_active_tab_to_body(na_resolve_active_tab());
         na_sync_presets_mode(na_resolve_active_tab());
         na_sync_live_button_to_tab();
         na_clear_measure_active();

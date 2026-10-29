@@ -140,8 +140,10 @@ const NA_UI_CONFIG = [
         default :  50
     },
     {
+        // Drawn as a switch by the section layout (V2.0.0): its open state is
+        // the setting that makes the four sides below count.
         id      :  'advanced_frame_controls',
-        label   :  'Advanced Frame Controls',
+        label   :  'Per-Side Frame Thickness',
         type    :  'expandable',
         default :  false,
         children: [

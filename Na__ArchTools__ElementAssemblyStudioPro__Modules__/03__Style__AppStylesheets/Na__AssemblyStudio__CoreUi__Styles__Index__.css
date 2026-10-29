@@ -23,3 +23,7 @@
 @import url('Na__AssemblyStudio__UiFeature__Styles__TabStrip__.css');
 @import url('Na__AssemblyStudio__UiFeature__Styles__PresetsLibrary__.css');
 @import url('Na__AssemblyStudio__Styles__Combined__.css');
+
+/* V2.0.0 interface (top bar, pinned tab head, sections and tiers, search,
+   action dock). Last, so its scoped overrides win over the legacy bundle. */
+@import url('Na__AssemblyStudio__UiFeature__Styles__SectionLayout__.css');

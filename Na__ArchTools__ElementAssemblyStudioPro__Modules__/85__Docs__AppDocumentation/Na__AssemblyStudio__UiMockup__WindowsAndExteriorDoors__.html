@@ -319,6 +319,13 @@ button { cursor: pointer; }
     .na-sws { grid-column: 1 / -1; justify-content: flex-start; }
     .na-dock-sep { display: none; }
     .na-live { margin-left: 0; }
+    .na-dialog { height: calc(100vh - 24px); min-height: 560px; }
+    .na-pgroup > div { flex-wrap: wrap; }
+    .na-preview-head { flex-wrap: wrap; }
+    .na-flow { width: 100%; }
+    .na-flow-step { flex: 1; min-width: 0; }
+    .na-flow-step span { overflow: hidden; text-overflow: ellipsis; }
+    .na-btn { flex: 1; }
     .na-tabs .na-tab:not(.na-tab--on) { display: none; }
 }
 </style>
@@ -486,17 +493,17 @@ button { cursor: pointer; }
 
             <h2><small>3</small>The new flow</h2>
             <div class="na-flowline">
-                <span>Product</span><i>→</i><span>Size</span><i>→</i><span>Lights / Opening</span><i>→</i><span>Leaves</span><i>→</i><span>Glazing</span><i>→</i><span>Fielded panels</span><i>→</i><span>Frame &amp; cill</span><i>→</i><span>Casements / Sashes</span><i>→</i><span>Finish</span><i>→</i><span>Output</span>
+                <span>Product</span><i>→</i><span>Size</span><i>→</i><span>Lights / Opening</span><i>→</i><span>Leaves</span><i>→</i><span>Glazing</span><i>→</i><span>Fielded panels</span><i>→</i><span>Frame &amp; cill</span><i>→</i><span>Casements / Sashes</span><i>→</i><span>Hardware</span><i>→</i><span>Finish</span><i>→</i><span>Output</span>
             </div>
             <ul>
-                <li><strong>The order follows how you’d say it out loud:</strong> “a 900 by 1200 casement, two lights with a transom, three over one bars, 50 frame set back 10, painted.” Leaves and fielded panels only show for doors, and Casements/Sashes only for windows.</li>
+                <li><strong>The order follows how you’d say it out loud:</strong> “a 900 by 1200 casement, two lights with a transom, three over one bars, 50 frame set back 10, painted.” Leaves and fielded panels only show for doors, Hardware only for single and double doors, and Casements/Sashes only for windows.</li>
                 <li><strong>One product strip</strong> replaces the two-level Product → Type toggle. It’s one click for all six, and it’s the first thing in the panel.</li>
                 <li><strong>Each topic has one home.</strong> Everything about the frame is in Frame &amp; cill, and everything about glass is in Glazing.</li>
                 <li><strong>There are three tiers inside every section.</strong> <span class="na-tb na-tb1">1</span> is always shown. <span class="na-tb na-tb2">2</span> sits behind <em>More</em>, and <span class="na-tb na-tb3">3</span> behind <em>Advanced</em> inside More. A section header shows a one-line summary and a count of changed values. A shut tier that holds changes says so (“More · 2 changed”), so a changed value is never invisible.</li>
                 <li><strong>Every action is in one pinned dock:</strong> ① Measure → ② Insert at measured point, side by side, then Insert at cursor, Update and Live. They are always visible, whatever you’ve scrolled to.</li>
-                <li><strong>Search covers all ~230 parameters,</strong> nested ones included. It understands synonyms (sill, threshold, muntin, astragal, ironmongery, fanlight…), puts the real control in the result so you can edit it there, and has “Show in panel” to open the path. Parameters for other products are listed apart, with a switch button. <em>Changed</em> lists every value that differs from its default, each with its own reset.</li>
+                <li><strong>Search covers every parameter, nested ones included:</strong> all ~230 config keys, which come to 181 controls once the four door types share their common ones. It understands synonyms (sill, threshold, muntin, astragal, ironmongery, fanlight…), puts the real control in the result so you can edit it there, and has “Show in panel” to open the path. Parameters for other products are listed apart, with a switch button. <em>Changed</em> lists every value that differs from its default, each with its own reset.</li>
                 <li><strong>Rows are compact and two to a line</strong> at the dialog’s 780&nbsp;px. Counts use steppers and enums use segmented buttons. Dependent fields only appear when their switch is on.</li>
-                <li><strong>Tier 1 is about one screen.</strong> At the default 780 × 1200 size, a casement’s Tier 1 fits with no scrolling (928&nbsp;px of content in a 928&nbsp;px body). Sliding sash needs about 110&nbsp;px of scroll, and the doors 120–190&nbsp;px. Today it’s 2,155 and 3,137&nbsp;px.</li>
+                <li><strong>Tier 1 is about one screen.</strong> At the default 780 × 1200 size, a casement’s Tier 1 fits with no scrolling (928&nbsp;px of content in a 928&nbsp;px body). Sliding sash needs about 110&nbsp;px of scroll, and bifold and sliding doors 120–160&nbsp;px. Single and double doors need about 350&nbsp;px, because their handles now have their own Hardware section in Tier 1. Today it’s 2,155 and 3,137&nbsp;px.</li>
             </ul>
 
             <h2><small>4</small>Where things moved</h2>
@@ -518,7 +525,8 @@ button { cursor: pointer; }
                     <tr><td>Door swing, angles, hinge projection, fixed</td><td>→</td><td>Opening</td></tr>
                     <tr><td>Leaf construction, Link Leaf Settings, leaf overrides</td><td>→</td><td>Leaves (overrides in Advanced, one leaf at a time)</td></tr>
                     <tr><td>Fielded panel controls</td><td>→</td><td>Fielded panels (hidden for fully glazed leaves)</td></tr>
-                    <tr><td>Frame / leaf / handle finish, handle, Edge Colours</td><td>→</td><td>Finish (&amp; hardware)</td></tr>
+                    <tr><td>Handle, handle pairing, height, backset, handle finish</td><td>→</td><td>Hardware (single and double doors)</td></tr>
+                    <tr><td>Frame / leaf finish, Edge Colours</td><td>→</td><td>Finish</td></tr>
                     <tr><td>Fuse Parts, Show Dimensions, swing arcs, open-state copy</td><td>→</td><td>Output (Dimensions also a toggle on the preview)</td></tr>
                     <tr><td>Window Info (bottom)</td><td>→</td><td>Selected strip at the top while editing</td></tr>
                 </tbody>
@@ -603,11 +611,13 @@ button { cursor: pointer; }
                     off: () => na_get('leaf_composition') === 'FullyGlazed' ? 'Fully glazed leaves have no fielded panels. Change the leaf style under Leaves to add some.' : '' },
         frame   : { title: () => 'Frame & cill' },
         sashes  : { title: p => p === 'sash' ? 'Sashes' : 'Casements' },
-        finish  : { title: p => NA_HD.includes(p) ? 'Finish & hardware' : 'Finish' },
+        hardware: { title: () => 'Hardware',
+                    off: () => v('fixed_panels') ? 'Fixed panels have no handles. Turn Fixed panel off under Opening to fit one.' : '' },
+        finish  : { title: () => 'Finish' },
         output  : { title: () => 'Output' }
     };
     const NA_ORDER_W = ['size', 'layout', 'glazing', 'frame', 'sashes', 'finish', 'output'];
-    const NA_ORDER_D = ['size', 'layout', 'leaves', 'glazing', 'panels', 'frame', 'finish', 'output'];
+    const NA_ORDER_D = ['size', 'layout', 'leaves', 'glazing', 'panels', 'frame', 'hardware', 'finish', 'output'];
     // endregion
 
     // =========================================================================
@@ -864,15 +874,18 @@ button { cursor: pointer; }
         }
     });
 
+    // ------------------------------------------------------------------ Hardware
+    na_in('hardware');
+    seg('double_door_handle_pairing', 'Handles', [['Single', 'Active leaf only'], ['Paired', 'Both leaves']], 'Paired', Object.assign({ p: ['double'], kw: 'handle pairing ironmongery' }, na_notFixed));
+    sel('handle_asset_key', 'Handle', [['Na__ExteriorDoor__Handle__Scroll', 'Scroll lever']], 'Na__ExteriorDoor__Handle__Scroll', Object.assign({ p: NA_HD, id: p => na_pre(p) + '_handle_asset_key', kw: 'handle ironmongery lever hardware' }, na_notFixed));
+    num('handle_height_mm', 'Handle height', 700, 1400, 5, 900, Object.assign({ p: NA_HD, id: p => na_pre(p) + '_handle_height_mm', kw: 'handle ironmongery' }, na_notFixed));
+    num('handle_backset_mm', p => p === 'double' ? 'From meeting stile' : 'From latch stile', 20, 250, 5, 40, Object.assign({ p: NA_HD, id: p => na_pre(p) + '_handle_backset_mm', kw: 'handle position backset ironmongery' }, na_notFixed));
+    sw('handle_material_id', 'Handle finish', NA_HANDLES, 'MAT615__Metal__Ironmongery__Chrome', Object.assign({ p: NA_HD, id: p => na_pre(p) + '_handle_material_id', kw: 'handle ironmongery colour material' }, na_notFixed));
+
     // ------------------------------------------------------------------ Finish
     na_in('finish');
     sw('frame_material_id', 'Frame finish', NA_FINISH, 'MAT120__GenericWood', { kw: 'material colour color paint timber frame finish' });
     sw('leaf_material_id', 'Leaf finish', NA_FINISH, 'MAT120__GenericWood', { p: NA_HD, id: p => na_pre(p) + '_leaf_material_id', kw: 'material colour color paint door leaf finish' });
-    sel('handle_asset_key', 'Handle', [['Na__ExteriorDoor__Handle__Scroll', 'Scroll lever']], 'Na__ExteriorDoor__Handle__Scroll', Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_asset_key', kw: 'handle ironmongery lever hardware' }, na_notFixed));
-    seg('double_door_handle_pairing', 'Handles', [['Single', 'Active leaf only'], ['Paired', 'Both leaves']], 'Paired', Object.assign({ tier: 2, p: ['double'], kw: 'handle pairing ironmongery' }, na_notFixed));
-    num('handle_height_mm', 'Handle height', 700, 1400, 5, 900, Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_height_mm', kw: 'handle ironmongery' }, na_notFixed));
-    num('handle_backset_mm', p => p === 'double' ? 'From meeting stile' : 'From latch stile', 20, 250, 5, 40, Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_backset_mm', kw: 'handle position backset ironmongery' }, na_notFixed));
-    sw('handle_material_id', 'Handle finish', NA_HANDLES, 'MAT615__Metal__Ironmongery__Chrome', Object.assign({ tier: 2, p: NA_HD, id: p => na_pre(p) + '_handle_material_id', kw: 'handle ironmongery colour material' }, na_notFixed));
     sw('edge_colour_frame_id', 'Frame edges', NA_EDGES, 'MTE102__LineColour__SoftBlack__L20', { tier: 3, g: 'Edge colours', kw: 'edge line colour' });
     sw('edge_colour_casement_id', 'Casement edges', NA_EDGES, 'MTE103__LineColour__DarkGrey__L40', { tier: 3, g: 'Edge colours', p: NA_W, kw: 'edge line colour' });
     sw('edge_colour_glazebar_id', 'Glaze bar edges', NA_EDGES, 'MTE103__LineColour__DarkGrey__L40', { tier: 3, g: 'Edge colours', kw: 'edge line colour' });
@@ -1249,6 +1262,12 @@ button { cursor: pointer; }
                 if (!v('show_casements')) return 'Glass only';
                 if (p === 'sash') return `${v('casement_width_mm')} stiles · horns ${v('sash_horns_enabled') ? na_optLabel('sash_horn_type') : 'off'}${v('meeting_rail_position_override') ? ' · rail moved' : ''}`;
                 return `${v('casement_sizes_individual') ? 'Per-side' : v('casement_width_mm')} rails & stiles · set back ${v('casement_inset_mm')}`;
+            }
+            case 'hardware': {
+                if (v('fixed_panels')) return 'No handles on a fixed panel';
+                const bits = [na_optLabel('handle_asset_key'), `${v('handle_height_mm')} high`, na_swatch(NA_HANDLES, v('handle_material_id')).n.toLowerCase()];
+                if (p === 'double') bits.push(na_optLabel('double_door_handle_pairing').toLowerCase());
+                return bits.join(' · ');
             }
             case 'finish': return na_swatch(NA_FINISH, v('frame_material_id')).n + (NA_HD.includes(p) ? ` frame · ${na_swatch(NA_FINISH, v('leaf_material_id')).n.toLowerCase()} leaf` : '');
             case 'output': return [v('fuse_parts') ? 'Fused' : 'Separate parts'].concat(NA_HD.includes(p) && v('show_swing_arcs') && !v('fixed_panels') ? ['swing arcs'] : []).join(' · ');
