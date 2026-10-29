@@ -30,6 +30,13 @@
 #   remembered between sessions, 5 mm until one is typed. After a cut the same
 #   entries re-cut it: 60 resizes the radius, ,2 changes the step, 60,2 both.
 #
+# CAVETTO IN TWO CLICKS:
+# - The cavetto is drawn in two stages. Grab, drag the radius with its live
+#   preview, and click (or release the drag) to FIX it; then move up for a
+#   bigger step in, down for a smaller one, and click again to cut. BKSP goes
+#   back to the radius. Typing 40,5 (or any entry that cuts) still cuts at
+#   once from either stage. The ovolo stays a single click.
+#
 # TAB — OVOLO OR CAVETTO:
 # - TAB swaps the convex ovolo for the concave cavetto, and back: mid-drag on
 #   the preview, straight after a cut by re-cutting it, otherwise for the next
@@ -73,6 +80,7 @@ module Na__InsertPrimatives
             super
             @na_ov_wants_step   = false                                       # <-- "40r" pinned the radius: the next bare number is the step
             @na_ov_max_setback  = nil                                         # <-- The faces' reach, as last measured
+            na_ov__clear_step_stage
         end
         # ---------------------------------------------------------------
 
@@ -101,6 +109,7 @@ module Na__InsertPrimatives
             [
                 'Hover an edge, click to grab it — the preview opens at 25% of the largest radius the faces allow',
                 'Drag UP for a bigger radius, DOWN for a smaller one, then click to cut',
+                'Cavetto takes two clicks: the first fixes the radius, then move up/down for the step in and click again to cut',
                 'SHIFT+click banks edges, then one drag moulds them all — square corners mitre',
                 'Reaches edges inside groups and components without opening them',
                 "Radius snaps to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
@@ -198,6 +207,7 @@ module Na__InsertPrimatives
         def na_drawn__ovolo_step
             replaying = @na_revise_replaying
             return replaying[:step].to_f if replaying && replaying.key?(:step)
+            return @na_ov_live_step if @na_ov_live_step                       # <-- The step being scrubbed; remembered only when the cut lands
 
             Na__InsertPrimatives.Na__DrawnSettings__OvoloStepMm.to_f / NA_DRAWN_INCH_TO_MM
         end
@@ -236,6 +246,7 @@ module Na__InsertPrimatives
         # and not as the 7.999999 the round trip through inches can leave.
         # ------------------------------------------------------------
         def na_ov__store_step(step)
+            @na_ov_live_step = nil                                            # <-- A typed step outranks the scrubbed one
             Na__InsertPrimatives.Na__DrawnSettings__SetOvoloStepMm((step.to_f * NA_DRAWN_INCH_TO_MM).round(3))
         end
         # ---------------------------------------------------------------
@@ -357,6 +368,13 @@ module Na__InsertPrimatives
             end
 
             na_sc__rebase(@na_last_mouse_y, @na_size_d)
+
+            if @na_ov_in_step                                                 # <-- The other kind counts steps differently: the step's room changed
+                @na_ov_step_max  = na_ov__max_step_for(@na_size_d)
+                @na_ov_live_step = @na_ov_step_max if @na_ov_step_max && @na_ov_live_step && @na_ov_live_step > @na_ov_step_max
+                na_ov__step_rebase(@na_last_mouse_y, na_drawn__ovolo_step)
+            end
+
             na_drawn__refresh_solve
             true
         end
@@ -483,15 +501,229 @@ module Na__InsertPrimatives
         def na_drawn__clear_target
             super
             @na_ov_wants_step = false
+            na_ov__clear_step_stage
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | BKSP Releasing the Radius Stops Waiting for a Step
+        # In the step stage that is a step back to the radius, with the step
+        # scrubbed so far kept.
         # ------------------------------------------------------------
         def na_drawn__release_last_lock
             released = super
-            @na_ov_wants_step = false if released && !na_drawn__locked?(:d)
+
+            if released && !na_drawn__locked?(:d)
+                @na_ov_wants_step = false
+                na_ov__leave_step_stage
+            end
+
             released
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Cavetto in Two Clicks — Radius, Then the Step In
+        # -----------------------------------------------------------------------------
+        # The cavetto's two values are drawn one after the other. The radius is
+        # the scrub the chamfer family already has: grab, drag, and a click (or
+        # the release of a drag) FIXES it instead of cutting. The step stage
+        # then scrubs the step the same way — up for more, down for less, from
+        # the step already in hand — the radius held and the preview showing
+        # the cavetto as it will land, and the next click cuts. The tool stays in
+        # :picking_depth throughout; the stage is a flag, so every base handler
+        # (Enter, ESC, BKSP, the measurements box) works in both stages.
+        # Typing still cuts at once, as it always did, in either stage.
+
+        NA_OV_TWO_STEP_KINDS = [:cavetto].freeze                               # <-- Kinds drawn in two clicks; the ovolo stays one
+        NA_OV_STEP_SNAP_MM   = 0.5                                             # <-- The scrubbed step lands on halves of a millimetre
+
+        # FUNCTION | Forget the Step Stage
+        # ------------------------------------------------------------
+        def na_ov__clear_step_stage
+            @na_ov_in_step   = false                                          # <-- True once the radius is fixed and the step is being drawn
+            @na_ov_live_step = nil                                            # <-- Internal inches; nil = the remembered step
+            @na_ov_step_max  = nil                                            # <-- Widest step the fixed radius leaves room for
+            @na_ov_step_y0   = nil
+            @na_ov_step_u0   = nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is the Kind in Hand Drawn in Two Clicks?
+        # ------------------------------------------------------------
+        def na_ov__two_step?
+            NA_OV_TWO_STEP_KINDS.include?(na_drawn__ovolo_kind)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is the Step Being Drawn Now?
+        # ------------------------------------------------------------
+        def na_ov__step_stage?
+            @na_state == :picking_depth && @na_ov_in_step == true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Widest Step a Radius Leaves Room for, or nil
+        # The inverse of the radius limit: setback = radius + steps x step, less
+        # the land. nil when the faces' reach was not measured.
+        # ------------------------------------------------------------
+        def na_ov__max_step_for(radius)
+            return nil if @na_ov_max_setback.nil?
+
+            land  = NA_OVOLO_LAND_MM / NA_DRAWN_INCH_TO_MM
+            count = Na__InsertPrimatives.Na__DrawnOvolo__StepCount(na_drawn__ovolo_kind)
+            [(@na_ov_max_setback.to_f - land - radius.to_f) / count, 0.0].max
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Fix the Radius and Start Drawing the Step
+        # The step opens at the step in hand (cut back to what the radius
+        # leaves room for), and the scrub is rebased on the cursor's height so
+        # nothing jumps; only moving changes it.
+        # ------------------------------------------------------------
+        def na_ov__begin_step_stage(view, y)
+            radius = @na_size_d.to_f
+
+            unless radius > 0.0
+                UI.beep
+                Sketchup::set_status_text('No radius yet — drag up for one, or type it, before setting the step', SB_PROMPT)
+                return false
+            end
+
+            @na_ov_step_max = na_ov__max_step_for(radius)
+            step            = na_drawn__ovolo_step
+            step            = @na_ov_step_max if @na_ov_step_max && step > @na_ov_step_max
+
+            @na_ov_live_step  = step
+            @na_ov_in_step    = true
+            @na_ov_wants_step = true                                          # <-- A bare number typed now is the step
+            na_drawn__lock_slot(:d)                                           # <-- The radius is fixed: the cursor no longer scrubs it
+            na_ov__step_rebase(y, step)
+            na_drawn__refresh_solve
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Back to Drawing the Radius
+        # ------------------------------------------------------------
+        def na_ov__leave_step_stage
+            return unless @na_ov_in_step
+
+            @na_ov_in_step  = false
+            @na_ov_step_max = nil
+            @na_ov_step_y0  = nil
+            @na_ov_step_u0  = nil
+            na_sc__rebase(@na_last_mouse_y, @na_size_d) if @na_ch_anchor && @na_last_mouse_y
+            na_drawn__refresh_solve
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Carry the Step Scrub On From a Step at a Screen Height
+        # Same curve as the radius scrub (DrawnChamferScrub), over the step's
+        # own range.
+        # ------------------------------------------------------------
+        def na_ov__step_rebase(y, step)
+            @na_ov_step_y0 = y.to_f
+            max            = @na_ov_step_max
+            @na_ov_step_u0 = max && max > 0.0 ? na_sc__curve_inverse(step.to_f / max) : step.to_f
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Scrubbed Step at a Screen Height, Snapped and Clamped
+        # ------------------------------------------------------------
+        def na_ov__step_at(view, y)
+            return nil unless @na_ov_step_y0 && @na_ov_step_u0
+
+            max = @na_ov_step_max
+            up  = @na_ov_step_y0 - y.to_f
+
+            raw =
+                if max.nil?
+                    @na_ov_step_u0 + (up * na_sc__pixel_world(view))
+                elsif max > 0.0
+                    max * na_sc__curve(@na_ov_step_u0 + (up / (NA_SC_SPAN_PX * na_sc__scale_factor(view))))
+                else
+                    0.0                                                       # <-- The radius leaves no room for a step
+                end
+
+            snap = NA_OV_STEP_SNAP_MM / NA_DRAWN_INCH_TO_MM
+            step = (raw / snap).round * snap
+            step = max if max && step > max
+            step < 0.0 ? 0.0 : step
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Cursor Scrubs the Step in the Step Stage, the Radius Before It
+        # ------------------------------------------------------------
+        def na_drawn__update_cursor(view, x, y)
+            return super unless na_ov__step_stage?
+
+            @na_last_mouse_x = x
+            @na_last_mouse_y = y
+
+            step = na_ov__step_at(view, y)
+            return false unless step
+            return true if (step - na_drawn__ovolo_step).abs < 1.0e-9
+
+            @na_ov_live_step = step
+            na_drawn__refresh_solve
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A Cavetto's Click Fixes the Radius; the Next One Cuts
+        # Anywhere else — grabbing the edge, the step stage, the ovolo — the
+        # chamfer's own click.
+        # ------------------------------------------------------------
+        def onLButtonDown(flags, x, y, view)
+            return super unless @na_state == :picking_depth && !@na_ov_in_step && na_ov__two_step?
+
+            @na_vcb_typing_active = false
+            na_drawn__sync_modifier(flags)
+            @na_last_mouse_x      = x
+            @na_last_mouse_y      = y
+            @na_drag_press_active = false
+
+            na_drawn__update_cursor(view, x, y)
+            na_ov__begin_step_stage(view, y)
+
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Releasing a Radius Drag Fixes It Too
+        # Press, drag, release is the radius; the step is then a move and a
+        # click. A release with no drag in it is not a radius.
+        # ------------------------------------------------------------
+        def onLButtonUp(flags, x, y, view)
+            return super unless @na_state == :picking_depth && !@na_ov_in_step && @na_drag_press_active && na_ov__two_step?
+
+            na_drawn__sync_modifier(flags)
+            @na_drag_press_active = false
+
+            travelled_px = (x.to_f - @na_press_x.to_f).abs + (y.to_f - @na_press_y.to_f).abs
+            return if travelled_px < NA_DRAWN_DRAG_MIN_PX
+
+            na_drawn__update_cursor(view, x, y)
+            na_ov__begin_step_stage(view, y)
+
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Step Scrubbed Is Remembered Once the Cut Lands
+        # ------------------------------------------------------------
+        def na_drawn__commit_chamfer(view)
+            live = @na_ov_live_step
+            done = super
+            na_ov__store_step(live) if done && live
+            done
         end
         # ---------------------------------------------------------------
 
@@ -526,10 +758,22 @@ module Na__InsertPrimatives
                 other   = solve[:kind] == :cavetto ? 'ovolo' : 'cavetto'
                 back    = na_ov__mm_text(solve[:setback_world])
                 edge_mm = Na__InsertPrimatives.Na__DrawnFormat__Mm(solve[:edge_len_world]).abs
-                lines << "#{na_drawn__cut_title} #{na_drawn__size_text(@na_size_d)} · #{na_ov__mm_text(na_drawn__ovolo_step)} step" \
-                         "#{na_lm__range_note(@na_size_d, @na_ch_max_size)}"
+                if na_ov__step_stage?
+                    most = @na_ov_step_max ? " of #{na_ov__mm_text(@na_ov_step_max)} max" : ''
+                    lines << "#{na_drawn__cut_title} #{na_drawn__size_text(@na_size_d)} fixed · step in #{na_ov__mm_text(na_drawn__ovolo_step)}#{most}"
+                else
+                    lines << "#{na_drawn__cut_title} #{na_drawn__size_text(@na_size_d)} · #{na_ov__mm_text(na_drawn__ovolo_step)} step" \
+                             "#{na_lm__range_note(@na_size_d, @na_ch_max_size)}"
+                end
                 lines << "#{back} back on each face · #{solve[:facets]} facets · TAB #{other} · edge #{edge_mm} mm"
-                lines << 'now type the step (e.g. 5), or click to cut' if @na_ov_wants_step
+
+                if na_ov__step_stage?
+                    lines << 'move up for a bigger step, down for less · click to cut · BKSP back to the radius'
+                elsif @na_ov_wants_step
+                    lines << 'now type the step (e.g. 5), or click to cut'
+                elsif @na_state == :picking_depth && na_ov__two_step?
+                    lines << 'click to fix the radius, then draw the step in'
+                end
             end
 
             na_drawn__draw_profile_preview(view, lines)
@@ -554,10 +798,18 @@ module Na__InsertPrimatives
                 size = na_drawn__size_text(@na_size_d)
                 text = na_drawn__locked?(:d) ? "[#{size}]" : size
                 return "#{na_drawn__cut_title} #{text} + #{step} step — CORNER PROBLEM: #{@na_ch_mitre_note}" if @na_ch_mitre_note
+
+                if na_ov__step_stage?
+                    most = @na_ov_step_max ? " (up to #{na_ov__mm_text(@na_ov_step_max)})" : ''
+                    return "#{na_drawn__cut_title} #{size} fixed — step in #{step}#{most}#{na_drawn__stop_note}" \
+                           ' — move up for more, down for less, click to cut, or type it'
+                end
+
                 return "#{na_drawn__cut_title} #{text} pinned — type the step (e.g. 5), or click to cut at #{step}" if @na_ov_wants_step
 
+                finish = na_ov__two_step? ? 'click to fix the radius, then draw the step in' : 'release or click to cut'
                 return "#{na_drawn__cut_title} #{text} + #{step} step#{na_lm__range_note(@na_size_d, @na_ch_max_size)}#{na_drawn__stop_note}" \
-                       ' — drag up for more, down for less, release or click to cut'
+                       " — drag up for more, down for less, #{finish}"
             end
 
             return na_ps__status_detail if na_ps__active?                        # <-- Preselected edges, from the chamfer

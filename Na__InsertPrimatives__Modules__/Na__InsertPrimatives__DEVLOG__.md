@@ -3,6 +3,61 @@
 
 # =============================================================================
 
+## Version 5.2.17 - 29-Oct-2026 - Deep Cavetto: Draw the Radius, Then Draw the Step In
+
+### Asked
+*"Make the cavetto drawing a two step process instead of one step. Draw the desired inset with the
+preview, then again for the step in, so the user has an intuitive interactive way to set the
+cavetto."*
+
+### What Changed
+The cavetto has two values, the quarter hollow's **radius** and the small **step** at each end. The
+step used to be typed (`40,5`) or left at the remembered 5 mm; only the radius could be dragged.
+Now both are drawn, one after the other, with the live preview showing the cavetto the whole time:
+1. **Grab the edge and drag the radius** exactly as before (up for more, down for less).
+2. **Click, or release the drag, to fix the radius.** It no longer cuts. The step stage opens at the
+   step already in hand, with no jump.
+3. **Move up for a bigger step in, down for a smaller one**, in half-millimetre steps, never wider
+   than the fixed radius leaves room for (the status line and card say how wide). **Click to cut.**
+
+- **BKSP** in the step stage goes back to the radius (the step drawn so far is kept).
+- **Typing still cuts at once** from either stage: `40,5`, or a bare number in the step stage is the
+  step. Enter cuts at the current radius and step. Double-click repeat is unchanged.
+- **TAB** in the step stage swaps ovolo/cavetto and re-measures the step's room (the ovolo counts
+  one step per face, the cavetto two).
+- The step you drew is remembered for next time once the cut lands; it is not written on every
+  mouse move.
+- **The ovolo stays one click.** `NA_OV_TWO_STEP_KINDS` in the tool lists the kinds drawn in two
+  clicks; add `:ovolo` to it to give the ovolo the same step stage.
+- The radius stays fixed while the step moves, so the cavetto's overall reach (radius + 2 x step)
+  grows with the step. The alternative, holding the overall reach and letting the step eat the
+  radius, was not chosen because it would make a dragged cavetto differ from a typed `R,step`.
+
+### Verified Offline
+114/114 files compile. A new suite, `cv_two_step`, has 33 checks on the real tool with the geometry
+stubbed: the click fixes the radius without cutting; the step opens at 5 mm; it grows going up,
+stops at the radius's limit and comes to nothing going down; the radius is untouched while it moves;
+the cut uses the fixed radius and the drawn step and remembers it; release-after-drag fixes the
+radius while a release with no drag does nothing; BKSP goes back and the radius scrubs again;
+typed entries cut at once; TAB widens the step limit; the ovolo cuts on its first click; a click
+with no radius does not start the step.
+
+Not covered offline: the look of the live preview and the feel of the scrub, which need SketchUp.
+
+### Files
+- `34__System__DeepOvolo/..DrawnOvoloTool__.rb`: the new region "Cavetto in Two Clicks", the click
+  and release overrides, the step scrub (over the chamfer scrub's curve), the live step, and the
+  status/preview wording.
+
+### Testing Notes
+- [ ] Reload. Deep Ovolo, TAB to the cavetto, grab an edge, drag the radius, click. The hollow stays
+      put and moving the mouse changes only the step.
+- [ ] Click again: it cuts with that step. Next cavetto opens with that step.
+- [ ] Press-drag-release, then move and click. BKSP between the two returns to the radius.
+- [ ] Type `40,5` straight after grabbing: still cuts at once. Try an ovolo: still one click.
+
+# =============================================================================
+
 ## Version 5.2.16 - 28-Oct-2026 - Primitive Menu: Your Size Sticks, It No Longer Grows Over the VCB
 
 ### Reported
