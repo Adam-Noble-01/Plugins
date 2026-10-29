@@ -50,6 +50,14 @@
 #   has to happen before its context opens, so it runs first, in the user's
 #   context, with next_transparent set.
 #
+# WELDED CURVES (5.2.18):
+# - SketchUp re-fits a welded curve (arc, circle, welded run) round any of
+#   its vertices that is moved on its own, so a stretch warped them. Every
+#   curve with a vertex in the stretch is exploded just before the move and
+#   welded back after it (04__GeometryHelpers/..CurveUnweld__.rb). Loose
+#   geometry scaled unevenly gets the same; a uniform scale leaves arcs as
+#   arcs and is not touched. A plain scale changes only the instance.
+#
 # NEVER CLOSED ALL THE WAY:
 # - Na__ScaleCommit__CheckRoom measures the real geometry before anything is
 #   touched and refuses a shrink that would bring details either side of a
@@ -60,6 +68,7 @@
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative '../04__GeometryHelpers/Na__InsertPrimatives__CurveUnweld__'
 
 module Na__InsertPrimatives
 
@@ -162,13 +171,39 @@ module Na__InsertPrimatives
         model.start_operation(NA_SCALE_OP_SCALE, true)
 
         begin
+            # A uniform scale keeps every arc an arc; anything else cannot, and
+            # SketchUp re-fits a welded curve it cannot keep (WELDED CURVES).
+            chains = []
+            unless Na__InsertPrimatives.Na__ScaleCommit__Uniform?(delta)
+                loose_vertices = list.flat_map { |entity| entity.respond_to?(:vertices) ? entity.vertices : [] }
+                chains         = Na__InsertPrimatives.Na__CurveUnweld__Explode(loose_vertices)
+            end
+
             model.active_entities.transform_entities(delta, list)
+            Na__InsertPrimatives.Na__CurveUnweld__Reweld(model.active_entities, chains)
             model.commit_operation
             result.merge(:success => true, :moved => list.length)
         rescue StandardError => error
             model.abort_operation
             result.merge(:error => error.message)
         end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Does a Transformation Scale Every Direction Alike?
+    # ------------------------------------------------------------
+    # Its three axis columns the same length and square to each other: a
+    # rotation, a move and one scale factor, under which an arc stays an arc.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__Uniform?(transformation)
+        m    = transformation.to_a
+        axes = [[m[0], m[1], m[2]], [m[4], m[5], m[6]], [m[8], m[9], m[10]]]
+        size = axes.map { |a| Math.sqrt((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2])) }
+        return false if size.min <= 0.0
+
+        dot  = lambda { |a, b| ((a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])) / (Math.sqrt((a[0] * a[0]) + (a[1] * a[1]) + (a[2] * a[2])) * Math.sqrt((b[0] * b[0]) + (b[1] * b[1]) + (b[2] * b[2]))) }
+        same = (size.max - size.min) <= (1e-6 * size.max)
+        same && dot.call(axes[0], axes[1]).abs < 1e-6 && dot.call(axes[1], axes[2]).abs < 1e-6 && dot.call(axes[0], axes[2]).abs < 1e-6
     end
     # ---------------------------------------------------------------
 
@@ -354,7 +389,11 @@ module Na__InsertPrimatives
             vectors << vector
         end
 
-        entities.transform_by_vectors(moved, vectors) unless moved.empty?
+        unless moved.empty?
+            chains = Na__InsertPrimatives.Na__CurveUnweld__Explode(moved)        # <-- WELDED CURVES: re-fitted round the move unless exploded
+            entities.transform_by_vectors(moved, vectors)
+            Na__InsertPrimatives.Na__CurveUnweld__Reweld(entities, chains)
+        end
         tally[:moved] += moved.length
 
         if target.length > tally[:base]

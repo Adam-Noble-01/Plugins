@@ -142,9 +142,13 @@ body.na-presets-mode .na-tab-strip__presets-actions {
     box-shadow           : 0 2px 8px rgba(74, 144, 217, 0.25);
 }
 
+/* min-height 0 holds the square: without it a tall preview (a wardrobe, a
+   tall interior door) stretches the box, and with it the whole grid row. */
 .na-preset-card__thumb {
     position             : relative;
     aspect-ratio         : 1 / 1;
+    min-height           : 0;
+    overflow             : hidden;
     display              : flex;
     align-items          : center;
     justify-content      : center;
@@ -215,6 +219,12 @@ body.na-presets-mode .na-tab-strip__presets-actions {
     color                : #8a6413;
     background           : #fdf1dc;
     border-color         : #f5e0b8;
+}
+
+.na-preset-card__chip--cabinet {
+    color                : #5f4689;
+    background           : #efe9f8;
+    border-color         : #ddd0f0;
 }
 
 .na-preset-card__code {

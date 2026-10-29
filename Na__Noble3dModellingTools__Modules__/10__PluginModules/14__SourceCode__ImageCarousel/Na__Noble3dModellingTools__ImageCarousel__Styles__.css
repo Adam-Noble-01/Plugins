@@ -960,6 +960,383 @@ body {
 
 /* endregion ------------------------------------------------------------------- */
 
+/* -----------------------------------------------------------------------------
+ * REGION | Markup Tool
+ * ----------------------------------------------------------------------------- */
+
+/* The Markup button rings in yellow on a photo that has marks */
+.naImageViewer__Btn--hasMarkup {
+    border-color                        : #e0a800;
+    box-shadow                          : inset 0 0 0 1px #e0a800;
+}
+
+/* A dot on the thumbnail of every photo that has marks */
+.naImageViewer__Thumb--marked::after {
+    content                             : "";
+    position                            : absolute;
+    top                                 : 11px;
+    right                               : 11px;
+    width                               : 10px;
+    height                              : 10px;
+    border                              : 1.5px solid #ffffff;
+    border-radius                       : 50%;
+    background                          : #ffe600;
+    box-shadow                          : 0 0 0 1px rgba(27, 31, 36, 0.45);
+    pointer-events                      : none;
+}
+
+/* Floating toolbar over the photo while Markup is on */
+.naImageViewer__MarkupBar {
+    position                            : absolute;
+    left                                : 50%;
+    top                                 : 12px;
+    transform                           : translateX(-50%);
+    display                             : none;
+    flex-direction                      : column;
+    align-items                         : center;
+    gap                                 : 6px;
+    z-index                             : 7;
+    user-select                         : none;
+    pointer-events                      : none;   /* the empty space beside the pill is the photo's; only the pill and options take clicks */
+}
+
+.naImageViewer__MarkupBar--open {
+    display                             : flex;
+}
+
+.naImageViewer__MarkupPill,
+.naImageViewer__MarkupFlyout {
+    pointer-events                      : auto;
+}
+
+.naImageViewer__MarkupPill {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 2px;
+    padding                             : 4px 6px;
+    background                          : rgba(255, 255, 255, 0.98);
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 12px;
+    box-shadow                          : 0 4px 14px rgba(27, 31, 36, 0.18);
+}
+
+.naImageViewer__MarkupGrip {
+    display                             : flex;
+    align-items                         : center;
+    justify-content                     : center;
+    width                               : 14px;
+    height                              : 34px;
+    margin-right                        : 2px;
+    color                               : #9aa3ad;
+    cursor                              : grab;
+}
+
+.naImageViewer__MarkupGrip:active {
+    cursor                              : grabbing;
+}
+
+.naImageViewer__MarkupTool {
+    appearance                          : none;
+    position                            : relative;
+    display                             : grid;
+    place-items                         : center;
+    width                               : 36px;
+    height                              : 38px;
+    padding                             : 0 0 4px;
+    border                              : none;
+    border-radius                       : 9px;
+    background                          : transparent;
+    color                               : var(--naImageViewer__Text);
+    cursor                              : pointer;
+    transition                          : background-color 120ms ease;
+}
+
+.naImageViewer__MarkupTool:hover {
+    background                          : #eef2f7;
+}
+
+.naImageViewer__MarkupTool--active {
+    background                          : #e8f0fc;
+}
+
+/* The chosen tool carries a small chevron: press it again for its options */
+.naImageViewer__MarkupTool--active::after {
+    content                             : "";
+    position                            : absolute;
+    left                                : 50%;
+    bottom                              : 3px;
+    width                               : 5px;
+    height                              : 5px;
+    border-right                        : 1.6px solid var(--naImageViewer__Accent);
+    border-bottom                       : 1.6px solid var(--naImageViewer__Accent);
+    transform                           : translateX(-50%) rotate(45deg);
+}
+
+.naImageViewer__MarkupTool--open {
+    background                          : #dde9fb;
+}
+
+.naImageViewer__MarkupTool--done {
+    width                               : 30px;
+    padding-bottom                      : 0;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__MarkupTool--done:hover {
+    color                               : var(--naImageViewer__Text);
+}
+
+.naImageViewer__MarkupDivider {
+    width                               : 1px;
+    align-self                          : stretch;
+    margin                              : 6px 4px;
+    background                          : var(--naImageViewer__Border);
+}
+
+/* Tool icons. --naMarkup-pen and --naMarkup-hl are set on the bar from the
+   chosen colours, so the pen, the highlighter and the circles show them. */
+.naImageViewer__MarkupSvg {
+    display                             : block;
+    width                               : 22px;
+    height                              : 22px;
+    overflow                            : visible;
+}
+
+.naImageViewer__MarkupSvg--small {
+    width                               : 14px;
+    height                              : 14px;
+}
+
+.naImageViewer__MarkupBody,
+.naImageViewer__MarkupPenFill,
+.naImageViewer__MarkupHlFill,
+.naImageViewer__MarkupRubber {
+    stroke                              : currentColor;
+    stroke-width                        : 1.4;
+    stroke-linejoin                     : round;
+}
+
+.naImageViewer__MarkupBody {
+    fill                                : #ffffff;
+}
+
+.naImageViewer__MarkupPenFill {
+    fill                                : var(--naMarkup-pen, #1b1f24);
+}
+
+.naImageViewer__MarkupHlFill {
+    fill                                : var(--naMarkup-hl, #ffe600);
+}
+
+.naImageViewer__MarkupRubber {
+    fill                                : #f2b2bb;
+}
+
+.naImageViewer__MarkupLine {
+    fill                                : none;
+    stroke                              : currentColor;
+    stroke-width                        : 1.4;
+    stroke-linecap                      : round;
+    stroke-linejoin                     : round;
+}
+
+.naImageViewer__MarkupBarOutline,
+.naImageViewer__MarkupPenBar,
+.naImageViewer__MarkupHlBar {
+    fill                                : none;
+    stroke-linecap                      : round;
+}
+
+.naImageViewer__MarkupBarOutline {
+    stroke                              : #b9c0c8;
+    stroke-width                        : 4;
+}
+
+.naImageViewer__MarkupPenBar {
+    stroke                              : var(--naMarkup-pen, #1b1f24);
+    stroke-width                        : 2.6;
+}
+
+.naImageViewer__MarkupHlBar {
+    stroke                              : var(--naMarkup-hl, #ffe600);
+    stroke-width                        : 2.6;
+}
+
+.naImageViewer__MarkupCirclePen {
+    fill                                : var(--naMarkup-pen, #1b1f24);
+    fill-opacity                        : 0.45;
+    stroke                              : currentColor;
+    stroke-width                        : 1.4;
+}
+
+.naImageViewer__MarkupCircleHl {
+    fill                                : var(--naMarkup-hl, #ffe600);
+    fill-opacity                        : 0.7;
+    stroke                              : currentColor;
+    stroke-width                        : 1.4;
+}
+
+.naImageViewer__MarkupCross {
+    fill                                : none;
+    stroke                              : currentColor;
+    stroke-width                        : 2;
+    stroke-linecap                      : round;
+}
+
+/* Colours, sizes and eraser options under the toolbar */
+.naImageViewer__MarkupFlyout {
+    display                             : none;
+    flex-direction                      : column;
+    gap                                 : 9px;
+    min-width                           : 214px;
+    padding                             : 10px 12px 11px;
+    background                          : rgba(255, 255, 255, 0.98);
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 10px;
+    box-shadow                          : 0 4px 14px rgba(27, 31, 36, 0.18);
+}
+
+.naImageViewer__MarkupFlyout--open {
+    display                             : flex;
+}
+
+.naImageViewer__MarkupFlyTitle {
+    font-size                           : 11px;
+    font-weight                         : 600;
+    letter-spacing                      : 0.04em;
+    text-transform                      : uppercase;
+    color                               : var(--naImageViewer__MutedText);
+}
+
+.naImageViewer__MarkupRow {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 8px;
+}
+
+.naImageViewer__MarkupSwatch {
+    appearance                          : none;
+    width                               : 24px;
+    height                              : 24px;
+    padding                             : 0;
+    border                              : 1px solid rgba(27, 31, 36, 0.3);
+    border-radius                       : 50%;
+    background                          : var(--swatch);
+    cursor                              : pointer;
+}
+
+.naImageViewer__MarkupSwatch:hover {
+    transform                           : scale(1.1);
+}
+
+.naImageViewer__MarkupSwatch--on {
+    box-shadow                          : 0 0 0 2px #ffffff, 0 0 0 4px var(--naImageViewer__Accent);
+}
+
+.naImageViewer__MarkupSize {
+    appearance                          : none;
+    display                             : grid;
+    place-items                         : center;
+    width                               : 34px;
+    height                              : 30px;
+    padding                             : 0;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 7px;
+    background                          : #fdfdfd;
+    cursor                              : pointer;
+}
+
+.naImageViewer__MarkupSize:hover {
+    border-color                        : var(--naImageViewer__Accent);
+}
+
+.naImageViewer__MarkupSize--on {
+    border-color                        : var(--naImageViewer__Accent);
+    background                          : #e8f0fc;
+}
+
+.naImageViewer__MarkupDot {
+    display                             : block;
+    border-radius                       : 50%;
+    background                          : var(--naImageViewer__Text);
+}
+
+.naImageViewer__MarkupSegmented {
+    display                             : flex;
+    border                              : 1px solid var(--naImageViewer__Border);
+    border-radius                       : 7px;
+    overflow                            : hidden;
+}
+
+.naImageViewer__MarkupSeg {
+    appearance                          : none;
+    flex                                : 1;
+    padding                             : 5px 10px;
+    border                              : none;
+    background                          : #fdfdfd;
+    color                               : var(--naImageViewer__Text);
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    cursor                              : pointer;
+}
+
+.naImageViewer__MarkupSeg + .naImageViewer__MarkupSeg {
+    border-left                         : 1px solid var(--naImageViewer__Border);
+}
+
+.naImageViewer__MarkupSeg--on {
+    background                          : var(--naImageViewer__Accent);
+    color                               : #ffffff;
+}
+
+.naImageViewer__MarkupLink {
+    appearance                          : none;
+    padding                             : 2px 0;
+    border                              : none;
+    background                          : none;
+    text-align                          : left;
+    font-family                         : "Segoe UI", Arial, sans-serif;
+    font-size                           : 12px;
+    color                               : var(--naImageViewer__Accent);
+    cursor                              : pointer;
+}
+
+.naImageViewer__MarkupLink:hover {
+    text-decoration                     : underline;
+}
+
+.naImageViewer__MarkupLink[disabled] {
+    color                               : var(--naImageViewer__MutedText);
+    opacity                             : 0.5;
+    cursor                              : not-allowed;
+    text-decoration                     : none;
+}
+
+/* A quiet line under the toolbar: saved, not saved, nothing to mark yet */
+.naImageViewer__MarkupToast {
+    display                             : none;
+    max-width                           : 360px;
+    padding                             : 4px 11px;
+    border-radius                       : 6px;
+    background                          : rgba(27, 31, 36, 0.86);
+    color                               : #ffffff;
+    font-size                           : 12px;
+    white-space                         : nowrap;
+    overflow                            : hidden;
+    text-overflow                       : ellipsis;
+    pointer-events                      : none;
+}
+
+.naImageViewer__MarkupToast--visible {
+    display                             : block;
+}
+
+.naImageViewer__MarkupToast--error {
+    background                          : rgba(179, 38, 30, 0.94);
+}
+
+/* endregion ------------------------------------------------------------------- */
+
 /* ============================================================================= */
 /* END OF FILE                                                                   */
 /* ============================================================================= */

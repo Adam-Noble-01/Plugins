@@ -74,7 +74,7 @@ const Na__ExtSlide__ElevationGenerator = (function () {
     const FILL_GLAZING_MID           = '#C8D8E4';      // <-- Intermediate track glazing fill (triple track only)
     const FILL_GLAZING_REAR          = '#B8C8D5';      // <-- Rear fixed leaf glazing fill (darkest)
     const FILL_CILL_DEFAULT          = '#A0908A';      // <-- Default cill (Sapele) tint
-    const DEFAULT_FRAME_MATERIAL_ID  = 'MAT120__GenericWood';
+    const DEFAULT_FRAME_MATERIAL_ID  = 'MAT001__Default';
     const DEFAULT_CILL_MATERIAL_ID   = 'MAT541__Timber__Sapele';
 
     // endregion -------------------------------------------------------------------

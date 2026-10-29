@@ -88,6 +88,7 @@
         });
 
         na_rebuild_window_frame_finish();
+        na_rebuild_cabinet_finishes();
     };
 
     // FUNCTION | Update the Selected Cards to Match an External Config Change
@@ -160,6 +161,17 @@
             typeof window.Na_DynamicUI.na_rebuild_frame_finish_control === 'function') {
             try { window.Na_DynamicUI.na_rebuild_frame_finish_control(); }
             catch (err) { console.warn('[Na_FrameFinishCards] rebuild window frame finish failed:', err); }
+        }
+    }
+
+    // The Cabinetry tab's door, carcass and handle finish rows are shared
+    // material_cards controls; they redraw once the palettes have arrived.
+    // @delegate: ../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__MainUiLogic__.js
+    function na_rebuild_cabinet_finishes() {
+        if (typeof window.Na_CabinetUI === 'object' &&
+            typeof window.Na_CabinetUI.na_rebuild_finish_controls === 'function') {
+            try { window.Na_CabinetUI.na_rebuild_finish_controls(); }
+            catch (err) { console.warn('[Na_FrameFinishCards] rebuild cabinet finishes failed:', err); }
         }
     }
 

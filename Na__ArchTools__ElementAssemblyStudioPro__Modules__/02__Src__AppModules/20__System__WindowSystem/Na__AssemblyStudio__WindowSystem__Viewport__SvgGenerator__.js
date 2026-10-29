@@ -68,7 +68,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // central materials JSON). The SVG-only fallback is plain white if the
     // swatches haven't arrived yet -- the Frame Finish card row stays
     // hidden in that case so the user can't trigger an unknown ID anyway.
-    // @param {string} materialId - Material ID (e.g., 'MAT120__GenericWood')
+    // @param {string} materialId - Material ID (e.g., 'MAT001__Default')
     // @returns {string} Hex color string (e.g., '#D2B48C')
     function na_getMaterialColor(materialId) {
         const swatches = window.NA_FRAME_FINISH_SWATCHES;
@@ -254,7 +254,7 @@ const Na__Viewport__SvgGenerator = (function() {
             // lay every pane out on its own reference glass.
             globalAlignment: config.leaded_global_alignment === true && !slidingSashWindow && showCasements
         };
-        const frameMaterialId = config.frame_material_id || 'MAT120__GenericWood';
+        const frameMaterialId = config.frame_material_id || 'MAT001__Default';
         const frameColor = na_getMaterialColor(frameMaterialId);
         const showDimensions = config.show_dimensions !== false;
         const hasCill = config.has_cill !== false;

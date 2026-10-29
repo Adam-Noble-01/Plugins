@@ -1,0 +1,416 @@
+# Image Viewer Markup: what is kept in the model, and the dialog callbacks that
+# keep it, in SketchUp's own bundled Ruby (no SketchUp model needed: a model
+# double stands in, and refuses any write made outside an undo operation).
+#
+# Run: python tests/run_ruby_checks.py tests/markup_persistence.rb.test
+# Run tests/markup.ui.test.js first, and its real payload (tests/out/markup_payload.json)
+# is read in as well; without it that part is skipped.
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+Encoding.default_external = Encoding.find('UTF-8')
+require 'json'
+
+MODULE_DIR = File.expand_path('..', __dir__)
+OUT_DIR    = File.join(__dir__, 'out')
+
+$passes = 0
+$fails = 0
+def check(name, cond, detail = nil)
+  if cond
+    $passes += 1
+  else
+    $fails += 1
+    puts "FAIL  #{name}#{detail ? '  ' + detail.inspect : ''}"
+  end
+end
+
+# ----------------------------------------------------------------------------- compile every module file
+Dir.glob(File.join(MODULE_DIR, '*.rb')).sort.each do |f|
+  begin
+    RubyVM::InstructionSequence.compile_file(f)
+    check("compiles #{File.basename(f)}", true)
+  rescue SyntaxError => e
+    check("compiles #{File.basename(f)}", false, e.message)
+  end
+end
+
+# ----------------------------------------------------------------------------- doubles
+module UI
+  @timers = {}
+  @next_timer = 1
+  def self.start_timer(seconds, repeat, &block)
+    id = @next_timer
+    @next_timer += 1
+    @timers[id] = { 'seconds' => seconds, 'repeat' => repeat, 'block' => block }
+    id
+  end
+  def self.stop_timer(id); @timers.delete(id); end
+  def self.timers; @timers; end
+  def self.fire_timers
+    due = @timers.values
+    @timers.clear
+    due.each { |t| t['block'].call }
+  end
+end
+
+class FakeDictionary
+  def initialize(model); @model = model; @h = {}; end
+  def [](k); @h[k]; end
+  def []=(k, v); @model.guard!; @h[k] = v; end
+  def delete_key(k); @model.guard!; @h.delete(k); end
+  def key?(k); @h.key?(k); end
+  def length; @h.length; end
+  def keys; @h.keys; end
+end
+
+class FakeDictionaries
+  def initialize(model); @model = model; end
+  def delete(name); @model.guard!; @model.dicts.delete(name); end
+end
+
+class FakeModel
+  attr_reader :dicts, :operations, :aborted
+  attr_accessor :fail_next_write, :fail_next_read
+  def initialize; @dicts = {}; @operations = []; @open = nil; @aborted = 0; @fail_next_write = false; @fail_next_read = false; end
+  def guard!
+    raise 'write outside an undo operation' unless @open
+    if @fail_next_write
+      @fail_next_write = false
+      raise 'disk full'
+    end
+  end
+  def start_operation(name, _disable_ui = false, *)
+    raise 'operations cannot be nested' if @open
+    @open = name
+    true
+  end
+  def commit_operation; raise 'no operation open' unless @open; @operations << @open; @open = nil; true; end
+  attr_reader :abort_calls
+  def abort_operation
+    @abort_calls = (@abort_calls || 0) + 1
+    raise 'abort_operation with no operation open would undo the user\'s last step' unless @open
+    @open = nil
+    @aborted += 1
+    true
+  end
+  def set_attribute(dict, key, value)
+    guard!
+    (@dicts[dict] ||= FakeDictionary.new(self))[key] = value
+  end
+  def get_attribute(dict, key, default = nil)
+    if @fail_next_read
+      @fail_next_read = false
+      raise 'model unreadable'
+    end
+    d = @dicts[dict]
+    d && d.key?(key) ? d[key] : default
+  end
+  def attribute_dictionary(name, create = false)
+    @dicts[name] = FakeDictionary.new(self) if create && !@dicts[name]
+    @dicts[name]
+  end
+  def attribute_dictionaries; @dicts.empty? ? nil : FakeDictionaries.new(self); end
+end
+
+$model = FakeModel.new
+module Sketchup
+  def self.platform; :platform_win; end
+  def self.active_model; $model; end
+  def self.read_default(*_args); 'C:/'; end
+  def self.write_default(*_args); true; end
+end
+
+class FakeDialog
+  attr_reader :scripts, :callbacks, :html
+  def initialize(*_args, **_opts); @scripts = []; @callbacks = {}; @visible = false; end
+  def execute_script(s); @scripts << s; end
+  def add_action_callback(name, &block); @callbacks[name] = block; end
+  def set_html(html); @html = html; end
+  def set_on_closed(&block); @on_closed = block; end
+  def show; @visible = true; end
+  def bring_to_front; end
+  def visible?; @visible; end
+  def close; @visible = false; end
+  def fire_closed; @on_closed.call; end
+  def saved_notices
+    @scripts.map { |s| s[/MarkupOnSaved\((\{.*\})\);\z/, 1] }.compact.map { |j| JSON.parse(j) }
+  end
+end
+
+# the dialog class the manager builds, swapped for the double
+module UI
+  class HtmlDialog
+    STYLE_DIALOG = 0
+    def self.new(*args, **opts); (@made ||= []) << FakeDialog.new(*args, **opts); @made.last; end
+    def self.made; @made ||= []; end
+  end
+end
+
+# ----------------------------------------------------------------------------- load the real modules
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__MarkupPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
+MP = Na__Noble3dModellingTools::Na__ImageCarousel__MarkupPersistence
+MD = Na__Noble3dModellingTools::Na__ImageCarousel__ModelPersistence
+DM = Na__Noble3dModellingTools::Na__ImageCarousel__DialogManager
+DICT = MP::NA_DICTIONARY_NAME
+
+def key_for(path, root) = MP.Na__ImageCarousel__MarkupPersistence__KeyForPath(path, root)
+def queue(payload, root) = MP.Na__ImageCarousel__MarkupPersistence__Queue(payload, root)
+def flush(model) = MP.Na__ImageCarousel__MarkupPersistence__Flush(model)
+def load_for(model, paths, root) = MP.Na__ImageCarousel__MarkupPersistence__LoadForPaths(model, paths, root)
+def pending? = MP.Na__ImageCarousel__MarkupPersistence__HasPending
+def discard = MP.Na__ImageCarousel__MarkupPersistence__DiscardPending
+
+ROOT  = 'C:/Site/Photos'
+PHOTO = 'C:/Site/Photos/Front/IMG_0001.JPG'
+
+def payload(path: PHOTO, w: 4032, h: 3024, strokes: nil)
+  strokes ||= [
+    { 'k' => 'hl',  'c' => '#FFE600', 'w' => 83.33, 'p' => [1116.0, 312.25, 2916.5, 312.25] },
+    { 'k' => 'pen', 'c' => '#1b1f24', 'w' => 13.248630887, 'p' => [1216.123, 712.456, 1616, 612.9, 2016.5, 762.04] }
+  ]
+  { 'path' => path, 'w' => w, 'h' => h, 'strokes' => strokes }
+end
+
+# ----------------------------------------------------------------------------- keys
+check('a photo is named by its path under the folder, lower case', key_for(PHOTO, ROOT) == 'front/img_0001.jpg', key_for(PHOTO, ROOT))
+check('backslashes and a trailing slash on the folder', key_for('C:\\Site\\Photos\\Front\\IMG_0001.JPG', 'c:\\site\\photos\\') == 'front/img_0001.jpg')
+check('a photo directly in the folder', key_for('C:/Site/Photos/a b.png', ROOT) == 'a b.png')
+check('another folder with the same start is not the folder', key_for('C:/Site/PhotosOld/a.png', ROOT) == 'a.png')
+check('a photo outside the folder is named by its file', key_for('D:/Other/Sub/X.PNG', ROOT) == 'x.png')
+check('with no folder, by its file', key_for(PHOTO, nil) == 'img_0001.jpg')
+check('moving the folder keeps the name', key_for('E:/Elsewhere/Photos/Front/IMG_0001.JPG', 'E:/Elsewhere/Photos') == key_for(PHOTO, ROOT))
+check('no path, no key', key_for('', ROOT).nil? && key_for(nil, ROOT).nil?)
+
+# ----------------------------------------------------------------------------- queue, flush
+discard
+check('nothing is held to start with', !pending?)
+r = queue(payload.to_json, ROOT)
+check('a photo\'s marks are accepted from the dialog\'s JSON text', r['ok'] && r['key'] == 'front/img_0001.jpg' && r['strokes'] == 2 && r['name'] == 'IMG_0001.JPG', r)
+check('and held, not yet in the model', pending? && $model.dicts.empty? && $model.operations.empty?)
+f = flush($model)
+check('flush writes them in one undo step with the module\'s own name', f['ok'] && $model.operations == ['Image Viewer: Markup'], [f, $model.operations])
+check('nothing is held afterwards', !pending?)
+check('the saved entry says what was written', f['saved'].length == 1 && f['saved'][0]['written'] && f['saved'][0]['strokes'] == 2 && f['saved'][0]['bytes'] > 50, f['saved'])
+text = $model.get_attribute(DICT, 'front/img_0001.jpg')
+check('the model dictionary holds one JSON string for the photo', text.is_a?(String) && JSON.parse(text).is_a?(Hash))
+saved = JSON.parse(text)
+check('versioned, with the photo\'s name and size', saved['schema'] == 1 && saved['name'] == 'IMG_0001.JPG' && saved['w'] == 4032 && saved['h'] == 3024, saved.reject { |k, _| k == 'strokes' })
+check('both strokes kept, in order', saved['strokes'].map { |s| s['k'] } == %w[hl pen])
+check('colour lower-cased', saved['strokes'][0]['c'] == '#ffe600')
+check('numbers rounded to 0.01 and whole ones kept short', saved['strokes'][0]['p'] == [1116, 312.25, 2916.5, 312.25] && saved['strokes'][1]['w'] == 13.25 && saved['strokes'][1]['p'] == [1216.12, 712.46, 1616, 612.9, 2016.5, 762.04], saved['strokes'])
+check('the string is valid UTF-8 JSON, one line', text.encoding.to_s == 'UTF-8' && !text.include?("\n"))
+
+# the same marks again: no write at all
+queue(payload.to_json, ROOT)
+ops = $model.operations.length
+f = flush($model)
+check('marks already in the model are not written again (no undo step)', f['ok'] && $model.operations.length == ops && f['saved'][0]['written'] == false, [ops, $model.operations.length, f])
+# a change
+queue(payload(strokes: [payload['strokes'][0]]).to_json, ROOT)
+f = flush($model)
+check('changed marks are written', f['saved'][0]['written'] && JSON.parse($model.get_attribute(DICT, 'front/img_0001.jpg'))['strokes'].length == 1 && $model.operations.length == ops + 1)
+
+# several photos, one undo step
+queue(payload(path: 'C:/Site/Photos/Rear/IMG_0002.JPG', w: 1008, h: 756).to_json, ROOT)
+queue(payload(path: 'C:/Site/Photos/Side.png', w: 800, h: 600).to_json, ROOT)
+ops = $model.operations.length
+f = flush($model)
+check('several photos are written in one undo step', f['ok'] && f['saved'].length == 2 && $model.operations.length == ops + 1, [f['saved'].length, $model.operations.length - ops])
+check('each under its own key', $model.dicts[DICT].keys.sort == ['front/img_0001.jpg', 'rear/img_0002.jpg', 'side.png'], $model.dicts[DICT].keys)
+
+# a photo with no marks has no key, and no dictionary when it was the last
+queue(payload(path: 'C:/Site/Photos/Rear/IMG_0002.JPG', w: 1008, h: 756, strokes: []).to_json, ROOT)
+f = flush($model)
+check('clearing a photo removes its key', f['ok'] && f['saved'][0]['written'] && !$model.dicts[DICT].key?('rear/img_0002.jpg') && $model.dicts[DICT].key?('side.png'))
+[PHOTO, 'C:/Site/Photos/Side.png'].each { |p| queue(payload(path: p, strokes: []).to_json, ROOT) }
+flush($model)
+check('and the dictionary goes with the last of them', !$model.dicts.key?(DICT), $model.dicts.keys)
+queue(payload(path: 'C:/Site/Photos/Never.png', strokes: []).to_json, ROOT)
+ops = $model.operations.length
+f = flush($model)
+check('clearing a photo that has no entry does nothing to the model', f['ok'] && $model.operations.length == ops && f['saved'][0]['written'] == false)
+
+# ----------------------------------------------------------------------------- the real payload from the browser test
+fixture = File.join(OUT_DIR, 'markup_payload.json')
+if File.file?(fixture)
+  js_text = File.read(fixture)
+  js = JSON.parse(js_text)
+  r = queue(js_text, ROOT)
+  check('the dialog\'s own payload is accepted', r['ok'] && r['strokes'] == js['strokes'].length, r)
+  flush($model)
+  key = key_for(js['path'], ROOT)
+  back = JSON.parse($model.get_attribute(DICT, key))
+  check('with every stroke, point and colour intact', back['strokes'] == js['strokes'] && back['w'] == js['w'] && back['h'] == js['h'], [back['strokes'].length, js['strokes'].length])
+  entry = load_for($model, [js['path']], ROOT)[js['path']]
+  check('and read back as the dialog expects it', entry && entry['w'] == js['w'] && entry['strokes'] == js['strokes'])
+  puts "  (the browser test's payload: #{js['strokes'].length} strokes, #{js_text.bytesize} bytes)"
+  queue(js.merge('strokes' => []).to_json, ROOT)
+  flush($model)
+else
+  puts '  (no tests/out/markup_payload.json: run markup.ui.test.js first; skipped)'
+end
+
+# ----------------------------------------------------------------------------- refusals
+discard
+def refused?(payload_or_text, root = ROOT)
+  r = queue(payload_or_text, root)
+  !r['ok'] && !pending?
+end
+check('text that is not JSON is refused', refused?('not json'))
+check('a JSON list is refused', refused?('[1, 2]'))
+check('no path is refused', refused?(payload(path: '').to_json))
+check('no strokes list is refused', refused?(payload.reject { |k, _| k == 'strokes' }.to_json))
+check('a missing photo size is refused', refused?(payload(w: nil).to_json) && refused?(payload(h: 0).to_json) && refused?(payload(w: 'wide').to_json))
+check('a photo size out of range is refused', refused?(payload(w: 5_000_000).to_json))
+check('more strokes than a photo can hold are refused', refused?(payload(strokes: Array.new(5001) { { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [1, 2] } }).to_json))
+check('a stroke with too many points is refused', refused?(payload(strokes: [{ 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => Array.new(40_002, 1) }]).to_json))
+big = Array.new(20) { |s| { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => Array.new(40_000) { |i| ((i * 7919 + s * 104_729) % 400_000) / 100.0 } } }
+r = queue(payload(strokes: big).to_json, ROOT)
+check('more than the size limit is refused, with the size said', !r['ok'] && r['error'].to_s.include?('too much markup') && !pending?, r)
+check('a refusal names the photo, so the dialog can send it again', r['path'] == PHOTO, r['path'])
+
+# strokes that cannot be strokes are dropped; the rest stay
+messy = payload(strokes: [
+  { 'k' => 'brush', 'c' => '#000000', 'w' => 3, 'p' => [1, 2] },
+  { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [1, 2, 3] },
+  { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [] },
+  { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [1, 'x'] },
+  { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [1, nil] },
+  { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [1, Float::NAN] },
+  { 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [1, 1e12] },
+  'nonsense',
+  nil,
+  { 'k' => 'hl', 'c' => 'yellow', 'w' => -4, 'p' => [10.004, 20.006] },
+  { 'k' => 'pen', 'p' => [5, 6] }
+])
+r = queue(messy, ROOT)
+check('a messy payload is accepted for what is sound in it', r['ok'] && r['strokes'] == 2, r)
+flush($model)
+sound = JSON.parse($model.get_attribute(DICT, key_for(PHOTO, ROOT)))['strokes']
+check('a bad colour becomes the default', sound[0]['c'] == '#e23b2e', sound[0])
+check('a width that is not positive becomes the smallest', sound[0]['w'] == 0.01 && sound[1]['w'] == 0.01, sound.map { |s| s['w'] })
+check('a missing width and colour get the defaults', sound[1]['c'] == '#e23b2e' && sound[1]['p'] == [5, 6])
+check('points are rounded', sound[0]['p'] == [10, 20.01], sound[0]['p'])
+queue(payload(strokes: []).to_json, ROOT)
+flush($model)
+
+# ----------------------------------------------------------------------------- reading it back for a folder
+queue(payload.to_json, ROOT)
+flush($model)
+paths = [PHOTO, 'C:/Site/Photos/Rear/Unmarked.jpg', 'C:/Site/Photos/Side.png']
+found = load_for($model, paths, ROOT)
+check('only photos that have marks come back, by the path the dialog knows', found.keys == [PHOTO], found.keys)
+check('with their size and strokes', found[PHOTO]['w'] == 4032 && found[PHOTO]['h'] == 3024 && found[PHOTO]['strokes'].length == 2)
+check('the same marks are found when the folder has moved', load_for($model, ['F:/Moved/Photos/Front/IMG_0001.JPG'], 'F:/Moved/Photos').keys == ['F:/Moved/Photos/Front/IMG_0001.JPG'])
+queue(payload(strokes: [{ 'k' => 'pen', 'c' => '#000000', 'w' => 3, 'p' => [9, 9] }]).to_json, ROOT)
+found = load_for($model, [PHOTO], ROOT)
+check('marks held but not yet written win over the model\'s', found[PHOTO]['strokes'].length == 1)
+queue(payload(strokes: []).to_json, ROOT)
+check('and so does a clearing held but not yet written', load_for($model, [PHOTO], ROOT).empty?)
+discard
+check('with nothing held the model\'s marks are back', load_for($model, [PHOTO], ROOT).keys == [PHOTO])
+$model.start_operation('x'); $model.set_attribute(DICT, 'front/bad.jpg', 'not json'); $model.set_attribute(DICT, 'front/future.jpg', JSON.generate('schema' => 2, 'w' => 10, 'h' => 10, 'strokes' => [{ 'k' => 'pen', 'c' => '#000', 'w' => 1, 'p' => [1, 1] }])); $model.set_attribute(DICT, 'front/empty.jpg', JSON.generate('schema' => 1, 'w' => 10, 'h' => 10, 'strokes' => [])); $model.commit_operation
+check('hand-edited or newer-than-this entries are ignored, not raised on', load_for($model, ['C:/Site/Photos/Front/bad.jpg', 'C:/Site/Photos/Front/future.jpg', 'C:/Site/Photos/Front/empty.jpg'], ROOT).empty?)
+check('no model, no marks', load_for(nil, [PHOTO], ROOT) == {})
+check('a model with no dictionary, no marks', load_for(FakeModel.new, [PHOTO], ROOT) == {})
+
+# ----------------------------------------------------------------------------- a write that fails
+fresh = FakeModel.new
+queue(payload.to_json, ROOT)
+fresh.fail_next_write = true
+f = flush(fresh)
+check('a failed write says so, undoes the step and keeps the marks held', !f['ok'] && f['error'] == 'disk full' && fresh.aborted == 1 && fresh.operations.empty? && pending?, [f, fresh.aborted])
+f = flush(fresh)
+check('and the next flush writes them', f['ok'] && fresh.dicts[DICT].length == 1 && !pending?)
+other = FakeModel.new
+queue(payload.to_json, ROOT)
+other.fail_next_read = true
+f = flush(other)
+check('a failure before the step starts aborts nothing (it would undo the user\'s last action)', !f['ok'] && f['error'] == 'model unreadable' && other.abort_calls.to_i == 0 && pending?, [f, other.abort_calls])
+f = flush(other)
+check('and a later flush still works', f['ok'] && !pending?)
+queue(payload.to_json, ROOT)
+f = flush(nil)
+check('with no model open nothing is lost', !f['ok'] && pending?)
+discard
+
+# ----------------------------------------------------------------------------- the dialog, as the manager drives it
+$model = FakeModel.new
+MD.Na__ImageCarousel__ModelPersistence__SaveFolder($model, ROOT)
+discard
+dialog = DM.Na__ImageCarousel__DialogManager__ShowDialog
+check('the manager made a dialog and registered the markup callback', dialog.is_a?(FakeDialog) && dialog.callbacks.key?('markup_save'))
+html = dialog.html
+src = ->(name) { File.read(File.join(MODULE_DIR, "Na__Noble3dModellingTools__ImageCarousel__#{name}__.js")) }
+check('no placeholder is left in the page', !html.include?('{{'), html.scan(/\{\{[A-Z_]+\}\}/))
+check('the Markup script is inlined byte for byte', html.include?(src.call('MarkupTool')))
+check('after the bridge it needs and before the other tools, so its marks are drawn under theirs', html.index(src.call('UiBridge')) < html.index(src.call('MarkupTool')) && html.index(src.call('MarkupTool')) < html.index(src.call('Measurement')))
+check('the page has the button and the floating toolbar', html.include?('id="naImageViewer_btnMarkup"') && html.include?('id="naImageViewer_markupBar"'))
+
+UI.timers.clear
+dialog.callbacks['markup_save'].call(nil, payload.to_json)
+check('a save is held, and a flush is timed for a moment later', pending? && UI.timers.length == 1 && UI.timers.values[0]['seconds'] == 1.0 && UI.timers.values[0]['repeat'] == false, UI.timers.values.map { |t| t.reject { |k, _| k == 'block' } })
+check('and nothing is in the model yet', $model.dicts.key?(DICT) == false)
+dialog.callbacks['markup_save'].call(nil, payload(strokes: [payload['strokes'][0]]).to_json)
+check('a burst of saves keeps one timer, restarted', UI.timers.length == 1)
+UI.fire_timers
+saved_notice = dialog.saved_notices.last
+check('when it fires the marks are in the model, the latest of them', $model.dicts[DICT] && JSON.parse($model.get_attribute(DICT, 'front/img_0001.jpg'))['strokes'].length == 1 && $model.operations.last == 'Image Viewer: Markup')
+check('and the dialog is told', saved_notice && saved_notice['ok'] && saved_notice['saved'][0]['written'], saved_notice)
+
+n = dialog.saved_notices.length
+dialog.callbacks['markup_save'].call(nil, 'garbage')
+refusal = dialog.saved_notices.last
+check('marks that cannot be kept are refused to the dialog at once', dialog.saved_notices.length == n + 1 && refusal['ok'] == false && !refusal['error'].to_s.empty? && UI.timers.empty?, refusal)
+dialog.callbacks['markup_save'].call(nil, nil)
+check('a callback with nothing in it does not raise', true)
+
+ops = $model.operations.length
+dialog.callbacks['markup_save'].call(nil, payload(path: 'C:/Site/Photos/Last.png', w: 640, h: 480).to_json)
+check('a save just before the dialog closes is held', pending? && UI.timers.length == 1)
+dialog.fire_closed
+check('closing the dialog writes what is held, and stops the timer', !pending? && UI.timers.empty? && $model.dicts[DICT].key?('last.png') && $model.operations.length == ops + 1)
+n = dialog.saved_notices.length
+check('and does not try to talk to the closed dialog', dialog.saved_notices.length == n)
+
+# a folder's marks go to the dialog with its images, ahead of the list
+d2 = FakeDialog.new
+DM.na_push_folder_images_to_dialog(d2, [PHOTO, 'C:/Site/Photos/Rear/Other.jpg', 'C:/Site/Photos/Last.png'])
+script = d2.scripts.last
+call = script[/OnMarkupLoaded\((\{.*\})\);/, 1]
+check('the push carries the model\'s marks for those photos', !call.nil?, script)
+loaded = JSON.parse(call)
+check('for the photos that have them', loaded.keys.sort == [PHOTO, 'C:/Site/Photos/Last.png'].sort && loaded[PHOTO]['strokes'].length == 1 && loaded['C:/Site/Photos/Last.png']['w'] == 640, loaded.keys)
+check('ahead of the image list', script.index('OnMarkupLoaded(') < script.index('SKP_onFolderChosen'))
+d3 = FakeDialog.new
+DM.na_push_folder_images_to_dialog(d3, ['C:/Site/Photos/Rear/Other.jpg'])
+check('a folder with no marks sends an empty set', d3.scripts.last.include?('OnMarkupLoaded({})'))
+
+# restoring the model's folder sends its marks too
+Dir.mkdir(OUT_DIR) unless File.directory?(OUT_DIR)
+photos = File.join(OUT_DIR, 'markup_rb_photos')
+Dir.mkdir(photos) unless File.directory?(photos)
+Dir.mkdir(File.join(photos, 'Front')) unless File.directory?(File.join(photos, 'Front'))
+File.binwrite(File.join(photos, 'Front', 'IMG_0001.JPG'), 'x')
+File.binwrite(File.join(photos, 'Plain.png'), 'x')
+$model = FakeModel.new
+MD.Na__ImageCarousel__ModelPersistence__SaveFolder($model, photos)
+photo = File.join(photos, 'Front', 'IMG_0001.JPG').tr('\\', '/')
+queue(payload(path: photo).to_json, photos)
+flush($model)
+d4 = FakeDialog.new
+DM.na_restore_model_folder(d4)
+loaded = JSON.parse(d4.scripts.last[/OnMarkupLoaded\((\{.*\})\);/, 1])
+check('restoring the model\'s folder brings its marks with the photos', loaded.keys == [photo] && loaded[photo]['strokes'].length == 2, loaded.keys)
+queue(payload(path: photo, strokes: []).to_json, photos)
+flush($model)
+File.delete(File.join(photos, 'Front', 'IMG_0001.JPG'), File.join(photos, 'Plain.png'))
+Dir.rmdir(File.join(photos, 'Front'))
+Dir.rmdir(photos)
+
+puts "\n#{$passes} passed, #{$fails} failed"
+raise 'ruby checks failed' if $fails > 0

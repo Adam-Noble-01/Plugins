@@ -351,7 +351,10 @@ module Na__InsertPrimatives
             @na_vm_selection_ids = roots.map(&:entityID).sort
             na_vm__rescope(roots)
 
-            return true unless @na_vm_scope[:candidates].empty?
+            unless @na_vm_scope[:candidates].empty?
+                na_vm__pick_loose
+                return true
+            end
 
             na_vm__enter_scope_phase
             locked = @na_vm_scope[:locked].to_i
@@ -436,8 +439,32 @@ module Na__InsertPrimatives
             @na_vm_record        = nil
             @na_vm_pivot         = nil
             na_vm__rescope(selection.to_a)
+            return true if na_vm__pick_loose > 0
+
             na_vm__notice("Scope follows the selection — #{@na_vm_scope[:roots].length} item#{@na_vm_scope[:roots].length == 1 ? '' : 's'}, #{@na_vm_selected.length} picks kept")
             true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Selected Loose Faces and Edges: Their Vertices Are Picked Already
+        # ------------------------------------------------------------
+        # A group or component in the selection only says where to work: its
+        # vertices wait to be boxed, the safety catch against moving the inside
+        # of a whole building. Faces and edges selected loose ARE the choice of
+        # vertices, so every one of their corners is picked straight away and
+        # the gimbal comes up on them. One BKSP step takes them back.
+        # ------------------------------------------------------------
+        def na_vm__pick_loose
+            return 0 unless @na_vm_scope
+
+            loose = @na_vm_scope[:candidates].select do |candidate|
+                candidate[:context][:key] == Na__InsertPrimatives::NA_VM_OPEN_KEY && !@na_vm_selected.key?(candidate[:key])
+            end
+            return 0 if loose.empty?
+
+            added = na_vm__pick_add(loose)
+            na_vm__notice("#{added} vertex#{added == 1 ? '' : 'es'} of the selected faces and edges picked — drag the gimbal to move them") if added > 0
+            added
         end
         # ---------------------------------------------------------------
 
@@ -870,6 +897,7 @@ module Na__InsertPrimatives
 
             user_path    = model.respond_to?(:active_path) ? model.active_path : nil
             pivot_before = @na_vm_pivot
+            loose_before = na_vm__loose_vertices
             @na_vm_busy  = true
             tally        = nil
 
@@ -881,6 +909,8 @@ module Na__InsertPrimatives
 
             @na_vm_dirty = false
             na_vm__carry_pivot(offset) if tally[:success]                    # <-- A placed base point travels with the picks
+            @na_vm_roots = na_vm__regrow_loose(@na_vm_roots, loose_before) if tally[:success]
+            @na_vm_selection_ids = model.selection.to_a.map(&:entityID).sort  # <-- Our own fold, not the user, changed the selected faces
             na_vm__rescope(@na_vm_roots, tally[:success] ? offset : nil)
 
             unless tally[:success]
@@ -909,12 +939,49 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | The Vertices of the Loose Faces and Edges in Scope
+        # ------------------------------------------------------------
+        def na_vm__loose_vertices
+            return [] unless @na_vm_scope
+
+            @na_vm_scope[:candidates].select { |candidate| candidate[:context][:key] == Na__InsertPrimatives::NA_VM_OPEN_KEY }
+                                     .map { |candidate| candidate[:vertex] }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Loose Roots After a Move: the Faces the Fold Made Count Too
+        # ------------------------------------------------------------
+        # A selected loose face that had to fold is split into triangles, and
+        # the pieces are new faces the scope never had as roots: without them
+        # their vertices would drop out of scope after the first move. Any face
+        # or edge whose every vertex was already a loose candidate is the same
+        # geometry, re-cut, so it joins the roots.
+        # ------------------------------------------------------------
+        def na_vm__regrow_loose(roots, loose_before)
+            live = (loose_before || []).select { |vertex| vertex && vertex.valid? }
+            kept = (roots || []).select { |entity| entity && entity.valid? }
+            return kept if live.empty?
+
+            known = {}
+            live.each { |vertex| known[vertex] = true }
+
+            extra = live.flat_map { |vertex| vertex.edges.to_a + vertex.faces.to_a }.uniq.select do |entity|
+                entity.valid? && entity.vertices.all? { |vertex| known[vertex] }
+            end
+
+            (kept + extra).uniq
+        rescue StandardError
+            (roots || []).select { |entity| entity && entity.valid? }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | What a Finished Move Says in the Status Bar
         # ------------------------------------------------------------
         def na_vm__move_report(tally, description)
             moved = tally[:moved]
             text  = "Moved #{moved} vert#{moved == 1 ? 'ex' : 'ices'} #{description}"
             text += " — #{tally[:folded]} fold line#{tally[:folded] == 1 ? '' : 's'} keep bent faces flat" if tally[:folded] > 0
+            text += " — #{tally[:welded]} curve#{tally[:welded] == 1 ? '' : 's'} welded back" if tally[:welded].to_i > 0
             text += " — #{tally[:missed]} could not be found" if tally[:missed] > 0
             text += " — #{tally[:errors].length} group#{tally[:errors].length == 1 ? '' : 's'} refused: #{tally[:errors].first}" unless tally[:errors].empty?
             "#{text} — type a distance to correct it"

@@ -52,6 +52,38 @@
             },
             measuringHint    : 'Click Point A, then Point B, then drag to set the wall depth. Esc cancels.',
             thing            : 'door'
+        },
+        // Cabinets measure a run and keep it: every Insert in Run takes the
+        // next point along it. Create at Cursor places units until Esc.
+        cabinets: {
+            measuredButtonId : 'na-btn-cab-create-at-measurement',
+            isEditing        : () => {
+                const update = document.getElementById('na-btn-cab-update');
+                return !!update && !update.disabled;
+            },
+            isPlacing        : () => {
+                const create = document.getElementById('na-btn-cab-create');
+                return !!create && create.classList.contains('na-dock__btn--placing');
+            },
+            measuringHint    : 'Click the start of the run on the floor line, then its end, then the room side. Esc cancels.',
+            measuredHint     : () => {
+                const run   = window.NA_CABINET_RUN || {};
+                const left  = Math.round((run.lengthMm || 0) - (run.usedMm || 0));
+                const cfg   = window.Na_CabinetUI ? window.Na_CabinetUI.na_get_ui_config() : {};
+                const width = Math.round(Number(cfg.Na__CabinetConfig__Width_mm) || 0);
+                const range = (window.NA_CABINET_SIZE_CONFIG || []).find(item => item.id === 'Na__CabinetConfig__Width_mm');
+                if (left <= 0) return 'The measured run is full. Measure the next run, or Create at Cursor.';
+                if (range && left < Number(range.min)) {
+                    return left + 'mm left, narrower than the smallest unit. Fit a filler there, then measure the next run.';
+                }
+                if (width > left) {
+                    return left.toLocaleString('en-GB') + 'mm left, less than this ' + width + 'mm unit. Set Width to ' + left + ' to fill it, then ② Insert in Run.';
+                }
+                return 'Run measured, ' + left.toLocaleString('en-GB') + 'mm left. Set the unit, then press ② Insert in Run.';
+            },
+            placingHint      : 'Placing: click in the model. Over a unit it goes beside it, over a wall it backs onto it. Tab turns, Esc finishes.',
+            idleHint         : 'Nothing selected. Set the unit up, then Create at Cursor, or ① measure a run along a wall.',
+            thing            : 'unit'
         }
     };
 
@@ -81,8 +113,11 @@
         if (measure && measure.classList.contains('na-btn-measure-active')) {
             return { tone: 'amber', text: source.measuringHint };
         }
+        if (source.isPlacing && source.isPlacing()) {
+            return { tone: 'amber', text: source.placingHint };
+        }
         if (measured && !measured.disabled) {
-            return { tone: 'amber', text: 'Opening measured. Adjust anything, then press ② Insert at Measured Point.' };
+            return { tone: 'amber', text: source.measuredHint ? source.measuredHint() : 'Opening measured. Adjust anything, then press ② Insert at Measured Point.' };
         }
         if (source.isEditing()) {
             if (live && live.classList.contains('na-btn-live-active')) {
@@ -90,7 +125,7 @@
             }
             return { tone: 'green', text: 'Editing the selected ' + source.thing + '. Press Update to apply your changes.' };
         }
-        return { tone: '', text: 'Nothing selected. Set it up, then Create at Cursor, or ① measure an opening first.' };
+        return { tone: '', text: source.idleHint || 'Nothing selected. Set it up, then Create at Cursor, or ① measure an opening first.' };
     }
     // ---------------------------------------------------------------
 
@@ -118,7 +153,8 @@
         const ids = [
             'na-btn-measure', 'na-btn-live', 'na-window-info',
             'na-btn-create-at-measurement', 'na-btn-door-create-at-measurement',
-            'na-btn-door-update'
+            'na-btn-door-update',
+            'na-btn-cab-create-at-measurement', 'na-btn-cab-update', 'na-btn-cab-create'
         ];
         const observer = new MutationObserver(na_refresh_hint);
         ids.forEach(id => {

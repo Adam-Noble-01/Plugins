@@ -48,7 +48,8 @@ module Na__AssemblyStudio
                 :door_handle      => 'Na__DoorHandle'.freeze,
                 :door_helpers     => '02__DoorHelpers__RotationPivots'.freeze,
                 :proposed_doors   => '25__ProposedBuilding__Doors'.freeze,
-                :proposed_windows => '25__ProposedBuilding__Windows'.freeze
+                :proposed_windows => '25__ProposedBuilding__Windows'.freeze,
+                :proposed_fixtures=> '27__ProposedBuilding__Fixtures'.freeze      # <-- Fitted kitchens and wardrobes (ACB cabinets)
             }.freeze
 
             NA_ROLE_DEFAULT_COLORS = {
@@ -61,7 +62,8 @@ module Na__AssemblyStudio
                 :door_handle      => [200, 175,  90],
                 :door_helpers     => [255,   0,   0],
                 :proposed_doors   => [120, 160, 200],
-                :proposed_windows => [120, 200, 160]
+                :proposed_windows => [120, 200, 160],
+                :proposed_fixtures=> [200, 170, 120]
             }.freeze
 
             NA_ROLE_DEFAULT_LINE_STYLES = {
@@ -164,6 +166,7 @@ module Na__AssemblyStudio
                 when :door_swing       then ['02__Linetype__DoorSwings']
                 when :proposed_doors   then ['25__ProposedBuilding__Doors']
                 when :proposed_windows then ['25__ProposedBuilding__Windows']
+                when :proposed_fixtures then ['27__ProposedBuilding__Fixtures']
                 else                        []
                 end
             end

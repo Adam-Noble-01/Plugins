@@ -24,6 +24,12 @@
 #   lens data (PhotoInfo). Only files with an image extension are read.
 # - The Count tool (CountTool.js) is inlined last: it reads the Perspective
 #   Angle tool's directions and the solver's counting maths.
+# - The Markup tool (MarkupTool.js) is inlined straight after the UI bridge, so
+#   its marks are drawn under the other tools' lines. Its marks reach the model
+#   through markup_save: checked and held at once (MarkupPersistence), written
+#   to the model dictionary by a timer a moment after the last change, and again
+#   when the dialog closes. The model's marks for a folder go to the dialog with
+#   that folder's image list.
 #
 # =============================================================================
 
@@ -42,6 +48,7 @@ module Na__Noble3dModellingTools
         NA_DIALOG_HEIGHT         = 800
         NA_DIALOG_MIN_WIDTH      = 900
         NA_DIALOG_MIN_HEIGHT     = 600
+        NA_MARKUP_FLUSH_SECONDS  = 1.0   # quiet time after a mark before it is written to the model
 
 # endregion -------------------------------------------------------------------
 
@@ -58,7 +65,10 @@ module Na__Noble3dModellingTools
             @na_dialog = na_create_dialog
             @na_dialog.set_html(na_render_html)
             na_register_callbacks(@na_dialog)
-            @na_dialog.set_on_closed { @na_dialog = nil }
+            @na_dialog.set_on_closed do
+                na_flush_markup(nil)
+                @na_dialog = nil
+            end
             @na_dialog.show
             @na_dialog.bring_to_front
             @na_dialog
@@ -67,6 +77,7 @@ module Na__Noble3dModellingTools
         def self.Na__ImageCarousel__DialogManager__ResetDialog
             return unless @na_dialog
 
+            na_flush_markup(nil)
             @na_dialog.close if @na_dialog.visible?
             @na_dialog = nil
             true
@@ -100,6 +111,7 @@ module Na__Noble3dModellingTools
             layout_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiLayout__.html')
             style_path       = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Styles__.css')
             script_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__UiBridge__.js')
+            markup_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__MarkupTool__.js')
             measurement_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__Measurement__.js')
             solver_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveSolver__.js')
             perspective_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveAngle__.js')
@@ -109,6 +121,7 @@ module Na__Noble3dModellingTools
             template
                 .gsub('{{STYLESHEET_CONTENT}}')        { File.read(style_path) }
                 .gsub('{{UI_BRIDGE_SCRIPT}}')          { File.read(script_path) }
+                .gsub('{{MARKUP_SCRIPT}}')             { File.read(markup_path) }
                 .gsub('{{MEASUREMENT_SCRIPT}}')        { File.read(measurement_path) }
                 .gsub('{{PERSPECTIVE_SOLVER_SCRIPT}}') { File.read(solver_path) }
                 .gsub('{{PERSPECTIVE_ANGLE_SCRIPT}}')  { File.read(perspective_path) }
@@ -163,6 +176,14 @@ module Na__Noble3dModellingTools
                     puts "[Na__ImageCarousel] request_photo_info error: #{error.class}: #{error.message}"
                 end
             end
+
+            dialog.add_action_callback('markup_save') do |_ctx, payload|
+                begin
+                    na_queue_markup(dialog, payload)
+                rescue => error
+                    puts "[Na__ImageCarousel] markup_save error: #{error.class}: #{error.message}"
+                end
+            end
         end
 
 # endregion -------------------------------------------------------------------
@@ -205,12 +226,18 @@ module Na__Noble3dModellingTools
             na_push_folder_images_to_dialog(dialog, paths)
         end
 
+        # The folder's image list goes with the model's marks for those photos,
+        # ahead of the list, so a photo's marks are there when it is shown.
         def self.na_push_folder_images_to_dialog(dialog, paths)
-            image_json = paths.to_json
+            image_json  = paths.to_json
+            markup_json = na_markup_for_paths(paths).to_json
             script = <<~JS
                 (function() {
                     var imagePaths = #{image_json};
                     var statusEl = document.getElementById('naImageViewer_meta');
+                    if (window.Na__ImageViewer__OnMarkupLoaded) {
+                        window.Na__ImageViewer__OnMarkupLoaded(#{markup_json});
+                    }
                     if (statusEl) {
                         statusEl.textContent = 'Loading ' + imagePaths.length + ' image(s)...';
                     }
@@ -238,6 +265,68 @@ module Na__Noble3dModellingTools
                 { 'path' => file_path, 'none' => true }
             end
             dialog.execute_script("window.Na__ImageViewer__OnPhotoInfo && window.Na__ImageViewer__OnPhotoInfo(#{info.to_json});")
+        end
+
+        # The model's marks for the photos of the folder just chosen or restored.
+        def self.na_markup_for_paths(paths)
+            model = Sketchup.active_model
+            Na__ImageCarousel__MarkupPersistence.Na__ImageCarousel__MarkupPersistence__LoadForPaths(model, paths, na_markup_root(model))
+        end
+
+        # The model's image folder, which a photo's marks are named under.
+        def self.na_markup_root(model)
+            Na__ImageCarousel__ModelPersistence.Na__ImageCarousel__ModelPersistence__LoadFolder(model)
+        end
+
+        # A photo's marks from the dialog: checked and held now, written to the
+        # model once the dialog has been quiet for a moment. A mark that cannot
+        # be kept is reported to the dialog at once.
+        def self.na_queue_markup(dialog, payload)
+            root   = na_markup_root(Sketchup.active_model)
+            result = Na__ImageCarousel__MarkupPersistence.Na__ImageCarousel__MarkupPersistence__Queue(payload, root)
+            if result['ok']
+                na_schedule_markup_flush(dialog)
+            else
+                na_notify_markup_saved(dialog, result)
+            end
+        end
+
+        def self.na_schedule_markup_flush(dialog)
+            na_stop_markup_timer
+            @na_markup_timer = UI.start_timer(NA_MARKUP_FLUSH_SECONDS, false) do
+                @na_markup_timer = nil
+                begin
+                    na_flush_markup(dialog)
+                rescue => error
+                    puts "[Na__ImageCarousel] markup flush error: #{error.class}: #{error.message}"
+                end
+            end
+        end
+
+        def self.na_stop_markup_timer
+            return unless @na_markup_timer
+
+            UI.stop_timer(@na_markup_timer)
+            @na_markup_timer = nil
+        end
+
+        # Write the marks held to the model now, and tell the dialog (when it is
+        # still there) how it went.
+        def self.na_flush_markup(dialog)
+            na_stop_markup_timer
+            persistence = Na__ImageCarousel__MarkupPersistence
+            return unless persistence.Na__ImageCarousel__MarkupPersistence__HasPending
+
+            result = persistence.Na__ImageCarousel__MarkupPersistence__Flush(Sketchup.active_model)
+            na_notify_markup_saved(dialog, result)
+        end
+
+        def self.na_notify_markup_saved(dialog, result)
+            return unless dialog
+
+            dialog.execute_script("window.Na__ImageViewer__MarkupOnSaved && window.Na__ImageViewer__MarkupOnSaved(#{result.to_json});")
+        rescue => error
+            puts "[Na__ImageCarousel] markup notice skipped: #{error.class}: #{error.message}"
         end
 
         def self.na_native_path(path)

@@ -900,7 +900,7 @@ const NA_OPTIONS_CONFIG = [
         id      :  'fuse_parts',
         label   :  'Fuse Parts',
         type    :  'toggle',
-        default :  false
+        default :  true
     },
     {
         id      :  'paint_cill',
@@ -930,7 +930,7 @@ const NA_OPTIONS_CONFIG = [
         id              : 'frame_material_id',
         label           : 'Frame Finish',
         type            : 'material_cards',
-        default         : 'MAT120__GenericWood',
+        default         : 'MAT001__Default',
         materialsSource : 'NA_FRAME_FINISH_SWATCHES'                              // <-- Live swatches from materials JSON via Ruby push
     },
     {

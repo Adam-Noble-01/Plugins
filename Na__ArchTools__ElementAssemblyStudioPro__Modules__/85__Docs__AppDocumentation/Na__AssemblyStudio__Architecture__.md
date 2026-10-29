@@ -1,7 +1,7 @@
 # Element Assembly Studio Pro - Architecture
 
 ## Product
-Element Assembly Studio Pro by Noble Architecture is a SketchUp 2026 plugin that builds parametric architectural elements (windows, exterior doors, interior doors) inside the active model from an HtmlDialog UI.
+Element Assembly Studio Pro by Noble Architecture is a SketchUp 2026 plugin that builds parametric architectural elements (windows, exterior doors, interior doors, and fitted kitchen and wardrobe units) inside the active model from an HtmlDialog UI.
 
 ## Top-level layout
 ```
@@ -16,15 +16,16 @@ Plugins/
       03__AppUtils/                                    DebugTools (unified), TagManager, SettingsTab UI
       04__GeometryHelpers/                             Box, Units, Fuse_Shared
       05__Viewport__2dPreviewEngine/                   generic SVG viewport factory
-      06__Tools__MeasurementTools/                     TwoPoint + ThreePoint
-      07__Tools__PlacementTools/                       WindowPlacementTool
+      06__Tools__MeasurementTools/                     TwoPoint + ThreePoint + RunMeasure (cabinet runs)
+      07__Tools__PlacementTools/                       WindowPlacementTool + CabinetPlacementTool
       20__System__WindowSystem/                        window-specific code
       31__System__ExteriorSingleDoorSystem/            single exterior door panel + PanelInterface contract (filenames use ExtSingleDoor__ for MAX_PATH)
       32__System__ExteriorSlidingDoorSystem/           two-panel exterior sliding door (MVE-based translation)
       33__System__ExteriorMultiFoldingDoorSystem/      multi-panel exterior bifold door (ROT + MVE)
       40__System__InteriorDoorSystem/                  interior door tab
+      45__System__InteriorCabinetry/                   cabinetry tab: kitchen and fitted wardrobe units (filenames use Cabinetry__)
     03__Style__AppStylesheets/                         master CSS hub + brand/tab-strip stylesheets
-    04__Data__AssetLibrary/                            interior-door asset JSON (architraves, handles, hinges)
+    04__Data__AssetLibrary/                            asset JSON: interior door (architraves, handles, hinges), window boards, cabinet legs and handles
     65__Dev__DevTools/                                 Na__ schema 2D/3D exporters + hierarchy metadata
     85__Docs__AppDocumentation/                        Architecture, DEVLOG, RewireMap, Tasks
     90__AppCache__TempFilesCache/                      plugin-local cache for live-fetched DataLib JSON
@@ -32,7 +33,7 @@ Plugins/
 
 ## Module conventions
 - Ruby outer namespace: `module Na__AssemblyStudio`.
-- Ruby per-system namespaces: `Na__AppCore`, `Na__AppData`, `Na__AppUtils`, `Na__GeometryHelpers`, `Na__MeasurementTools`, `Na__PlacementTools`, `Na__WindowSystem`, `Na__ExteriorSingleDoorSystem`, `Na__ExteriorSlidingDoorSystem`, `Na__ExteriorMultiFoldingDoorSystem`, `Na__InteriorDoorSystem`, `Na__DevTools`.
+- Ruby per-system namespaces: `Na__AppCore`, `Na__AppData`, `Na__AppUtils`, `Na__GeometryHelpers`, `Na__MeasurementTools`, `Na__PlacementTools`, `Na__WindowSystem`, `Na__ExteriorSingleDoorSystem`, `Na__ExteriorSlidingDoorSystem`, `Na__ExteriorMultiFoldingDoorSystem`, `Na__InteriorDoorSystem`, `Na__InteriorCabinetrySystem`, `Na__DevTools`.
 - File-segment shortening: where the full Ruby module name would push the absolute Windows path over the 260-char `MAX_PATH` limit, filenames use a shortened segment instead. The Ruby module name itself stays full for clarity. The shortening table is:
 
 | Folder                                               | Ruby module                              | File segment used in filenames |
@@ -43,6 +44,7 @@ Plugins/
 | `32__System__ExteriorSlidingDoorSystem`              | `Na__ExteriorSlidingDoorSystem`          | `ExtSlide__`                                   |
 | `33__System__ExteriorMultiFoldingDoorSystem`         | `Na__ExteriorMultiFoldingDoorSystem`     | `ExtFold__`                                    |
 | `33__System__ExteriorMultiFoldingDoorSystem` layout files | n/a — sub-files                     | `Layout__<Algorithm>__` (e.g. `Layout__EqualEqual__`) |
+| `45__System__InteriorCabinetry`                      | `Na__InteriorCabinetrySystem`            | `Cabinetry__`                                  |
 
   - Rationale: the longer folder names of the new sliding/multi-folding systems pushed `Na__AssemblyStudio__<full>__<deep-purpose>__.rb` over MAX_PATH. The very short `ExtSlide__` and `ExtFold__` segments (and `Layout__` instead of `LayoutAlgorithm__`) keep absolute paths comfortably below 260 chars. The folder names and Ruby module names stay full and self-documenting.
 - File names follow `Na__AssemblyStudio__<Domain>__<Purpose>__.{rb,js,css,json,html}`.
@@ -70,6 +72,16 @@ Sections:
 - Returned nosing (`window_board_nosing_returns_enabled`): the nose runs round the left end, front and right end, one board thickness past each side of the reveal, mitred at the front corners. All faces come from the pure `na_returned_board_faces(geometry)` and go into one `Na_WindowBoard` group; no Follow Me, no Solid Tools. Square ends: the full section extruded across the reveal.
 - Placement: top face flush with the frame underside; starts at the back of the frame (`frame_wall_inset + frame_depth`).
 - UI: toggle `window_board_enabled` in OPTIONS (window modes only) opens `#na-section-window-board` (`NA_WINDOW_BOARD_CONFIG`). Edge colour `edge_colour_window_board_id`, part `window_board` in `Na__EdgeColourPainter` (Medium Dark Grey). The 2D preview draws a dashed outline from `window.NA_WINDOW_BOARD_ASSET_CACHE` (pushed by `na_requestWindowBoardAssets`).
+
+## Interior Cabinetry (V2.1.0)
+- System: `45__System__InteriorCabinetry`, Ruby `Na__InteriorCabinetrySystem`, filenames `Na__AssemblyStudio__Cabinetry__<Purpose>__`. Tab id `cabinets`, JS module `Na_CabinetUI`.
+- Unit frame (mm): origin at the back left at floor level on the wall line, X along the run, Y from `-depth` (carcass front) to 0 (the wall), with fronts further into -Y, and Z up. Wall units are built at their hanging height inside the same frame. Y = 0 is the sides' back edges, not the back panel: the back is set in by the scribe (`BackPanelInset_mm`, 20 by default), and the base, rails, top and shelves stop at its front face (`yBackPanelFront`).
+- Layout: `Na__AssemblyStudio__Cabinetry__LayoutResolver__.rb` and its JS twin `..._Viewport__LayoutResolver__.js` return the same `{ values, parts, fronts, handles, drawerBoxes, rail, plinth, legs, legHeight, warnings, bounds }`. The builders and the previews only draw what it returns. Keep the two in step: same constants, same rules. The dev parity check and `CabinetLayout` spec catch drift.
+- Builders: `GeometryEngine.na_create_cabinet(cfg, id, transform)` adds one instance to `model.active_entities` with the transform unchanged (Coordinate Rule: world in an open context). Then `CarcassBuilder`, `FrontBuilder` (shaker 14-face frame, grooved profile), `DrawerBoxBuilder`, `PlinthLegsBuilder` and `HandleBuilder` each fill one named group.
+- Assets: legs and handles use the unified asset contract, with placement data in `Na__Asset__Metadata` (`Na__CabinetPlacement__*`). A leg's `StretchZoneMin_mm`/`StretchZoneMax_mm` mark the band that stretches to the plinth height. `AssetMeshBuilder` turns `Mesh3D` into one definition per asset (per height for legs), with soft and smooth edges as flagged.
+- Tools: `Na__RunMeasureTool` returns a right-handed run frame (origin, axes, length) from start, end and room side. `Na__CabinetPlacementTool` resolves a frame each mouse move: beside a picked cabinet (pick path transform product), backed onto a picked wall face (normal through the input point's transformation), or free on the ground. Tab turns the unit.
+- Data: `attributeDictionaries.interiorCabinetrySystem` (`Na__CabinetConfiguratorInfo` / `CabinetID`, IDs `ACBnnn`); payload `{ Na__CabinetMetadata, Na__CabinetComponents, Na__CabinetConfiguration }`.
+- Presets: family `Cabinet`, schema contract `Na__CabinetConfiguration`, type = the product chip the values resolve to.
 
 ## Inter-system contracts
 - `Na__ExteriorSingleDoorSystem::PanelInterface.na_build_panel(context)` - WindowSystem builds a `DoorPanelContext` struct and hands it over to construct door-panel-in-casement geometry.

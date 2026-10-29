@@ -39,13 +39,15 @@
     var NA_FAMILY_LABELS = {
         Window       : 'Window',
         ExteriorDoor : 'Exterior Door',
-        InteriorDoor : 'Interior Door'
+        InteriorDoor : 'Interior Door',
+        Cabinet      : 'Cabinet'
     };
 
     var NA_FAMILY_CHIP_MODIFIERS = {
         Window       : 'na-preset-card__chip--window',
         ExteriorDoor : 'na-preset-card__chip--exteriordoor',
-        InteriorDoor : 'na-preset-card__chip--interiordoor'
+        InteriorDoor : 'na-preset-card__chip--interiordoor',
+        Cabinet      : 'na-preset-card__chip--cabinet'
     };
 
     var NA_INDEX_COLUMN_HEADINGS = ['Preview', 'Code', 'Name', 'Family', 'Type', 'Keywords', 'Description', ''];

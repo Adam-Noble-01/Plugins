@@ -470,13 +470,32 @@ module Na__InsertPrimatives
             if box[:active]
                 inside = na_vm__scope_entities_in(view, box)
                 @na_shift_held ? selection.remove(inside) : selection.add(inside)
-                return true
+                return na_vm__scope_loose_done
             end
 
             entity = na_vm__scope_entity_at(view, x, y)
             return false unless entity
 
             @na_shift_held ? selection.remove(entity) : selection.add(entity)
+            na_vm__scope_loose_done
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Only Loose Geometry Picked: No ENTER Needed
+        # ------------------------------------------------------------
+        # Groups and components wait for ENTER or a double-click, a deliberate
+        # second step before their insides are opened up. Faces and edges are
+        # already the choice of vertices, so the tool goes straight on to them,
+        # their corners picked. SHIFT (taking things out) never jumps ahead.
+        # ------------------------------------------------------------
+        def na_vm__scope_loose_done
+            return true if @na_shift_held
+
+            picked = Sketchup.active_model.selection.to_a
+            return true if picked.empty?
+            return true unless picked.all? { |entity| entity.is_a?(Sketchup::Face) || entity.is_a?(Sketchup::Edge) }
+
+            na_vm__adopt_selection
             true
         end
         # ---------------------------------------------------------------

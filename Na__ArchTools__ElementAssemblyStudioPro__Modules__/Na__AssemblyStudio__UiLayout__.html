@@ -67,6 +67,16 @@
                         onclick="Na_TabRouter.na_activateTab('doors')">
                     Interior Doors
                 </button>
+                <button id="na-tab-button-cabinets"
+                        class="na-tab"
+                        role="tab"
+                        aria-controls="na-tab-cabinets"
+                        aria-selected="false"
+                        data-na-tab-id="cabinets"
+                        title="Kitchen and fitted wardrobe units: base, drawer, wall, tall and wardrobe"
+                        onclick="Na_TabRouter.na_activateTab('cabinets')">
+                    Cabinetry
+                </button>
             </nav>
 
             <!-- Presets page tab bar (hidden until body.na-presets-mode swaps it
@@ -343,6 +353,102 @@
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
+         REGION | Tab Panel - Cabinetry (kitchens and fitted wardrobes)
+         Na_CabinetUI builds every control into the na-cab-controls-* boxes on
+         each mount; the section layout moves them into their sections (see
+         the Cabinetry LayoutMap).
+         ========================================================================== -->
+    <div id="na-tab-cabinets"
+         class="na-tab-panel na-hidden"
+         role="tabpanel"
+         aria-labelledby="na-tab-button-cabinets"
+         data-na-tab-id="cabinets">
+
+        <div id="na-panel-top-cabinets" class="na-panel-top">
+            <div class="na-panel-toolbar">
+                <div id="na-lay-products-cabinets" class="na-lay-products" aria-label="Unit"></div>
+                <div class="na-lay-searchrow">
+                    <label class="na-lay-search">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        <input id="na-search-cabinets"
+                               type="search"
+                               autocomplete="off"
+                               spellcheck="false"
+                               aria-label="Search every setting"
+                               placeholder="Search every setting: plinth, shaker, drawers, shelves, legs&hellip;">
+                        <kbd>Ctrl F</kbd>
+                    </label>
+                    <button id="na-chg-cabinets" type="button" class="na-lay-chg na-lay-chg--none"
+                            aria-pressed="false" title="List every setting changed from its default">
+                        <i></i><span>Changed &middot; 0</span>
+                    </button>
+                </div>
+            </div>
+
+            <section id="na-preview-cabinets" class="na-lay-preview na-door-viewport-section">
+                <div class="na-lay-preview__head">
+                    <h2>Preview</h2>
+                    <span id="na-preview-size-cabinets" class="na-lay-preview__size"></span>
+                    <span class="na-lay-preview__spacer"></span>
+                    <button id="na-btn-cab-interior" type="button" class="na-lay-preview__tool" aria-pressed="false"
+                            title="See through the fronts to the shelves and drawer boxes"
+                            onclick="Na_CabinetUI &amp;&amp; Na_CabinetUI.na_toggle_interior()">Interior</button>
+                    <button type="button" class="na-lay-preview__tool" onclick="Na_CabinetUI &amp;&amp; Na_CabinetUI.na_reset_view()">Reset View</button>
+                </div>
+                <div class="na-door-dual-viewport">
+                    <div class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Elevation</div>
+                        <div id="na-cab-elevation-wrapper" class="na-canvas-wrapper">
+                            <svg id="na-cab-elevation-svg" class="na-viewport-svg"></svg>
+                        </div>
+                    </div>
+                    <div class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Section</div>
+                        <div id="na-cab-section-wrapper" class="na-canvas-wrapper">
+                            <svg id="na-cab-section-svg" class="na-viewport-svg"></svg>
+                        </div>
+                    </div>
+                </div>
+                <div id="na-cab-preview-warnings" class="na-cab-warnings" hidden></div>
+            </section>
+        </div>
+
+        <!-- The cabinet selected in the model. The <ID>__<Type>__ head is fixed;
+             Name adds the Outliner tail (Enter renames straight away). -->
+        <section id="na-cab-info" class="na-selected-strip na-hidden">
+            <div class="na-selected-strip__row">
+                <span id="na-info-cab-id" class="na-selected-strip__id">-</span>
+                <span class="na-selected-strip__dates">Created <span id="na-info-cab-created">-</span> &middot; Modified <span id="na-info-cab-modified">-</span></span>
+                <button type="button" class="na-selected-strip__toggle"
+                        onclick="this.closest('.na-selected-strip').classList.toggle('na-selected-strip--open')">Name &amp; Notes</button>
+            </div>
+            <div class="na-selected-strip__fields">
+                <label class="na-info-label" for="na-info-cab-name">Component Name</label>
+                <input type="text" id="na-info-cab-name" class="na-info-input" placeholder="e.g. Kitchen__SinkBase"
+                       title="Added to the component name after the fixed ID and type. Press Enter to apply." value="">
+                <label class="na-info-label" for="na-info-cab-description">Description</label>
+                <input type="text" id="na-info-cab-description" class="na-info-input" placeholder="Notes for this unit (not used in the name)" value="">
+            </div>
+        </section>
+
+        <div id="na-lay-sections-cabinets" class="na-lay-sections"></div>
+        <div id="na-lay-results-cabinets" class="na-lay-results" hidden></div>
+
+        <div id="na-lay-staging-cabinets" class="na-lay-staging" hidden>
+            <div id="na-cab-controls-product"></div>
+            <div id="na-cab-controls-size"></div>
+            <div id="na-cab-controls-fronts"></div>
+            <div id="na-cab-controls-interior"></div>
+            <div id="na-cab-controls-carcass"></div>
+            <div id="na-cab-controls-plinth"></div>
+            <div id="na-cab-controls-hardware"></div>
+            <div id="na-cab-controls-finish"></div>
+            <div id="na-cab-controls-output"></div>
+        </div>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
          REGION | Tab Panel - Settings
          ========================================================================== -->
     <div id="na-tab-settings"
@@ -447,6 +553,14 @@
                         disabled>
                     <b>2</b><span>Insert at Measured Point</span>
                 </button>
+                <button id="na-btn-cab-create-at-measurement"
+                        type="button"
+                        data-na-dock-tab="cabinets"
+                        class="na-dock__step na-dock__step--go na-btn-create-measure na-btn-disabled"
+                        onclick="na_createCabinetInRun()"
+                        disabled>
+                    <b>2</b><span>Insert in Run</span>
+                </button>
             </div>
             <span class="na-dock__sep" aria-hidden="true"></span>
             <button id="na-btn-create" type="button" data-na-dock-tab="windows"
@@ -457,7 +571,13 @@
                     class="na-btn na-btn-success na-dock__btn" onclick="na_updateWindow()" disabled>Update Window</button>
             <button id="na-btn-door-update" type="button" data-na-dock-tab="doors"
                     class="na-btn na-btn-success na-dock__btn" onclick="na_updateDoor()" disabled>Update Door</button>
+            <button id="na-btn-cab-create" type="button" data-na-dock-tab="cabinets"
+                    class="na-btn na-btn-primary na-dock__btn" onclick="na_createCabinetAtCursor()"
+                    title="Place units with the mouse: over a unit to go beside it, over a wall to back onto it. Tab turns, Esc finishes.">Create at Cursor</button>
+            <button id="na-btn-cab-update" type="button" data-na-dock-tab="cabinets"
+                    class="na-btn na-btn-success na-dock__btn" onclick="na_updateCabinet()" disabled>Update Unit</button>
         </div>
+        <div id="na-cab-run-readout" class="na-dock__run" data-na-dock-tab="cabinets" hidden></div>
     </footer>
     <!-- endregion ============================================================== -->
 
@@ -581,6 +701,17 @@
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__MainUiLogic__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Bridge__.js"></script>
     <script src="02__Src__AppModules/40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__FinishCards__.js"></script>
+
+    <!-- InteriorCabinetry system tab modules (config, layout map, pure layout
+         resolver shared by both previews, previews, UI logic, bridge) -->
+    <!-- @delegate: 02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Viewport__LayoutResolver__.js -->
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__Config__.js"></script>
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Viewport__LayoutResolver__.js"></script>
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__LayoutMap__.js"></script>
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Viewport__ElevationGenerator__.js"></script>
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Viewport__SectionGenerator__.js"></script>
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__MainUiLogic__.js"></script>
+    <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__Bridge__.js"></script>
 
     <!-- PresetsLibrary system (Presets Gallery + Preset Editor tabs; loaded after every main-tab system so capture/apply can reach them all) -->
     <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__Bridge__.js"></script>

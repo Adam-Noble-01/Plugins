@@ -16,7 +16,8 @@
 //   generator; multifold/sliding use their string generators; windows and
 //   single exterior doors flow through the standard window SVG generator.
 // - Interior-door capture renders Na_DoorElevationGenerator into a
-//   detached <svg> element.
+//   detached <svg> element; cabinet capture does the same with
+//   Na_CabinetElevationGenerator.
 // - Dimensions are suppressed (show_dimensions: false) so thumbnails stay
 //   clean at card scale.
 // - Markup is stored WITHOUT the outer <svg> tag; consumers rebuild an
@@ -214,6 +215,41 @@
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Capture a Cabinet Elevation Preview
+    // ------------------------------------------------------------
+    // The Cabinetry tab's own elevation without its dimension strings, in a
+    // detached <svg>. The stored size is the unit's width by its overall
+    // height: plinth included for a standing unit, the carcass for a wall
+    // unit (its hanging height is not part of the design's look).
+    // @param  {Object} configBlock - Na__CabinetConfiguration block
+    // @return {Object|null}          { viewBox, widthMm, heightMm, svgMarkup }
+    function na_capture_cabinet_preview(configBlock) {
+        try {
+            var generator = window.Na_CabinetElevationGenerator;
+            var resolver  = window.Na__Cabinetry__LayoutResolver;
+            if (!generator || typeof generator.na_render !== 'function' || !resolver) {
+                console.warn('[NA_PRESETS_SVG] Na_CabinetElevationGenerator not loaded');
+                return null;
+            }
+
+            var svgElement = document.createElementNS(NA_SVG_NAMESPACE, 'svg');
+            generator.na_render(svgElement, configBlock, { dimensions: false });
+            var box    = generator.na_fit_to_content(configBlock, { dimensions: false });
+            var values = resolver.na_resolve(configBlock).values;
+
+            return {
+                viewBox   : na_box_to_view_box(box),
+                widthMm   : Math.round(values.width),
+                heightMm  : Math.round(values.type === 'Wall' ? values.height : values.zBase + values.height),
+                svgMarkup : String(svgElement.innerHTML)
+            };
+        } catch (err) {
+            console.error('[NA_PRESETS_SVG] Cabinet capture failed:', err);
+            return null;
+        }
+    }
+    // ---------------------------------------------------------------
+
 // endregion -------------------------------------------------------------------
 
 
@@ -223,6 +259,7 @@
 
     Na__PresetsLibrary__SvgCapture.na_capture_window_family_preview = na_capture_window_family_preview;
     Na__PresetsLibrary__SvgCapture.na_capture_interior_door_preview = na_capture_interior_door_preview;
+    Na__PresetsLibrary__SvgCapture.na_capture_cabinet_preview       = na_capture_cabinet_preview;
 
     window.Na__PresetsLibrary__SvgCapture = Na__PresetsLibrary__SvgCapture;
 

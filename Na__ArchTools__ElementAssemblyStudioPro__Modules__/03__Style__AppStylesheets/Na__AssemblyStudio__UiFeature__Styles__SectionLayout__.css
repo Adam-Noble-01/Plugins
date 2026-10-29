@@ -1427,14 +1427,54 @@ body.na-presets-mode .na-topbar .na-tab-strip__actions.na-topbar__tools {
     box-shadow           : 0 -6px 16px -12px rgba(18, 28, 40, 0.3);
 }
 
-body[data-na-active-tab="settings"] .na-dock,
-body.na-presets-mode .na-dock {
+/* Settings and Presets have no actions, but status toasts (reload done, preset
+   saved) still need somewhere to show: keep the dock as a status-only strip
+   that takes no space until a message is showing. */
+body[data-na-active-tab="settings"] .na-dock > :not(.na-dock__status),
+body.na-presets-mode .na-dock > :not(.na-dock__status),
+body[data-na-active-tab="settings"] .na-dock .na-dock__hint,
+body.na-presets-mode .na-dock .na-dock__hint,
+body[data-na-active-tab="settings"] .na-dock .na-dock-live,
+body.na-presets-mode .na-dock .na-dock-live {
     display              : none;
 }
 
-body[data-na-active-tab="windows"] .na-dock [data-na-dock-tab="doors"],
-body[data-na-active-tab="doors"] .na-dock [data-na-dock-tab="windows"] {
+body[data-na-active-tab="settings"] .na-dock:has(.na-status-bar.na-hidden),
+body.na-presets-mode .na-dock:has(.na-status-bar.na-hidden) {
+    display              : none;
+}
+
+/* Each configurator tab shows only its own dock buttons. */
+body[data-na-active-tab="windows"]  .na-dock [data-na-dock-tab]:not([data-na-dock-tab="windows"]),
+body[data-na-active-tab="doors"]    .na-dock [data-na-dock-tab]:not([data-na-dock-tab="doors"]),
+body[data-na-active-tab="cabinets"] .na-dock [data-na-dock-tab]:not([data-na-dock-tab="cabinets"]) {
     display              : none !important;
+}
+
+/* Cabinetry: the measured run readout under the dock buttons, the Create
+   button while units are being placed, and the layout's warnings. */
+.na-dock__run {
+    padding              : 5px 2px 0;
+    font-size            : 11.5px;
+    font-variant-numeric : tabular-nums;
+    color                : var(--na-lay-amber-ink);
+}
+
+.na-dock__run[hidden] {
+    display              : none !important;
+}
+
+.na-dock .na-dock__btn--placing {
+    box-shadow           : 0 0 0 3px var(--na-lay-amber-soft), 0 0 0 4px var(--na-lay-amber);
+}
+
+.na-cab-warnings {
+    margin               : 6px 10px 2px;
+    padding              : 5px 8px;
+    background           : var(--na-lay-amber-soft);
+    border-radius        : 6px;
+    font-size            : 11.5px;
+    color                : var(--na-lay-amber-ink);
 }
 
 /* ------------------------------------------------------- Status / hint line */

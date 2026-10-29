@@ -4,7 +4,7 @@
 
    FILE       : Na__AssemblyStudio__DevTools__LayoutCoverage__Spec__.js
    AUTHOR     : Noble Architecture
-   PURPOSE    : Guards the V2.0.0 section layout. Every control the two
+   PURPOSE    : Guards the V2.0.0 section layout. Every control the three
                 configurator tabs build has a slot in its tab's layout map,
                 and every slot names a control that still exists.
    CREATED    : 28-Oct-2026
@@ -100,8 +100,10 @@ const NA_SOURCES = [
     '33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStudio__ExtFold__UiSystem__Config__.js',
     '34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__UiSystem__Config__.js',
     '40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__Config__.js',
+    '45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__Config__.js',
     '20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__LayoutMap__.js',
-    '40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__LayoutMap__.js'
+    '40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__UiSystem__LayoutMap__.js',
+    '45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__LayoutMap__.js'
 ];
 
 // Each shipped file declares top-level `const`s, which would collide across a
@@ -139,8 +141,18 @@ const NA_TABS = {
         arrays: ['NA_DOOR_OPENING_CONFIG', 'NA_DOOR_PANEL_TAB_CONFIG', 'NA_DOOR_ARCHITRAVE_CONFIG',
                  'NA_DOOR_HANDLE_CONFIG', 'NA_DOOR_OPTIONS_CONFIG'],
         types : ['slider', 'select', 'binary_toggle', 'checkbox']
+    },
+    // The Cabinetry tab draws these (Cabinetry MainUiLogic NA_CONTAINERS)
+    // with the shared Na__Ui__Controls engine.
+    cabinets: {
+        arrays: ['NA_CABINET_PRODUCT_CONFIG', 'NA_CABINET_SIZE_CONFIG', 'NA_CABINET_FRONTS_CONFIG',
+                 'NA_CABINET_INTERIOR_CONFIG', 'NA_CABINET_CARCASS_CONFIG', 'NA_CABINET_PLINTH_CONFIG',
+                 'NA_CABINET_HARDWARE_CONFIG', 'NA_CABINET_FINISH_CONFIG', 'NA_CABINET_OUTPUT_CONFIG'],
+        types : ['slider', 'toggle', 'binary_toggle', 'multiway_toggle', 'select', 'material_cards']
     }
 };
+
+const NA_TAB_TITLES = { windows: 'Windows & Exterior Doors tab', doors: 'Interior Doors tab', cabinets: 'Cabinetry tab' };
 
 // HELPER FUNCTION | Every Built Control as { id, parentId }, Containers First
 // ------------------------------------------------------------
@@ -200,7 +212,7 @@ Object.keys(NA_TABS).forEach(tabId => {
     const tab    = NA_TABS[tabId];
     const layout = NA_LAYOUTS[tabId];
 
-    na_suite(tabId === 'windows' ? 'Windows & Exterior Doors tab' : 'Interior Doors tab');
+    na_suite(NA_TAB_TITLES[tabId]);
     na_expect('Layout map registered', !!layout, true);
     if (!layout) return;
 

@@ -42,17 +42,20 @@
     var NA_CONTENT_HOST_ID    = 'na-presets-content';                            // <-- grid/index swap host
     var NA_DEFAULT_ORIGIN_TAB = 'windows';
 
-    var na_origin_tab_id = NA_DEFAULT_ORIGIN_TAB;                                // 'windows' | 'doors'
+    var na_origin_tab_id = NA_DEFAULT_ORIGIN_TAB;                                // 'windows' | 'doors' | 'cabinets'
     var na_view_mode     = 'grid';                                               // 'grid' | 'index'
     var na_search_term   = '';
     var na_family_filter = '';
     var na_is_mounted    = false;
 
+    var NA_ORIGIN_TABS = ['windows', 'doors', 'cabinets'];                       // <-- Main tabs that open the presets pages
+
     var NA_FAMILY_FILTER_OPTIONS = [
         { value : '',             label : 'All Products'   },
         { value : 'Window',       label : 'Windows'        },
         { value : 'ExteriorDoor', label : 'Exterior Doors' },
-        { value : 'InteriorDoor', label : 'Interior Doors' }
+        { value : 'InteriorDoor', label : 'Interior Doors' },
+        { value : 'Cabinet',      label : 'Cabinetry'      }
     ];
 
 // endregion -------------------------------------------------------------------
@@ -333,6 +336,11 @@
             if (typeof bridge.na_apply_interior_door_preset === 'function') {
                 bridge.na_apply_interior_door_preset(record);
             }
+        } else if (record.productFamily === 'Cabinet') {
+            na_activate_tab('cabinets');
+            if (typeof bridge.na_apply_cabinet_preset === 'function') {
+                bridge.na_apply_cabinet_preset(record);
+            }
         } else {
             na_activate_tab('windows');
             if (typeof bridge.na_apply_window_family_preset === 'function') {
@@ -389,9 +397,9 @@
 
     // FUNCTION | Enter the presets pages from a main-tab header button
     // ------------------------------------------------------------
-    // @param {String} originTabId - 'windows' | 'doors' (defaults 'windows').
+    // @param {String} originTabId - 'windows' | 'doors' | 'cabinets' (defaults 'windows').
     Na_PresetsUI.na_open_from_main = function (originTabId) {
-        na_origin_tab_id = (originTabId === 'doors') ? 'doors' : NA_DEFAULT_ORIGIN_TAB;
+        na_origin_tab_id = (NA_ORIGIN_TABS.indexOf(originTabId) !== -1) ? originTabId : NA_DEFAULT_ORIGIN_TAB;
         na_activate_tab('presets');
     };
     // ---------------------------------------------------------------

@@ -41,6 +41,7 @@ module Sketchup
 end
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__MarkupPersistence__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
 PI = Na__Noble3dModellingTools::Na__ImageCarousel__PhotoInfo
@@ -101,7 +102,7 @@ check('non-image path is not read', p2['none'] == true, p2)
 # ----------------------------------------------------------------------------- html assembly
 html = DM.na_render_html
 check('no placeholder left', !html.include?('{{'), html.scan(/\{\{[A-Z_]+\}\}/))
-%w[UiBridge Measurement PerspectiveSolver PerspectiveAngle].each do |part|
+%w[UiBridge MarkupTool Measurement PerspectiveSolver PerspectiveAngle CountTool].each do |part|
   src = File.read(File.join(MODULE_DIR, "Na__Noble3dModellingTools__ImageCarousel__#{part}__.js"))
   check("#{part} inlined byte for byte", html.include?(src))
 end

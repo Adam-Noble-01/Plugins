@@ -95,7 +95,7 @@ module Na__WindowSystem
 
     # MODULE CONSTANTS | Default Material IDs (resolved against MaterialManager)
     # ------------------------------------------------------------
-    NA_DEFAULT_FRAME_MATERIAL_ID        = "MAT120__GenericWood".freeze
+    NA_DEFAULT_FRAME_MATERIAL_ID        = "MAT001__Default".freeze
     NA_DEFAULT_GLASS_MATERIAL_ID        = "MAT101__GenericGlass".freeze
     NA_DEFAULT_CILL_MATERIAL_ID         = "MAT541__Timber__Sapele".freeze
     # ---------------------------------------------------------------
@@ -247,11 +247,11 @@ module Na__WindowSystem
                 "removed_transom_segments"              : [],
                 "removed_glazebars"                     : [],
 
-                "frame_material_id"                     : "MAT120__GenericWood",
+                "frame_material_id"                     : "MAT001__Default",
                 "paint_cill"                            : false,
                 "show_dimensions"                       : true,
                 "show_casements"                        : true,
-                "fuse_parts"                            : false,
+                "fuse_parts"                            : true,
 
                 "ext_single_door_mode"                  : false,
                 "sliding_mode"                          : false,

@@ -49,7 +49,8 @@
     var NA_FAMILY_GROUPS              = [
         { family : 'Window',       label : 'Windows'        },
         { family : 'ExteriorDoor', label : 'Exterior Doors' },
-        { family : 'InteriorDoor', label : 'Interior Doors' }
+        { family : 'InteriorDoor', label : 'Interior Doors' },
+        { family : 'Cabinet',      label : 'Cabinetry'      }
     ];
 
     var na_is_mounted                 = false;                                // <-- True between na_mount and na_unmount
@@ -586,9 +587,10 @@
     // SUB FUNCTION | Re-Capture the Current UI and Dispatch the Overwrite
     // ------------------------------------------------------------
     // Capture origin follows the loaded preset's family: interior-door
-    // presets re-capture from the Interior Doors UI, everything else from
-    // the Windows tab UI. Family/type are re-derived from the fresh
-    // capture so the stored preset always matches what was saved.
+    // presets re-capture from the Interior Doors UI, cabinet presets from
+    // the Cabinetry UI, everything else from the Windows tab UI. Family/type
+    // are re-derived from the fresh capture so the stored preset always
+    // matches what was saved.
     // @param {Object}  record    - The preset record being overwritten
     // @param {Element} updateBtn - The overwrite button (for busy state)
     function na_perform_config_overwrite(record, updateBtn) {
@@ -600,7 +602,9 @@
             return;
         }
 
-        var origin  = (record.productFamily === 'InteriorDoor') ? 'doors' : 'windows';
+        var origin  = (record.productFamily === 'InteriorDoor') ? 'doors'
+                    : (record.productFamily === 'Cabinet')      ? 'cabinets'
+                    :                                             'windows';
         var capture = bridge.na_capture_current_design(origin);
         if (!capture) {
             na_status('error', 'Could not capture the current design - check the active configuration.');

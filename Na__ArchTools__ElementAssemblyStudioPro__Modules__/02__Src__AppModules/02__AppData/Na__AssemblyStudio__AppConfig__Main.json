@@ -3,13 +3,14 @@
         "metadata": {
             "appName"           : "Element Assembly Studio Pro",
             "publisher"         : "Noble Architecture",
-            "version"           : "2.0.0",
+            "version"           : "2.1.0",
             "schemaVersion"     : 1
         },
 
         "tabs": [
             { "id": "windows",  "label": "Windows",        "showHeaderActions": true  },
             { "id": "doors",    "label": "Interior Doors", "showHeaderActions": true  },
+            { "id": "cabinets", "label": "Cabinetry",      "showHeaderActions": true  },
             { "id": "settings", "label": "Settings",       "showHeaderActions": false }
         ],
 
@@ -60,6 +61,17 @@
                 "idRegex"                 : "^ADR\\d{3}$",
                 "idFormat"                : "ADR%03d",
                 "definitionNameSuffix"    : "__ExteriorDoubleDoor__"
+            },
+            "interiorCabinetrySystem": {
+                "instanceDictName"        : "Na__CabinetConfiguratorInfo",
+                "instanceIdAttribute"     : "CabinetID",
+                "definitionDictPrefix"    : "Na__CabinetConfigurator_",
+                "metadataKey"             : "Na__CabinetMetadata",
+                "componentsKey"           : "Na__CabinetComponents",
+                "configurationKey"        : "Na__CabinetConfiguration",
+                "idRegex"                 : "^ACB\\d{3}$",
+                "idFormat"                : "ACB%03d",
+                "definitionNameSuffix"    : "__"
             }
         },
 
@@ -74,6 +86,11 @@
                     "completeCallback"  : "na_send_door_measurement_to_dialog",
                     "cancelCallback"    : "na_send_door_measure_cancelled_to_dialog",
                     "statusLabel"       : "Measure Door Opening"
+                },
+                "interiorCabinetrySystem": {
+                    "completeCallback"  : "na_send_cabinet_run_to_dialog",
+                    "cancelCallback"    : "na_send_cabinet_measure_cancelled_to_dialog",
+                    "statusLabel"       : "Measure Run"
                 }
             }
         },
@@ -98,6 +115,10 @@
             "window": {
                 "sashHorns"     : "Windows__SashHorns__",
                 "windowBoards"  : "Windows__WindowBoards__"
+            },
+            "cabinetry": {
+                "legs"          : "Cabinetry__Legs__",
+                "handles"       : "Cabinetry__Handles__"
             }
         },
 
@@ -155,7 +176,7 @@
                 "panelProfile"              : "RaisedBevelled",
                 "panelTopRailWidthMm"       : 95,
                 "panelBottomRailWidthMm"    : 150,
-                "leafMaterialId"            : "MAT120__GenericWood",
+                "leafMaterialId"            : "MAT001__Default",
                 "handleAssetKey"            : "Na__InteriorDoor__Handle__Default"
             }
         },

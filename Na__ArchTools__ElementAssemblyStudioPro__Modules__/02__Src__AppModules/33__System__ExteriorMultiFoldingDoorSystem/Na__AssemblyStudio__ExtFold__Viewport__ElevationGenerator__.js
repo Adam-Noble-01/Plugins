@@ -77,7 +77,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
     const FILL_GLAZING                   = '#D8E8F2';      // <-- Glazing pane fill (pale blue)
     const FILL_FOLD_ARROW                = '#5A6470';      // <-- Fold-direction arrow stroke
     const FILL_CILL_DEFAULT              = '#A0908A';      // <-- Default cill (Sapele) tint
-    const DEFAULT_FRAME_MATERIAL_ID      = 'MAT120__GenericWood';
+    const DEFAULT_FRAME_MATERIAL_ID      = 'MAT001__Default';
     const DEFAULT_CILL_MATERIAL_ID       = 'MAT541__Timber__Sapele';
 
     // endregion -------------------------------------------------------------------

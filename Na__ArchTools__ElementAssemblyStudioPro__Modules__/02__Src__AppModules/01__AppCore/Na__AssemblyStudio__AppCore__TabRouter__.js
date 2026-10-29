@@ -34,6 +34,7 @@
     var NA_TAB_TO_GLOBAL = {
         windows       : 'Na_DynamicUI',       // Window system kept the historical IIFE name for compatibility
         doors         : 'Na_DoorUI',
+        cabinets      : 'Na_CabinetUI',       // Interior Cabinetry (kitchens and fitted wardrobes)
         settings      : 'Na_SettingsUI',
         presets       : 'Na_PresetsUI',       // PresetsLibrary gallery page
         preset_editor : 'Na_PresetEditorUI'   // PresetsLibrary editor page

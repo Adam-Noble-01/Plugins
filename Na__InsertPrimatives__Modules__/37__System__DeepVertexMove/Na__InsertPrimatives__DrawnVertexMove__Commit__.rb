@@ -37,6 +37,12 @@
 #   Faces that only stretch — the sides of a box whose end is pulled — stay
 #   flat and are left exactly as they are.
 #
+# WELDED CURVES (5.2.18):
+# - A vertex of an arc, circle or welded run moved on its own makes SketchUp
+#   re-fit the whole curve round it, so the curve warps. Every curve touching
+#   a moving vertex is exploded first and welded back after the move
+#   (04__GeometryHelpers/..CurveUnweld__.rb); an arc comes back as a curve.
+#
 # UNDO:
 # - One undo step per collection opened, which for a pick inside one group
 #   (the usual case) is one. ExecuteInContext chains the open, the edit and
@@ -48,6 +54,7 @@ require 'sketchup.rb'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnDeepPick__Context__'
 require_relative '../04__GeometryHelpers/Na__InsertPrimatives__DrawnSlopePush__'
+require_relative '../04__GeometryHelpers/Na__InsertPrimatives__CurveUnweld__'
 require_relative 'Na__InsertPrimatives__DrawnVertexMove__Scope__'
 
 module Na__InsertPrimatives
@@ -75,7 +82,7 @@ module Na__InsertPrimatives
     #   :success, :moved, :missed, :folded, :ops, :entered, :errors
     # ------------------------------------------------------------
     def self.Na__VertexMove__Apply(model, roots, entries, offset)
-        tally = { :success => false, :moved => 0, :missed => 0, :folded => 0, :ops => 0, :entered => 0, :errors => [] }
+        tally = { :success => false, :moved => 0, :missed => 0, :folded => 0, :welded => 0, :ops => 0, :entered => 0, :errors => [] }
 
         if entries.nil? || entries.empty?
             tally[:errors] << 'nothing picked to move'
@@ -125,12 +132,14 @@ module Na__InsertPrimatives
 
             raise 'the picked vertices could not be found in their group' if vertices.empty?
 
+            chains = Na__InsertPrimatives.Na__CurveUnweld__Explode(vertices)          # <-- A welded curve would be re-fitted round the move (CurveUnweld)
             tally[:folded] += Na__InsertPrimatives.Na__VertexMove__FoldBending(entities, vertices, vector)
 
             unless Na__InsertPrimatives.Na__SlopePush__MoveVertices(entities, nil, vertices, vector)
                 raise 'SketchUp would not move the vertices'
             end
 
+            tally[:welded] += Na__InsertPrimatives.Na__CurveUnweld__Reweld(entities, chains)
             found = vertices.length
         end
 

@@ -699,6 +699,7 @@
         getCanvas        : function() { return na_canvas; },
         getCtx           : function() { return na_ctx; },
         getIndex         : function() { return na_index; },
+        getImages        : function() { return na_images.slice(); },
         getImageKey      : Na__ImageViewer__ImageKey,
         getImage         : function() { return na_viewer.img; },
         getImageSize     : function() { return { w: na_viewer.imgW, h: na_viewer.imgH }; },

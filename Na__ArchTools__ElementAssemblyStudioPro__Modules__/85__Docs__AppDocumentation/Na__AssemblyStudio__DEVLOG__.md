@@ -3,6 +3,137 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.1.0 - 29-Oct-2026 - Cabinetry: Parametric UK Kitchen and Fitted Wardrobe Units
+
+### Context
+Fitting out a UK home model meant drawing every kitchen and wardrobe unit by hand. V2.1.0 adds a third configurator tab, **Cabinetry**, after Interior Doors. It builds base, drawer, wall, tall and wardrobe units to UK supplier practice (Howdens, Wren), in three door styles, and places them along a measured wall run or straight from the cursor. It uses the V2.0 panel in the same order and rhythm as the other tabs: the common settings first, the rest behind More and Advanced.
+
+### Feature Summary
+- **Five products on the strip.** Kitchen: Base, Drawers, Wall, Tall. Bedroom: Wardrobe. The defaults are 600 wide with Shaker doors, so a new unit reads clearly in the model.
+- **Three door styles.**
+  - **Flat**: a slab.
+  - **Shaker**: a 70 frame round a panel recessed 6.
+  - **Recessed Handle**: a round-bottomed finger groove (18 wide, 12 deep, 22 in from the edge). It sits on the top edge of drawers and base doors, the bottom of wall doors, and either side of a tall unit's split.
+- **Fronts per unit.**
+  - Base: Doors, Drawer + Door, Drawers or Open.
+  - Wall: Doors or Open.
+  - Tall: Full Height, Split Doors or Open.
+  - Units over 600 wide take a pair of doors unless One is chosen.
+- **Carcass as fitted.** Sides run full height and depth. Base, rails, top and shelves sit between the sides and stop at the back panel. Base units have two top rails (front and rear, 100 deep), as in the reference photos; Top Panel is the alternative.
+- **The scribe.** On every carcass the 9mm back panel is set in 20 from the sides' back edges, as UK carcasses are made. The 20 of side standing proud of the back is the scribe: the fitter planes it to follow an uneven wall without touching the back. The void behind the back takes pipes, cables and the wall units' hanging rail. The sides still meet the wall line; the base, rails, top and shelves stop at the back panel, so a 560 carcass is 531 deep inside. **Carcass › Advanced › Back Panel Set In (Scribe)** changes it, and 0 gives a flush back.
+- **20mm carcass board by default.** It reads cleanly at the scale the models are drawn at. **Carcass › Advanced › Board Thickness** takes 18 (or anything 12-30) when the cutting sizes must be exact; the outside sizes never change.
+- **Plinth and legs.** The standard UK 150 plinth, set back 40 from the carcass front, with adjustable legs behind it. Plinth Height sets both. The plinth and the legs can each be turned off, and a plinth-less unit stands on its legs. The rear legs stand 65 in from the back, so their 60 top plate sits under the base panel, clear of the back panel; asked for less, they still keep 35 from the back panel.
+- **Legs and handles are assets**, in the same unified data structure as the interior door handles: `meta`, `Na__Asset__Metadata`, `Plan2D`, `Elevation2D` and `Mesh3D`.
+  - Legs: an adjustable plinth leg.
+  - Handles: a 128mm bar, a 160mm D handle and a 30mm knob, or No Handles.
+  - The leg carries a **stretch zone**, so one leg model serves any plinth height: only the threaded column lengthens; the foot and the top plate keep their shape.
+- **Drawers.**
+  - The standard pack is 3 drawers, graduated: a 140 drawerline top drawer over two pans of 285.5. Equal is the alternative.
+  - Every front has a drawer box behind it, 13 clear of the carcass sides for the runners and as long as the depth allows in 50 steps (500 in a 560 carcass).
+  - Output can leave the boxes out for a lighter model.
+- **Handles placed as a fitter would.**
+  - Doors: on the opening edge, near the top of base doors, near the bottom of wall doors, and either side of a tall unit's split. A full-height wardrobe door has its handle at 1050.
+  - Drawers: centred on a full shaker frame's top rail (clear of the panel joint), otherwise centred on a slim front, and at most 70 below the top of a deep one.
+- **Live 2D previews.**
+  - An elevation with a height string (plinth and carcass) and the width. The labels scale with the unit, so a 2150 wardrobe reads as well as a 720 base.
+  - A side section: boards cut, the far side beyond, the scribe behind the back panel (labelled `scribe 20`), the plinth set back, a leg drawn from its asset, and each handle's real profile from its Plan2D.
+  - **Interior** ghosts the fronts to show the shelves, drawer boxes and the hanging rail. Opening lines follow the European kitchen convention: from the hinge corners to a point on the handle side.
+- **Search knows the trade words.** Kickboard, toe kick and skirting find the plinth; feet find the legs; carcase, larder, pantry, handleless, Gola, J-pull, slab, stretcher, MFC, melamine, chipboard, hangers, drawerline and scribe all land on the right settings.
+- **Presets.** Cabinets are a fourth preset family, alongside Window, Exterior Door and Interior Door. Capture Current Design from the Cabinetry tab, filter the gallery by Cabinetry, and apply a preset to switch back to the tab with that unit loaded. Update From re-captures from Cabinetry.
+- **Gallery fix (all families).** A thumbnail taller than it is wide (a wardrobe, say) no longer stretches its card and the whole grid row. The thumbnail box asked for a square, but CSS let tall content override it; it now holds the square.
+
+### UK Sizes
+| Unit | Carcass (W x H x D) | Stands on | Fronts | Inside |
+|---|---|---|---|---|
+| Base | 600 x 720 x 560 | 150 plinth on 4 legs (6 over 900 wide) | door 597 x 717, 20 thick, 3 gaps | 1 shelf, two top rails |
+| Drawers | 600 x 720 x 560 | 150 plinth | 140 / 285.5 / 285.5 | a box behind each front |
+| Wall | 600 x 720 x 300 | hung at 1400, top at 2120 | door, handle low | 2 shelves, top panel |
+| Tall | 600 x 1970 x 560 | 150 plinth, top at 2120 | split: 720 upper over the rest | 4 shelves + a fixed shelf at the split |
+| Wardrobe | 600 x 2150 x 600 | 150 plinth | one full height door | hat shelf 300 down, rail 60 under it |
+
+The wall units' tops and the tall unit's top meet at 2120, as in a fitted run. Every unit's back is set in 20 for the scribe (see above).
+
+### Placing Units
+- **① Measure Run.** Click the start of the run on the floor line, then its end, then the room side the units face. Picking right to left, or from the far side, is fine: the third click turns the run to suit.
+  - A run up to 1000 is treated as a gap: the width is set to fill it.
+  - **② Insert in Run** places the dialog's unit at the next free point along the run, left to right.
+  - The dock reads `Run 3,000mm · 1,400mm used · 1,600mm left`. Its hint warns before a unit wider than the space left, and says when the space left is narrower than the smallest unit (fit a filler). A unit that does run past the end is still placed, with a warning of how far.
+- **Create at Cursor** places units with a ghost until Esc. Over an existing unit, the new one goes beside it, matching its turn. Over a wall, it backs onto the wall. Otherwise it sits on the ground plane. Tab turns it 90°. Changing a setting while placing updates the ghost.
+- **Select a unit** to edit it: its ID, dates, name and notes show at the top, Update Unit rebuilds it in place, and Live Mode rebuilds it on every change. Clicking away keeps the design for the next unit.
+
+### How It Is Built
+- Each unit is one component, `ACBnnn__BaseUnit__` (`WallUnit`, `TowerUnit`), with the tail kept through every rebuild (`Na__ComponentNameSuffix`), tagged `27__ProposedBuilding__Fixtures`. Inside are named groups: `Na__Cabinet__Carcass` (one solid per board), `Na__Cabinet__Fronts`, `Na__Cabinet__DrawerBoxes`, `Na__Cabinet__Handles`, `Na__Cabinet__Legs` and `Na__Cabinet__Plinth`.
+- The unit frame: origin at the back left at floor level on the wall line, X along the run, the fronts facing -Y, Z up.
+- **One layout, two languages.** `Na__Cabinetry__LayoutResolver` (JS, for the previews) and `Na__LayoutResolver` (Ruby, for SketchUp) compute the same boards, fronts, handles, boxes, plinth and legs. A parity check compares the two outputs value by value.
+- **Coordinate Rule.** The run and placement tools work in world space, and so does create. There is no `edit_transform` conversion anywhere: what the tools hand over goes to `active_entities.add_instance` unchanged, so units place correctly inside open, moved, rotated and nested groups.
+- **Assets.** `04__Data__AssetLibrary/Cabinetry__Legs__` and `Cabinetry__Handles__` are registered in the asset index and AppConfig (`assetLibrary.cabinetry`). Meshes are built once per asset and leg height and kept in the model's definitions. `65__Dev__DevTools/Na__AssemblyStudio__DevTools__CabinetryAssetGenerator__.js` regenerates the four asset files.
+
+### Files Changed
+- `02__Src__AppModules/45__System__InteriorCabinetry/` **(new system, file segment `Cabinetry__`)**:
+  - `Init`, `Defaults`, `DialogRouter`, `DataSerializer`.
+  - `LayoutResolver` (Ruby) and `Viewport__LayoutResolver` (JS).
+  - Builders: `GeometryEngine`, `GeometryHelpers`, `CarcassBuilder`, `FrontBuilder`, `DrawerBoxBuilder`, `PlinthLegsBuilder`, `HandleBuilder`.
+  - Assets: `AssetLibrary`, `AssetMeshBuilder`.
+  - Dialog: `UiSystem__Config`, `UiSystem__LayoutMap`, `UiSystem__MainUiLogic`, `UiSystem__Bridge`.
+  - Previews: `Viewport__ElevationGenerator`, `Viewport__SectionGenerator`.
+- `06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__RunMeasureTool__.rb` **(new)**.
+- `07__Tools__PlacementTools/Na__AssemblyStudio__PlacementTools__CabinetPlacementTool__.rb` **(new)**.
+- `04__Data__AssetLibrary/Cabinetry__Legs__/` and `Cabinetry__Handles__/` **(new, 4 assets)**; `Na__AssemblyStudio__AssetIndex__.json`: the two buckets.
+- `01__AppCore`:
+  - `Main.rb`: requires and initialises the system.
+  - `DialogManager.rb`: resets the system on a developer reload.
+  - `TabRouter.js`: the `cabinets` → `Na_CabinetUI` mapping.
+  - `AppContext.js`: Measure Run and Live Mode for the tab; the measure button reads Measure Run there.
+  - `UiSystem__ActionDock.js`: the Cabinetry hints (measuring, run measured / short / full, placing, editing, idle).
+  - `UiSystem__ParameterSearch.js`: the trade synonyms.
+- `03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__.rb`: the `:proposed_fixtures` tag role.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.1.0, the Cabinetry tab, `attributeDictionaries.interiorCabinetrySystem`, the run measure callbacks, `assetLibrary.cabinetry`.
+- `40__System__InteriorDoorSystem/...UiSystem__FinishCards__.js`: redraws the Cabinetry finish rows when the palettes arrive.
+- `50__System__PresetsLibrarySystem`:
+  - `Store.rb`: the `Cabinet` family.
+  - `UiSystem__Bridge.js`: capture and apply for Cabinetry.
+  - `UiSystem__SvgCapture.js`: the cabinet thumbnail.
+  - `UiSystem__MainUiLogic.js`: the filter, the apply route and Cabinetry as an origin tab.
+  - `UiSystem__EditorUiLogic.js`: the Cabinetry group, and Update From.
+  - `UiSystem__CardRenderer.js`: the Cabinet chip.
+- `03__Style__AppStylesheets`:
+  - `SectionLayout.css`: per-tab dock rules, the run readout, the placing state, the preview warnings.
+  - `PresetsLibrary.css`: the Cabinet chip and the square thumbnail fix.
+- `Na__AssemblyStudio__UiLayout__.html`: the tab, its panel, previews, info strip and dock buttons, and seven scripts.
+- `65__Dev__DevTools`:
+  - `Na__AssemblyStudio__DevTools__CabinetLayout__Spec__.js` **(new)**: 88 assertions on the UK sizes, the drawer and handle rules, the scribe on every product, no overlapping boards across 105 product/style/width cases, the dialog defaults against `Defaults.rb`, and closed asset meshes.
+  - `Na__AssemblyStudio__DevTools__LayoutCoverage__Spec__.js`: now covers the Cabinetry tab (26).
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__CabinetLayout__Spec__.js"
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__LayoutCoverage__Spec__.js"
+```
+Expect `88 passed, 0 failed` and `26 passed, 0 failed`. The other eight suites are unchanged: ArithmeticEvaluator `108`, CasementOverrides `82`, ComponentName `32`, DoorTypeSwitch `71`, ExteriorDoorParity `109`, MeasureOpening `16`, MullionMath `76`, WindowBoard `79`.
+
+Verified offline, without SketchUp (SketchUp 2026's Ruby 3.2 against API doubles):
+- All 133 Ruby files compile.
+- The Ruby and JS layouts agree on 54 configurations, including scribes of 0, 25, 40 and 60: 10,601 values, 0 differences.
+- Every configuration builds through the real builders: 420 boards and fronts checked closed with faces out, the shaker and groove volumes within 0.2% of the sums, legs reaching the carcass, handles proud of the fronts, and Update rebuilding in place.
+- Create, select, update and the run flow work the same at the model root and inside an open group three deep that is moved, rotated and scaled (80 checks). A deliberate double conversion is caught.
+- The built units rendered in 3D from the dumped faces: every unit, style and handle, plus a short kitchen run.
+- A cabinet preset saved, listed and updated in a temporary folder.
+- The dialog page in headless Edge with the Ruby side simulated: every product and style, Interior, search and Turn It On, Changed, the run hints, placing, selected, Live Mode, and the Presets round trip.
+
+**Not yet tested inside SketchUp.** After Reload Plugin:
+1. Cabinetry tab: pick Base, Drawers, Wall, Tall and Wardrobe. The preview and the sections follow, and the handle and leg lists fill from the asset library.
+2. Create at Cursor: place a base unit in empty space, then one over it (it goes beside it), then one over a wall (it backs onto it). Tab turns the ghost. Esc finishes.
+3. ① Measure Run along a wall: start, end, room side. ② Insert in Run four times: units line up left to right and the readout counts down. Then measure a 715 gap: the width becomes 715.
+4. Select a unit: the strip shows ACBnnn. Change the width and Update Unit, then try Live Mode. The unit keeps its name and its place.
+5. Open a group that is moved and rotated, and nest it in another: Create at Cursor and Insert in Run inside it, then select and update a unit there. Repeat in a scaled group.
+6. Plinth Height 100 and 200: the legs stretch in their columns only, with feet and top plates unchanged. Board Thickness 18: the inside grows, the outside stays 600.
+7. Recessed Handle on drawers, wall and tall units: the grooves sit on the right edges, with no handles.
+8. Presets: Capture Current Design from Cabinetry, save, apply it from the gallery, and Update From.
+9. Outliner: the groups and boards are named as above, on the Fixtures tag.
+10. The scribe: orbit behind a base, wall, tall and wardrobe unit. Each back panel sits 20 in from the sides' back edges, and the base and rails stop at it. Units placed before the scribe keep the flush back they were saved with: select one, set Back Panel Set In (Scribe) to 20 and Update Unit.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.0.0 - 28-Oct-2026 - Panel Rework: Product Strip, Sections in Order, Parameter Search and One Action Dock
 
 ### Context

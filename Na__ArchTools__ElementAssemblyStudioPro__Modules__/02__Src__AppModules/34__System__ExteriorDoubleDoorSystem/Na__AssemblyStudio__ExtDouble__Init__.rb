@@ -99,7 +99,7 @@ module Na__ExteriorDoubleDoorSystem
         'double_door_panel_depth_mm'               => 12,
         'double_door_panel_bevel_width_mm'         => 18,
         'double_door_leaf_thickness_mm'            => 50,
-        'double_door_leaf_material_id'             => 'MAT120__GenericWood',
+        'double_door_leaf_material_id'             => 'MAT001__Default',
         'double_door_handle_pairing'               => 'Paired',
         'double_door_handle_asset_key'             => 'Na__ExteriorDoor__Handle__Scroll',
         'double_door_handle_material_id'            => 'MAT615__Metal__Ironmongery__Chrome',

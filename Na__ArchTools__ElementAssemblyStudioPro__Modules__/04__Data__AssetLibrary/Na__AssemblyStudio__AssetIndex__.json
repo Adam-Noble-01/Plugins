@@ -17,6 +17,14 @@
             "Windows__WindowBoards__": {
                 "category": "Window Board Nosing Profiles (Profile2D)",
                 "consumers": ["Na__AssemblyStudio::Na__WindowSystem::Na__WindowBoardBuilder"]
+            },
+            "Cabinetry__Legs__": {
+                "category": "Cabinet Leg 3D Models (stretch zone for any plinth height)",
+                "consumers": ["Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__PlinthLegsBuilder"]
+            },
+            "Cabinetry__Handles__": {
+                "category": "Cabinet Handle 3D Models (bars, D handles, knobs)",
+                "consumers": ["Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__HandleBuilder"]
             }
         }
     }

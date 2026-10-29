@@ -162,7 +162,7 @@ const Na__ExtDouble__UiConfig = (function () {
             id: 'double_door_leaf_material_id',
             label: 'Leaf Finish',
             type: 'material_cards',
-            default: 'MAT120__GenericWood',
+            default: 'MAT001__Default',
             materialsSource: 'NA_FRAME_FINISH_SWATCHES',
             section: 'Finishes'
         },

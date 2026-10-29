@@ -358,6 +358,29 @@
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Apply a Cabinet Preset to the Cabinetry Tab
+    // ------------------------------------------------------------
+    // Back to the UK defaults first, as the doors do, so no stale keys from
+    // the last unit survive; then the stored values in one change. The
+    // product chip follows the values (unit type, fronts, interior).
+    // @param  {Object} record - Preset record with configValues snapshot
+    // @return {Boolean}         True when the preset was applied
+    function na_apply_cabinet_preset(record) {
+        if (!record || !record.configValues) return false;
+        if (typeof Na_CabinetUI === 'undefined' ||
+            typeof Na_CabinetUI.na_apply_values !== 'function') {
+            console.error('[Na_PresetsBridge] Na_CabinetUI not available to apply preset');
+            return false;
+        }
+
+        if (typeof Na_CabinetUI.na_reset_to_default === 'function') {
+            Na_CabinetUI.na_reset_to_default();
+        }
+        Na_CabinetUI.na_apply_values(record.configValues);
+        return true;
+    }
+    // ---------------------------------------------------------------
+
 // endregion -------------------------------------------------------------------
 
 
@@ -371,13 +394,13 @@
     // derives productFamily/productType, renders the SVG preview via
     // SvgCapture, and stashes the result as the pending capture the
     // Preset Editor create flow consumes.
-    // @param  {String} originTabId - 'windows' | 'doors' (defaults 'windows')
+    // @param  {String} originTabId - 'windows' | 'doors' | 'cabinets' (defaults 'windows')
     // @return {Object|null}          Pending capture object or null
     function na_capture_current_design(originTabId) {
-        var origin  = (originTabId === 'doors') ? 'doors' : 'windows';
-        var capture = (origin === 'doors')
-            ? na_capture_interior_door_design()
-            : na_capture_window_family_design();
+        var origin  = (originTabId === 'doors' || originTabId === 'cabinets') ? originTabId : 'windows';
+        var capture = (origin === 'doors')    ? na_capture_interior_door_design()
+                    : (origin === 'cabinets') ? na_capture_cabinet_design()
+                    :                           na_capture_window_family_design();
         if (!capture) return null;
 
         capture.originTabId = origin;
@@ -442,6 +465,39 @@
             schemaContract : 'Na__DoorConfiguration',
             configValues   : configBlock,
             svgPreview     : na_capture_preview('na_capture_interior_door_preview', configBlock)
+        };
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Capture the Cabinetry-Tab Design
+    // ------------------------------------------------------------
+    // Na_CabinetUI.na_get_active_config() returns the full payload envelope;
+    // presets store only its Na__CabinetConfiguration block. The type is the
+    // product the values resolve to: Base, Drawers, Wall, Tall or Wardrobe.
+    // @return {Object|null} Capture block or null when the UI is unavailable
+    function na_capture_cabinet_design() {
+        if (typeof Na_CabinetUI === 'undefined' ||
+            typeof Na_CabinetUI.na_get_active_config !== 'function') {
+            console.error('[Na_PresetsBridge] Na_CabinetUI not available for capture');
+            return null;
+        }
+
+        var payload     = Na_CabinetUI.na_get_active_config();
+        var configBlock = (payload && payload['Na__CabinetConfiguration'])
+            ? payload['Na__CabinetConfiguration']
+            : payload;
+        if (!configBlock || typeof configBlock !== 'object') return null;
+
+        var layoutMap = window.Na__Cabinetry__LayoutMap;
+        var product   = (layoutMap && typeof layoutMap.na_active_product === 'function')
+            ? layoutMap.na_active_product(configBlock) : 'base';
+
+        return {
+            productFamily  : 'Cabinet',
+            productType    : product.charAt(0).toUpperCase() + product.slice(1),
+            schemaContract : 'Na__CabinetConfiguration',
+            configValues   : configBlock,
+            svgPreview     : na_capture_preview('na_capture_cabinet_preview', configBlock)
         };
     }
     // ---------------------------------------------------------------
@@ -556,6 +612,7 @@
     Na__PresetsLibrary__Bridge.na_build_default_window_config   = na_build_default_window_config;
     Na__PresetsLibrary__Bridge.na_apply_window_family_preset    = na_apply_window_family_preset;
     Na__PresetsLibrary__Bridge.na_apply_interior_door_preset    = na_apply_interior_door_preset;
+    Na__PresetsLibrary__Bridge.na_apply_cabinet_preset          = na_apply_cabinet_preset;
     Na__PresetsLibrary__Bridge.na_capture_current_design        = na_capture_current_design;
     Na__PresetsLibrary__Bridge.na_get_pending_capture           = na_get_pending_capture;
     Na__PresetsLibrary__Bridge.na_clear_pending_capture         = na_clear_pending_capture;

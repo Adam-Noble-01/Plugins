@@ -16,13 +16,14 @@ SketchUp loads Plugins/Na__ElementAssemblyStudioPro__Loader.rb
         ├─ require AppCore/UiBridge        (JSON+execute_script helpers)
         ├─ require AppCore/DialogManager   (generic chrome only)
         ├─ require AppCore/SelectionCoordinator
-        ├─ require Tools/MeasurementTools/{TwoPoint, ThreePoint}
-        ├─ require Tools/PlacementTools/WindowPlacementTool
+        ├─ require Tools/MeasurementTools/{TwoPoint, ThreePoint, RunMeasure}
+        ├─ require Tools/PlacementTools/{WindowPlacementTool, CabinetPlacementTool}
         ├─ require WindowSystem/Init                   (registers callbacks + selection handler)
         ├─ require ExteriorSingleDoorSystem/Init       (registers PanelInterface)
         ├─ require ExteriorSlidingDoorSystem/Init      (Phase-1 scaffold: selection handler stub registered)
         ├─ require ExteriorMultiFoldingDoorSystem/Init (Phase-1 scaffold: selection handler stub registered)
         ├─ require InteriorDoorSystem/Init             (registers callbacks + selection handler)
+        ├─ require InteriorCabinetry/Init              (registers callbacks + selection handler)
         └─ require PresetsLibrarySystem/Init           (registers presets library callbacks)
 
 User clicks toolbar button -> Na__AssemblyStudio.na_init
@@ -97,7 +98,7 @@ Each system registers a handler descriptor:
 
 ```
 {
-    :tab_id      => 'windows' | 'doors',
+    :tab_id      => 'windows' | 'doors' | 'cabinets',
     :resolve_id  => proc { |instance| <id_string_or_nil> },
     :on_selected => proc { |instance, id| ... },
     :on_cleared  => proc { ... }
@@ -134,11 +135,13 @@ This pattern means:
 33__ExtFold JS              - MainUiLogic, Bridge                              [Phase-1 scaffold]
 01__AppCore JS              - TabRouter, AppContext (must load AFTER tab modules)
 03__AppUtils JS             - SettingsTab UiLogic, SettingsTab Bridge
-40__InteriorDoorSystem      - UiSystem Config, Plan/Elev generators, MainUiLogic, Bridge
+40__InteriorDoorSystem      - UiSystem Config, Plan/Elev generators, MainUiLogic, Bridge, FinishCards
+45__InteriorCabinetry       - UiSystem Config, Viewport LayoutResolver, UiSystem LayoutMap,
+                              Elevation + Section generators, MainUiLogic (Na_CabinetUI), Bridge
 50__PresetsLibrarySystem    - Bridge, SvgCapture, CardRenderer, MainUiLogic (Na_PresetsUI), EditorUiLogic (Na_PresetEditorUI)
 ```
 
-The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, `Na_SettingsUI`) and via the `data-na-tab-id` attribute on tab buttons. Adding a new tab = add a button with `data-na-tab-id="newTab"` plus a JS module that exposes `Na_NewtabUI` (or `Na_<TabId>UI`).
+The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, `Na_CabinetUI`, `Na_SettingsUI`) and via the `data-na-tab-id` attribute on tab buttons. Adding a new tab = add a button with `data-na-tab-id="newTab"` plus a JS module that exposes `Na_NewtabUI` (or `Na_<TabId>UI`).
 
 ## JS <-> Ruby callback table
 
@@ -162,6 +165,18 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | sketchup.na_updateDoor               | InteriorDoorSystem::DialogRouter                                           |
 | sketchup.na_liveUpdateDoor           | InteriorDoorSystem::DialogRouter                                           |
 | sketchup.na_measureDoorOpening       | InteriorDoorSystem::DialogRouter (activates ThreePointOpeningTool)         |
+| sketchup.na_createCabinetAtCursor(json) | InteriorCabinetrySystem::DialogRouter (activates CabinetPlacementTool)  |
+| sketchup.na_createCabinetInRun(json) | InteriorCabinetrySystem::DialogRouter (next free point of the run)         |
+| sketchup.na_updateCabinet(json)      | InteriorCabinetrySystem::DialogRouter                                      |
+| sketchup.na_liveUpdateCabinet(json)  | InteriorCabinetrySystem::DialogRouter                                      |
+| sketchup.na_measureCabinetRun        | InteriorCabinetrySystem::DialogRouter (activates RunMeasureTool)           |
+| sketchup.na_clearCabinetRun          | InteriorCabinetrySystem::DialogRouter                                      |
+| sketchup.na_syncCabinetPlacementConfig(json) | InteriorCabinetrySystem::DialogRouter (the ghost follows the dialog) |
+| sketchup.na_cabinetPlacementRotate   | InteriorCabinetrySystem::DialogRouter (Tab while placing)                  |
+| sketchup.na_renameCabinet(json)      | InteriorCabinetrySystem::DialogRouter                                      |
+| sketchup.na_requestCabinetAssetOptions | InteriorCabinetrySystem::DialogRouter (handle and leg lists + previews)  |
+| sketchup.na_cabinetRequestConfig     | InteriorCabinetrySystem::DialogRouter                                      |
+| sketchup.na_cabinetJsLog(msg)        | InteriorCabinetrySystem::DialogRouter                                      |
 | sketchup.na_presetsRequestLibrary    | PresetsLibrarySystem::DialogCallbacks (scan + push library)                |
 | sketchup.na_presetsSaveNew(json)     | PresetsLibrarySystem::DialogCallbacks (allocate code, write preset file)   |
 | sketchup.na_presetsUpdateMeta(json)  | PresetsLibrarySystem::DialogCallbacks (.bak + metadata patch)              |
@@ -180,6 +195,12 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | window.na_receiveDoorMeasurement(...)| Push 3-point measurement back to UI                                       |
 | window.na_setPlacementActive(bool)   | Enable/disable the Tab key forwarder while placing a window                |
 | window.na_measureCancelled()         | Clear measure-active styling on the button                                 |
+| window.na_setInitialCabinetConfig(json) | Push a selected cabinet's config into the dialog                        |
+| window.na_clearCurrentCabinet()      | Nothing selected: Update off, the design is kept                           |
+| window.na_receiveCabinetRun(json)    | The measured run `{ active, lengthMm, usedMm }`                            |
+| window.na_cabinetMeasureCancelled()  | Clear measure-active styling on the button                                 |
+| window.na_setCabinetPlacementActive(bool) | Placing state (Create at Cursor button, Tab forwarder)                |
+| window.na_receiveCabinetAssetOptions(json) | Handle and leg lists with their preview data                         |
 | window.na_receivePresetsLibrary(json)| Push the scanned presets library into the gallery/editor cache             |
 | window.na_receivePresetsSaveResult(json) | Push a preset save/update result back to the editor                    |
 
@@ -206,7 +227,8 @@ All `Ruby -> JS` calls go through `AppCore::UiBridge.na_execute_json_function` /
 - `02__Src__AppModules/32__System__ExteriorSlidingDoorSystem` - two-panel sliding exterior door subsystem (Phase-1 scaffold; filenames use the very short `ExtSlide__` segment because the longer folder name pushes deeper filenames past the 260-char `MAX_PATH` limit).
 - `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem` - multi-panel bifolding exterior door subsystem (Phase-1 scaffold; filenames use the very short `ExtFold__` segment for MAX_PATH; per-layout sub-files use `Layout__<Algorithm>__`, e.g. `Layout__EqualEqual__`, `Layout__AllOneWay__`, `Layout__MasterSlaves__`).
 - `02__Src__AppModules/40__System__InteriorDoorSystem` - interior door subsystem.
+- `02__Src__AppModules/45__System__InteriorCabinetry` - kitchen and fitted wardrobe cabinets (filenames use `Cabinetry__`).
 - `03__Style__AppStylesheets` - app stylesheets.
-- `04__Data__AssetLibrary` - handle/architrave/hinge asset JSON.
+- `04__Data__AssetLibrary` - handle/architrave/hinge, window board and cabinet leg/handle asset JSON.
 - `65__Dev__DevTools` - dev-only exporters and utilities.
 - `85__Docs__AppDocumentation` - architecture, rewire map, devlog, tasks.

@@ -51,6 +51,8 @@ require_relative '../33__System__ExteriorMultiFoldingDoorSystem/Na__AssemblyStud
 # @delegate: ../34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Init__.rb
 require_relative '../34__System__ExteriorDoubleDoorSystem/Na__AssemblyStudio__ExtDouble__Init__'
 require_relative '../40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__Init__'
+# @delegate: ../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Init__.rb
+require_relative '../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Init__'
 require_relative '../50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__Init__'
 
 # Optional dev tools (silently skipped if folder removed for shipping)
@@ -106,6 +108,7 @@ module Na__AssemblyStudio
         Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Init.na_init     if defined?(Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__Init)
         Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__Init.na_init           if defined?(Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__Init)
         Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init.na_init                 if defined?(Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init)
+        Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__Init.na_init            if defined?(Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__Init)
         Na__AssemblyStudio::Na__PresetsLibrarySystem::Na__Init.na_init               if defined?(Na__AssemblyStudio::Na__PresetsLibrarySystem::Na__Init)
 
         # Selection observer

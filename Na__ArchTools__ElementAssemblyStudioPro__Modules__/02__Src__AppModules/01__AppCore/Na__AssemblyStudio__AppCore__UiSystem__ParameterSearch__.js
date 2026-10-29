@@ -94,7 +94,32 @@ const Na__Ui__ParameterSearch = (function () {
         lining      : ['lining'],
         wall        : ['wall', 'reveal'],
         opening     : ['opening', 'width', 'height'],
-        size        : ['width', 'height']
+        size        : ['width', 'height'],
+        // Cabinetry (kitchens and fitted wardrobes)
+        kickboard   : ['plinth'],
+        baseboard   : ['plinth'],
+        skirting    : ['plinth'],
+        toe         : ['plinth'],
+        feet        : ['legs', 'leg'],
+        foot        : ['legs', 'leg'],
+        carcase     : ['carcass'],
+        cupboard    : ['door', 'unit'],
+        larder      : ['split', 'larder'],
+        pantry      : ['split', 'larder'],
+        handleless  : ['recessed', 'groove'],
+        gola        : ['recessed', 'groove'],
+        jpull       : ['groove'],
+        slab        : ['flat'],
+        stretcher   : ['rail'],
+        crossbar    : ['rail'],
+        mfc         : ['board'],
+        melamine    : ['board'],
+        chipboard   : ['board'],
+        mdf         : ['board'],
+        hangers     : ['hanging'],
+        clothes     : ['hanging'],
+        pan         : ['drawers'],
+        drawerline  : ['drawer']
     };
 
     const na_states = {};                                                      // <-- tabId -> { query, changedOnly, active, cards }

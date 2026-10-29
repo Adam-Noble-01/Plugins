@@ -3,6 +3,104 @@
 
 # =============================================================================
 
+## Version 5.2.18 - 29-Oct-2026 - Deep Vertex Move & Deep Scale: Welded Curves No Longer Warp; Loose Geometry Is Picked Straight Away
+
+### Asked For
+1. *"Fix strange scale issue that occurs when welded edges are used ... Both the vertex tool and the
+   scale tool must explode curves to edges otherwise the commands warp things in strange ways.
+   research online why this is? and if there is a way to do it none destructively, but if not just
+   explode the curves"*
+2. *"IF candidates are loose geometry then do not require the object qualifier selection ... move
+   straight to the vertex marking with those vertexes from the edges and faces added to the
+   selection"*
+
+### Why Welded Curves Warped
+A welded curve (an arc, a circle, a polygon, a welded run) is one object to SketchUp. When one of
+its vertices is moved with `transform_by_vectors` or `transform_entities`, SketchUp re-fits the
+whole curve round it. In the forum's words, SketchUp *"tries to be smart and smoothly change the
+whole curve"*. A batch of vertices moved by different vectors therefore drags the rest of the curve
+out of shape. Both transform methods do it (SketchUp forum: "Arc / Curve Transformation in Ruby" and
+"How to transform curve vertices?"). The answers given there:
+- **Leave the curve's interior vertices out.** No good here: they are the ones being moved.
+- **Give each curve its own `Curve#move_vertices` call.** It breaks where two curves share a
+  vertex, which then moves twice.
+- **Explode, move, weld back.** This is the one used. It is as non-destructive as SketchUp allows.
+
+### The Fix: Explode, Move, Weld Back
+New file `04__GeometryHelpers/..CurveUnweld__.rb` (`Na__CurveUnweld__*`):
+- Every curve with an edge at a moving vertex (an end vertex as much as an interior one) is
+  exploded just before the move. Its plain edges then move exactly.
+- After the move, the same edges are welded back into a curve with `Entities#weld` (SketchUp
+  2020.1+), so it still selects as one curve.
+- It all happens inside the tool's own operation, in the open context, so it is one undo step.
+- **An arc comes back as a plain Curve.** Once its points have moved unevenly it is no longer
+  circular, so it cannot stay an ArcCurve.
+- Curves away from the moving vertices are not touched.
+
+Where it is used:
+- **Deep Vertex Move:** every move. The status bar says *"N curves welded back"*.
+- **Deep Scale, stretch at planes:** every context the stretch edits.
+- **Deep Scale, loose geometry:** only for an uneven scale (`Na__ScaleCommit__Uniform?`). A
+  uniform scale keeps arcs as arcs and is left alone.
+- **Deep Scale, a plain scale** changes the instance only and never touches its curves.
+
+### Loose Geometry Is the Pick
+- **Faces and edges selected before the tool starts:** every corner is picked at once and the
+  gimbal comes up on them, ready to drag. One BKSP takes the pre-pick back.
+- **Groups and components** stay as the scope only: their vertices still wait to be boxed. That is
+  the safety catch.
+- **A mixed selection** gets its loose corners picked and keeps its groups as scope.
+- **Started with nothing selected:** clicking or boxing only faces and edges in the scope step goes
+  straight on to their vertices, with no ENTER. Picking a group still waits for ENTER or a
+  double-click.
+- **Loose faces or edges added to the selection** while the tool runs are picked too.
+- **A selected face that has to fold during a move** is cut into triangles. The triangles now join
+  the scope, so its vertices stay movable on the next move, and the tool no longer mistakes its own
+  fold for the user changing the selection.
+
+### Verified Offline
+115/115 files compile. A new suite, `vm_curves`, has 21 checks. Its doubles re-fit a welded curve
+the way SketchUp does: they drag the curve's other vertices along.
+- **A control check proves the warp is visible to the test.**
+- **The arc:** an arc's end vertex and one interior vertex moved by (120, -40, 300) mm land exactly
+  on target. The other four vertices stay put to 1e-9, and the arc is welded back as one curve.
+- **Disabling the explode makes 2 checks fail,** so the test catches the bug.
+- **Untouched curves:** an arc away from the picks is never exploded.
+- **`Uniform?`:** checked with a rotation, with a scale, and with a stretch.
+- **Loose picks:** activating with a face picks its 4 corners; a group alone picks none; a mixed
+  selection picks only the loose corners; loose edges added later are picked; the scope step goes
+  straight on for a face but waits for a group; after a folding move all 4 vertices stay in scope
+  and the 1 pick stays 1.
+
+All the earlier suites still pass (core 60, tool 56, filters 47, base point 29, popup 37, wiring 6).
+The doubles also gained `Edge#curve` and short `inspect`s: under Ruby 3.2 a missing method's
+message inspected the whole linked mesh and never finished.
+
+**Not covered offline:** Deep Scale's stretch path itself. It calls the same two functions, and it
+is untested live.
+
+### Files
+- **New:** `04__GeometryHelpers/Na__InsertPrimatives__CurveUnweld__.rb`, listed in the manifest
+  after SlopePush.
+- `37__System__DeepVertexMove/..DrawnVertexMove__Commit__.rb`: explode, fold, move, weld back; the
+  `:welded` tally.
+- `37__System__DeepVertexMove/..DrawnVertexMoveTool__.rb`: `na_vm__pick_loose`,
+  `na_vm__loose_vertices`, `na_vm__regrow_loose`, the selection resync after a move.
+- `37__System__DeepVertexMove/..DrawnVertexMove__Select__.rb`: `na_vm__scope_loose_done`.
+- `35__System__DeepScale/..DrawnScale__Commit__.rb`: the stretch and the uneven loose scale unweld;
+  `Na__ScaleCommit__Uniform?`.
+
+### Testing Notes
+- [ ] A cylinder in a group, moved and rotated. Deep Vertex Move: box the top circle's vertices on
+      one side and drag up. Only those move, and the circle is still one curve (Entity Info: Curve).
+- [ ] Deep Scale with a stretch plane through a window with an arched head. The arch stretches with
+      no kinks, and the far half stays put.
+- [ ] Loose geometry: select a face and start Deep Vertex Move. The gimbal is up on its corners
+      straight away; drag it.
+- [ ] Select a group and start the tool: nothing is picked until you box.
+
+# =============================================================================
+
 ## Version 5.2.17 - 29-Oct-2026 - Deep Cavetto: Draw the Radius, Then Draw the Step In
 
 ### Asked

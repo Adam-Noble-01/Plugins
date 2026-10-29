@@ -22,6 +22,7 @@ function assemble(file) {
     var html = part('UiLayout__.html')
         .replace('{{STYLESHEET_CONTENT}}',        function() { return part('Styles__.css'); })
         .replace('{{UI_BRIDGE_SCRIPT}}',          function() { return part('UiBridge__.js'); })
+        .replace('{{MARKUP_SCRIPT}}',             function() { return part('MarkupTool__.js'); })
         .replace('{{MEASUREMENT_SCRIPT}}',        function() { return part('Measurement__.js'); })
         .replace('{{PERSPECTIVE_SOLVER_SCRIPT}}', function() { return part('PerspectiveSolver__.js'); })
         .replace('{{PERSPECTIVE_ANGLE_SCRIPT}}',  function() { return part('PerspectiveAngle__.js'); })

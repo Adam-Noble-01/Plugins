@@ -27,13 +27,18 @@
 
     var NA_TAB_WINDOWS             = 'windows';
     var NA_TAB_DOORS               = 'doors';
+    var NA_TAB_CABINETS            = 'cabinets';
     var NA_TAB_SETTINGS            = 'settings';
     var NA_TAB_PRESETS             = 'presets';
     var NA_TAB_PRESET_EDITOR       = 'preset_editor';
 
     var NA_PRESETS_MODE_CLS        = 'na-presets-mode';
 
-    var na_live_state = { windows: false, doors: false };
+    var na_live_state = { windows: false, doors: false, cabinets: false };
+
+    // The dock's step 1 button says what it measures on each tab.
+    var NA_MEASURE_LABELS = { cabinets: 'Measure Run' };
+    var NA_MEASURE_LABEL_DEFAULT = 'Measure Opening';
 
     // -----------------------------------------------------------------------
     // REGION | DOM helpers
@@ -160,10 +165,27 @@
         }
     }
 
+    // Cabinets measure a RUN along a wall: start, end, then the room side.
+    function na_dispatch_measure_cabinets() {
+        if (typeof sketchup === 'undefined' || typeof sketchup.na_measureCabinetRun !== 'function') {
+            console.warn('[Na_AppContext] sketchup.na_measureCabinetRun unavailable');
+            if (typeof window.na_showStatus === 'function') {
+                window.na_showStatus('warning', 'SketchUp connection not available');
+            }
+            return;
+        }
+        na_toggle_class(NA_BTN_MEASURE_ID, NA_BTN_MEASURE_ACTIVE_CLS, true);
+        sketchup.na_measureCabinetRun();
+        if (typeof window.na_showStatus === 'function') {
+            window.na_showStatus('info', 'Click the start of the run on the floor line, then its end, then the room side.');
+        }
+    }
+
     Na_AppContext.na_dispatch_measure = function () {
         var tab = na_resolve_active_tab();
-        if      (tab === NA_TAB_WINDOWS) na_dispatch_measure_windows();
-        else if (tab === NA_TAB_DOORS)   na_dispatch_measure_doors();
+        if      (tab === NA_TAB_WINDOWS)  na_dispatch_measure_windows();
+        else if (tab === NA_TAB_DOORS)    na_dispatch_measure_doors();
+        else if (tab === NA_TAB_CABINETS) na_dispatch_measure_cabinets();
         else                              console.warn('[Na_AppContext] Measure ignored on tab:', tab);
     };
 
@@ -194,10 +216,22 @@
         }
     }
 
+    function na_dispatch_live_toggle_cabinets() {
+        var nextOn = !na_live_state.cabinets;
+        na_live_state.cabinets = nextOn;
+        window.na_cabinetLiveModeActive = nextOn;
+        na_paint_live_button(nextOn);
+        if (typeof window.na_showStatus === 'function') {
+            window.na_showStatus(nextOn ? 'success' : 'info',
+                nextOn ? 'Live Mode enabled - select a unit to sync changes' : 'Live Mode disabled');
+        }
+    }
+
     Na_AppContext.na_dispatch_live_toggle = function () {
         var tab = na_resolve_active_tab();
-        if      (tab === NA_TAB_WINDOWS) na_dispatch_live_toggle_windows();
-        else if (tab === NA_TAB_DOORS)   na_dispatch_live_toggle_doors();
+        if      (tab === NA_TAB_WINDOWS)  na_dispatch_live_toggle_windows();
+        else if (tab === NA_TAB_DOORS)    na_dispatch_live_toggle_doors();
+        else if (tab === NA_TAB_CABINETS) na_dispatch_live_toggle_cabinets();
         else                              console.warn('[Na_AppContext] Live toggle ignored on tab:', tab);
     };
 
@@ -225,9 +259,13 @@
 
     function na_sync_live_button_to_tab() {
         var tab  = na_resolve_active_tab();
-        var isOn = (tab === NA_TAB_WINDOWS) ? na_live_state.windows :
-                   (tab === NA_TAB_DOORS)   ? na_live_state.doors   : false;
+        var isOn = Object.prototype.hasOwnProperty.call(na_live_state, tab) ? na_live_state[tab] : false;
         na_paint_live_button(isOn);
+    }
+
+    function na_sync_measure_label_to_tab() {
+        var label = document.querySelector('#' + NA_BTN_MEASURE_ID + ' span');
+        if (label) label.textContent = NA_MEASURE_LABELS[na_resolve_active_tab()] || NA_MEASURE_LABEL_DEFAULT;
     }
 
     Na_AppContext.na_on_tab_changed = function (tabId) {
@@ -236,6 +274,7 @@
         na_publish_active_tab_to_body(tabId || na_resolve_active_tab());
         na_sync_presets_mode(tabId || na_resolve_active_tab());
         na_sync_live_button_to_tab();
+        na_sync_measure_label_to_tab();
         na_publish_active_tab(tabId || na_resolve_active_tab());
     };
 
@@ -263,6 +302,7 @@
         na_publish_active_tab_to_body(na_resolve_active_tab());
         na_sync_presets_mode(na_resolve_active_tab());
         na_sync_live_button_to_tab();
+        na_sync_measure_label_to_tab();
         na_clear_measure_active();
         na_publish_active_tab(na_resolve_active_tab());
     };

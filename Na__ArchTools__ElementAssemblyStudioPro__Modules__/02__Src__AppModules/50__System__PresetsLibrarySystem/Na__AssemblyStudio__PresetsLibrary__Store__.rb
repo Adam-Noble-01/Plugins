@@ -47,7 +47,7 @@ module Na__AssemblyStudio
             NA_MODULE_DIR   = File.dirname(__FILE__)
             NA_MODULES_ROOT = File.expand_path('../..', NA_MODULE_DIR)
 
-            NA_FAMILY_SEGMENTS      = ['Window', 'ExteriorDoor', 'InteriorDoor'].freeze
+            NA_FAMILY_SEGMENTS      = ['Window', 'ExteriorDoor', 'InteriorDoor', 'Cabinet'].freeze
             NA_REQUIRED_ROOT_KEYS   = ['meta', 'Na__Preset__Metadata', 'Na__Preset__Configuration', 'Na__Preset__SvgPreview'].freeze
             NA_DEFAULT_ROOT_FOLDER  = '05__Data__PresetsLibrary'
             NA_DEFAULT_CODE_PREFIX  = 'EAS'
@@ -246,7 +246,7 @@ module Na__AssemblyStudio
             # FUNCTION | Build the Canonical Preset File Name
             # ------------------------------------------------------------
             # @param code        [String] allocated preset code (EAS0XX)
-            # @param family      [String] Window | ExteriorDoor | InteriorDoor
+            # @param family      [String] Window | ExteriorDoor | InteriorDoor | Cabinet
             # @param preset_name [String] user-entered preset name
             # @return [String] Na__<CODE>__<Family>Preset__<SafeName>__.json
             def self.na_build_file_name(code, family, preset_name)

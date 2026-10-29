@@ -47,11 +47,13 @@ module Na__AssemblyStudio
             # REGION | State
             # -----------------------------------------------------------------
 
-            @na_dialog            = nil
-            @na_active_tab_id     = "windows"
-            @na_html_path         = nil
-            @na_modules_root_path = nil
-            @na_system_init_hooks = []          # [Proc(dialog), ...] invoked once on each (re)open
+            # `||=` so Reload Scripts (which `load`s this file again) keeps the
+            # open dialog and its paths instead of wiping them to nil.
+            @na_dialog            ||= nil
+            @na_active_tab_id     ||= "windows"
+            @na_html_path         ||= nil
+            @na_modules_root_path ||= nil
+            @na_system_init_hooks = []          # [Proc(dialog), ...] invoked once on each (re)open; system Inits re-register on reload
 
             def self.na_get_dialog
                 @na_dialog
@@ -326,10 +328,29 @@ module Na__AssemblyStudio
                 if defined?(::Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D)
                     ::Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D.na_clear_definition_cache
                 end
+
+                if defined?(::Na__AssemblyStudio::Na__InteriorCabinetrySystem) &&
+                   ::Na__AssemblyStudio::Na__InteriorCabinetrySystem.respond_to?(:na_reset_for_developer_reload)
+                    ::Na__AssemblyStudio::Na__InteriorCabinetrySystem.na_reset_for_developer_reload
+                end
             rescue StandardError => e
                 DebugTools.na_debug_warn("Developer reload finalize failed: #{e.message}")
             end
             private_class_method :na_finalize_developer_reload
+
+            # HELPER FUNCTION | Send Status Once a Freshly Opened Dialog Is Ready
+            # ---------------------------------------------------------------
+            # Waits 1.5s for the new page to parse, then shows the status once.
+            def self.na_send_status_when_dialog_ready(dialog, type, message)
+                UI.start_timer(1.5, false) do
+                    begin
+                        UiBridge.na_send_status(dialog, type, message)
+                    rescue StandardError => e
+                        DebugTools.na_debug_error("[DialogManager] Reload status push failed", e)
+                    end
+                end
+            end
+            private_class_method :na_send_status_when_dialog_ready
 
             def self.na_reload_scripts(modules_root_path)
                 DebugTools.na_debug_method("AppCore::DialogManager.na_reload_scripts")
@@ -363,22 +384,30 @@ module Na__AssemblyStudio
 
                 # STEP 3 | Close + reopen the dialog so the freshly-loaded Ruby
                 # state and the freshly-fetched JSON both flow through to JS.
+                dialog_reopened = false
                 if @na_dialog && @na_dialog.visible?
                     @na_dialog.close
                     na_show_dialog(@na_html_path, modules_root_path)
+                    dialog_reopened = true
                 end
 
                 summary = "✅ #{rb_count} scripts reloaded"
                 if materials_source == :failed || edge_materials_source == :failed
                     summary = "#{summary} (asset refresh fallback)"
                 end
+                status_type = "success"
                 if error_count > 0
-                    summary = "⚠ #{rb_count} scripts reloaded (#{error_count} errors)"
-                    puts "    [Reload] #{summary}"
-                    UiBridge.na_send_status(@na_dialog, "warning", summary)
+                    summary     = "⚠ #{rb_count} scripts reloaded (#{error_count} errors)"
+                    status_type = "warning"
+                end
+                puts "    [Reload] #{summary}"
+
+                # The reopened dialog has not parsed its HTML yet, so a status
+                # sent now is lost. Wait for the new page, retrying briefly.
+                if dialog_reopened
+                    na_send_status_when_dialog_ready(@na_dialog, status_type, summary)
                 else
-                    puts "    [Reload] #{summary}"
-                    UiBridge.na_send_status(@na_dialog, "success", summary)
+                    UiBridge.na_send_status(@na_dialog, status_type, summary)
                 end
 
                 { reload_dialog: true }

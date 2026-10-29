@@ -64,7 +64,7 @@ module Na__ExteriorSingleDoorSystem
         'single_door_panel_depth_mm'               => 12,
         'single_door_panel_bevel_width_mm'         => 18,
         'single_door_leaf_thickness_mm'            => 50,
-        'single_door_leaf_material_id'             => 'MAT120__GenericWood',
+        'single_door_leaf_material_id'             => 'MAT001__Default',
         'single_door_handle_asset_key'             => 'Na__ExteriorDoor__Handle__Scroll',
         'single_door_handle_material_id'           => 'MAT615__Metal__Ironmongery__Chrome',
         'single_door_handle_height_mm'             => 900,

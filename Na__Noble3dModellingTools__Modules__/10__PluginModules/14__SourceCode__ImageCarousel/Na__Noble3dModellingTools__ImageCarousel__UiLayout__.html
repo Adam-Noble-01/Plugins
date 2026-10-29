@@ -45,6 +45,9 @@
       <span class="naImageViewer__ToolbarDivider"></span>
       <button id="naImageViewer_btnCount"          class="naImageViewer__Btn" title="Count (C): drag along a row of brick courses, bricks or tiles, then move back along it to divide it">Count</button>
       <button id="naImageViewer_btnPerspective"    class="naImageViewer__Btn" title="Perspective angle: true roof pitches and angles, corrected for the camera">Angle</button>
+
+      <span class="naImageViewer__ToolbarDivider"></span>
+      <button id="naImageViewer_btnMarkup"         class="naImageViewer__Btn" title="Markup: highlight, draw and erase on the photo. Marks are kept in the SketchUp model.">Markup</button>
     </div>
 
     <!-- Main: thumbnails + canvas viewer -->
@@ -75,6 +78,60 @@
               <button id="naImageViewer_countClear" class="naImageViewer__CountLink" title="Remove every count on this photo">Clear counts</button>
             </div>
             <div class="naImageViewer__CountHint" id="naImageViewer_countHint"></div>
+          </div>
+
+          <!-- Markup toolbar: pen, highlighter and eraser, floating over the photo while Markup is on -->
+          <div class="naImageViewer__MarkupBar" id="naImageViewer_markupBar" role="toolbar" aria-label="Markup">
+            <div class="naImageViewer__MarkupPill" id="naImageViewer_markupPill">
+              <span class="naImageViewer__MarkupGrip" id="naImageViewer_markupGrip" title="Drag to move the toolbar">
+                <svg viewBox="0 0 8 16" width="8" height="16" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="3" r="1.2"/><circle cx="6" cy="3" r="1.2"/><circle cx="2" cy="8" r="1.2"/><circle cx="6" cy="8" r="1.2"/><circle cx="2" cy="13" r="1.2"/><circle cx="6" cy="13" r="1.2"/></g></svg>
+              </span>
+
+              <button type="button" id="naImageViewer_markupPen" class="naImageViewer__MarkupTool" title="Pen (P). Click again for colours and sizes." aria-label="Pen" aria-pressed="false">
+                <svg class="naImageViewer__MarkupSvg" viewBox="0 0 24 24" aria-hidden="true">
+                  <path class="naImageViewer__MarkupBarOutline" d="M3.5 21.2h11"/>
+                  <path class="naImageViewer__MarkupPenBar" d="M3.5 21.2h11"/>
+                  <path class="naImageViewer__MarkupBody" d="M15.38 2.38l4.24 4.24-8.48 8.49-4.25-4.25z"/>
+                  <path class="naImageViewer__MarkupPenFill" d="M6.89 10.86l4.25 4.25-6.37 2.12z"/>
+                </svg>
+              </button>
+
+              <button type="button" id="naImageViewer_markupHl" class="naImageViewer__MarkupTool" title="Highlighter (H). Click again for colours and sizes." aria-label="Highlighter" aria-pressed="false">
+                <svg class="naImageViewer__MarkupSvg" viewBox="0 0 24 24" aria-hidden="true">
+                  <path class="naImageViewer__MarkupBarOutline" d="M3.5 21.4h13"/>
+                  <path class="naImageViewer__MarkupHlBar" d="M3.5 21.4h13"/>
+                  <path class="naImageViewer__MarkupBody" d="M15.9 2.4l4.5 4.5-8.1 8.1-4.5-4.5z"/>
+                  <path class="naImageViewer__MarkupHlFill" d="M7.8 10.5l4.5 4.5-2.12 2.12-4.5-4.5z"/>
+                </svg>
+              </button>
+
+              <button type="button" id="naImageViewer_markupEraser" class="naImageViewer__MarkupTool" title="Eraser (E). Click again for what it takes and its size." aria-label="Eraser" aria-pressed="false">
+                <svg class="naImageViewer__MarkupSvg" viewBox="0 0 24 24" aria-hidden="true">
+                  <g transform="rotate(-45 12 11)">
+                    <rect class="naImageViewer__MarkupBody" x="3.5" y="6.5" width="17" height="9" rx="2"/>
+                    <path class="naImageViewer__MarkupRubber" d="M5.5 6.5h5.5v9H5.5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z"/>
+                    <path class="naImageViewer__MarkupLine" d="M11 6.5v9"/>
+                  </g>
+                  <path class="naImageViewer__MarkupLine" d="M9 21.2h11"/>
+                </svg>
+              </button>
+
+              <button type="button" id="naImageViewer_markupOptions" class="naImageViewer__MarkupTool" title="Colour and size for the chosen tool" aria-label="Colour and size" aria-expanded="false">
+                <svg class="naImageViewer__MarkupSvg" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle class="naImageViewer__MarkupCirclePen" cx="9" cy="12" r="6"/>
+                  <circle class="naImageViewer__MarkupCircleHl" cx="15" cy="12" r="6"/>
+                </svg>
+              </button>
+
+              <span class="naImageViewer__MarkupDivider"></span>
+
+              <button type="button" id="naImageViewer_markupDone" class="naImageViewer__MarkupTool naImageViewer__MarkupTool--done" title="Close Markup (Esc). Your marks stay on the photo." aria-label="Close Markup">
+                <svg class="naImageViewer__MarkupSvg naImageViewer__MarkupSvg--small" viewBox="0 0 24 24" aria-hidden="true"><path class="naImageViewer__MarkupCross" d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div class="naImageViewer__MarkupFlyout" id="naImageViewer_markupFlyout"></div>
+            <div class="naImageViewer__MarkupToast" id="naImageViewer_markupToast" role="status" aria-live="polite"></div>
           </div>
 
           <!-- Reference length input overlay -->
@@ -236,6 +293,11 @@
 
   <script>
     {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+  <!-- Markup comes before the other tools so its marks are drawn under their lines -->
+  <script>
+    {{MARKUP_SCRIPT}}
   </script>
 
   <script>
