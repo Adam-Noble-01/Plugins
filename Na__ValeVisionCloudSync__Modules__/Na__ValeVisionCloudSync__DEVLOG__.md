@@ -1,5 +1,34 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.5.4 — 30-Oct-2026 — The Project Found From a Model Kept Deeper
+
+### Overview
+**Reported by Adam** (a screenshot of the Sync Aura tab): "Fix the export plugin". The tab said `ValeProjects__2026/
+02__SketchUp: not in the Project Library yet`, for `...\63403__Thrower__Whitecard\02__SketchUp\01__MainModel\
+Aura__ModelTest\Thrower__AuraModelTest__0.2.0__.skp`.
+
+**Cause:** `DeriveProjectRoot` counted two folders up from the model, which is right only for a model directly in
+`01__MainModel`. One folder deeper, it named `02__SketchUp` the project root, so the library Id became `02__SketchUp`.
+Sync ValeVision 3D reads the same root, so it would have looked in the wrong place for that model too.
+
+### Changed
+- `ProjectPathMapper` 1.3.0: the project root is the folder holding the SketchUp folder (`02__SketchUp`, the config's
+  `project_subfolders.sketchup`), found by walking up to six folders from the model; failing that, the folder directly
+  in a `ValeProjects__<yyyy>` year folder; failing that, the old two-up rule. A model in `01__MainModel` resolves as
+  before; a path override in the model still wins.
+
+### Verified (30-Oct-2026, SketchUp 2027.0.267, read-only)
+- The file reloaded into the running SketchUp; for Adam's open model `ResolveProjectRoot` gives
+  `C:/01__ValeProjects/ValeProjects__2026/63403__Thrower__Whitecard` and `ResolveLibraryProject` gives `63403__Thrower`
+  (`ValeProjects__2026/63403__Thrower`), present in the library, no error.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/05__ProjectPathMapper/Na__ValeVisionCloudSync__ProjectPathMapper__.rb` (1.3.0)
+
+### Testing
+- Sync Aura tab: Library Project shows `ValeProjects__2026/63403__Thrower`; Sync NPR Assets Only, then Sync Model And
+  Assets With AURA. A model in `01__MainModel` of another project still finds its own project.
+
 ## Version 0.5.1 — 07-Oct-2026 — GLB Syncs Purge the Previous Set (Archived), on the PC and on the Server
 
 ### Overview

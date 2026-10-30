@@ -11,7 +11,9 @@
 # DESCRIPTION:
 # - Vale projects are structured as:
 #     C:/01__ValeProjects/{code}__{Name}/02__SketchUp/01__MainModel/Model.skp
-#   Walking two levels up from the model file gives the project root.
+#   The project root is the folder holding 02__SketchUp, found by walking up
+#   from the model (any depth below it); failing that, the folder directly in a
+#   ValeProjects__<yyyy> year folder; failing that, two levels up.
 # - A saved override in the model dictionary takes priority over the derived
 #   path so models stored elsewhere can still be synced.
 # - All fixed subfolder paths are derived once from the resolved root.
@@ -33,6 +35,12 @@
 #   __Whitecard / __Blockout / __MaxModel, or the library_project_id override saved in
 #   the model dictionary. The library is read from the Server Manager's sync map.
 #
+# 30-Oct-2026 - Version 1.3.0
+# - DeriveProjectRoot walks up to the folder holding 02__SketchUp instead of
+#   counting two folders: a model one folder deeper (01__MainModel/Aura__ModelTest)
+#   resolved its root as 02__SketchUp, so Sync Aura looked for the library project
+#   "02__SketchUp" (Adam's report). Then the folder in a year folder, then the old rule.
+#
 # =============================================================================
 
 require 'json'
@@ -44,6 +52,8 @@ module Na__ValeVisionCloudSync
         NA_LIBRARY_YEAR_PREFIX  = 'ValeProjects__'.freeze
         NA_LIBRARY_ID_PATTERN   = /\A(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9_.-]*\z/                       # <-- Safe folder name: no glob characters, no '..'
         NA_TYPE_SUFFIX_PATTERN  = /\A((?:[A-Z]{2}-)?\d+)__(.+?)__(Whitecard|Blockout|MaxModel)\z/  # <-- Same rule as the retired Gallery tools
+        NA_LIBRARY_YEAR_FOLDER  = /\A#{NA_LIBRARY_YEAR_PREFIX}\d{4}\z/                             # <-- ValeProjects__2026: the folder a project sits in
+        NA_ROOT_SEARCH_DEPTH    = 6                                                                # <-- How many folders above the model to look for the project
 
 # -----------------------------------------------------------------------------
 # REGION | Public API
@@ -70,11 +80,23 @@ module Na__ValeVisionCloudSync
             model_path = model.path.to_s
             return nil if model_path.empty?
 
-            # Model lives at: .../ProjectRoot/02__SketchUp/01__MainModel/file.skp
-            # Two parent directories = 02__SketchUp, one more = ProjectRoot
-            model_dir   = File.dirname(model_path)       # <-- .../01__MainModel
-            sketchup_dir = File.dirname(model_dir)       # <-- .../02__SketchUp
-            project_root = File.dirname(sketchup_dir)    # <-- .../ProjectRoot
+            # The project root holds the SketchUp folder (02__SketchUp, from the config): walk up to it, so
+            # a model kept deeper (01__MainModel/Aura__ModelTest/file.skp) resolves as one in 01__MainModel
+            subfolders    = Na__ConfigLoader.Na__ValeVisionCloudSync__ProjectSubfolders || {}
+            sketchup_name = (subfolders['sketchup'] || subfolders[:sketchup]).to_s
+            dir = File.dirname(model_path)
+            NA_ROOT_SEARCH_DEPTH.times do
+                parent = File.dirname(dir)
+                break if parent == dir                                                                 # <-- The drive's root: nothing above
+                return na_normalize_path(parent) if !sketchup_name.empty? && File.basename(dir).casecmp?(sketchup_name)
+                return na_normalize_path(dir) if File.basename(parent).match?(NA_LIBRARY_YEAR_FOLDER)  # <-- No SketchUp folder: the project is the folder in a year folder
+                dir = parent
+            end
+
+            # Neither found: the old rule, .../ProjectRoot/02__SketchUp/01__MainModel/file.skp
+            model_dir    = File.dirname(model_path)       # <-- .../01__MainModel
+            sketchup_dir = File.dirname(model_dir)        # <-- .../02__SketchUp
+            project_root = File.dirname(sketchup_dir)     # <-- .../ProjectRoot
 
             return na_normalize_path(project_root) if File.directory?(project_root)
 
