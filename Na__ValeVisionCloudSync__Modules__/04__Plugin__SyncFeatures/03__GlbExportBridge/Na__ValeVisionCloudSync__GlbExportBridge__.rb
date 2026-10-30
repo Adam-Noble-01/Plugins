@@ -48,6 +48,11 @@
 # - The archiver (1.0.1) now clears the folder after zipping the previous set
 #   into 00__Archive; the report message carries its note.
 #
+# 30-Oct-2026 - Version 1.3.0
+# - glb_dir: the Sync Aura tab exports into its own folder
+#   (ValeVision__AuraFileSync), archived the same way; ValeVision 3D's folder
+#   stays the default.
+#
 # =============================================================================
 
 require 'fileutils'
@@ -69,10 +74,12 @@ module Na__ValeVisionCloudSync
 
         # FUNCTION | Export GLBs via TrueVision3D GLB Builder Utility
         # ------------------------------------------------------------
+        # glb_dir: another export folder (the Sync Aura tab's own); ValeVision
+        # 3D's ValeVision__GlbFileSync when nil.
         # Returns { success:, message:, glb_count:, archived_count:, log_path: }
         # ---------------------------------------------------------------
-        def self.Na__ValeVisionCloudSync__ExportGlbs(paths, project_name)
-            glb_sync_dir = paths[:glb_sync].to_s.tr('\\', '/')               # <-- Forward slashes so Dir.glob works on Windows
+        def self.Na__ValeVisionCloudSync__ExportGlbs(paths, project_name, glb_dir: nil)
+            glb_sync_dir = (glb_dir || paths[:glb_sync]).to_s.tr('\\', '/')  # <-- Forward slashes so Dir.glob works on Windows
             return na_error_result('GLB sync folder path not configured.') if glb_sync_dir.empty?
 
             FileUtils.mkdir_p(glb_sync_dir)

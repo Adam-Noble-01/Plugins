@@ -24,6 +24,12 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 30-Oct-2026 - Version 2.1.0
+# - The Sync Aura tab's two scopes (aura_sync, aura_assets) go to Na__AuraSync,
+#   which runs its own checks and its own Python (09__AuraSync); the ValeVision
+#   3D scopes are unchanged. na_execute_python takes stdin_data (the AURA
+#   sign-in's password travels there, never on the command line or in the log).
+#
 # 06-Oct-2026 - Version 2.0.0
 # - Cloudflare R2 and the retired Gallery-folder script are gone. The last step of every
 #   action runs the Library Publisher; a failed export step stops it. A model whose
@@ -60,6 +66,15 @@ module Na__ValeVisionCloudSync
         # Returns the final report hash
         # ---------------------------------------------------------------
         def self.Na__ValeVisionCloudSync__RunSyncAction(scope_id, dialog_manager)
+            # SYNC AURA TAB | Its own checks (an existing library project, no group open), its own Python
+            if defined?(Na__AuraSync) && Na__AuraSync::SCOPES.include?(scope_id)
+                dialog_manager.na_push_status('running', "Starting: #{na_scope_label(scope_id)}...")
+                report = Na__AuraSync.Na__AuraSync__Run(scope_id, dialog_manager)
+                dialog_manager.na_push_status(report[:success] ? 'success' : 'error', report[:message])
+                dialog_manager.na_push_report(report)
+                return report
+            end
+
             model        = Sketchup.active_model
             paths        = Na__ProjectPathMapper.Na__ValeVisionCloudSync__GetProjectPaths
             project_name = na_derive_project_name(model)
@@ -356,14 +371,16 @@ module Na__ValeVisionCloudSync
         # returns a multi-line diagnostic so the dialog explains exactly what
         # happened (interpreter, command, exit code, stdout/stderr tails, log).
         # ---------------------------------------------------------------
-        def self.na_execute_python(interpreter, script_path, script_args, report_file = nil)
+        def self.na_execute_python(interpreter, script_path, script_args, report_file = nil, stdin_data: nil)
             cmd         = interpreter + [script_path] + script_args
             cmd_display = cmd.join(' ')
 
             child_env   = na_build_sanitized_python_env  # <-- Strip SketchUp's embedded-Python poisoners
             inherited   = na_describe_inherited_python_env # <-- Record what SketchUp passed (for diagnostics)
 
-            stdout_str, stderr_str, status = Open3.capture3(child_env, *cmd, chdir: File.dirname(script_path))
+            # stdin carries what must never be on a command line (the AURA sign-in's password); it is never logged
+            stdout_str, stderr_str, status = Open3.capture3(child_env, *cmd, chdir: File.dirname(script_path),
+                                                            stdin_data: stdin_data.to_s)
             exit_code   = status.respond_to?(:exitstatus) ? status.exitstatus : nil
 
             report_json = na_read_report_file_raw(report_file)                   # <-- Preferred channel (survives empty stdout)
@@ -669,7 +686,9 @@ module Na__ValeVisionCloudSync
                 SYNC_SCOPE_ALL     => 'Sync Project To ValeVision 3D',
                 SYNC_SCOPE_IMAGES  => 'Update Images For ValeVision 3D',
                 SYNC_SCOPE_GLB     => 'Update GLB Models For ValeVision 3D',
-                SYNC_SCOPE_CAMERAS => 'Update Camera Data For ValeVision 3D'
+                SYNC_SCOPE_CAMERAS => 'Update Camera Data For ValeVision 3D',
+                'aura_sync'        => 'Sync Model And Assets With AURA',
+                'aura_assets'      => 'Sync NPR Assets With AURA'
             }
             labels[scope_id] || scope_id
         end

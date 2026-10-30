@@ -36,6 +36,7 @@ module Na__ValeVisionCloudSync
             na_safe_require(sync_dir, '03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__')
             na_safe_require(sync_dir, '04__GlbArchiver/Na__ValeVisionCloudSync__GlbArchiver__')
             na_safe_require(sync_dir, '07__SyncOrchestrator/Na__ValeVisionCloudSync__SyncOrchestrator__')
+            na_safe_require(sync_dir, '09__AuraSync/Na__ValeVisionCloudSync__AuraSync__')
 
             @na_feature_modules_loaded = true
             true

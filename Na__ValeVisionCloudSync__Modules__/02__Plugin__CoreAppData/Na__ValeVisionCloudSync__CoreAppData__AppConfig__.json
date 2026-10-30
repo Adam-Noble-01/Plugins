@@ -15,7 +15,8 @@
         "sketchup"         : "02__SketchUp",
         "content_delivered": "10__ContentDelivered__Local",
         "glb_sync"         : "10__ContentDelivered__Local/ValeVision__GlbFileSync",
-        "glb_archives"     : "10__ContentDelivered__Local/ValeVision__GlbFileSync/00__Archive"
+        "glb_archives"     : "10__ContentDelivered__Local/ValeVision__GlbFileSync/00__Archive",
+        "aura_glb_sync"    : "10__ContentDelivered__Local/ValeVision__AuraFileSync"
     },
 
     "edition_folder_prefix": "VisDpt__Whitecard__",
@@ -33,5 +34,12 @@
         "mapping_id"       : "projects",
         "push_to_server"   : true,
         "site_base_url"    : "https://app.valegardenhouses.com"
+    },
+
+    "aura": {
+        "_About"           : "The Sync Aura tab. The model's GLBs go to the project's ValeVision__AuraRender/Content__AuraScenePackages (pushed, the folder pruned to the set), AURA's API imports them, and the NPR asset proxies sync both ways with AURA's drawing set through AURA's API, signed in as you. The session (never a password) is kept in session_file, on this PC only. Proxies sit on proxy_tag, which must be in the GLB builder's skip range (00, 02 to 06) so they never go into AURA's model. proxy_tag is provisional: not yet a DataLib standard tag.",
+        "sync_script"      : "04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.py",
+        "session_file"     : "91__UserConfig__LocalOnly/Na__ValeVisionCloudSync__AuraSession__.json",
+        "proxy_tag"        : "04__AuraRender__NprAssetProxies"
     }
 }

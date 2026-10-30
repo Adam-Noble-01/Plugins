@@ -10,8 +10,9 @@
 # DESCRIPTION:
 # - Reads Na__ValeVisionCloudSync__CoreAppData__UiCommandRegistry__.json for
 #   dialog and command settings, and AppConfig__.json for sync operation
-#   settings (paths, image export params, Python, the Project Library and
-#   the Vale Virtual Server Manager files the sync uses).
+#   settings (paths, image export params, Python, the Project Library, the
+#   Vale Virtual Server Manager files the sync uses, and the Sync Aura tab's
+#   script, session file and proxy tag).
 # - Merges against hardcoded defaults so the plugin is safe even if JSON
 #   files are missing.
 #
@@ -60,7 +61,8 @@ module Na__ValeVisionCloudSync
                 'sketchup'          => '02__SketchUp',
                 'content_delivered' => '10__ContentDelivered__Local',
                 'glb_sync'          => '10__ContentDelivered__Local/ValeVision__GlbFileSync',
-                'glb_archives'      => '10__ContentDelivered__Local/ValeVision__GlbFileSync/00__Archive'
+                'glb_archives'      => '10__ContentDelivered__Local/ValeVision__GlbFileSync/00__Archive',
+                'aura_glb_sync'     => '10__ContentDelivered__Local/ValeVision__AuraFileSync'
             },
             'edition_folder_prefix' => 'VisDpt__Whitecard__',
             'python'               => {
@@ -74,6 +76,11 @@ module Na__ValeVisionCloudSync
                 'mapping_id'       => 'projects',
                 'push_to_server'   => true,
                 'site_base_url'    => 'https://app.valegardenhouses.com'
+            },
+            'aura'                 => {
+                'sync_script'      => '04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.py',
+                'session_file'     => '91__UserConfig__LocalOnly/Na__ValeVisionCloudSync__AuraSession__.json',
+                'proxy_tag'        => '04__AuraRender__NprAssetProxies'
             }
         }.freeze
 
@@ -208,6 +215,25 @@ module Na__ValeVisionCloudSync
                 mapping:   cfg['mapping_id'].to_s.empty? ? 'projects' : cfg['mapping_id'].to_s,
                 push:      cfg['push_to_server'] != false,
                 site:      cfg['site_base_url'].to_s.sub(%r{/+\z}, '')
+            }
+        end
+
+        # FUNCTION | The Sync Aura Tab's Files and Proxy Tag
+        # ------------------------------------------------------------
+        # sync_script and session_file are relative to the plugin modules (the
+        # session sits in 91__UserConfig__LocalOnly: git-ignored, this PC only).
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__AuraPaths
+            cfg     = self.Na__ValeVisionCloudSync__AppConfig.fetch('aura', NA_DEFAULT_APP_CONFIG['aura'])
+            modules = Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot.to_s.tr('\\', '/')
+            in_modules = lambda do |value, fallback|
+                path = (value.to_s.empty? ? fallback : value).to_s.tr('\\', '/')
+                path =~ %r{\A([A-Za-z]:)?/} ? path : File.join(modules, path)
+            end
+            {
+                script:       in_modules.call(cfg['sync_script'], NA_DEFAULT_APP_CONFIG['aura']['sync_script']),
+                session_file: in_modules.call(cfg['session_file'], NA_DEFAULT_APP_CONFIG['aura']['session_file']),
+                proxy_tag:    cfg['proxy_tag'].to_s
             }
         end
 

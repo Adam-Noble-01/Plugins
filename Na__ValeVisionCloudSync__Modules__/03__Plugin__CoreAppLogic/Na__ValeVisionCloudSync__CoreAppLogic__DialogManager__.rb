@@ -27,6 +27,17 @@
 # - Path status carries the Project Library project (id, folder, new / existing, push on
 #   or off); Settings can set or clear the Library Project override.
 #
+# 30-Oct-2026 - Version 1.3.0
+# - The Sync Aura tab: Sign In / Sign Out callbacks (the password is handed straight
+#   to the AURA sync's stdin, never stored or logged), and the path status carries
+#   the AURA block (who is signed in, proxies in the model, the last sync). An AURA
+#   sync never unlocks the ValeVision 3D Update cards.
+#
+# 30-Oct-2026 - Version 1.3.1
+# - The page is assembled with the block form of gsub: the string form read the
+#   "\'" in two of 1.3.0's script strings as "the text after the match", pasted the
+#   rest of the page into the script, and no tab, button or status row worked.
+#
 # =============================================================================
 
 require 'json'
@@ -90,11 +101,14 @@ module Na__ValeVisionCloudSync
             ui_bridge_script   = File.read(Na__PathResolver.Na__ValeVisionCloudSync__UiBridgeFilePath)
             logo_uri           = na_resolve_logo_file_uri
 
+            # BLOCK FORM ONLY | In a string replacement \' \` \& \\ and \1 are gsub codes: a "\'" in the
+            # script pasted the rest of the page into it and nothing on the dialog ran (0.5.2)
+            title = na_escape_html(Na__ConfigLoader.Na__ValeVisionCloudSync__DialogTitle)
             html_template
-                .gsub('{{DIALOG_TITLE}}',      na_escape_html(Na__ConfigLoader.Na__ValeVisionCloudSync__DialogTitle))
-                .gsub('{{LOGO_FILE_URI}}',      logo_uri)
-                .gsub('{{STYLESHEET_CONTENT}}', stylesheet_content)
-                .gsub('{{UI_BRIDGE_SCRIPT}}',   ui_bridge_script)
+                .gsub('{{DIALOG_TITLE}}')       { title }
+                .gsub('{{LOGO_FILE_URI}}')      { logo_uri }
+                .gsub('{{STYLESHEET_CONTENT}}') { stylesheet_content }
+                .gsub('{{UI_BRIDGE_SCRIPT}}')   { ui_bridge_script }
         end
 
         def self.na_resolve_logo_file_uri
@@ -126,7 +140,32 @@ module Na__ValeVisionCloudSync
             na_setup_save_path_override_callback(dialog)
             na_setup_clear_path_override_callback(dialog)
             na_setup_library_override_callbacks(dialog)
+            na_setup_aura_signin_callbacks(dialog)
             na_setup_dialog_ready_callback(dialog)
+        end
+
+        # HELPER FUNCTION | na_vvcs_aura_signin / na_vvcs_aura_signout
+        # ---------------------------------------------------------------
+        # The password arrives here once and goes straight to the AURA sync's
+        # stdin; it is never stored, logged or sent back to the page.
+        # ---------------------------------------------------------------
+        def self.na_setup_aura_signin_callbacks(dialog)
+            dialog.add_action_callback('na_vvcs_aura_signin') do |_ctx, email, password|
+                na_update_status_element(dialog, 'Signing in to AURA...', 'info')
+                result = if defined?(Na__AuraSync)
+                    Na__AuraSync.Na__AuraSync__SignIn(email.to_s.strip, password.to_s)
+                else
+                    { success: false, message: 'The AURA sync did not load. Reload the plugin.' }
+                end
+                password = nil
+                na_push_project_path_status(dialog)
+                na_update_status_element(dialog, result[:message], result[:success] ? 'success' : 'error')
+            end
+            dialog.add_action_callback('na_vvcs_aura_signout') do |_ctx|
+                result = defined?(Na__AuraSync) ? Na__AuraSync.Na__AuraSync__SignOut : { success: false, message: 'The AURA sync did not load.' }
+                na_push_project_path_status(dialog)
+                na_update_status_element(dialog, result[:message], result[:success] ? 'info' : 'error')
+            end
         end
 
         # HELPER FUNCTION | na_vvcs_save_library_id / na_vvcs_clear_library_id
@@ -209,6 +248,7 @@ module Na__ValeVisionCloudSync
 
             # FIRST SYNC STATE | Record success so the Update cards unlock + stay unlocked
             if result.fetch(:success, false) &&
+               !action_id.start_with?('aura_') &&                                # <-- The Sync Aura tab's own; never ValeVision 3D's first sync
                defined?(Na__ProjectPathMapper) &&
                Na__ProjectPathMapper.respond_to?(:Na__ValeVisionCloudSync__MarkFirstSyncComplete)
                 Na__ProjectPathMapper.Na__ValeVisionCloudSync__MarkFirstSyncComplete(Sketchup.active_model)
@@ -381,7 +421,8 @@ module Na__ValeVisionCloudSync
                 has_override:        has_override,
                 img_scene_count:     img_count,
                 first_sync_complete: first_sync_complete,
-                library:             na_build_library_display_data(model)
+                library:             na_build_library_display_data(model),
+                aura:                defined?(Na__AuraSync) ? Na__AuraSync.Na__AuraSync__Status(model) : nil
             }
         end
 

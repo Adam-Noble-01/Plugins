@@ -22,6 +22,11 @@
     // - Library Project and Server rows (Export tab); Project Library group (Settings tab)
     //   with Save Library Project / Use Folder Name; SKIP badge for skipped steps.
     //
+    // 30-Oct-2026 - Version 1.3.0
+    // - The Sync Aura tab: AURA sign-in (the password field is cleared the moment it is
+    //   handed to Ruby), the AURA status rows, its two cards (locked until signed in, never
+    //   by the ValeVision 3D first-sync lock) and its own report block.
+    //
     // =============================================================================
 
 
@@ -32,10 +37,12 @@
     var naVvcsState = {
         isRunning         : false,   // <-- true while a sync action is in progress
         activeTabId       : 'export',// <-- tracks which tab is visible
-        firstSyncComplete : false    // <-- true once a full sync has succeeded for this model (unlocks Update cards)
+        firstSyncComplete : false,   // <-- true once a full sync has succeeded for this model (unlocks Update cards)
+        auraSignedIn      : false    // <-- true while this PC holds an AURA session (unlocks the Sync Aura cards)
     };
 
     var NA_VVCS_REQUIRES_SYNC_SELECTOR = '.naVvcs__ActionCard[data-na-requires-sync="true"]'; // <-- The three Update cards
+    var NA_VVCS_REQUIRES_AURA_SELECTOR = '.naVvcs__ActionCard[data-na-requires-aura="true"]'; // <-- The two Sync Aura cards
 
     // endregion -------------------------------------------------------------------
 
@@ -108,9 +115,14 @@
             na__vvcs__setStatus('A sync action is already in progress.', 'warning');
             return;
         }
+        var isAura = actionId.indexOf('aura_') === 0;
         // <-- Update actions are locked until a full Sync Project has succeeded once
-        if (actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
+        if (!isAura && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
             na__vvcs__setStatus('Run a full Sync Project To ValeVision 3D first.', 'warning');
+            return;
+        }
+        if (isAura && !naVvcsState.auraSignedIn) {
+            na__vvcs__setStatus('Sign in to AURA first (top of the Sync Aura tab).', 'warning');
             return;
         }
         if (!window.sketchup || !window.sketchup.na_vvcs_run_sync_action) {
@@ -184,6 +196,43 @@
 
 
     // -----------------------------------------------------------------------------
+    // REGION | SketchUp Bridge — AURA Sign-In
+    // -----------------------------------------------------------------------------
+
+    // FUNCTION | Sign In (the password leaves the field the moment it is handed over)
+    // ------------------------------------------------------------
+    function Na__Vvcs__AuraSignIn() {
+        if (!window.sketchup || !window.sketchup.na_vvcs_aura_signin) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        var emailEl    = document.getElementById('naVvcsAuraEmail');
+        var passwordEl = document.getElementById('naVvcsAuraPassword');
+        var email      = emailEl ? emailEl.value.trim() : '';
+        var password   = passwordEl ? passwordEl.value : '';
+        if (!email || !password) {
+            na__vvcs__setStatus('Enter your email address and password.', 'warning');
+            return;
+        }
+        if (passwordEl) { passwordEl.value = ''; }
+        na__vvcs__setStatus('Signing in to AURA...', 'info');
+        window.sketchup.na_vvcs_aura_signin(email, password);
+        password = '';
+    }
+
+    function Na__Vvcs__AuraSignOut() {
+        if (!window.sketchup || !window.sketchup.na_vvcs_aura_signout) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        na__vvcs__setStatus('Signing out of AURA...', 'info');
+        window.sketchup.na_vvcs_aura_signout();
+    }
+
+    // endregion -------------------------------------------------------------------
+
+
+    // -----------------------------------------------------------------------------
     // REGION | Ruby Push Receivers — Report, Path Status
     // -----------------------------------------------------------------------------
 
@@ -203,7 +252,9 @@
         if (!pathData) { return; }
 
         naVvcsState.firstSyncComplete = !!pathData.first_sync_complete;   // <-- Drives the Update-card lock
+        naVvcsState.auraSignedIn      = !!(pathData.aura && pathData.aura.signed_in);
         na__vvcs__applyButtonLockState();
+        na__vvcs__renderAuraStatus(pathData.aura || null, pathData.library || null);
 
         var modelNameEl  = document.getElementById('naVvcsModelName');
         var projectRootEl = document.getElementById('naVvcsProjectRoot');
@@ -275,6 +326,48 @@
         }
     }
 
+    // FUNCTION | The Sync Aura Tab: Sign-In Card and Status Rows
+    // ------------------------------------------------------------
+    function na__vvcs__renderAuraStatus(aura, library) {
+        var signedInEl  = document.getElementById('naVvcsAuraSignedIn');
+        var signedOutEl = document.getElementById('naVvcsAuraSignedOut');
+        var userEl      = document.getElementById('naVvcsAuraUser');
+        var libraryEl   = document.getElementById('naVvcsAuraLibraryProject');
+        var proxiesEl   = document.getElementById('naVvcsAuraProxies');
+        var lastEl      = document.getElementById('naVvcsAuraLastSync');
+        var base        = 'naVvcs__ProjectStatus__Value';
+        var signedIn    = !!(aura && aura.signed_in);
+
+        if (signedInEl)  { signedInEl.style.display  = signedIn ? '' : 'none'; }
+        if (signedOutEl) { signedOutEl.style.display = signedIn ? 'none' : ''; }
+        if (userEl) {
+            userEl.textContent = signedIn
+                ? (aura.user_name || aura.email || 'Signed in') + (aura.user_level ? ' (' + aura.user_level + ')' : '')
+                : '—';
+        }
+        if (libraryEl) {
+            if (!library)              { libraryEl.textContent = '—'; libraryEl.className = base; }
+            else if (library.error)    { libraryEl.textContent = library.error; libraryEl.className = base + ' ' + base + '--error'; }
+            else if (!library.exists)  { libraryEl.textContent = library.rel + ': not in the Project Library yet (sync it to ValeVision 3D first)'; libraryEl.className = base + ' ' + base + '--error'; }
+            else                       { libraryEl.textContent = library.rel + ' (switch it on for AURA in the Gallery\'s Project Editor)'; libraryEl.className = base; }
+        }
+        if (proxiesEl) {
+            if (!aura) {
+                proxiesEl.textContent = '—';
+            } else {
+                var text = String(aura.proxies || 0) + ' in the model, ' + String(aura.synced || 0) + ' linked to AURA';
+                if (aura.proxy_tag) { text += ', on ' + aura.proxy_tag; }
+                if (!aura.assets_plugin) { text += '. Na PainterlyNPR Assets is not loaded: AURA\'s new assets cannot be placed'; }
+                proxiesEl.textContent = text;
+            }
+        }
+        if (lastEl) {
+            lastEl.textContent = aura && aura.last_sync
+                ? aura.last_sync + (aura.base_project ? ' (' + aura.base_project + ')' : '')
+                : 'Never';
+        }
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -283,9 +376,11 @@
     // -----------------------------------------------------------------------------
 
     function na__vvcs__renderReport(report) {
-        var reportEl  = document.getElementById('naVvcsReport');
-        var stepsEl   = document.getElementById('naVvcsReportSteps');
-        var summaryEl = document.getElementById('naVvcsReportSummary');
+        var scope     = String(report.scope || report.action_id || '');
+        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : 'naVvcsReport';   // <-- Each tab shows its own last report
+        var reportEl  = document.getElementById(prefix);
+        var stepsEl   = document.getElementById(prefix + 'Steps');
+        var summaryEl = document.getElementById(prefix + 'Summary');
 
         if (!reportEl) { return; }
 
@@ -380,6 +475,13 @@
             updateCards[i].disabled = lockUpdates;       // <-- Greyed via .naVvcs__ActionCard:disabled
             updateCards[i].title    = lockUpdates ? 'Run a full Sync Project To ValeVision 3D first.' : '';
         }
+
+        var lockAura  = !naVvcsState.auraSignedIn;
+        var auraCards = document.querySelectorAll(NA_VVCS_REQUIRES_AURA_SELECTOR);
+        for (var ai = 0; ai < auraCards.length; ai += 1) {
+            auraCards[ai].disabled = lockAura;
+            auraCards[ai].title    = lockAura ? 'Sign in to AURA first.' : '';
+        }
     }
 
     // endregion -------------------------------------------------------------------
@@ -404,6 +506,8 @@
     window.Na__Vvcs__ClearPathOverride  = Na__Vvcs__ClearPathOverride;
     window.Na__Vvcs__SaveLibraryId      = Na__Vvcs__SaveLibraryId;
     window.Na__Vvcs__ClearLibraryId     = Na__Vvcs__ClearLibraryId;
+    window.Na__Vvcs__AuraSignIn         = Na__Vvcs__AuraSignIn;
+    window.Na__Vvcs__AuraSignOut        = Na__Vvcs__AuraSignOut;
     window.Na__Vvcs__ReceiveReport      = Na__Vvcs__ReceiveReport;
     window.Na__Vvcs__ReceivePathStatus  = Na__Vvcs__ReceivePathStatus;
 

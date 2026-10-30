@@ -4,9 +4,10 @@
 VALEDESIGNSUITE - VALEVISION CLOUD SYNC HTMLDIALOG UI LAYOUT
 
 FILE       : Na__ValeVisionCloudSync__UiLayout__.html
-PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
-             tabs rendered in HTML (purpose-built sync plugin, not a generic
-             tool launcher, so tabs are defined in markup not generated from JSON)
+PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
+             Sync Aura and Settings tabs rendered in HTML (purpose-built sync
+             plugin, not a generic tool launcher, so tabs are defined in markup
+             not generated from JSON)
 =============================================================================
 -->
 <html lang="en">
@@ -54,7 +55,9 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
 
         <nav class="naVvcs__TabBar">
             <button class="naVvcs__TabButton naVvcs__TabButton--active"
-                    onclick="Na__Vvcs__ShowTab('export', this)">Export</button>
+                    onclick="Na__Vvcs__ShowTab('export', this)">Sync ValeVision 3D</button>
+            <button class="naVvcs__TabButton"
+                    onclick="Na__Vvcs__ShowTab('aura', this)">Sync Aura</button>
             <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('settings', this)">Settings</button>
         </nav>
@@ -144,6 +147,101 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Export + Settings
                     <h3 class="naVvcs__Report__Title">Last Sync Report</h3>
                     <div class="naVvcs__Report__Steps" id="naVvcsReportSteps"></div>
                     <div class="naVvcs__Report__Summary" id="naVvcsReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Sync Aura Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-aura" class="naVvcs__TabPanel">
+
+                <!-- AURA sign-in (the session is kept on this PC; the password never is) -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">AURA Sign-In</h3>
+
+                    <div id="naVvcsAuraSignedIn" style="display:none;">
+                        <div class="naVvcs__FieldRow">
+                            <label class="naVvcs__FieldRow__Label">Signed In As</label>
+                            <span class="naVvcs__FieldRow__ReadOnly" id="naVvcsAuraUser">&mdash;</span>
+                        </div>
+                        <div class="naVvcs__ButtonRow">
+                            <button type="button" class="naVvcs__Btn"
+                                    onclick="Na__Vvcs__AuraSignOut()">Sign Out</button>
+                        </div>
+                    </div>
+
+                    <div id="naVvcsAuraSignedOut">
+                        <p class="naVvcs__SettingsGroup__Desc">
+                            Sign in once with your Vale account (Managers and App Admins). This PC keeps the
+                            session, never the password, until you sign out.
+                        </p>
+                        <div class="naVvcs__FieldRow">
+                            <label class="naVvcs__FieldRow__Label" for="naVvcsAuraEmail">Email</label>
+                            <input type="email" id="naVvcsAuraEmail" class="naVvcs__TextInput"
+                                   placeholder="name@valegardenhouses.com" autocomplete="username" spellcheck="false">
+                        </div>
+                        <div class="naVvcs__FieldRow">
+                            <label class="naVvcs__FieldRow__Label" for="naVvcsAuraPassword">Password</label>
+                            <input type="password" id="naVvcsAuraPassword" class="naVvcs__TextInput"
+                                   autocomplete="current-password"
+                                   onkeydown="if (event.key === 'Enter') { Na__Vvcs__AuraSignIn(); }">
+                        </div>
+                        <div class="naVvcs__ButtonRow">
+                            <button type="button" class="naVvcs__Btn naVvcs__Btn--primary"
+                                    onclick="Na__Vvcs__AuraSignIn()">Sign In</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AURA status summary -->
+                <div class="naVvcs__ProjectStatus">
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Library Project</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsAuraLibraryProject">&mdash;</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">NPR Proxies</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsAuraProxies">&mdash;</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Last Sync</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsAuraLastSync">&mdash;</span>
+                    </div>
+                </div>
+
+                <!-- AURA sync action buttons -->
+                <div class="naVvcs__ActionGroup">
+                    <h3 class="naVvcs__ActionGroup__Title">Sync Actions</h3>
+
+                    <button type="button" class="naVvcs__ActionCard naVvcs__ActionCard--primary" data-na-requires-aura="true"
+                            onclick="Na__Vvcs__RunSyncAction('aura_sync')">
+                        <span class="naVvcs__ActionCard__Icon">&#9654;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Sync Model And Assets With AURA</span>
+                            <span class="naVvcs__ActionCard__Desc">Export fresh GLBs, replace AURA's model on app.valegardenhouses.com (the old set zipped, AURA's NPR assets and materials kept), then sync the NPR asset proxies both ways.</span>
+                        </span>
+                    </button>
+
+                    <button type="button" class="naVvcs__ActionCard" data-na-requires-aura="true"
+                            onclick="Na__Vvcs__RunSyncAction('aura_assets')">
+                        <span class="naVvcs__ActionCard__Icon">&#127795;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Sync NPR Assets Only</span>
+                            <span class="naVvcs__ActionCard__Desc">No export: AURA's placed assets come in as proxies, and proxies moved, added or deleted here go to AURA. AURA wins a clash.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Last AURA sync report (hidden until an AURA sync runs) -->
+                <div class="naVvcs__Report" id="naVvcsAuraReport" style="display:none;">
+                    <h3 class="naVvcs__Report__Title">Last AURA Sync Report</h3>
+                    <div class="naVvcs__Report__Steps" id="naVvcsAuraReportSteps"></div>
+                    <div class="naVvcs__Report__Summary" id="naVvcsAuraReportSummary"></div>
                 </div>
 
             </section>

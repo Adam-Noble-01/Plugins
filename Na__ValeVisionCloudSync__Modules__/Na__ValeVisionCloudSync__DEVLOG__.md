@@ -29,6 +29,189 @@ Sync ValeVision 3D reads the same root, so it would have looked in the wrong pla
 - Sync Aura tab: Library Project shows `ValeProjects__2026/63403__Thrower`; Sync NPR Assets Only, then Sync Model And
   Assets With AURA. A model in `01__MainModel` of another project still finds its own project.
 
+## Version 0.5.3 — 30-Oct-2026 — The Dialog Works Again (Sync Aura Tab Opens)
+
+### Overview
+**Reported by Adam:** *"It literally doesn't work. I press the button, but it doesn't open the new tab."* His screenshot
+showed the three tabs but every status row as a dash: no script on the page was running.
+
+**Cause:** the DialogManager builds the page with `String#gsub(placeholder, text)`. In a replacement string `\'` means
+"the text after the match", and 0.5.2's bridge script had two `\'` (`AURA\'s`, `Gallery\'s`), so the rest of the page
+was pasted into the middle of the script. The script would not parse, so no tab, button or status row worked. This is
+the skill's quirk 35 (string-form `gsub` replacements eat backslashes), and the plugin catalogue had listed this
+two-argument `gsub` as a known risk.
+
+### Changed
+- `DialogManager` 1.3.1: every placeholder is filled with the block form, `gsub(placeholder) { text }`, which inserts
+  the file as it is, whatever characters it holds.
+
+### Verified Offline (30-Oct-2026)
+- The real `na_render_dialog_html` on SketchUp's Ruby (paths stubbed): before the fix, 2 of 4 checks fail (a second
+  `</html>`, the script not intact); after it, 4 of 4 pass (one `</html>`, the script and the stylesheet byte for byte,
+  no placeholder left).
+- The script cut from the rendered page parses (`node --check`). Run against a stub DOM, it exposes ShowTab, AuraSignIn,
+  ReceivePathStatus and RunSyncAction, and fills the Sync Aura rows from a sample status.
+- 19 Ruby files compile; `su_lint.py` 0 errors, 0 warnings; the DialogManager kept its CRLF line endings.
+
+### Files Changed
+- `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__DialogManager__.rb` (1.3.1)
+
+### Testing
+- [ ] Close the dialog, Reload Plugin Data, reopen it: the status rows fill in, and Sync Aura and Settings open.
+- [ ] Then the 0.5.2 checklist below.
+
+**Status:** IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027
+
+# =============================================================================
+
+
+## Version 0.5.2 — 30-Oct-2026 — The Sync Aura Tab: SketchUp and ValeVision AURA in Lockstep
+
+### Overview
+**Asked by Adam:** *"Update ValeVision cloud sync. Add a new tab and rename the first tab. There should be two tabs:
+"Sync ValeVision 3D" and "Sync Aura" the new tab should update the model on the Vale server, exporting new GLBs,
+archiving the old one in a zip file, and replacing it with a newer version of the model (but keeping all of the other
+assets, such as the NPR assets, etc.), and then syncing those back with the SketchUp model ... It's a two-way sync:
+changes in one update the other, and vice versa. We can reuse a lot of the same API workers"*, and *"Changes in the
+Sketchup model can be pushed to the AuraRender engine, but then Aura's proxy objects can also be loaded back to
+Sketchup, keeping both in lockstep."*
+
+**His calls (30-Oct-2026):** AURA keeps its own model set (ValeVision 3D's whitecard is untouched); the plugin signs in
+to AURA with his Vale account; when an asset changed on both sides, AURA wins; Settings stays as the third tab.
+
+### What It Does
+- **Tabs:** Export is now **Sync ValeVision 3D** (unchanged inside); **Sync Aura** is new; **Settings** as before.
+- **Sync Aura tab:**
+  - **AURA Sign-In:** email and password once (Managers and App Admins). The password goes to the AURA sync on stdin,
+    never on a command line, never written down; this PC keeps only the session cookie, in
+    `91__UserConfig__LocalOnly/Na__ValeVisionCloudSync__AuraSession__.json` (git-ignored). Sign Out ends the session on
+    the server and deletes the file. The two cards stay locked until signed in.
+  - **Status:** the library project, the NPR proxies in the model (and how many are linked to AURA), the last sync.
+  - **Sync Model And Assets With AURA:**
+    1. exports the model's GLBs with the GLB builder into its own folder,
+       `10__ContentDelivered__Local/ValeVision__AuraFileSync` (archived first, as ValeVision 3D's are);
+    2. collects the project, puts the set in the library's `<id>/ValeVision__AuraRender/Content__AuraScenePackages`
+       (that folder alone holds this set), and pushes the project with `--prune` on that folder;
+    3. asks AURA's API to import it (scene API 1.2.0, source SketchUp): the scene's previous model set is zipped in
+       `Content__AuraScene__ModelFiles/00__Archive` and read back before the older zip goes; object Ids, the model
+       placement, stored NPR assets, placed assets and materials are all kept;
+    4. syncs the NPR assets both ways (below), then collects AURA's new scene down and rests any PC copy of a model
+       file the scene no longer lists in `Content__AuraScene__ModelFiles/00__Archive` on this PC (never synced), so the
+       next push cannot bring it back.
+  - **Sync NPR Assets Only:** step 4 alone, over HTTPS only: no export and no Server Manager session.
+- **The asset sync (three-way, AURA wins a clash):**
+  - A **proxy** is a component at the model root made by Na PainterlyNPR Assets (its definition carries an AssetId).
+    Once linked it carries its AURA plop's Uid (`Na__ValeVisionCloudSync__AuraPlop`) and sits on the proxy tag
+    `04__AuraRender__NprAssetProxies`, which is in the GLB builder's skip range, so a proxy never goes into AURA's model.
+  - The **base** (what both sides held after the last sync) is kept in the model (`ValeVision__CloudExport`
+    `aura_base`, a JSON string) in the same undo step as the proxies.
+  - Changed only in SketchUp (moved, turned, scaled, deleted, or a new proxy placed) goes to AURA's drawing set
+    (`Settings.Assets`; a new plop gets the next Uid, its seed and recipe from the asset's DAT in AURA's pinned
+    library; a removed plop's materials go with it, as the engine's take-out does). Changed only in AURA (moved, a new
+    plop, a plop taken out or swapped) comes into SketchUp. Changed on both: AURA's is kept and the clash is listed.
+  - AURA's new plops arrive as Na PainterlyNPR Assets' own definitions (its SKP, else a proxy from its MOD, through its
+    new `Na__PublicApi__DefinitionForAsset`). Without that plugin the model still syncs and the plops wait.
+  - A save that loses the race against someone else's (409) reads AURA again and merges again, once.
+- **Coordinates** are all in the Python (`na_to_aura` / `na_to_sketchup`): SketchUp inches -> the GLB builder's glTF
+  metres `(x, z, -y)` -> turned about +Y by the scene's `RotationDeg` (the engine's GlbTransform) -> moved by `OffsetM`;
+  a turn about SketchUp's +Z is the same angle about glTF's +Y. Ruby reads and writes raw poses (origin, turn about +Z,
+  one scale) of root instances, whose transformations are world. A sync refuses to run with a group open, because the
+  GLB builder exports the active context.
+
+### Added
+- `04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.py` (1.0.0): sign in and out, the model
+  to AURA, the merge, the scene brought down. It imports the Library Publisher for the report, the library lookup, the
+  GLB checks, file placing and the engine calls (nothing copied).
+- `04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.rb` (1.0.0): the tab's actions, proxy
+  collection, the hand-over file, applying AURA's answer in one operation ("ValeVision Cloud Sync: AURA Assets"),
+  sign-in status. A failed create or move drops that Uid from the base, so the next sync retries instead of reading the
+  gap as a deletion made in SketchUp.
+
+### Changed
+- `SyncOrchestrator` 2.1.0: the two `aura_*` scopes go to `Na__AuraSync`; `na_execute_python` takes `stdin_data`.
+- `GlbExportBridge` 1.3.0: `glb_dir:` (the Sync Aura tab's own export folder).
+- `DialogManager` 1.3.0: Sign In / Sign Out callbacks; the AURA block in the path status; an AURA sync never unlocks
+  the ValeVision 3D Update cards.
+- `ConfigLoader`: `project_subfolders.aura_glb_sync` and the `aura` block (`sync_script`, `session_file`, `proxy_tag`),
+  `Na__ValeVisionCloudSync__AuraPaths`; the AppConfig carries the same.
+- `ModuleLoaders`: loads `09__AuraSync`.
+- `UiLayout` / `UiBridge` 1.3.0: the three tabs, the Sync Aura tab, its own report block.
+
+### Needs
+- **The server side:** AURA's scene API 1.2.0 (`Server__Api/Api__ValeVision__AuraRender/AuraRender__Api__Scene__.py`)
+  is live since 30-Oct-2026 18:26 UTC (pushed, `vale@ValeVision__AuraRender` restarted). An older
+  API ignores the source and re-imports ValeVision 3D's whitecard: the sync sees the scene's Method, stops with the
+  push-and-restart instruction and leaves SketchUp alone (AURA keeps ValeVision 3D's set until the next good sync).
+  AURA's page note (`aura`) names the source.
+- The project switched on for AURA (Gallery, Project Editor) and opened in AURA once, so it has a drawing set (the sync
+  never makes one: the page writes a whole engine state).
+- Na PainterlyNPR Assets loaded (it now lives in this 2027 Plugins repo) to place AURA's plops.
+- Vale Virtual Server Manager 0.6.2 or later (`--prune`), as before.
+
+### Provisional (for Adam to confirm)
+- The proxy tag `04__AuraRender__NprAssetProxies` (AppConfig `aura.proxy_tag`): not a DataLib standard tag yet. It must
+  stay in the GLB builder's skip range (00, 02 to 06). It is visible in every scene by default, so proxies show in the
+  IMG## whitecard images until the tag is hidden in those scenes.
+- Proxies are read at the model root only; a proxy inside a group is not synced.
+
+### Verified Offline (30-Oct-2026)
+- **The merge and coordinates** (Python, 33 checks): every three-way case (no change; changed in SketchUp, in AURA, in
+  both; deleted on either side against a change on the other; new on either side; a copied proxy's duplicate Uid; an
+  asset AURA's pin does not have; a swap on either side; no base; a Uid neither side knows; rotation across 0/360),
+  Thrower's real placement, and round trips under a turned and moved placement. A deliberate fault (the `-y` dropped)
+  fails 10 of them.
+- **End to end** (33 checks): the AURA sync script against a stub AURA API (`http.server`) and a stub engine in a
+  sandbox library: a wrong password refused and never echoed; a sync before sign-in stopped; sign-in keeping only the
+  cookie; the full sync's nine steps in order, the package folder exactly the set, collect / push `--prune` the package
+  folder / collect, the import asking for SketchUp with the model name, a 409 retried once, a SketchUp bench added as
+  A0003 at the origin under Thrower's placement with its recipe from the pinned DAT, AURA's plop created in SketchUp at
+  the right inches, a renewed cookie kept, the dropped model copy rested; assets only opening no engine session; a
+  removed plop's materials removed; sign-out telling the server and deleting the file; an API before 1.2.0 stopping
+  the sync at the import with no asset touched.
+- **The Ruby** (36 checks, SketchUp 2026's Ruby 3.2.2 on the harness doubles): poses read back exactly as written
+  (origin, turn, scale) at four poses; a tilted proxy flagged; a component that is no asset ignored; one operation for
+  update, delete, stamp, unstamp and create; a create through the assets plugin with `in_operation: true`; a failed
+  create reported and dropped from the base; the preflight refusing an open group. A fault (the turn's sign flipped and
+  the base never dropping a failed Uid) fails 5.
+- **The scene API** (29 checks, Flask's test client on a sandbox copy of Thrower): see AURA's DEVLOG.
+- All 19 Ruby files compile; `su_lint.py` 0 errors, 0 warnings; `node --check` on the bridge; the AppConfig parses.
+
+### What Offline Cannot Prove
+- The sign-in through Cloudflare to the live server (a non-browser client: if Cloudflare challenges it, the Sign In
+  step says so with the HTTP status).
+- The GLB export into the new folder inside SketchUp, the real push, AURA's import on the server (needs the server-api
+  push first), and proxies placed by the real Na PainterlyNPR Assets in SketchUp 2027.
+- How AURA's open page behaves when the sync saves its drawing set underneath it (its next autosave meets a 409).
+
+### Files Changed
+- New: `04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.py`, `...__AuraSync__.rb`
+- `04__Plugin__SyncFeatures/07__SyncOrchestrator/Na__ValeVisionCloudSync__SyncOrchestrator__.rb` (2.1.0)
+- `04__Plugin__SyncFeatures/03__GlbExportBridge/Na__ValeVisionCloudSync__GlbExportBridge__.rb` (1.3.0)
+- `03__Plugin__CoreAppLogic/Na__ValeVisionCloudSync__CoreAppLogic__DialogManager__.rb` (1.3.0),
+  `...__ConfigLoader__.rb`
+- `02__Plugin__CoreAppData/02__ModuleLoaders/Na__ValeVisionCloudSync__ModuleLoaders__Main__.rb`,
+  `02__Plugin__CoreAppData/Na__ValeVisionCloudSync__CoreAppData__AppConfig__.json`
+- `05__Plugin__UserInterface/Na__ValeVisionCloudSync__UiLayout__.html`, `...__UiBridge__.js` (1.3.0)
+- Companions: AURA scene API 1.2.0 and `Na__EngineHost__Scene__.js` 1.0.1 (Vale__VirtualServer); Na PainterlyNPR
+  Assets 0.1.1 (`Na__PublicApi__DefinitionForAsset`).
+
+### Testing
+- [ ] Close the Cloud Sync dialog, Reload Plugin Data (Settings tab, or the menu), reopen it: three tabs, Sync
+      ValeVision 3D works as before.
+- [ ] Sync Aura: sign in. The card shows your name; the session file appears in `91__UserConfig__LocalOnly`.
+- [ ] After the server-api push and the AURA service restart: on a project switched on for AURA (Thrower), Sync Model
+      And Assets With AURA. AURA's model updates; `00__Archive` holds one zip of the previous set; AURA's placed
+      assets appear in SketchUp on `04__AuraRender__NprAssetProxies`, standing where AURA shows them.
+- [ ] Move one proxy, delete one, place a new asset with Na PainterlyNPR Assets; Sync NPR Assets Only; reload AURA:
+      all three are there. Then move a plop in AURA and Sync Assets: the proxy follows.
+- [ ] Check facing: a bench turned in AURA faces the same way in SketchUp.
+- [ ] Ctrl+Z after a sync puts the proxies back in one step.
+
+**Status:** IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027
+
+# =============================================================================
+
+
 ## Version 0.5.1 — 07-Oct-2026 — GLB Syncs Purge the Previous Set (Archived), on the PC and on the Server
 
 ### Overview
