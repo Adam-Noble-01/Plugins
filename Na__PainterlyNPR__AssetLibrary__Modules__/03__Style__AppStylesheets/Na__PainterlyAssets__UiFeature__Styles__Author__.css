@@ -1,0 +1,123 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - AUTHOR, VALIDATE AND SETTINGS STYLES
+   =============================================================================
+   FILE       : Na__PainterlyAssets__UiFeature__Styles__Author__.css
+   PURPOSE    : The Author tab's selected component, plan and result; the
+                Validate tab's report; the Settings tab's rows.
+   CREATED    : 30-Oct-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Selected Component */
+/* ----------------------------------------------------------------- */
+
+.na-sel__title {
+    font-size           : 13.5px;
+    font-weight         : 700;
+    word-break          : break-all;
+}
+
+.na-sel__kind {
+    margin-left         : 8px;
+    font-size           : 11.5px;
+    font-weight         : 400;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Plan and the Result */
+/* ----------------------------------------------------------------- */
+
+.na-plan {
+    margin-top          : 10px;
+}
+
+.na-plan__id {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 2px;
+    font-size           : 18px;
+    font-weight         : 700;
+    color               : #1452a8;
+    font-variant-numeric: tabular-nums;
+}
+
+.na-plan__stem {
+    font-size           : 11.5px;
+    font-weight         : 400;
+    color               : var(--na-subtle);
+    word-break          : break-all;
+}
+
+.na-result {
+    margin-top          : 10px;
+    border-radius       : 6px;
+    padding             : 8px 12px;
+    font-size           : 12.5px;
+}
+
+.na-result--ok {
+    background          : #e7f7ee;
+    color               : #1a5e3a;
+    border-left         : 3px solid var(--na-success);
+}
+
+.na-result--error {
+    background          : #fdecea;
+    color               : #8f1d17;
+    border-left         : 3px solid var(--na-danger);
+}
+
+.na-result__text {
+    margin              : 0;
+    line-height         : 1.45;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Validation Report */
+/* ----------------------------------------------------------------- */
+
+.na-report {
+    margin-top          : 10px;
+}
+
+.na-report__head {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    padding             : 8px 10px;
+    border-radius       : 6px;
+    font-size           : 13px;
+    font-weight         : 600;
+}
+
+.na-report__head--ok    { background: #e7f7ee; color: #1a5e3a; }
+.na-report__head--warn  { background: #fff4e5; color: #7a4a00; }
+.na-report__head--error { background: #fdecea; color: #8f1d17; }
+
+.na-report__items {
+    list-style          : none;
+    margin              : 8px 0 0;
+    padding             : 0;
+    max-height          : 320px;
+    overflow-y          : auto;
+}
+
+.na-report__item {
+    display             : flex;
+    gap                 : 8px;
+    align-items         : baseline;
+    padding             : 4px 0;
+    border-bottom       : 1px solid #eef0f3;
+    font-size           : 12px;
+}
+
+.na-report__text {
+    word-break          : break-all;
+}
+
+/* endregion ----------------------------------------------------------------- */

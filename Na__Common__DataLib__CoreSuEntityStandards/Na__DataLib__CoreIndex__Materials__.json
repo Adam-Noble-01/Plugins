@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.8.0",
-        "lastUpdated"       : "29-Sep-2026",
+        "version"           : "1.9.0",
+        "lastUpdated"       : "30-Oct-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -13,6 +13,7 @@
         "exemptPrefix"      : "MAT000E__",
         "exemptNote"        : "MAT000E__ materials export in EVERY mode (including no_materials / whitecard) but do NOT receive PBR enrichment from the library. Their colour and opacity come from the SketchUp material itself -- the GLB exporter writes the Materials tray Opacity slider as baseColorFactor alpha + alphaMode BLEND -- and ValeVision3D PureEngine exempts them from the opaque whitecard replacement. An exempt material MAY still be catalogued here (see MAT105__GenericGlass__WhitecardTranslucent) so plugins can discover and create it; in that case the entry is a reference recipe for building the SketchUp material, not a set of render-time overrides.",
         "isExemptNote"      : "IsExempt: true marks a catalogued material whose SketchUpName carries the MAT000E__ exempt prefix. Plugins should create it from the values here, then let the SketchUp material drive colour and opacity downstream.",
+        "nprSeriesNote"     : "MAT200__PainterlyNprSeries__ (30-Oct-2026) holds one swatch for every material class in PainterlyNPR's material library (Na__PainterlyNPR 07__Data__MaterialRecipes/PainterlyNPR__MaterialLibrary__Register__.json; the classes themselves are its 13__Scene__MaterialClasses), for painting a SketchUp model that ValeVision AURA draws in pen and wash. A different workflow from every other series, so every one is exempt: SketchUpName MAT000E__Npr__<NprClassKey> exports in every mode, whitecard included, with its own colour, and the class key stays readable in the GLB builder's <tag>::<material> node name. Catalogue key: MAT2 + the class Id in two digits (MAT202 is Brick); the sky (class 0) is not a material. BaseColor is the class's Albedo; NprClassKey, NprClassId, NprClassLabel and NprGroup (the register's group) are PainterlyNPR's own. Na PainterlyNPR Assets' Materials tab creates and paints them. Keep them out of ValeVision 3D and TrueVision presentation models: exempt, they are never whitecarded there.",
         "defaultMaterial"   : "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
         "divergenceNote"    : "No local material-library JSON copies remain. The old Window Configurator local copy (Na__AppConfig__MaterialsLibrary.json) was deleted in the Element Assembly Studio Pro v0.9.10 DataLib migration; Na__AssemblyStudio__AppData__MaterialManager__.rb now loads this centralised file live via Na__DataLib__CacheData. That module still hardcodes NA_SAFETY_GLASS_COLOR / NA_SAFETY_GLASS_ALPHA as a last-resort fallback for MAT101__GenericGlass when the library can't be loaded -- keep those two constants in sync with MAT101 here. The old ValeDesignSuite WindowPanelConfigurator (non-indexed 'natural-wood'/'glass' ComponentMaterial strings) is fully retired and no longer in use.",
         "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
@@ -443,6 +444,307 @@
                 "EnvMapIntensity"    : 0.0,
                 "AoExclude"          : true,
                 "ProfileLineExclude" : true
+            }
+        },
+        "MAT200__PainterlyNprSeries__": {
+            "MAT201__Npr__Render": {
+                "SketchUpName"       : "MAT000E__Npr__Render",
+                "Description"        : "PainterlyNPR material class 1, White render (Walls). Lime render or plaster, washed pale; its lit planes are left as paper. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(238, 232, 220)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Render",
+                "NprClassId"         : 1,
+                "NprClassLabel"      : "White render",
+                "NprGroup"           : "Walls"
+            },
+            "MAT202__Npr__Brick": {
+                "SketchUpName"       : "MAT000E__Npr__Brick",
+                "Description"        : "PainterlyNPR material class 2, Brick (Walls). Red brick, laid in courses at true gauge; a face given it gets courses of its own. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(185, 116, 95)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Brick",
+                "NprClassId"         : 2,
+                "NprClassLabel"      : "Brick",
+                "NprGroup"           : "Walls"
+            },
+            "MAT203__Npr__Stone": {
+                "SketchUpName"       : "MAT000E__Npr__Stone",
+                "Description"        : "PainterlyNPR material class 3, Stone dressings (Walls). Stone dressings: cills, steps, quoins and copings. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(218, 211, 195)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Stone",
+                "NprClassId"         : 3,
+                "NprClassLabel"      : "Stone dressings",
+                "NprGroup"           : "Walls"
+            },
+            "MAT208__Npr__Terracotta": {
+                "SketchUpName"       : "MAT000E__Npr__Terracotta",
+                "Description"        : "PainterlyNPR material class 8, Terracotta (Walls). Fired clay: chimney pots, planters and pots. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(194, 124, 94)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Terracotta",
+                "NprClassId"         : 8,
+                "NprClassLabel"      : "Terracotta",
+                "NprGroup"           : "Walls"
+            },
+            "MAT204__Npr__Slate": {
+                "SketchUpName"       : "MAT000E__Npr__Slate",
+                "Description"        : "PainterlyNPR material class 4, Slate roof (Roofs). Slate roofing, laid in courses as tiles are. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(114, 122, 134)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Slate",
+                "NprClassId"         : 4,
+                "NprClassLabel"      : "Slate roof",
+                "NprGroup"           : "Roofs"
+            },
+            "MAT217__Npr__ClayTile": {
+                "SketchUpName"       : "MAT000E__Npr__ClayTile",
+                "Description"        : "PainterlyNPR material class 17, Clay plain tiles (Roofs). Clay plain tiles, laid in courses. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(156, 111, 98)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "ClayTile",
+                "NprClassId"         : 17,
+                "NprClassLabel"      : "Clay plain tiles",
+                "NprGroup"           : "Roofs"
+            },
+            "MAT205__Npr__Glass": {
+                "SketchUpName"       : "MAT000E__Npr__Glass",
+                "Description"        : "PainterlyNPR material class 5, Glazing (Joinery and glazing). Glazing: dark panes holding the sky. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(157, 176, 190)",
+                "Opacity"            : 0.30,
+                "Transparent"        : true,
+                "IsDoubleSided"      : true,
+                "NprClassKey"        : "Glass",
+                "NprClassId"         : 5,
+                "NprClassLabel"      : "Glazing",
+                "NprGroup"           : "Joinery"
+            },
+            "MAT206__Npr__Joinery": {
+                "SketchUpName"       : "MAT000E__Npr__Joinery",
+                "Description"        : "PainterlyNPR material class 6, Painted joinery (Joinery and glazing). Painted joinery: doors, boards and trims. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(147, 166, 147)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Joinery",
+                "NprClassId"         : 6,
+                "NprClassLabel"      : "Painted joinery",
+                "NprGroup"           : "Joinery"
+            },
+            "MAT207__Npr__Metal": {
+                "SketchUpName"       : "MAT000E__Npr__Metal",
+                "Description"        : "PainterlyNPR material class 7, Cast-iron rainwater goods (Joinery and glazing). Cast iron: gutters, downpipes and railings. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(75, 79, 85)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Metal",
+                "NprClassId"         : 7,
+                "NprClassLabel"      : "Cast-iron rainwater goods",
+                "NprGroup"           : "Joinery"
+            },
+            "MAT214__Npr__Timber": {
+                "SketchUpName"       : "MAT000E__Npr__Timber",
+                "Description"        : "PainterlyNPR material class 14, Weathered timber (Joinery and glazing). Weathered oak or softwood: porches, benches and posts. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(170, 155, 135)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Timber",
+                "NprClassId"         : 14,
+                "NprClassLabel"      : "Weathered timber",
+                "NprGroup"           : "Joinery"
+            },
+            "MAT218__Npr__WhitePaint": {
+                "SketchUpName"       : "MAT000E__Npr__WhitePaint",
+                "Description"        : "PainterlyNPR material class 18, White-painted timber (Joinery and glazing). White-painted timber: fences, gates and trellis. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(241, 238, 231)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "WhitePaint",
+                "NprClassId"         : 18,
+                "NprClassLabel"      : "White-painted timber",
+                "NprGroup"           : "Joinery"
+            },
+            "MAT227__Npr__WindowPaint": {
+                "SketchUpName"       : "MAT000E__Npr__WindowPaint",
+                "Description"        : "PainterlyNPR material class 27, Painted window joinery (Joinery and glazing). Painted window joinery: frames, sashes and glazing bars. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(239, 235, 225)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "WindowPaint",
+                "NprClassId"         : 27,
+                "NprClassLabel"      : "Painted window joinery",
+                "NprGroup"           : "Joinery"
+            },
+            "MAT209__Npr__Paving": {
+                "SketchUpName"       : "MAT000E__Npr__Paving",
+                "Description"        : "PainterlyNPR material class 9, Sandstone paving (Ground). Sandstone flags; a path given it keeps its flagstone joints. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(206, 197, 179)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Paving",
+                "NprClassId"         : 9,
+                "NprClassLabel"      : "Sandstone paving",
+                "NprGroup"           : "Ground"
+            },
+            "MAT210__Npr__Lawn": {
+                "SketchUpName"       : "MAT000E__Npr__Lawn",
+                "Description"        : "PainterlyNPR material class 10, Lawn (Ground). Mown lawn. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(152, 174, 123)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Lawn",
+                "NprClassId"         : 10,
+                "NprClassLabel"      : "Lawn",
+                "NprGroup"           : "Ground"
+            },
+            "MAT222__Npr__Water": {
+                "SketchUpName"       : "MAT000E__Npr__Water",
+                "Description"        : "PainterlyNPR material class 22, Garden pond (Ground). A garden pond: still water. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(142, 166, 176)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Water",
+                "NprClassId"         : 22,
+                "NprClassLabel"      : "Garden pond",
+                "NprGroup"           : "Ground"
+            },
+            "MAT224__Npr__Footway": {
+                "SketchUpName"       : "MAT000E__Npr__Footway",
+                "Description"        : "PainterlyNPR material class 24, Tarmac footpath (Ground). A tarmac footpath. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(141, 140, 137)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Footway",
+                "NprClassId"         : 24,
+                "NprClassLabel"      : "Tarmac footpath",
+                "NprGroup"           : "Ground"
+            },
+            "MAT225__Npr__Tarmac": {
+                "SketchUpName"       : "MAT000E__Npr__Tarmac",
+                "Description"        : "PainterlyNPR material class 25, Tarmac road (Ground). A tarmac road. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(111, 114, 120)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Tarmac",
+                "NprClassId"         : 25,
+                "NprClassLabel"      : "Tarmac road",
+                "NprGroup"           : "Ground"
+            },
+            "MAT226__Npr__Kerb": {
+                "SketchUpName"       : "MAT000E__Npr__Kerb",
+                "Description"        : "PainterlyNPR material class 26, Granite kerb (Ground). A granite kerb. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(180, 179, 174)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Kerb",
+                "NprClassId"         : 26,
+                "NprClassLabel"      : "Granite kerb",
+                "NprGroup"           : "Ground"
+            },
+            "MAT211__Npr__Foliage": {
+                "SketchUpName"       : "MAT000E__Npr__Foliage",
+                "Description"        : "PainterlyNPR material class 11, Shrub foliage (Planting). Shrub foliage. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(111, 139, 94)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Foliage",
+                "NprClassId"         : 11,
+                "NprClassLabel"      : "Shrub foliage",
+                "NprGroup"           : "Planting"
+            },
+            "MAT212__Npr__TreeFoliage": {
+                "SketchUpName"       : "MAT000E__Npr__TreeFoliage",
+                "Description"        : "PainterlyNPR material class 12, Tree canopy (Planting). A tree canopy. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(142, 163, 110)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "TreeFoliage",
+                "NprClassId"         : 12,
+                "NprClassLabel"      : "Tree canopy",
+                "NprGroup"           : "Planting"
+            },
+            "MAT213__Npr__Bark": {
+                "SketchUpName"       : "MAT000E__Npr__Bark",
+                "Description"        : "PainterlyNPR material class 13, Bark (Planting). Bark: trunks and limbs. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(123, 107, 91)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Bark",
+                "NprClassId"         : 13,
+                "NprClassLabel"      : "Bark",
+                "NprGroup"           : "Planting"
+            },
+            "MAT216__Npr__Grass": {
+                "SketchUpName"       : "MAT000E__Npr__Grass",
+                "Description"        : "PainterlyNPR material class 16, Ornamental grass (Planting). Ornamental grass. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(183, 186, 136)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Grass",
+                "NprClassId"         : 16,
+                "NprClassLabel"      : "Ornamental grass",
+                "NprGroup"           : "Planting"
+            },
+            "MAT219__Npr__Lavender": {
+                "SketchUpName"       : "MAT000E__Npr__Lavender",
+                "Description"        : "PainterlyNPR material class 19, Lavender (Planting). Lavender: grey-green and soft. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(143, 156, 136)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Lavender",
+                "NprClassId"         : 19,
+                "NprClassLabel"      : "Lavender",
+                "NprGroup"           : "Planting"
+            },
+            "MAT220__Npr__Hedge": {
+                "SketchUpName"       : "MAT000E__Npr__Hedge",
+                "Description"        : "PainterlyNPR material class 20, Hedge (Planting). A clipped hedge. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(100, 126, 88)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Hedge",
+                "NprClassId"         : 20,
+                "NprClassLabel"      : "Hedge",
+                "NprGroup"           : "Planting"
+            },
+            "MAT221__Npr__Conifer": {
+                "SketchUpName"       : "MAT000E__Npr__Conifer",
+                "Description"        : "PainterlyNPR material class 21, Conifer (Planting). Conifer: yew and the like, dark and dense. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(79, 106, 90)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Conifer",
+                "NprClassId"         : 21,
+                "NprClassLabel"      : "Conifer",
+                "NprGroup"           : "Planting"
+            },
+            "MAT215__Npr__DistantTrees": {
+                "SketchUpName"       : "MAT000E__Npr__DistantTrees",
+                "Description"        : "PainterlyNPR material class 15, Distant tree belt (Distance). The distant tree belt: soft and pale with distance. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(169, 180, 161)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "DistantTrees",
+                "NprClassId"         : 15,
+                "NprClassLabel"      : "Distant tree belt",
+                "NprGroup"           : "Distance"
+            },
+            "MAT223__Npr__MidTrees": {
+                "SketchUpName"       : "MAT000E__Npr__MidTrees",
+                "Description"        : "PainterlyNPR material class 23, Middle-distance trees (Distance). Trees in the middle distance. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(157, 173, 138)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "MidTrees",
+                "NprClassId"         : 23,
+                "NprClassLabel"      : "Middle-distance trees",
+                "NprGroup"           : "Distance"
             }
         }
 

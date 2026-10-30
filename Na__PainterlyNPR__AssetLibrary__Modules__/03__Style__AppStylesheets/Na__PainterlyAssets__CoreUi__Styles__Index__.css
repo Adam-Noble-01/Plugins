@@ -1,0 +1,217 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - CORE UI STYLES - INDEX
+   =============================================================================
+   FILE       : Na__PainterlyAssets__CoreUi__Styles__Index__.css
+   PURPOSE    : Master stylesheet. Imports the feature style modules and
+                defines the shared variables, base layout, form controls and
+                buttons (the Point Cloud Viewer / Profile Path Tracer family).
+   NOTE       : @import rules MUST appear before all other rules per CSS spec.
+   CREATED    : 30-Oct-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Feature Stylesheet Imports (MUST be first) */
+/* ----------------------------------------------------------------- */
+
+@import url("Na__PainterlyAssets__UiFeature__Styles__Shell__.css");
+@import url("Na__PainterlyAssets__UiFeature__Styles__Catalogue__.css");
+@import url("Na__PainterlyAssets__UiFeature__Styles__Author__.css");
+@import url("Na__PainterlyAssets__UiFeature__Styles__Materials__.css");
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | CSS Variables */
+/* ----------------------------------------------------------------- */
+
+:root {
+    --na-bg             : #f4f5f7;
+    --na-panel          : #ffffff;
+    --na-border         : #d6d9de;
+    --na-text           : #20242b;
+    --na-subtle         : #5f6773;
+    --na-accent         : #1a73e8;
+    --na-accent-hover   : #155fc0;
+    --na-tab-strip-bg   : #f0f2f5;
+    --na-status-bg      : #eef3fb;
+    --na-paper          : #f7f3ea;
+    --na-success        : #008f5a;
+    --na-warn           : #b06000;
+    --na-danger         : #b3261e;
+    --na-card-width     : 148px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Base Reset + Layout Shell */
+/* ----------------------------------------------------------------- */
+
+* {
+    box-sizing          : border-box;
+}
+
+[hidden] {
+    display             : none !important;
+}
+
+body {
+    margin              : 0;
+    font-family         : "Segoe UI", Tahoma, sans-serif;
+    font-size           : 13px;
+    background          : var(--na-bg);
+    color               : var(--na-text);
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+.na-app-shell {
+    display             : flex;
+    flex-direction      : column;
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+.na-tab-panels-container {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+    overflow            : hidden;
+}
+
+.na-panel-body {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 12px;
+    padding             : 14px 16px 18px;
+}
+
+.na-hidden {
+    display             : none !important;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Form Controls */
+/* ----------------------------------------------------------------- */
+
+.naFormRow {
+    display             : grid;
+    grid-template-columns : 130px 1fr;
+    gap                 : 10px;
+    align-items         : center;
+    margin              : 8px 0;
+}
+
+.naFormRow--top {
+    align-items         : start;
+}
+
+.naFormRow > label {
+    font-weight         : 600;
+    font-size           : 12px;
+}
+
+.naInput,
+.naSelect,
+.naTextarea {
+    width               : 100%;
+    padding             : 6px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fff;
+    font-size           : 13px;
+    font-family         : inherit;
+    color               : var(--na-text);
+}
+
+/* Doubled class: beats .naInput's width:100%. */
+.naInput.naInput--short {
+    width               : 140px;
+}
+
+.naTextarea {
+    resize              : vertical;
+    min-height          : 46px;
+}
+
+.na-check {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 7px;
+    font-size           : 12.5px;
+    cursor              : pointer;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Buttons */
+/* ----------------------------------------------------------------- */
+
+.naButton {
+    border              : 1px solid var(--na-accent);
+    background          : var(--na-accent);
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 7px 14px;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-family         : inherit;
+    font-weight         : 500;
+    transition          : background 0.12s, border-color 0.12s;
+}
+
+.naButton:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+.naButtonSecondary {
+    border              : 1px solid var(--na-border);
+    background          : var(--na-panel);
+    color               : var(--na-text);
+    border-radius       : 4px;
+    padding             : 7px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+}
+
+.naButtonSecondary:hover {
+    background          : var(--na-bg);
+}
+
+.naButton.na-button--small,
+.naButtonSecondary.na-button--small {
+    padding             : 4px 10px;
+    font-size           : 12px;
+}
+
+.naButton[disabled],
+.naButtonSecondary[disabled] {
+    opacity             : 0.45;
+    cursor              : default;
+}
+
+/* While PainterlyNPR's build utility runs, nothing that would start another run can be pressed. */
+body.na-busy [data-na-needs-idle] {
+    opacity             : 0.45;
+    pointer-events      : none;
+}
+
+.na-button-row {
+    display             : flex;
+    gap                 : 8px;
+    flex-wrap           : wrap;
+    align-items         : center;
+    margin-top          : 10px;
+}
+
+.na-button-row--end {
+    justify-content     : flex-end;
+}
+
+/* endregion ----------------------------------------------------------------- */

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#172b3a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Na PainterlyNPR Assets: a tree and a crate on the ground (provisional line icon, house colour #172b3a) -->
+  <circle cx="8.5" cy="8.2" r="5"/>
+  <path d="M8.5 13.2V20.5"/>
+  <path d="M8.5 16.6l-2-1.6"/>
+  <path d="M2.5 20.5h19"/>
+  <path d="M14 20.5V15h5.8v5.5"/>
+  <path d="M14 15l1.8-1.8h5.8L19.8 15"/>
+  <path d="M21.6 13.2v5.5l-1.8 1.8"/>
+</svg>

@@ -1,0 +1,98 @@
+{
+    "schema"        : "Na__PainterlyAssets__AppConfig__Defaults",
+    "schemaVersion" : 1,
+    "_comment"      : "PLUGIN DEFAULT CONFIG: committed, read-only at runtime. Per-PC values (the PainterlyNPR folder when it is not where library.rootCandidates look, a chosen python.exe, the picture toggle, the last tab) live in 91__UserConfig__LocalOnly/. The library, its numbering and its rules belong to PainterlyNPR (12__Data__AssetLibrary and its register): nothing here decides a number.",
+
+    "plugin" : {
+        "name"    : "Na PainterlyNPR Assets",
+        "version" : "0.1.3"
+    },
+
+    "dialog" : {
+        "title"          : "Na PainterlyNPR Assets",
+        "preferencesKey" : "Na__PainterlyNPR__AssetLibrary",
+        "width"          : 820,
+        "height"         : 900
+    },
+
+    "library" : {
+        "_comment"       : "rootCandidates are tried in order: the Na__PainterlyNPR repo folder on each studio PC (forward slashes). Settings > Choose Folder overrides them on one PC. Every other path is relative to that folder, exactly as PainterlyNPR's build utility and app read them. pathLimit is the longest absolute path SketchUp's Ruby can open (259 even with Windows long paths on).",
+        "rootCandidates" : [
+            "D:/11_RefLib__StudioRepository__RemoteSystem/Na__PainterlyNPR"
+        ],
+        "libraryFolder"  : "12__Data__AssetLibrary",
+        "registerFile"   : "PainterlyNPR__AssetLibrary__Register__.json",
+        "indexFile"      : "PainterlyNPR__AssetLibrary__Index__.json",
+        "datSchema"      : "11__Contracts__JsonSchemas/PainterlyNPR__Schema__AssetData__1.0.0__.json",
+        "buildUtil"      : "60__Dev__WebBuildUtils/PainterlyNPR__BuildUtil__AssetLibrary__.py",
+        "generators"     : "02__Src__AppModules/16__Scene__AssetLibrary/Na__AssetLibrary__Config.json",
+        "materials"      : "02__Src__AppModules/13__Scene__MaterialClasses/Na__MaterialClasses__Config.json",
+        "organics"       : "02__Src__AppModules/40__Organic__GrammarFramework/Na__OrganicGrammar__Config.json",
+        "pathLimit"      : 259
+    },
+
+    "python" : {
+        "_comment"         : "PainterlyNPR's build utility gives every Id and every verdict (next, validate, index). executable: a full path to python.exe to use instead of the search (Settings can set one per PC). The search takes the newest Python 3 found at searchPatterns (%NAME% is an environment variable), then python.exe on PATH, never the Windows Store stub (it runs, prints nothing and exits 0). preferWindowless runs pythonw.exe beside it, so no console window flashes; its output still reaches the run log. timeoutSeconds stops a run that hangs.",
+        "executable"       : "",
+        "preferWindowless" : true,
+        "timeoutSeconds"   : 60,
+        "searchPatterns"   : [
+            "%LOCALAPPDATA%/Programs/Python/Python3*/python.exe",
+            "C:/Python3*/python.exe",
+            "C:/Program Files/Python3*/python.exe"
+        ]
+    },
+
+    "proxy" : {
+        "_comment"           : "How a MOD (the factory's GLB proxy) becomes a SketchUp component when an asset has no SKP yet, and what that component then saves as its SKP. Materials are named materialPrefix + the PainterlyNPR material class (NPR__Timber), so a client model's own Timber is never taken over, and carry the class in an attribute. Coplanar triangles merge into faces; an edge between faces closer than the soften angle (degrees between their normals) is softened and smoothed: organic assets (a Kind in their recipe: trees, shrubs, grasses) read as masses, objects keep their arrises. weldDecimalsInch rounds positions before shared corners are matched (3 = a thousandth of an inch, SketchUp's own merge distance).",
+        "materialPrefix"     : "NPR__",
+        "mergeCoplanar"      : true,
+        "softenAngleOrganic" : 45,
+        "softenAngleObject"  : 25,
+        "weldDecimalsInch"   : 3
+    },
+
+    "materials" : {
+        "_comment"        : "The Materials tab: one swatch per PainterlyNPR material class. The swatches (names, colours, classes) are the materials SSOT's series, dataLibFile relative to the Plugins folder; the pictures and groups are the PainterlyNPR library's register (relative to the repo folder), swatchSlot RND (pen and wash) or PXY (proxy). glassPattern and glassBelowAlpha copy PainterlyNPR's own Glass rule (Na__GlbScenes__Config.json Recognition.Glass): a face whose material matches, or is less opaque, keeps it when a swatch paints a whole group or component.",
+        "dataLibFile"     : "Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreIndex__Materials__.json",
+        "series"          : "MAT200__PainterlyNprSeries__",
+        "register"        : "07__Data__MaterialRecipes/PainterlyNPR__MaterialLibrary__Register__.json",
+        "swatchSlot"      : "RND",
+        "glassPattern"    : "glass(?![a-z])|glaz(?:ing|ed|e)",
+        "glassBelowAlpha" : 0.95
+    },
+
+    "author" : {
+        "_comment"          : "A selected component made into a new library asset. author goes into the DAT's Meta. originToleranceMm: how far the component's origin may sit from the centre of its base before the form offers to move it there (the library's Origin is BaseCentre). defaults: what a new asset of a collection, or of a collection and type ('07/Trees'), starts with; '*' is the fallback. The 07, 10 and 25 rows are the seeded assets' own recipes (v0.6.0); the other collections hold no asset yet, so their rows are PROVISIONAL guesses (the nearest stand-in generator, an existing material class and role) for Adam to correct. The form fills them in when the collection or type changes and every field stays editable.",
+        "author"            : "Adam Noble - Noble Architecture",
+        "originToleranceMm" : 1.0,
+        "defaultStatus"     : "Active",
+        "defaults" : {
+            "*"                  : { "generator": "Bench",       "kind": null,        "material": "Timber",      "role": "Furniture", "autoRotate": false, "facing": "Camera", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "05"                 : { "generator": "Mound",       "kind": null,        "material": "Lawn",        "role": "Ground",    "autoRotate": false, "facing": "Random", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "15"                 : { "generator": "Bench",       "kind": null,        "material": "Paving",      "role": "Ground",    "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "20"                 : { "generator": "Planter",     "kind": null,        "material": "Water",       "role": "Focal",     "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "30"                 : { "generator": "Bench",       "kind": null,        "material": "Timber",      "role": "Architecture", "autoRotate": false, "facing": "Fixed", "autoScale": false, "scaleJitter": 0,  "newShapeEachPlop": false, "season": "AllYear" },
+            "35"                 : { "generator": "Bench",       "kind": null,        "material": "Glass",       "role": "Architecture", "autoRotate": false, "facing": "Fixed", "autoScale": false, "scaleJitter": 0,  "newShapeEachPlop": false, "season": "AllYear" },
+            "40"                 : { "generator": "Bench",       "kind": null,        "material": "Joinery",     "role": "Joinery",   "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "45"                 : { "generator": "Bench",       "kind": null,        "material": "Metal",       "role": "Furniture", "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "50"                 : { "generator": "Bench",       "kind": null,        "material": "Metal",       "role": "Furniture", "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "55"                 : { "generator": "Bench",       "kind": null,        "material": "Metal",       "role": "Context",   "autoRotate": false, "facing": "Camera", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "60"                 : { "generator": "Spire",       "kind": null,        "material": "Render",      "role": "Context",   "autoRotate": false, "facing": "Camera", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "65"                 : { "generator": "Mound",       "kind": null,        "material": "Render",      "role": "Context",   "autoRotate": false, "facing": "Random", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "75"                 : { "generator": "Planter",     "kind": null,        "material": "Stone",       "role": "Focal",     "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "07"                 :{ "generator": "Mound",       "kind": "Shrub",     "material": "Foliage",     "role": "Planting",  "autoRotate": true , "facing": "Random", "autoScale": true , "scaleJitter": 0.08, "newShapeEachPlop": true,  "season": "Summer"  },
+            "07/Trees"           : { "generator": "Tree",        "kind": "Tree",      "material": "TreeFoliage", "role": "Planting",  "autoRotate": true , "facing": "Random", "autoScale": true , "scaleJitter": 0.1,  "newShapeEachPlop": true,  "season": "Summer"  },
+            "07/Conifers"        : { "generator": "Conifer",     "kind": "Conifer",   "material": "Conifer",     "role": "Planting",  "autoRotate": true , "facing": "Random", "autoScale": true , "scaleJitter": 0.1,  "newShapeEachPlop": true,  "season": "AllYear" },
+            "07/Hedges"          : { "generator": "Hedge",       "kind": "Hedge",     "material": "Hedge",       "role": "Planting",  "autoRotate": false, "facing": "Camera", "autoScale": false, "scaleJitter": 0.03, "newShapeEachPlop": true,  "season": "AllYear" },
+            "07/Topiary"         : { "generator": "Topiary",     "kind": "Hedge",     "material": "Hedge",       "role": "Planting",  "autoRotate": true , "facing": "Random", "autoScale": true , "scaleJitter": 0.06, "newShapeEachPlop": true,  "season": "AllYear" },
+            "07/Perennials"      : { "generator": "Mound",       "kind": "Shrub",     "material": "Foliage",     "role": "Planting",  "autoRotate": true , "facing": "Random", "autoScale": true , "scaleJitter": 0.08, "newShapeEachPlop": true,  "season": "Summer"  },
+            "07/Grasses"         : { "generator": "Grass",       "kind": "Grass",     "material": "Grass",       "role": "Planting",  "autoRotate": true , "facing": "Random", "autoScale": true , "scaleJitter": 0.08, "newShapeEachPlop": true,  "season": "Summer"  },
+            "10"                 : { "generator": "PicketFence", "kind": null,        "material": "WhitePaint",  "role": "Context",   "autoRotate": false, "facing": "Camera", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "25"                 : { "generator": "Bench",       "kind": null,        "material": "Timber",      "role": "Furniture", "autoRotate": false, "facing": "Camera", "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "25/PlantersAndPots" : { "generator": "Planter",     "kind": null,        "material": "Terracotta",  "role": "Furniture", "autoRotate": false, "facing": "Random", "autoScale": false, "scaleJitter": 0.05, "newShapeEachPlop": false, "season": "AllYear" },
+            "70"                 : { "generator": "Bench",       "kind": null,        "material": "Render",      "role": "Context",   "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" },
+            "80"                 : { "generator": "Bench",       "kind": null,        "material": "Render",      "role": "Context",   "autoRotate": false, "facing": "Fixed",  "autoScale": false, "scaleJitter": 0,    "newShapeEachPlop": false, "season": "AllYear" }
+        }
+    }
+}

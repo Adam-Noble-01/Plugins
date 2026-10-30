@@ -1,0 +1,335 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - SHELL STYLES
+   =============================================================================
+   FILE       : Na__PainterlyAssets__UiFeature__Styles__Shell__.css
+   PURPOSE    : The Noble Architecture brand header, the tab strip and panels,
+                the shared status bar, white cards, key and value rows, notes,
+                faults and badges, the loading overlay and the in-dialog confirm.
+   CREATED    : 30-Oct-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Brand Header */
+/* ----------------------------------------------------------------- */
+
+.na-brand-header {
+    display              : flex;
+    align-items          : center;
+    justify-content      : space-between;
+    padding              : 12px 16px;
+    border-bottom        : 1px solid #d8d8d8;
+    background           : #ffffff;
+    flex-shrink          : 0;
+}
+
+.na-brand-header__left {
+    display              : flex;
+    align-items          : center;
+    gap                  : 12px;
+}
+
+.na-brand-header__logo {
+    height               : 36px;
+    width                : auto;
+    display              : block;
+}
+
+.na-brand-header__right {
+    display              : flex;
+    flex-direction       : column;
+    align-items          : flex-end;
+    gap                  : 3px;
+}
+
+.na-brand-header__title {
+    font-size            : 18px;
+    font-weight          : 600;
+    color                : #1a1a1a;
+    line-height          : 1;
+    letter-spacing       : 0.2px;
+}
+
+.na-brand-header__subtitle {
+    font-size            : 11px;
+    color                : #6a6a6a;
+    line-height          : 1;
+    letter-spacing       : 0.3px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Strip and Panels */
+/* ----------------------------------------------------------------- */
+
+.na-tab-strip {
+    display             : flex;
+    align-items         : stretch;
+    background          : var(--na-tab-strip-bg);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-tab-bar {
+    display             : flex;
+    align-items         : stretch;
+    flex                : 1;
+    overflow-x          : auto;
+}
+
+.na-tab {
+    padding             : 10px 16px;
+    background          : transparent;
+    border              : none;
+    border-bottom       : 3px solid transparent;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 500;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+    transition          : color 0.15s, border-color 0.15s;
+}
+
+.na-tab:hover {
+    color               : var(--na-text);
+    background          : rgba(0, 0, 0, 0.04);
+}
+
+.na-tab.na-tab-active {
+    color               : var(--na-accent);
+    border-bottom-color : var(--na-accent);
+    font-weight         : 600;
+}
+
+.na-tab-panel {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+    overflow-y          : auto;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Status Bar */
+/* ----------------------------------------------------------------- */
+
+.na-status-bar {
+    background          : var(--na-status-bg);
+    border-top          : 1px solid var(--na-border);
+    padding             : 6px 16px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    min-height          : 28px;
+    display             : flex;
+    align-items         : center;
+    flex-shrink         : 0;
+}
+
+.na-status-bar--success { background: #e7f7ee; color: #1a5e3a; }
+.na-status-bar--warn    { background: #fff4e5; color: #7a4a00; }
+.na-status-bar--error   { background: #fdecea; color: #8f1d17; }
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Cards, Rows, Notes, Faults, Badges */
+/* ----------------------------------------------------------------- */
+
+.na-card {
+    background          : var(--na-panel);
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    padding             : 12px 14px;
+}
+
+.na-card__header {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 10px;
+    margin-bottom       : 8px;
+}
+
+.na-card__title {
+    margin              : 0;
+    font-size           : 11px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-card > .na-card__title {
+    margin-bottom       : 8px;
+}
+
+.na-hint {
+    margin              : 8px 0 0;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    line-height         : 1.45;
+}
+
+.na-hint--tight {
+    margin              : -2px 0 6px 140px;
+}
+
+.na-note {
+    margin              : 8px 0 0;
+    border-left         : 3px solid var(--na-warn);
+    background          : #fff4e5;
+    border-radius       : 4px;
+    padding             : 6px 10px;
+    font-size           : 12px;
+    color               : #6b4100;
+}
+
+.na-note--inline {
+    margin              : 0;
+}
+
+.na-fault {
+    margin              : 8px 0 0;
+    border-left         : 3px solid var(--na-danger);
+    background          : #fdecea;
+    border-radius       : 4px;
+    padding             : 7px 10px;
+    font-size           : 12px;
+    color               : #8f1d17;
+}
+
+.na-kv {
+    display             : grid;
+    grid-template-columns : 110px 1fr;
+    column-gap          : 10px;
+    row-gap             : 4px;
+    margin-top          : 6px;
+    font-size           : 12px;
+}
+
+.na-kv__row {
+    display             : contents;
+}
+
+.na-kv__label {
+    color               : var(--na-subtle);
+    font-weight         : 600;
+}
+
+.na-kv__value {
+    word-break          : break-all;
+    font-variant-numeric: tabular-nums;
+}
+
+.na-kv__row--warn  .na-kv__value { color: var(--na-warn); }
+.na-kv__row--error .na-kv__value { color: var(--na-danger); font-weight: 600; }
+.na-kv__row--quiet .na-kv__value { color: var(--na-subtle); }
+
+.na-badge {
+    display             : inline-block;
+    padding             : 1px 6px;
+    border-radius       : 999px;
+    font-size           : 10.5px;
+    font-weight         : 700;
+    letter-spacing      : 0.03em;
+    background          : #e9ecf1;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+}
+
+.na-badge--ok      { background: #e7f7ee; color: #1a5e3a; }
+.na-badge--pending { background: #eef0f3; color: #6a717c; }
+.na-badge--model   { background: #e6effd; color: #1452a8; }
+.na-badge--draft   { background: #fff4e5; color: #7a4a00; }
+.na-badge--warn    { background: #fff4e5; color: #7a4a00; }
+.na-badge--error   { background: #fdecea; color: #8f1d17; }
+
+.na-log {
+    margin              : 0;
+    max-height          : 220px;
+    overflow            : auto;
+    padding             : 8px 10px;
+    background          : #fafbfc;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11px;
+    white-space         : pre-wrap;
+    word-break          : break-all;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Loading Overlay and Confirm */
+/* ----------------------------------------------------------------- */
+
+.na-loading-overlay {
+    position            : fixed;
+    inset               : 0;
+    z-index             : 1000;
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+    background          : rgba(26, 26, 46, 0.55);
+    backdrop-filter     : blur(2px);
+}
+
+.na-loading-card {
+    width               : min(440px, calc(100% - 40px));
+    background          : var(--na-panel);
+    border-radius       : 10px;
+    padding             : 22px 24px 18px;
+    text-align          : center;
+    box-shadow          : 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.na-confirm-card {
+    text-align          : left;
+}
+
+.na-confirm-text {
+    margin              : 0 0 6px;
+    font-size           : 12.5px;
+    line-height         : 1.5;
+    color               : var(--na-text);
+}
+
+.na-spinner {
+    width               : 38px;
+    height              : 38px;
+    margin              : 0 auto 14px;
+    border-radius       : 50%;
+    border              : 4px solid #dfe5ef;
+    border-top-color    : var(--na-accent);
+    animation           : na-spin 0.85s linear infinite;
+}
+
+@keyframes na-spin {
+    to { transform: rotate(360deg); }
+}
+
+.na-loading-title {
+    margin              : 0 0 8px;
+    font-size           : 15px;
+    font-weight         : 700;
+    color               : var(--na-text);
+}
+
+.na-loading-status {
+    margin              : 0 0 10px;
+    font-size           : 12.5px;
+    color               : var(--na-subtle);
+    min-height          : 18px;
+}
+
+.na-loading-note {
+    margin              : 10px 0 0;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+}
+
+/* endregion ----------------------------------------------------------------- */

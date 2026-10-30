@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     NA PAINTERLYNPR ASSETS - UI LAYOUT
+     =============================================================================
+     FILE       : Na__PainterlyAssets__UiLayout__.html
+     PURPOSE    : HtmlDialog layout: brand header, tab strip, the four tab
+                  panels, the shared status bar, the loading overlay and the
+                  in-dialog confirm.
+     TABS       : Catalogue (default) | Materials | Author | Validate | Settings
+     DATA       : None in the markup. Ruby pushes state as JSON through
+                  window.Na__PainterlyAssets__Receive; the tab scripts render
+                  it. Library pictures load from their own file:/// URIs (this
+                  is a set_file page), the Noble logo from the shared
+                  Na__Common__PluginDependencies folder beside this plugin.
+     CREATED    : 30-Oct-2026
+     ============================================================================= -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na PainterlyNPR Assets by Noble Architecture</title>
+    <link rel="stylesheet" href="03__Style__AppStylesheets/Na__PainterlyAssets__CoreUi__Styles__Index__.css">
+</head>
+
+<body>
+
+<div class="na-app-shell">
+
+    <!-- ==========================================================================
+         REGION | Brand Header
+         ========================================================================== -->
+    <header class="na-brand-header">
+        <div class="na-brand-header__left">
+            <img src="../Na__Common__PluginDependencies/IMG01__PNG__NaCompanyLogo.png"
+                 class="na-brand-header__logo" alt="Noble Architecture" onerror="this.style.display='none'">
+        </div>
+        <div class="na-brand-header__right">
+            <span class="na-brand-header__title">PainterlyNPR Assets</span>
+            <span class="na-brand-header__subtitle" id="na-brand-version">by Noble Architecture</span>
+        </div>
+    </header>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Tab Strip
+         ========================================================================== -->
+    <div class="na-tab-strip">
+        <nav id="na-tab-bar" class="na-tab-bar" role="tablist">
+            <button type="button" class="na-tab na-tab-active" role="tab" data-na-tab-id="catalogue">Catalogue</button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="materials">Materials</button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="author">Author</button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="validate">Validate</button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="settings">Settings</button>
+        </nav>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <div class="na-tab-panels-container">
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Catalogue
+             The grid scrolls; the chosen asset's details sit under it.
+             Built by 20__System__Catalogue/...Catalogue__UiSystem__MainUiLogic__.js
+             ====================================================================== -->
+        <div id="na-tab-catalogue" class="na-tab-panel na-tab-panel--catalogue" role="tabpanel" data-na-tab-id="catalogue">
+            <div class="na-cat-head">
+                <div class="na-cat-toolbar">
+                    <input type="search" id="na-cat-search" class="naInput na-cat-search" placeholder="Search: oak, lavender, NPR_07 ..." aria-label="Search the asset library">
+                    <span class="na-cat-count" id="na-cat-count"></span>
+                    <button type="button" class="naButtonSecondary" id="na-cat-refresh" title="Read the library from disk again">Refresh</button>
+                </div>
+                <div class="na-chip-row" id="na-cat-collections" role="group" aria-label="Collections"></div>
+                <div class="na-chip-row na-hidden" id="na-cat-types" role="group" aria-label="Types"></div>
+                <div class="na-cat-show" role="group" aria-label="Pictures">
+                    <span class="na-cat-show__label">Show</span>
+                    <button type="button" class="na-segment na-segment--active" data-na-thumbs="RND" aria-pressed="true" title="Each asset as PainterlyNPR draws it: pen and wash (RND)">Rendered</button>
+                    <button type="button" class="na-segment" data-na-thumbs="PXY" aria-pressed="false" title="Each asset's proxy, as the SketchUp and three.js apps preview it (PXY)">Proxy</button>
+                    <span class="na-cat-show__spacer"></span>
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-cat-write-missing" data-na-needs-idle
+                            title="Save every asset's MOD proxy as its SKP where the SKP is still missing">Write Missing SKPs</button>
+                </div>
+                <p class="na-fault na-hidden" id="na-cat-fault"></p>
+            </div>
+            <div class="na-cat-grid" id="na-cat-grid" role="list" aria-label="Library assets"></div>
+            <section class="na-cat-detail na-hidden" id="na-cat-detail" aria-live="polite"></section>
+        </div>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Materials
+             Built by 70__System__Materials/...Materials__UiSystem__MainUiLogic__.js
+             ====================================================================== -->
+        <div id="na-tab-materials" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="materials">
+            <div class="na-panel-body">
+                <section class="na-card">
+                    <div class="na-mat-head">
+                        <h3 class="na-card__title">PainterlyNPR Materials</h3>
+                        <span class="na-mat-count" id="na-mat-count"></span>
+                    </div>
+                    <p class="na-hint">Click a swatch. Selected faces take it. A selected group or component takes it on every face inside, at every depth, and keeps its glass, so a window's panes survive the frame's swatch. With nothing selected, SketchUp's Paint Bucket picks it up. A component's copies all change together; locked objects and PainterlyNPR assets are left alone.</p>
+                    <p class="na-hint">Each swatch is the materials SSOT's MAT000E__Npr__ material: exempt, so it keeps its colour in every export (whitecard too) and carries its class in the name for ValeVision AURA. Keep them out of ValeVision 3D and TrueVision presentation models.</p>
+                    <p class="na-fault na-hidden" id="na-mat-fault"></p>
+                </section>
+                <div id="na-mat-groups" class="na-mat-groups"></div>
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Author
+             Built by 40__System__Author/...Author__UiSystem__MainUiLogic__.js
+             ====================================================================== -->
+        <div id="na-tab-author" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="author">
+            <div class="na-panel-body">
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">The Component</h3>
+                        <button type="button" class="naButtonSecondary na-button--small" id="na-author-use-selection" title="Read the component selected in the model">Use Selection</button>
+                    </div>
+                    <div id="na-author-selection" class="na-sel"></div>
+                    <p class="na-hint">Select one component (or group) drawn at its real size, its front facing SketchUp's front (the Front view looks along green, so the front faces away from green). Author moves its origin to the centre of its base, as the library expects.</p>
+                </section>
+
+                <p class="na-fault na-hidden" id="na-author-options-fault"></p>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Where It Goes</h3>
+                    <div class="naFormRow"><label for="na-f-collection">Collection</label><select id="na-f-collection" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-type">Type</label><select id="na-f-type" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-family">Family</label><select id="na-f-family" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-name">Name</label><input type="text" id="na-f-name" class="naInput" placeholder="StoneUrn (PascalCase, a hyphen joins words inside it)" spellcheck="false"></div>
+                    <div class="naFormRow"><label for="na-f-variant">Var</label><input type="text" id="na-f-variant" class="naInput" value="Var-01" spellcheck="false"></div>
+                    <p class="na-hint">The Id comes from PainterlyNPR's build utility, by the register's rules: a new family takes the first item of the next free ten in the type's block; a variant joins its family's ten.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">How the Catalogue Shows It</h3>
+                    <div class="naFormRow"><label for="na-f-display">Display name</label><input type="text" id="na-f-display" class="naInput" placeholder="Stone urn"></div>
+                    <div class="naFormRow naFormRow--top"><label for="na-f-description">Description</label><textarea id="na-f-description" class="naTextarea" rows="2" placeholder="One or two sentences: what it is and how it reads in a drawing"></textarea></div>
+                    <div class="naFormRow"><label for="na-f-keywords">Keywords</label><input type="text" id="na-f-keywords" class="naInput" placeholder="urn, stone, ornament (commas between)"></div>
+                    <div class="naFormRow"><label for="na-f-season">Season</label><select id="na-f-season" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-botanical">Botanical</label><input type="text" id="na-f-botanical" class="naInput" placeholder="Quercus robur (plants only)"></div>
+                    <div class="naFormRow"><label for="na-f-status">Status</label><select id="na-f-status" class="naSelect"></select></div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">How PainterlyNPR Draws It</h3>
+                    <div class="naFormRow"><label for="na-f-generator">Generator</label><select id="na-f-generator" class="naSelect"></select></div>
+                    <p class="na-hint na-hint--tight" id="na-f-generator-note"></p>
+                    <div class="naFormRow"><label for="na-f-kind">Organic kind</label><select id="na-f-kind" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-material">Material class</label><select id="na-f-material" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-role">Role</label><select id="na-f-role" class="naSelect"></select></div>
+                    <p class="na-hint">The DAT records the asset as a Package (SketchUp-authored geometry, the slot the register keeps for this tool). Until PainterlyNPR draws a Package from its own geometry, the generator above is the stand-in its factory and drawings use.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Each Plop</h3>
+                    <div class="naFormRow"><label for="na-f-autorotate">Auto rotate</label><label class="na-check"><input type="checkbox" id="na-f-autorotate"> turn each plop by Facing (plants); off: it lands as authored (pots, furniture, fences)</label></div>
+                    <div class="naFormRow"><label for="na-f-facing">Facing</label><select id="na-f-facing" class="naSelect"></select></div>
+                    <div class="naFormRow"><label for="na-f-autoscale">Auto scale</label><label class="na-check"><input type="checkbox" id="na-f-autoscale"> vary each plop's size by Scale jitter (plants); off: always its own size</label></div>
+                    <div class="naFormRow"><label for="na-f-jitter">Scale jitter</label><input type="text" id="na-f-jitter" class="naInput naInput--short" placeholder="0 to 0.5"></div>
+                    <div class="naFormRow"><label for="na-f-spacing">Min spacing (m)</label><input type="text" id="na-f-spacing" class="naInput naInput--short" placeholder="half its spread"></div>
+                    <div class="naFormRow"><label for="na-f-newshape">New shape</label><label class="na-check"><input type="checkbox" id="na-f-newshape"> a fresh shape on each plop (plants), else the catalogue's own</label></div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">File It</h3>
+                    <label class="na-check"><input type="checkbox" id="na-f-reseat" checked> Move its origin to the centre of its base (every copy stays where it is)</label>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-author-check" data-na-needs-idle title="A dry run: the Id, the folder and files, and every check">Check</button>
+                        <button type="button" class="naButton" id="na-author-go" data-na-needs-idle disabled title="Rename the component, write its SKP and DAT into the library, then validate">Author Asset</button>
+                        <span class="na-note na-note--inline na-hidden" id="na-author-stale">Changed since the Check: Check again.</span>
+                    </div>
+                    <div id="na-author-plan" class="na-plan"></div>
+                    <div id="na-author-result" class="na-result na-hidden"></div>
+                </section>
+
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Validate
+             ====================================================================== -->
+        <div id="na-tab-validate" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="validate">
+            <div class="na-panel-body">
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">PainterlyNPR's Validator</h3>
+                        <button type="button" class="naButton" id="na-validate-run" data-na-needs-idle>Validate Library</button>
+                    </div>
+                    <p class="na-hint">Runs PainterlyNPR's build utility: validate checks every asset against the register and the DAT schema, then index writes the file the PainterlyNPR app reads. The same rules hold whoever writes an asset.</p>
+                    <div id="na-validate-report" class="na-report"></div>
+                </section>
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Settings
+             ====================================================================== -->
+        <div id="na-tab-settings" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="settings">
+            <div class="na-panel-body">
+                <section class="na-card">
+                    <h3 class="na-card__title">Library Folder</h3>
+                    <div class="na-kv" id="na-settings-library"></div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-settings-choose-library">Choose Folder&hellip;</button>
+                        <button type="button" class="naButtonSecondary" id="na-settings-reset-library">Use the Default</button>
+                        <button type="button" class="naButtonSecondary" id="na-settings-open-library">Open Library Folder</button>
+                    </div>
+                    <p class="na-hint">The Na__PainterlyNPR folder (or its 12__Data__AssetLibrary). A choice here holds on this PC only.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Python</h3>
+                    <div class="na-kv" id="na-settings-python"></div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-settings-choose-python">Choose python.exe&hellip;</button>
+                        <button type="button" class="naButtonSecondary" id="na-settings-reset-python">Find It Automatically</button>
+                    </div>
+                    <p class="na-hint">PainterlyNPR's build utility gives every Id and every verdict. It runs isolated from SketchUp's own embedded Python, windowless where pythonw.exe is beside python.exe.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Plugin</h3>
+                    <div class="na-kv" id="na-settings-plugin"></div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-settings-refresh" data-na-needs-idle>Read the Library Again</button>
+                        <button type="button" class="naButtonSecondary" id="na-settings-reload" data-na-needs-idle>Reload Plugin Data</button>
+                    </div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Technical Log</h3>
+                    <pre class="na-log" id="na-settings-log"></pre>
+                </section>
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+    </div>
+
+    <!-- ==========================================================================
+         REGION | Status Bar (shared across tabs)
+         ========================================================================== -->
+    <div id="na-status-bar" class="na-status-bar na-hidden">
+        <span id="na-status-message"></span>
+    </div>
+    <!-- endregion ============================================================== -->
+
+</div>
+
+<!-- ==========================================================================
+     REGION | Loading Overlay (shown BEFORE a long Ruby step starts)
+     ========================================================================== -->
+<div id="na-loading-overlay" class="na-loading-overlay na-hidden" role="alertdialog" aria-live="assertive">
+    <div class="na-loading-card">
+        <div class="na-spinner" aria-hidden="true"></div>
+        <h2 class="na-loading-title" id="na-loading-title">Working&hellip;</h2>
+        <p class="na-loading-status" id="na-loading-status"></p>
+        <p class="na-loading-note">If this window stops updating, SketchUp is busy on a single step and will catch up.</p>
+    </div>
+</div>
+<!-- endregion ============================================================== -->
+
+<!-- ==========================================================================
+     REGION | In-Dialog Confirm (Cancel first, the action last)
+     ========================================================================== -->
+<div id="na-confirm" class="na-loading-overlay na-hidden" role="dialog" aria-modal="true" aria-labelledby="na-confirm-title">
+    <div class="na-loading-card na-confirm-card">
+        <h2 class="na-loading-title" id="na-confirm-title"></h2>
+        <p class="na-confirm-text" id="na-confirm-text"></p>
+        <div class="na-button-row na-button-row--end">
+            <button type="button" class="naButtonSecondary" id="na-confirm-cancel">Cancel</button>
+            <button type="button" class="naButton" id="na-confirm-go">Continue</button>
+        </div>
+    </div>
+</div>
+<!-- endregion ============================================================== -->
+
+<!-- ==========================================================================
+     REGION | JavaScript Includes (load order matters)
+       1. BridgeBase  - window.sketchup wrapper
+       2. MainShell   - receive dispatcher, tabs, status bar, overlay, confirm
+       3. Tab logic   - Catalogue, Author, Validate, Settings
+     ========================================================================== -->
+<script src="02__Src__AppModules/01__AppCore/Na__PainterlyAssets__AppCore__UiSystem__BridgeBase__.js"></script>
+<script src="02__Src__AppModules/01__AppCore/Na__PainterlyAssets__AppCore__UiSystem__MainShell__.js"></script>
+<script src="02__Src__AppModules/20__System__Catalogue/Na__PainterlyAssets__Catalogue__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/70__System__Materials/Na__PainterlyAssets__Materials__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/40__System__Author/Na__PainterlyAssets__Author__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/50__System__Validate/Na__PainterlyAssets__Validate__UiSystem__MainUiLogic__.js"></script>
+<script src="02__Src__AppModules/60__System__Settings/Na__PainterlyAssets__Settings__UiSystem__MainUiLogic__.js"></script>
+<!-- endregion ============================================================== -->
+
+</body>
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

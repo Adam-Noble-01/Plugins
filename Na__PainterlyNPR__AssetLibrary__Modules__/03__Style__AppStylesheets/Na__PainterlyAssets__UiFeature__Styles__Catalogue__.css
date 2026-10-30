@@ -1,0 +1,319 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - CATALOGUE STYLES
+   =============================================================================
+   FILE       : Na__PainterlyAssets__UiFeature__Styles__Catalogue__.css
+   PURPOSE    : The Catalogue tab: search and chips above, the grid of asset
+                cards (each picture on the catalogue's paper), and the chosen
+                asset's details under the grid.
+   CREATED    : 30-Oct-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Panel: head and detail stay put, the grid scrolls */
+/* ----------------------------------------------------------------- */
+
+.na-tab-panel.na-tab-panel--catalogue {
+    overflow            : hidden;
+}
+
+.na-cat-head {
+    flex-shrink         : 0;
+    padding             : 12px 16px 6px;
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 8px;
+}
+
+.na-cat-toolbar {
+    display             : flex;
+    align-items         : center;
+    gap                 : 10px;
+}
+
+.naInput.na-cat-search {
+    flex                : 1;
+}
+
+.na-cat-count {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.na-chip-row {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 6px;
+}
+
+.na-chip {
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+    border-radius       : 999px;
+    padding             : 3px 10px;
+    font-family         : inherit;
+    font-size           : 12px;
+    color               : var(--na-text);
+    cursor              : pointer;
+}
+
+.na-chip:hover {
+    background          : var(--na-bg);
+}
+
+.na-chip.na-chip--active {
+    background          : var(--na-accent);
+    border-color        : var(--na-accent);
+    color               : #fff;
+}
+
+.na-cat-show {
+    display             : flex;
+    align-items         : center;
+    gap                 : 0;
+}
+
+.na-cat-show__label {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    margin-right        : 8px;
+}
+
+.na-cat-show__spacer {
+    flex                : 1;
+}
+
+.na-segment {
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+    padding             : 4px 12px;
+    font-family         : inherit;
+    font-size           : 12px;
+    color               : var(--na-text);
+    cursor              : pointer;
+}
+
+.na-segment + .na-segment {
+    border-left         : none;
+}
+
+.na-segment:first-of-type {
+    border-radius       : 4px 0 0 4px;
+}
+
+.na-segment:last-of-type {
+    border-radius       : 0 4px 4px 0;
+}
+
+.na-segment.na-segment--active {
+    background          : #e6effd;
+    color               : #1452a8;
+    font-weight         : 600;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Grid of Cards */
+/* ----------------------------------------------------------------- */
+
+.na-cat-grid {
+    flex                : 1;
+    min-height          : 0;
+    overflow-y          : auto;
+    display             : grid;
+    grid-template-columns : repeat(auto-fill, minmax(var(--na-card-width), 1fr));
+    grid-auto-rows      : min-content;                                                             /* a scroll pane must not share its height out between rows */
+    align-content       : start;
+    gap                 : 10px;
+    padding             : 6px 16px 14px;
+}
+
+.na-cat-empty {
+    grid-column         : 1 / -1;
+    color               : var(--na-subtle);
+    font-size           : 12.5px;
+}
+
+.na-asset-card {
+    background          : var(--na-panel);
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    padding             : 6px;
+    cursor              : pointer;
+    user-select         : none;
+    transition          : border-color 0.12s, box-shadow 0.12s;
+}
+
+.na-asset-card:hover {
+    border-color        : #a9b4c4;
+}
+
+.na-asset-card.na-asset-card--selected {
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px rgba(26, 115, 232, 0.25);
+}
+
+.na-asset-card__thumb {
+    position            : relative;
+    aspect-ratio        : 1 / 1;
+    border-radius       : 5px;
+    background          : var(--na-paper);
+    overflow            : hidden;
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+}
+
+.na-asset-card__thumb img {
+    width               : 100%;
+    height              : 100%;
+    object-fit          : contain;
+    display             : block;
+}
+
+.na-asset-card__thumb--none {
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+}
+
+.na-asset-card__badges {
+    position            : absolute;
+    left                : 5px;
+    top                 : 5px;
+    display             : flex;
+    gap                 : 4px;
+    flex-wrap           : wrap;
+}
+
+.na-asset-card__name {
+    margin-top          : 6px;
+    font-size           : 12.5px;
+    font-weight         : 600;
+    white-space         : nowrap;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+}
+
+.na-asset-card__meta {
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    font-variant-numeric: tabular-nums;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Chosen Asset */
+/* ----------------------------------------------------------------- */
+
+.na-cat-detail {
+    flex-shrink         : 0;
+    display             : flex;
+    gap                 : 14px;
+    max-height          : 250px;
+    overflow-y          : auto;
+    padding             : 12px 16px;
+    background          : var(--na-panel);
+    border-top          : 1px solid var(--na-border);
+}
+
+.na-detail__picture {
+    flex                : 0 0 150px;
+    height              : 150px;
+    border-radius       : 6px;
+    background          : var(--na-paper);
+    overflow            : hidden;
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+}
+
+.na-detail__picture img {
+    width               : 100%;
+    height              : 100%;
+    object-fit          : contain;
+}
+
+.na-detail__picture--none {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-detail__body {
+    flex                : 1;
+    min-width           : 0;
+}
+
+.na-detail__title {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 2px;
+}
+
+.na-detail__name {
+    font-size           : 15px;
+    font-weight         : 700;
+}
+
+.na-detail__id {
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    white-space         : pre;
+    font-variant-numeric: tabular-nums;
+}
+
+.na-detail__description {
+    margin              : 6px 0 0;
+    font-size           : 12px;
+    line-height         : 1.45;
+}
+
+.na-detail__files {
+    display             : flex;
+    gap                 : 5px;
+    margin              : 8px 0 4px;
+}
+
+.na-file {
+    font-size           : 10.5px;
+    font-weight         : 700;
+    padding             : 2px 7px;
+    border-radius       : 4px;
+    border              : 1px solid var(--na-border);
+}
+
+.na-file--present {
+    background          : #e7f7ee;
+    border-color        : #b9e2cb;
+    color               : #1a5e3a;
+}
+
+.na-file--pending {
+    background          : #f4f5f7;
+    color               : #8a919c;
+    border-style        : dashed;
+}
+
+.na-detail__row {
+    display             : flex;
+    gap                 : 8px;
+    font-size           : 12px;
+    margin-top          : 3px;
+}
+
+.na-detail__label {
+    flex                : 0 0 72px;
+    color               : var(--na-subtle);
+    font-weight         : 600;
+}
+
+.na-detail__actions {
+    display             : flex;
+    gap                 : 8px;
+    flex-wrap           : wrap;
+    margin-top          : 10px;
+}
+
+/* endregion ----------------------------------------------------------------- */
