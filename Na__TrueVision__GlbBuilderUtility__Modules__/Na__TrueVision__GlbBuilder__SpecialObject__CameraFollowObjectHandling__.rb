@@ -103,7 +103,7 @@ module TrueVision3D
         def self.Na__CameraFollowHandler__ResolveFamilyForEntity(entity)
             return nil unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
 
-            families = @na_camerafollow_families.empty? ? [Na__CameraFollowHandler__DefaultFamily] : @na_camerafollow_families
+            families = @na_camerafollow_families.empty? ? [self.Na__CameraFollowHandler__DefaultFamily] : @na_camerafollow_families
 
             if entity.respond_to?(:layer) && entity.layer
                 by_tag = families.find { |family| family[:tag_name] == entity.layer.name }
@@ -250,7 +250,7 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__CameraFollowHandler__BuildAssemblyNodes(assembly_entity, accumulated_transform, gltf, bin_buffer, export_type = :mesh)
             raw_name       = Na__CameraFollowHandler__GetEntityName(assembly_entity)
-            family         = Na__CameraFollowHandler__ResolveFamilyForEntity(assembly_entity) || Na__CameraFollowHandler__DefaultFamily
+            family         = Na__CameraFollowHandler__ResolveFamilyForEntity(assembly_entity) || self.Na__CameraFollowHandler__DefaultFamily
             export_name    = Na__CameraFollowHandler__ResolveSemanticName(raw_name, family)
             type_label     = export_type == :linework ? "Linework" : "Mesh"
             pivot_local    = Na__CameraFollowHandler__CapturePivotLocal(assembly_entity)

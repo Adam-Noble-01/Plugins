@@ -8,6 +8,47 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.13.2 - 30-Oct-2026
+#### Camera-Follow Fallback Family No Longer Raises NameError
+
+**What Adam asked for**
+- Fix the latent NameError bugs that the new SketchUp plugin skill's lint (`su_lint.py`, check NA001) found in the
+  Plugins repo: "Fix them here" (30-Oct-2026).
+
+**Fixed**
+- `Na__CameraFollowHandler__ResolveFamilyForEntity` (line 106) and `Na__CameraFollowHandler__BuildAssemblyNodes`
+  (line 253) named the fail-safe `Na__CameraFollowHandler__DefaultFamily` with no receiver and no arguments. Ruby
+  reads a bare capitalised name as a constant, so both raised NameError ("uninitialized constant
+  TrueVision3D::GlbBuilderUtility::Na__CameraFollowHandler__DefaultFamily") instead of returning the default family.
+  Both now call `self.Na__CameraFollowHandler__DefaultFamily`, as the module's other zero-argument calls do.
+- When it bit: only with no camera-follow family configured, that is when the DataLib load failed (the log line
+  "DataLib load failed, using hardcoded fallbacks") or the Components SSOT had no `Behaviours.CameraFollow` section.
+  Every export walk asks `Na__CameraFollowHandler__IsCameraFollowAssembly?` about each group and component, so the
+  first one raised where the hardcoded vegetation fallback should have taken over. With the DataLib loaded, nothing
+  changes.
+
+**Tested**
+- `glb_camerafollow__defaultfamily.rb.test` (session scratchpad) in SketchUp 2026's Ruby 3.2.2 against the offline
+  harness doubles: 6 checks, all passing. With no family configured, a group on `09__Site__Vegetation__2D` and one
+  named to the SSOT pattern resolve to the default family, an ordinary group is not a camera-follow assembly, a
+  configured DataLib family still resolves as before, and an assembly no family claims falls back to the default
+  (line 253). The same suite against the committed file fails 4 of 6 with that NameError, so it guards the fix.
+- `su_ruby.py syntax`: 30 of 30 module files compile. `su_lint.py --only NA001`: 0 errors (was 2).
+- Not yet tested inside SketchUp 2027. Offline cannot prove the export itself: the suite stops before any glTF is
+  built.
+
+**Files**
+- `Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__.rb` (the two calls given `self.`)
+
+**Testing checklist**
+- [ ] Reload Plugin Data, then export a model with vegetation billboards as usual: they export as before.
+- [ ] Optional, the fallback itself: select a billboard on `09__Site__Vegetation__2D` and run in the Ruby Console
+      `g = TrueVision3D::GlbBuilderUtility; f = g.instance_variable_get(:@na_camerafollow_families); s = f.dup; f.clear; p g.Na__CameraFollowHandler__ResolveFamilyForEntity(Sketchup.active_model.selection.first); f.replace(s)`.
+      It prints the default family (tag `09__Site__Vegetation__2D`) instead of raising NameError.
+
+**Status:** IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.13.1 - 19-Oct-2026
 #### Point Cloud Scenes Drag Into Order
 
