@@ -3,6 +3,21 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.19 - 30-Oct-2026 - Tag Utils: Load Standard Tags No Longer Raises NameError
+
+- **Asked for.** Fix the latent NameError bugs that the new SketchUp plugin skill's lint (`su_lint.py`, check NA001) found: "Fix them here" (Adam, 30-Oct-2026).
+- **The bug.** `Na__TagUtils__LoadStandardTags` (`09__SourceCode__TagUtils/...TagUtils__Run__.rb`, line 71) called `Na__TagUtils__LoadAllTags` with no receiver and no arguments. Ruby reads a bare capitalised name as a constant, so it raised NameError ("uninitialized constant Na__Noble3dModellingTools::Na__TagUtils::Na__TagUtils__LoadAllTags"). It now calls `self.Na__TagUtils__LoadAllTags`.
+- **Reach.** Nothing in the repo calls `Na__TagUtils__LoadStandardTags` today (searched 30-Oct-2026), so no command was failing; the old entry point is fixed so it works if anything calls it again.
+- **Validation.**
+  - `tagutils__loadstandardtags.rb.test` (session scratchpad) in SketchUp 2026's Ruby 3.2.2 against the offline harness doubles, with the tag loader replaced by a recorder: 3 checks, all passing (Load Standard Tags runs Load All Tags once, with `:all`, and hands back its result; Load All Tags itself is unchanged). The same suite against the committed file fails 2 of 3 with that NameError.
+  - `su_ruby.py syntax`: both Tag Utils files compile. `su_lint.py --only NA001`: 0 errors (was 1).
+  - Native SketchUp testing remains with the user.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then in a test model run in the Ruby Console `p Na__Noble3dModellingTools::Na__TagUtils.Na__TagUtils__LoadStandardTags`: it loads every standard tag as one undo step, "Load All Tags", and prints a `success: true` result instead of raising NameError.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.18 - 29-Oct-2026 - Image Viewer Markup: Pen, Highlighter and Eraser, Kept in the Model
 
 - New **Markup** button at the right of the Image Viewer toolbar, after Angle. It opens a floating toolbar over the top of the photo: **pen**, **highlighter**, **eraser**, a colours-and-sizes button (the two overlapping circles) and a close button. It opens on the highlighter. Drag the grip at its left edge to move it; it stays inside the photo area.

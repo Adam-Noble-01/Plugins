@@ -68,7 +68,7 @@ module Na__Noble3dModellingTools
 # -----------------------------------------------------------------------------
 
         def self.Na__TagUtils__LoadStandardTags
-            Na__TagUtils__LoadAllTags
+            self.Na__TagUtils__LoadAllTags
         end
 
         def self.Na__TagUtils__LoadAllTags
