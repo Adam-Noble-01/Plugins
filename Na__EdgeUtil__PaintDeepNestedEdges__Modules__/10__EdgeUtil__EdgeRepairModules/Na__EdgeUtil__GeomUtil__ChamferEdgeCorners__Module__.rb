@@ -162,19 +162,19 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             return Na__EdgeTools__ChamferEdgeCorners__Result(false, 'Chamfer Edge Corners: No active model.', 0, 0, 0) unless model
 
             active_chamfer_size_mm = if chamfer_size_mm.nil?
-                Na__EdgeTools__ChamferEdgeCorners__StoredChamferSizeMm
+                self.Na__EdgeTools__ChamferEdgeCorners__StoredChamferSizeMm
             else
                 Na__EdgeTools__ChamferEdgeCorners__SetStoredChamferSizeMm(chamfer_size_mm)
             end
 
             active_build_corners_enabled = if build_corners_enabled.nil?
-                Na__EdgeTools__ChamferEdgeCorners__StoredBuildCornersEnabled
+                self.Na__EdgeTools__ChamferEdgeCorners__StoredBuildCornersEnabled
             else
                 Na__EdgeTools__ChamferEdgeCorners__SetStoredBuildCornersEnabled(build_corners_enabled)
             end
 
             active_build_corner_max_gap_mm = if build_corner_max_gap_mm.nil?
-                Na__EdgeTools__ChamferEdgeCorners__StoredBuildCornerMaxGapMm
+                self.Na__EdgeTools__ChamferEdgeCorners__StoredBuildCornerMaxGapMm
             else
                 Na__EdgeTools__ChamferEdgeCorners__SetStoredBuildCornerMaxGapMm(build_corner_max_gap_mm)
             end

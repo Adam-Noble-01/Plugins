@@ -145,7 +145,7 @@ module Na__EdgeUtil__PaintDeepNestedEdges
             return Na__EdgeTools__RepairEdgeCorners__Result(false, 'No active model.', 0, NA_DEFAULT_MAX_GAP_MM) unless model
 
             active_max_gap_mm = if max_gap_mm.nil?
-                Na__EdgeTools__RepairEdgeCorners__StoredMaxGapMm
+                self.Na__EdgeTools__RepairEdgeCorners__StoredMaxGapMm
             else
                 Na__EdgeTools__RepairEdgeCorners__SetStoredMaxGapMm(max_gap_mm)
             end

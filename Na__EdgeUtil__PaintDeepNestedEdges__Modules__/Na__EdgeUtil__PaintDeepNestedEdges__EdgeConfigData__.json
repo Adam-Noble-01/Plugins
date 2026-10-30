@@ -1,6 +1,6 @@
 {
     "extension_name"           : "Na Edge Util - Paint Deep Nested Edges",
-    "extension_version"        : "1.0.4",
+    "extension_version"        : "1.0.5",
     "dialog_preferences_key"   : "Na__EdgeUtil__PaintDeepNestedEdges",
     "command_name"             : "Na Edge Util - Paint Deep Nested Edges",
     "command_tooltip"          : "Open the Paint Deep Nested Edges dialogue for edge colour management",

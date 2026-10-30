@@ -8,6 +8,34 @@
 ## Version History
 
 # ---------------------------------------------------------
+### Na Edge Util - Version 1.0.5 - 30-Oct-2026
+#### Repair and Chamfer Commands Read Their Stored Settings Again
+
+- **Asked for**: fix the latent NameError bugs that the new SketchUp plugin skill's lint (`su_lint.py`, check NA001) found: "Fix them here" (Adam, 30-Oct-2026).
+- **Bug**: `Na__EdgeTools__RepairEdgeCorners__ExecuteRepair` (line 148) and `Na__EdgeTools__ChamferEdgeCorners__Execute` (lines 165, 171, 177) read their stored settings through capitalised zero-argument methods called with no receiver. Ruby reads a bare capitalised name as a constant, so each raised NameError (for example "uninitialized constant Na__EdgeUtil__PaintDeepNestedEdges::Na__EdgeTools__RepairEdgeCorners::Na__EdgeTools__RepairEdgeCorners__StoredMaxGapMm").
+- **Where it bit**: only when no value is passed, which is exactly what the commands on the Extensions submenu and their keyboard shortcuts do (`HotkeyBinder__.rb` calls `na_run_repair_edge_corners` and `na_run_chamfer_edge_corners` with no arguments). The error came before each tool's own rescue and operation, so the model was never touched: the command did nothing and the NameError went to the Ruby Console. The Edge Tools tab passes its values, so the dialog buttons always worked.
+- **Fix**: the four reads now call `self.Na__EdgeTools__...`, the plugin's own idiom for zero-argument calls (as in `ApplyLineThicknessTags__.rb`).
+- **Version**: `EdgeConfigData__.json` `"extension_version"` bumped to `"1.0.5"`.
+
+**Verified Offline:**
+- `edgeutil__stored_settings.rb.test` (session scratchpad) in SketchUp 2026's Ruby 3.2.2 against the offline harness doubles: 6 checks, all passing. With no values, Repair uses the stored 42 mm gap and Chamfer reads all three stored settings; with nothing selected both ask for edges; a value from the dialog is still stored and used. The same suite against the committed files fails 5 of 6 with the NameErrors above.
+- `su_ruby.py syntax`: 8 of 8 module files compile. `su_lint.py`: 0 errors (NA001 was 4).
+
+**What Offline Cannot Prove:** the commands as SketchUp runs them from the menu or a shortcut, and the repair and chamfer geometry itself (untouched by this fix).
+
+**Files Modified:**
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__RepairUtil__RepairCorner__Module__.rb` (line 148)
+- `10__EdgeUtil__EdgeRepairModules/Na__EdgeUtil__GeomUtil__ChamferEdgeCorners__Module__.rb` (lines 165, 171, 177)
+- `Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json` (version)
+
+**Testing Checklist:**
+- [ ] Reload Plugin Data, select edges with a broken corner and run Repair Edge Corners from the plugin's Extensions submenu (or its shortcut): it repairs with the gap last set in the Edge Tools tab.
+- [ ] Select corner edges and run Chamfer Edge Corners from the same submenu: it chamfers with the stored size, and builds missing corners first if that option is on.
+
+**Status:** IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
 ### Na Edge Util - Version 1.0.4 - 07-May-2026
 #### Main Tab Removal, Tab Order Update, and Dead Code Cleanup
 
