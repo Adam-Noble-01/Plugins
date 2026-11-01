@@ -2,10 +2,205 @@
 
 The SketchUp side of PainterlyNPR's asset library (`Na__PainterlyNPR\12__Data__AssetLibrary`): a catalogue of every
 asset with its pictures, placing an asset in the model, authoring a selected component as a new asset, and
-PainterlyNPR's own validator in the dialog. Newest entry first.
+PainterlyNPR's own validator in the dialog. Since 0.2.0 also PainterlyNPR's drawing of the model inside SketchUp (the
+NPR Viewport and NPR Parameters windows). Newest entry first.
 
 Module `Na__PainterlyAssets`, files `Na__PainterlyAssets__*`, loader `Na__PainterlyNPR__AssetLibrary__Loader__.rb`,
 menu Extensions > Na PainterlyNPR Assets.
+
+---
+
+## Version 0.2.0 - 01-Nov-2026 - NPR Viewport, NPR Parameters and Live NPR Updates
+
+### Asked For
+
+Adam, 01-Nov-2026: *"create a second window that creates a live preview window, and then a third window ... The asset
+manager that opens in one window with one button. An NPR render window that shows a window with nothing else but just
+the viewport in. A third button that opens a menu with all of the different parameters"*; *"Use a symbol that shows
+real time or not ... We need a way to be able to toggle real-time rendering on or off, so the viewport doesn't just
+continually update whilst you're making edits. It should be live by default when you open it"*; *"create a user config
+folder and data file, and a user projects cache folder. The projects cache folder should cache assets as needed ...
+Create an intelligent system for this, so every frame doesn't have to fetch literally everything and render
+everything ... When you flip that back on, it will go cycle through and say, Hey, this asset's changed"*; *"another
+module as well, which borrows all of the conversion logic that we added to ValeVision 3D Cloud Sync ... that same
+process, but to a local cache folder"*. Then, mid-build: *"Call the modules required from the GitHub repo ... load all
+of the modules and cache them, and create a "Reload Remote Plugin Files" button that reloads and recaches them. Do
+not, under any circumstance, copy the core render engine code into the SketchUp plugin ... This SketchUp plugin is
+effectively just a wrapper that calls all of that code from that repo"*.
+
+### What It Does
+
+| Toolbar button | What |
+|---|---|
+| Open Asset Library | As before |
+| NPR Viewport | PainterlyNPR's pen and wash drawing of the model, nothing else in the window, looking from SketchUp's camera |
+| NPR Parameters | Every parameter of PainterlyNPR's own panel (Paper and finish, Light, Pen, Wash, Sky, presets, seed, undo), moving the NPR Viewport's drawing; with Live, Refresh, Viewport and Reload Remote Plugin Files above it |
+| Live NPR Updates | Pressed while live: the viewport follows SketchUp's camera and every change; off, it holds still and nothing in the model is watched. On by default when the viewport opens |
+
+Menu (Extensions > Na PainterlyNPR Assets): the same three, and **Reload Remote Plugin Files** (also a button in NPR
+Parameters).
+
+### How It Works, and Why
+
+- **The engine is PainterlyNPR's, from GitHub, never the plugin's.** `Na__PainterlyAssets__NprViewport__RemoteFetch__.py`
+  (pythonw, git with this PC's own GitHub credentials, no token in the plugin) makes a shallow, blob-less, sparse clone of
+  `github.com/Adam-Noble-01/Na__PainterlyNPR` `main` into `93__RemoteCache__CoreEngine/PainterlyNPR__<commit>`: only the
+  files the engine reads when it runs (ValeVision AURA's pin selection: the modules, the stylesheets, the material
+  recipes' `.json` and `.webp`, the asset library's `.json`) plus the app page and its icons. 362 files, 3.4 MB, 7 s.
+  It downloads the first time a window opens and on Reload Remote Plugin Files (forced), into staging first, so a
+  failed download never touches the cache in use; the previous commit's folder is kept until the next one. A local
+  PainterlyNPR folder can stand in while the engine itself is being worked on (`engine.localOverrideFolder` in the
+  viewport's user config, served as commit `local`).
+- **The windows run the engine's own page.** `Na__PainterlyAssets__NprViewport__LocalServer__.py` (threaded Python on
+  127.0.0.1:8147, the system's choice when that is taken) serves `PainterlyNPR__App__.html` from the cache with three
+  lines added: an import map (`PainterlyNPR/` is the engine's modules, as AURA's), the window's stylesheet, and, after
+  the app's own Init module (module scripts run in order), the window's host module. The engine boots exactly as it
+  does in its own app; the hosts only call its exported functions (`SetBase`, `GlbBase`, `GlbRead`, `Reload`, `Bump`,
+  `Request`, `SetProxy`, `SetControl`, `SettingsObject`, `ApplySettingsJson`, `LoadCatalogue`, `MakePlacement`). Nothing
+  of the engine is copied: a control added to PainterlyNPR shows in NPR Parameters at the next Reload Remote Plugin
+  Files. The service worker is never served (it would pin a stale engine in SketchUp's browser). The viewport is on
+  127.0.0.1 and the parameters on localhost: two origins, two browser storages.
+- **NPR Viewport** (`...HostViewport__.mjs`): only the sheet shows, sized to the window; it takes no mouse or keys (the
+  drawing follows SketchUp). The scene is handed over as AURA's host hands its project's scene: the scene file's
+  objects in Id order, each GLB read with the engine's `GlbRead`, each mesh file paired with its linework twin, then
+  `SetBase(GlbBase(source))` and `Reload`. A GLB is fetched only when its version moved. SketchUp's camera becomes the
+  engine's orbit camera (yaw, pitch, distance, target), the field of view (or ortho height) widened when SketchUp's
+  view is wider than the engine's A3 sheet, so all of it shows.
+- **NPR Parameters** (`...HostParameters__.mjs`): the engine's own panel under the plugin's header; Camera, Art direction
+  and Export are hidden (they act on a drawing this window does not show). Its own engine is kept quiet (Proxy work
+  mode, a fifth-size sheet). A slider's move goes to the viewport at once as that control (the engine's `SetControl`
+  there, only its inputs bumped); after any change the look (seed, sun, style, paper, composition) goes too, when it
+  moved, and Ruby keeps it with the project (`Na__PainterlyAssets__ProjectCache__Settings__.json`).
+- **The project cache** (`92__UserProjects__ProjectCache/<title 12>__<8 hex of the path>`, short so every GLB path stays
+  under SketchUp's 260): the GLBs, a manifest (each export unit's fingerprint, each file's SHA-256 and version), the
+  scene file and the look. An index keeps the 12 most recently opened projects (never the one open); the GLB
+  builder's logs keep their newest 3.
+- **Only what changed is exported** (`85__System__ProjectCache`): the GLB bridge is Cloud Sync's route (its
+  GlbExportBridge): TrueVision's GLB builder, whitecard plus MAT000E__ exempt materials, quiet, the builder's own mode
+  put back after. The plan is the builder's own (its tag groups, storeys and file names). Each unit (a tag group, or a
+  storey's element) is fingerprinted: every face's corners, tag, materials and hidden flag, every edge's ends and
+  flags, every instance's transformation, tag, material, name and persistent id, to the last nested definition.
+  Definitions are digested once and kept between syncs; a change forgets only what it can have touched (the open
+  context's definitions, or the selection's contents, and every definition holding them); undo, redo, a material
+  edit, Refresh and live turned back on forget them all (the "cycle through"). Only stale units are exported: for that
+  one export the builder's per-file selection (`Na__ExportSelection__DeselectedSet`) answers "deselected" for every
+  other file, then is put back (the model's own selection is never read or written). A file rewritten byte for byte
+  keeps its version, so the viewport never fetches it again. A unit takes its new fingerprint only when every one of its
+  files was written. Linetype linework is not exported (no mesh twin: the engine never reads it).
+- **The scene file** (`...SceneFile__.rb`) is the local twin of AURA's scene import (scene API 1.2.0): a file's part,
+  use and role from its name by AURA's rule table (in the AppConfig, plus rows for the builder's storey files); objects
+  from mesh nodes with Ids that never move (by file, node and which of its name's nodes it is, then by persistent id;
+  a gone node stays as Missing); the focal footprint centred on the engine's origin, kept unless the building moves
+  more than 25 m.
+- **Placed library assets** (this plugin's proxies, at any depth) are drawn as PainterlyNPR draws them: the engine's
+  own `MakePlacement` from the asset's record in the cached library, then SketchUp's position, turn and scale (Cloud
+  Sync's pose: inches to glTF metres `(x, z, -y)`, a turn about +Z is the same angle about +Y), the seed from the
+  proxy's persistent id. An asset not in the library on GitHub yet is named in the status line.
+- **Live** (`...LiveSync__.rb`): observers only note and schedule; one sync runs once the model has been still for 1 s.
+  Nothing is exported with a group open (the builder exports the model, and an open context reports world
+  coordinates): the windows say so, and the change goes when the group closes. The camera is sent at most every 80 ms.
+- **The user config data file**: `91__UserConfig__LocalOnly/Na__PainterlyAssets__UserConfig__NprViewport__.json`
+  (`live.onWhenOpened`, `engine.localOverrideFolder`), written with its defaults the first time.
+- **Icons** from the vector library: the ValeVision 3D render engine (NPR Viewport), AURA's panel parameters (NPR
+  Parameters), and the read-aloud Play and Pause (live and paused; the toolbar shows Play, pressed while live).
+
+### Verified Offline (01-Nov-2026)
+
+- 37 Ruby files compile under SketchUp 2026's Ruby 3.2.2; `su_lint.py` 0 errors, 0 warnings; `node --check` on the three
+  host modules; the two Python scripts parse; the AppConfig parses; no CRLF, no dash punctuation in UI text.
+- **The cache** (65 checks, the harness doubles): the scene file on a real GLB builder export (NP03, 31 files, storey
+  mode): parts, rules, twins, 62 objects, the focal placement, Ids kept across a re-build in a set that repeats node
+  names; fingerprints kept until forgotten and forgetting climbing to every holder of a shared component; a sync against
+  a stand-in GLB builder: everything the first time, nothing when nothing changed, only a moved roof's two files, a
+  byte-identical re-export keeping its version, a half-written unit retried, a gone unit's files deleted and its object
+  Missing, an open group waiting, logs trimmed, the index kept; proxy poses at the root and in a turned group; the
+  camera in the engine's world (perspective, width-based FOV, ortho, a scene's own aspect).
+- **The wiring** (28 checks): both windows on a stand-in HtmlDialog with a hand-run timer queue: the waiting page, the
+  first download, the engine page's URL (viewport on 127.0.0.1, parameters on localhost), nothing sent before ready,
+  live on by default, the first scene then the camera, a root commit exporting only its unit, three camera moves sending
+  one message, an open group waiting then going when closed, a control and the whole look reaching the viewport, the
+  look kept and given back to a reloaded viewport, live off watching nothing, Refresh exporting anyway, Reload Remote
+  Plugin Files forcing the download and reloading both windows onto the new commit, closing the viewport turning live
+  off.
+- **The real processes** (16 checks): the download from GitHub through pythonw and git (a second request waits for the
+  first), an up-to-date cache downloading nothing, no `.skp` or `.glb` in the cache, the override folder; the server
+  spawned, found by its ready file, serving the engine page with the host added, reused, then stopped. The server alone
+  (26 checks): MIME types, the injected page, immutable engine files, the service worker refused, `/api` 404, every
+  traversal refused, the token-guarded shutdown, its exit when stopped.
+- 12 of 12 deliberate faults caught (a proxy's y not negated, forgetting not climbing, a half-written unit taking its
+  fingerprint, Ids by name only, the builder's selection never put back, the camera's y and z swapped, Cloud Sync's
+  2 s written window, live off still watching, the parameters on 127.0.0.1, a commit noting nothing, a window never
+  ready, the look never kept).
+- **In a browser, the real engine** (Chromium in the desktop app's browser pane, PainterlyNPR 0.8.16 from the GitHub
+  cache, the plugin's server, NP03's GLBs as a project cache): the viewport booted with only the sheet showing, drew
+  NP03 in pen and wash (62 objects from 15 model files in 0.7 s) and a front elevation from an ortho camera; three
+  proxies became the engine's own plops through MakePlacement (an oak, a bench and a potted standard; the oak and the
+  bench plainly visible in the drawing), an unknown asset named, not drawn; a version moved on one roof file fetched
+  only it and its twin. NPR Parameters showed the engine's panel (5 sections, 89 sliders) under the
+  header; a wash slider reached the viewport as one control (its wash visibly deeper) and an ink change as the look
+  (camera kept).
+
+### Found and Fixed on the Way
+
+- Cloud Sync's success test (a file written in the last 2 s) counts the previous sync's file when two exports run
+  back to back, as live updates can: written now means its modified time moved during this export.
+- A GLB repeats node names (a tag's buckets, a component placed twice), so matching by name alone renumbered the
+  repeats on a re-build: the k-th node of a name keeps the k-th's Id, as the engine's GlbBase takes them.
+- The engine's page scrolls below 1100 px wide (its panel drops under the sheet); both windows put their own layout back.
+
+### What Offline Cannot Prove
+
+- **That SketchUp's browser runs it**: an HtmlDialog on `http://127.0.0.1` with its Ruby callbacks, WebGL 2 with float
+  targets in SketchUp 2026's Chromium 137, and its speed there. If WebGL 2 is missing, the engine's own card says so in
+  the viewport.
+- The real GLB builder under the bridge (the plan, the per-file selection, the material mode), in a real model and in
+  a storey model; the observers' timing in a real session; the toolbar's pressed look.
+
+### Provisional (config values for Adam to correct)
+
+- The scene rules (AURA's provisional table plus the storey rows), the 25 m re-centring, `idleSeconds` 1.0,
+  `cameraSeconds` 0.08, port 8147, `keepProjects` 12, whitecard material mode, the icons.
+- Changes made inside an open group reach the drawing when the group is closed.
+
+### Files
+
+- New: `02__Src__AppModules/80__System__NprViewport/` (UserConfig, RemoteEngine, LocalServer `.rb` and `.py`,
+  RemoteFetch `.py`, CameraSync, LiveSync, Windows, HostShared, HostViewport, HostParameters `.mjs`, Waiting `.html`);
+  `02__Src__AppModules/85__System__ProjectCache/` (Store, SceneFile, Fingerprint, GlbBridge, AssetProxies, Sync);
+  `03__Style__AppStylesheets/Na__PainterlyAssets__UiFeature__Styles__NprViewport__.css`, `...__NprParameters__.css`;
+  `01__AppAssets__PainterlyAssets/Na__PainterlyAssets__Toolbar__Npr{Viewport,Parameters,LiveOn,LiveOff}__.svg`.
+- Changed: `Na__PainterlyNPR__AssetLibrary__Loader__.rb` (commands, menu, toolbar), AppCore Main (paths, requires,
+  public API), PluginReloader, the AppConfig (`nprViewport`, version 0.2.0), the Plugins repo's `.gitignore`
+  (`92__UserProjects__ProjectCache`, `93__RemoteCache__CoreEngine`).
+
+### Testing
+
+- [x] **Restart SketchUp** (new toolbar buttons and menu items register at start-up), with a model on the standard tags
+      (or a storey model).
+- [ ] NPR Viewport: the window says it is downloading PainterlyNPR (the first time only), then shows the model in pen and
+      wash from SketchUp's camera; orbit in SketchUp and the drawing follows (a quick preview, then the pen and wash).
+- [ ] Move or paint a group: about a second later only its part redraws (the NPR Parameters status line names it).
+      Edit inside a group: the change shows when you close it.
+- [ ] Live NPR Updates off (the toolbar button or the Live button): the drawing holds still; edit; turn it on again: the
+      edit appears. Refresh does the same without turning live on.
+- [ ] NPR Parameters: Wash, Pen, Paper and Sky sliders move the viewport's drawing; close and reopen the viewport: the
+      look is kept for this model.
+- [ ] Place a library tree with the Asset Library: it appears as PainterlyNPR's tree.
+- [ ] Reload Remote Plugin Files: both windows reload onto GitHub's latest PainterlyNPR.
+
+### Verified in SketchUp (01-Nov-2026)
+
+- Adam, after restarting SketchUp 2026 with 0.2.0: *"Restarted, it works"*.
+- What the first run left on disk, read afterwards: PainterlyNPR 0.8.16 (main at b9e0363) downloaded inside SketchUp
+  (362 files, the cache's state file); the server on 127.0.0.1:8147 for SketchUp's process; one project cache
+  (`SK02__Modeli__a9b81724`) with the real GLB builder's export through the bridge (2 units, 4 files, the builder's log,
+  the scene file, manifest revision 1); a look saved from NPR Parameters (the project's settings file); the viewport's
+  user config written with its defaults. So the HtmlDialog callbacks on an `http://127.0.0.1` page, the engine's ES
+  modules and WebGL in SketchUp 2026's browser, and the bridge's partial export all ran.
+- Not reported one by one yet: the camera following an orbit, live re-exports after an edit (every file is still at
+  version 1), Refresh, Live off and on, a placed library tree, Reload Remote Plugin Files.
+
+**Status:** VERIFIED IN SKETCHUP 2026 BY ADAM (the first open; the rest of the checklist not yet reported)
 
 ---
 

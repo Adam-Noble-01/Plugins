@@ -47,6 +47,7 @@ module Na__PainterlyAssets
 
             Na__ConfigLoader.Na__Config__ClearCache
             Na__UserConfigStore.Na__UserConfig__ClearCache
+            Na__ViewportConfig.Na__ViewportConfig__ClearCache if defined?(Na__ViewportConfig)          # <-- The NPR windows, their server and live updates keep running
             Na__Register.Na__Register__ClearCache
             Na__Catalogue.Na__Catalogue__Scan
 

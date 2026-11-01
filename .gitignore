@@ -6,6 +6,11 @@
 # Large binary, rebuildable from the source LAS on each PC.
 **/90__AppCache__PointCloudCache/
 
+# Na PainterlyNPR Assets: each project's local NPR cache (GLBs, scene, look) and PainterlyNPR downloaded from GitHub.
+# Rebuildable on each PC.
+**/92__UserProjects__ProjectCache/
+**/93__RemoteCache__CoreEngine/
+
 # User Config - per-user, per-PC settings and tool usage logs, never committed
 **/91__UserConfig__LocalOnly/
 

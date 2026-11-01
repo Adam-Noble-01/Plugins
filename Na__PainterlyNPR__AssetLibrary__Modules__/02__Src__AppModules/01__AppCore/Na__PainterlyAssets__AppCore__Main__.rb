@@ -17,7 +17,17 @@
 #   6. Author    - Selection, Plan, Commit
 #   7. Validate  - Runner
 #   8. Materials - Palette (the SSOT's NPR swatches), Painter
-#   9. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager (last: they use all of the above)
+#   9. ProjectCache - Store, SceneFile, Fingerprint, GlbBridge, AssetProxies, Sync (the model's local GLB cache)
+#  10. NprViewport  - UserConfig, RemoteEngine, LocalServer, CameraSync, LiveSync, Windows (the two NPR windows)
+#  11. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager (last: they use all of the above)
+#
+# THE ENGINE IS NOT IN THIS PLUGIN:
+#   The NPR Viewport and NPR Parameters windows run PainterlyNPR's own app page
+#   and modules, downloaded from its GitHub repo into 93__RemoteCache__CoreEngine
+#   (Reload Remote Plugin Files downloads them again) and served by the plugin's
+#   local server. The plugin only hosts them (Adam, 01-Nov-2026: "This SketchUp
+#   plugin is effectively just a wrapper that calls all of that code from that
+#   repo").
 #
 # THE LIBRARY BELONGS TO PAINTERLYNPR:
 #   12__Data__AssetLibrary and its register live in the Na__PainterlyNPR repo.
@@ -51,6 +61,9 @@ module Na__PainterlyAssets
     NA_USER_CONFIG_DIR   = File.join(NA_MODULES_ROOT, '91__UserConfig__LocalOnly')                                     unless defined?(NA_USER_CONFIG_DIR)
     NA_USER_CONFIG_FILE  = File.join(NA_USER_CONFIG_DIR, 'Na__PainterlyAssets__UserConfig__.json')                     unless defined?(NA_USER_CONFIG_FILE)
     NA_CACHE_DIR         = File.join(NA_MODULES_ROOT, '90__AppCache__TempFilesCache')                                  unless defined?(NA_CACHE_DIR)   # <-- git-ignored by the Plugins repo's **/90__AppCache__TempFilesCache/
+    NA_VIEWPORT_CONFIG_FILE = File.join(NA_USER_CONFIG_DIR, 'Na__PainterlyAssets__UserConfig__NprViewport__.json')     unless defined?(NA_VIEWPORT_CONFIG_FILE)
+    NA_PROJECT_CACHE_DIR = File.join(NA_MODULES_ROOT, '92__UserProjects__ProjectCache')                                unless defined?(NA_PROJECT_CACHE_DIR)   # <-- git-ignored: each project's GLBs, scene and look
+    NA_REMOTE_CACHE_DIR  = File.join(NA_MODULES_ROOT, '93__RemoteCache__CoreEngine')                                   unless defined?(NA_REMOTE_CACHE_DIR)    # <-- git-ignored: PainterlyNPR from GitHub, one folder a commit
 
     # endregion ----------------------------------------------------------------
 
@@ -111,6 +124,28 @@ require_relative '../70__System__Materials/Na__PainterlyAssets__Materials__Palet
 require_relative '../70__System__Materials/Na__PainterlyAssets__Materials__Painter__'
 
 # -----------------------------------------------------------------------------
+# REGION | Project Cache - the model's GLBs on this PC, only what changed re-exported
+# -----------------------------------------------------------------------------
+
+require_relative '../85__System__ProjectCache/Na__PainterlyAssets__ProjectCache__Store__'
+require_relative '../85__System__ProjectCache/Na__PainterlyAssets__ProjectCache__SceneFile__'
+require_relative '../85__System__ProjectCache/Na__PainterlyAssets__ProjectCache__Fingerprint__'
+require_relative '../85__System__ProjectCache/Na__PainterlyAssets__ProjectCache__GlbBridge__'
+require_relative '../85__System__ProjectCache/Na__PainterlyAssets__ProjectCache__AssetProxies__'
+require_relative '../85__System__ProjectCache/Na__PainterlyAssets__ProjectCache__Sync__'
+
+# -----------------------------------------------------------------------------
+# REGION | NPR Viewport - PainterlyNPR from GitHub, in two windows, live
+# -----------------------------------------------------------------------------
+
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__UserConfig__'
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__RemoteEngine__'
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__LocalServer__'
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__CameraSync__'
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__LiveSync__'
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__Windows__'
+
+# -----------------------------------------------------------------------------
 # REGION | AppCore - Dialog (must load last - depends on all systems above)
 # -----------------------------------------------------------------------------
 
@@ -151,6 +186,42 @@ module Na__PainterlyAssets
     def self.Na__PublicApi__Version
         Na__ConfigLoader.Na__Config__GetOr('0.0.0', 'plugin', 'version')
     end
+
+    # FUNCTION | The NPR Windows, Live Updates and the Remote Engine (the toolbar's and the menu's)
+    # ------------------------------------------------------------
+    def self.Na__PublicApi__OpenNprViewport
+        Na__NprWindows.Na__Windows__Open('viewport')
+    rescue StandardError => error
+        Na__DebugTools.Na__Debug__Error('Opening the NPR Viewport failed.', error)
+        UI.messagebox("Na PainterlyNPR Assets could not open the NPR Viewport.\n\n#{error.message}")
+    end
+
+    def self.Na__PublicApi__OpenNprParameters
+        Na__NprWindows.Na__Windows__Open('parameters')
+    rescue StandardError => error
+        Na__DebugTools.Na__Debug__Error('Opening the NPR Parameters failed.', error)
+        UI.messagebox("Na PainterlyNPR Assets could not open the NPR Parameters.\n\n#{error.message}")
+    end
+
+    def self.Na__PublicApi__ToggleNprLive
+        Na__LiveSync.Na__Live__Toggle
+    rescue StandardError => error
+        Na__DebugTools.Na__Debug__Error('Live NPR updates could not be switched.', error)
+    end
+
+    def self.Na__PublicApi__NprLiveOn?
+        Na__LiveSync.Na__Live__On?
+    rescue StandardError
+        false
+    end
+
+    def self.Na__PublicApi__ReloadRemotePluginFiles
+        Na__NprWindows.Na__Windows__ReloadRemote
+    rescue StandardError => error
+        Na__DebugTools.Na__Debug__Error('Reload Remote Plugin Files failed.', error)
+        UI.messagebox("Na PainterlyNPR Assets could not reload the remote plugin files.\n\n#{error.message}")
+    end
+    # ---------------------------------------------------------------
 
     # FUNCTION | An Asset's Definition in a Model, for Other Plugins
     # ------------------------------------------------------------

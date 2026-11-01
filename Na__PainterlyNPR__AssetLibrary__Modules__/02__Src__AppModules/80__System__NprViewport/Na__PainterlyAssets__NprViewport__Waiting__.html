@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+
+<!-- ----------------------------------------------------------------- -->
+<!-- REGION | Na PainterlyNPR Assets - NPR Window, Waiting Page         -->
+<!-- ----------------------------------------------------------------- -->
+<!-- FILE    : Na__PainterlyAssets__NprViewport__Waiting__.html          -->
+<!-- PURPOSE : What an NPR window shows for the second or two before     -->
+<!--           PainterlyNPR's own page loads: the engine fetched from    -->
+<!--           GitHub (the first time), the local server started. Ruby   -->
+<!--           tells it what is happening (Na__NprWaiting__Say).         -->
+<!-- CREATED : 01-Nov-2026                                               -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PainterlyNPR</title>
+    <style>
+        html, body {
+            height                   :  100%;
+            margin                   :  0;
+            background               :  #E7E1D6;
+            color                    :  #172b3a;
+            font-family              :  'Segoe UI', system-ui, sans-serif;
+            font-size                :  13px;
+        }
+        .NaWaiting {
+            display                  :  grid;
+            place-items              :  center;
+            height                   :  100%;
+            padding                  :  0 24px;
+            box-sizing               :  border-box;
+            text-align               :  center;
+        }
+        .NaWaiting__Title {
+            margin                   :  0 0 10px;
+            font-size                :  15px;
+            font-weight              :  600;
+        }
+        .NaWaiting__Line {
+            margin                   :  0;
+            max-width                :  520px;
+            line-height              :  1.5;
+            color                    :  #3d4f5c;
+        }
+        .NaWaiting__Line[data-level="error"] {
+            color                    :  #9b2c2c;
+        }
+        .NaWaiting__Line[data-level="busy"]::after {
+            content                  :  '';
+            display                  :  inline-block;
+            width                    :  1.2em;
+            text-align               :  left;
+            animation                :  NaWaitingDots 1.2s steps(4, end) infinite;
+        }
+        @keyframes NaWaitingDots {
+            0%   { content: ''; }
+            25%  { content: '.'; }
+            50%  { content: '..'; }
+            75%  { content: '...'; }
+        }
+    </style>
+</head>
+<!-- endregion ----------------------------------------------------------------- -->
+
+<body>
+    <div class="NaWaiting">
+        <div>
+            <p class="NaWaiting__Title">PainterlyNPR</p>
+            <p id="NaWaiting__Line" class="NaWaiting__Line" data-level="busy">Starting the engine</p>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            // FUNCTION | A Line From Ruby: what the window is waiting for
+            window.Na__NprWaiting__Say = function (text, level) {
+                const line  =  document.getElementById('NaWaiting__Line');
+                line.textContent    =  String(text || '').replace(/\.\.\.$/, '');       // <-- The dots are the animation's
+                line.dataset.level  =  level || 'info';
+            };
+
+            // Ruby re-sends the latest line once this page can show it
+            let tries = 0;
+            (function ready() {
+                if (window.sketchup && typeof window.sketchup.na_npr_waiting_ready === 'function') { window.sketchup.na_npr_waiting_ready(); return; }
+                if (tries++ < 20) setTimeout(ready, 100);
+            })();
+        })();
+    </script>
+</body>
+
+</html>

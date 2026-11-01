@@ -1,0 +1,131 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - UI FEATURE STYLES - NPR VIEWPORT
+   =============================================================================
+
+   FILE       : Na__PainterlyAssets__UiFeature__Styles__NprViewport__.css
+   PURPOSE    : PainterlyNPR's own app page as the NPR Viewport: nothing but the
+                drawing, as large as the window allows, with a status line that
+                speaks only while something happens
+   CREATED    : 01-Nov-2026
+
+   DESCRIPTION:
+   - Linked by the plugin's local server into the engine's page (after the
+     engine's own stylesheet), for ?na-host=viewport. Only hides and lays out:
+     every colour and font is the engine's own token, never a copy of its value.
+   - The engine's panel, graph strip, drawer and status bar stay in the page,
+     hidden: the engine's own controls are what the NPR Parameters move.
+
+   ============================================================================= */
+
+
+/* #region ----------------------------------------------------------------------
+ * LAYOUT | The Drawing Alone
+ * ----------------------------------------------------------------------------- */
+
+    html.Na__NprHost--Viewport,
+    html.Na__NprHost--Viewport body {
+        height                             :  100%;
+        margin                             :  0;
+        overflow                           :  hidden;
+        background                         :  var(--PainterlyNPR_Desk);
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR {
+        grid-template-rows                 :  minmax(0, 1fr);
+        height                             :  100vh;                         /* <-- The engine's page scrolls below 1100 px wide (its panel drops under the sheet); this window never does */
+        overflow                           :  hidden;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Main {
+        grid-template-columns              :  minmax(0, 1fr);
+        grid-template-rows                 :  minmax(0, 1fr);
+        padding                            :  0;
+        gap                                :  0;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Graph,
+    .Na__NprHost--Viewport .PainterlyNPR__AssetDrawer,
+    .Na__NprHost--Viewport .PainterlyNPR__Meta,
+    .Na__NprHost--Viewport .PainterlyNPR__Panel,
+    .Na__NprHost--Viewport .PainterlyNPR__StatusBar,
+    .Na__NprHost--Viewport .PainterlyNPR__Resize,
+    .Na__NprHost--Viewport #PainterlyNPR__App__ViewBadge,
+    .Na__NprHost--Viewport #PainterlyNPR__App__PointLayer {
+        display                            :  none !important;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Stage {
+        grid-column                        :  1;
+        grid-row                           :  1;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Desk {
+        padding                            :  0;
+        container-type                     :  size;                          /* <-- Back from the narrow layout's inline-size: the sheet fits the window both ways */
+        grid-template-rows                 :  minmax(0, 1fr);
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Sheet {
+        width                              :  min(100cqw, calc(var(--PainterlyNPR_SheetAspect, 1.41414) * 100cqh));
+        box-shadow                         :  none;
+        cursor                             :  default;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Sheet::after {
+        display                            :  none !important;               /* <-- The engine's Proxy label: the viewport's waiting is said below */
+    }
+
+    .Na__NprHost--Waiting .PainterlyNPR__Sheet__Canvas {
+        visibility                         :  hidden;                        /* <-- The demo cottage never shows: the model is on its way */
+    }
+
+/* #endregion ------------------------------------------------------------------- */
+
+
+/* #region ----------------------------------------------------------------------
+ * STATUS | What Is Happening, and Live Paused
+ * ----------------------------------------------------------------------------- */
+
+    .Na__NprHost__Status {
+        position                           :  fixed;
+        left                               :  10px;
+        bottom                             :  10px;
+        z-index                            :  20;
+        max-width                          :  calc(100% - 20px);
+        padding                            :  5px 11px;
+        border-radius                      :  999px;
+        background                         :  rgba(43, 42, 40, 0.78);
+        color                              :  var(--PainterlyNPR_Paper);
+        font-family                        :  var(--PainterlyNPR_FontStack);
+        font-size                          :  var(--PainterlyNPR_FontSizeSmall);
+        line-height                        :  1.4;
+        pointer-events                     :  none;
+    }
+
+    .Na__NprHost__Status[data-level="warn"] {
+        background                         :  rgba(128, 88, 24, 0.9);
+    }
+
+    .Na__NprHost__Status[data-level="error"] {
+        background                         :  rgba(140, 40, 40, 0.92);
+    }
+
+    .Na__NprHost__Status[hidden],
+    .Na__NprHost__Paused[hidden] {
+        display                            :  none;
+    }
+
+    .Na__NprHost__Paused {
+        position                           :  fixed;
+        top                                :  10px;
+        left                               :  10px;
+        z-index                            :  20;
+        width                              :  24px;
+        height                             :  24px;
+        border-radius                      :  50%;
+        background                         :  url('/host/01__AppAssets__PainterlyAssets/Na__PainterlyAssets__Toolbar__NprLiveOff__.svg') center / 14px no-repeat, rgba(250, 247, 240, 0.86);
+        box-shadow                         :  0 0 0 1px var(--PainterlyNPR_Rule);
+        opacity                            :  0.85;
+    }
+
+/* #endregion ------------------------------------------------------------------- */

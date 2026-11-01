@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na PainterlyNPR Assets",
-        "version" : "0.1.3"
+        "version" : "0.2.0"
     },
 
     "dialog" : {
@@ -60,6 +60,102 @@
         "swatchSlot"      : "RND",
         "glassPattern"    : "glass(?![a-z])|glaz(?:ing|ed|e)",
         "glassBelowAlpha" : 0.95
+    },
+
+    "nprViewport" : {
+        "_comment" : "The NPR Viewport and NPR Parameters windows: PainterlyNPR's own app page, from its GitHub repo, cached on this PC (93__RemoteCache__CoreEngine) and served by the plugin's local server; the model's GLBs cached per project (92__UserProjects__ProjectCache), only what changed re-exported. Nothing of the engine is in this plugin (Adam, 01-Nov-2026).",
+
+        "remoteEngine" : {
+            "_comment"       : "Where PainterlyNPR comes from. git downloads it with this PC's own GitHub credentials (Git Credential Manager), a shallow, sparse clone of the branch's latest commit: only the files the engine reads when it runs (ValeVision AURA's pin selection: the modules, the asset library's and material recipes' .json and .webp, the stylesheets) plus the app page and its icons. It downloads when the cache is missing and on Reload Remote Plugin Files. git: a full path to git.exe when it is not on PATH. timeoutSeconds stops a download that hangs.",
+            "url"            : "https://github.com/Adam-Noble-01/Na__PainterlyNPR.git",
+            "branch"         : "main",
+            "git"            : "",
+            "timeoutSeconds" : 300,
+            "patterns"       : [
+                "/PainterlyNPR__App__.html",
+                "/01__AppAssets__PainterlyNPR/",
+                "/02__Src__AppModules/",
+                "/03__Style__AppStylesheets/",
+                "/07__Data__MaterialRecipes/**/*.json",
+                "/07__Data__MaterialRecipes/**/*.webp",
+                "/12__Data__AssetLibrary/**/*.json"
+            ]
+        },
+
+        "server" : {
+            "_comment"            : "The plugin's web server on 127.0.0.1 (Python, threaded): the engine, the windows' host scripts and the GLB caches. port is the usual one (the windows' browser storage is per port); when it is taken the system chooses another for that session.",
+            "port"                : 8147,
+            "startTimeoutSeconds" : 15
+        },
+
+        "viewport" : {
+            "title"          : "NPR Viewport",
+            "preferencesKey" : "Na__PainterlyNPR__NprViewport",
+            "width"          : 1100,
+            "height"         : 800,
+            "minWidth"       : 360,
+            "minHeight"      : 260
+        },
+
+        "parameters" : {
+            "title"          : "NPR Parameters",
+            "preferencesKey" : "Na__PainterlyNPR__NprParameters",
+            "width"          : 430,
+            "height"         : 880,
+            "minWidth"       : 340,
+            "minHeight"      : 420
+        },
+
+        "live" : {
+            "_comment"      : "Live NPR updates (on when the NPR Viewport opens: the viewport's user config, live.onWhenOpened). idleSeconds: how long the model must be still after a change before its stale GLBs are exported (the export runs on SketchUp's own thread). cameraSeconds: the most often SketchUp's camera is sent while it moves.",
+            "idleSeconds"   : 1.0,
+            "cameraSeconds" : 0.08
+        },
+
+        "projectCache" : {
+            "_comment"        : "One folder a project in 92__UserProjects__ProjectCache: <model title, folderNameChars>__<8 hex of its path>, short so every GLB path stays under SketchUp's 260 characters. keepProjects: the most recently opened projects kept (the oldest deleted, never the one open). keepExportLogs: the GLB builder's logs kept per project. materialMode: whitecard (every material Default, MAT000E__ exempt ones kept with their colour: the engine reads the <tag>::<material> node names), or auto (Cloud Sync's rule: a __MaxModel project keeps its SSOT MAT###__ materials).",
+            "folderNameChars" : 12,
+            "keepProjects"    : 12,
+            "keepExportLogs"  : 3,
+            "materialMode"    : "whitecard"
+        },
+
+        "assets" : {
+            "_comment"       : "includeProxies: the PainterlyNPR library assets placed in the model (this plugin's proxies) are drawn as the engine draws them (its generators, from the asset's record in the cached library), at SketchUp's position, turn and scale.",
+            "includeProxies" : true
+        },
+
+        "sceneImport" : {
+            "_comment"       : "How the cached GLBs become the engine's objects: ValeVision AURA's import rules (its AppConfig AuraConfig__SceneImport__Rules, scene API 1.2.0, Adam to set), by file name, the first rule whose every condition the file meets (Match: in its Id; Kind: Mesh or Linework; Group; VariantStarts; VariantContains), plus rows for the GLB builder's storey files (<prefix>__Storey__<Floor>__<Element>) and the landscape file under its older name. A component node's type word can override (componentRules). skipNodes: TrueVision's drawing notes. recentreM: how far the focal building may move from the engine's origin before the placement is set again. PROVISIONAL, as AURA's are.",
+            "recentreM"      : 25,
+            "skipNodes"      : "^90_\\d{4}__Note__",
+            "rules" : [
+                { "Match": "OrbitHelperCube", "Use": "Ignore" },
+                { "Kind": "Linework", "Use": "SourceLinework" },
+                { "Match": "LandscapeEnvironment", "Use": "Draw", "Role": "Ground", "Category": "Ground", "Material": "Lawn" },
+                { "Group": "MainBuildingModel", "VariantStarts": "ExistingRoofs", "Use": "Draw", "Role": "Architecture", "Category": "Roof", "Material": "ClayTile" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Existing", "Use": "Draw", "Role": "Architecture", "Category": "Wall", "Material": "Brick" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Proposed", "VariantContains": "Roofs", "Use": "Draw", "Role": "Focal", "Category": "Roof", "Material": "Slate" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Proposed", "VariantContains": "Windows", "Use": "Draw", "Role": "Focal", "Category": "Opening", "Material": "Glass" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Proposed", "VariantContains": "Doors", "Use": "Draw", "Role": "Focal", "Category": "Opening", "Material": "Joinery" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Proposed", "VariantContains": "Furniture", "Use": "Draw", "Role": "Focal", "Category": "Furniture", "Material": "Timber" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Proposed", "VariantContains": "Walls", "Use": "Draw", "Role": "Focal", "Category": "Wall", "Material": "Brick" },
+                { "Group": "MainBuildingModel", "VariantStarts": "Proposed", "Use": "Draw", "Role": "Focal", "Category": "Wall", "Material": "Joinery" },
+                { "Group": "Storey", "VariantContains": "ExistingRoofs", "Use": "Draw", "Role": "Architecture", "Category": "Roof", "Material": "ClayTile" },
+                { "Group": "Storey", "VariantContains": "Existing", "Use": "Draw", "Role": "Architecture", "Category": "Wall", "Material": "Brick" },
+                { "Group": "Storey", "VariantContains": "ProposedRoofs", "Use": "Draw", "Role": "Focal", "Category": "Roof", "Material": "Slate" },
+                { "Group": "Storey", "VariantContains": "ProposedWindows", "Use": "Draw", "Role": "Focal", "Category": "Opening", "Material": "Glass" },
+                { "Group": "Storey", "VariantContains": "ProposedDoors", "Use": "Draw", "Role": "Focal", "Category": "Opening", "Material": "Joinery" },
+                { "Group": "Storey", "VariantContains": "ProposedFurniture", "Use": "Draw", "Role": "Focal", "Category": "Furniture", "Material": "Timber" },
+                { "Group": "Storey", "VariantContains": "ProposedWalls", "Use": "Draw", "Role": "Focal", "Category": "Wall", "Material": "Brick" },
+                { "Group": "Storey", "VariantContains": "Proposed", "Use": "Draw", "Role": "Focal", "Category": "Wall", "Material": "Joinery" },
+                { "Group": "SceneEntourageSilhouette", "Use": "Draw", "Role": "Context", "Category": "Context", "Material": "Render" },
+                { "Use": "Draw", "Role": "Architecture", "Category": "Wall", "Material": "Render" }
+            ],
+            "componentRules" : [
+                { "Type": "Column", "Category": "Porch", "Material": "Timber", "Role": "Focal" }
+            ]
+        }
     },
 
     "author" : {

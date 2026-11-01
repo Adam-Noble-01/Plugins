@@ -1,0 +1,192 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - UI FEATURE STYLES - NPR PARAMETERS
+   =============================================================================
+
+   FILE       : Na__PainterlyAssets__UiFeature__Styles__NprParameters__.css
+   PURPOSE    : PainterlyNPR's own app page as the NPR Parameters window: the
+                engine's panel filling the window under a header of the plugin's
+                (Live, Refresh, the viewport, Reload Remote Plugin Files)
+   CREATED    : 01-Nov-2026
+
+   DESCRIPTION:
+   - Linked by the plugin's local server into the engine's page, for
+     ?na-host=parameters. The panel keeps the engine's own look; the header
+     uses the engine's tokens, never copies of their values.
+   - Hidden: this page's own sheet, graph strip, drawer and work mode, the
+     panel's fold, and the sections that act on a drawing this window does not
+     show (Camera, Art direction, Export).
+
+   ============================================================================= */
+
+
+/* #region ----------------------------------------------------------------------
+ * LAYOUT | The Header Over the Engine's Panel
+ * ----------------------------------------------------------------------------- */
+
+    html.Na__NprHost--Parameters,
+    html.Na__NprHost--Parameters body {
+        height                             :  100%;
+        margin                             :  0;
+        overflow                           :  hidden;
+    }
+
+    html.Na__NprHost--Parameters body {
+        display                            :  flex;
+        flex-direction                     :  column;
+        background                         :  var(--PainterlyNPR_Desk);
+    }
+
+    .Na__NprHost--Parameters .PainterlyNPR {
+        flex                               :  1 1 auto;
+        height                             :  auto;
+        min-height                         :  0;
+        overflow                           :  hidden;                        /* <-- The engine's narrow layout lets the page scroll; here the panel does */
+        grid-template-rows                 :  minmax(0, 1fr);
+    }
+
+    .Na__NprHost--Parameters .PainterlyNPR__Main {
+        grid-template-columns              :  minmax(0, 1fr);
+        grid-template-rows                 :  auto minmax(0, 1fr);
+        padding                            :  8px 10px 0;
+    }
+
+    .Na__NprHost--Parameters .PainterlyNPR__Meta {
+        grid-column                        :  1;
+        grid-row                           :  1;
+        justify-content                    :  flex-start;
+    }
+
+    .Na__NprHost--Parameters .PainterlyNPR__Panel {
+        grid-column                        :  1;
+        grid-row                           :  2;
+    }
+
+    .Na__NprHost--Parameters .PainterlyNPR__PanelBody {
+        overflow-y                         :  auto;
+    }
+
+    .Na__NprHost--Parameters .PainterlyNPR__Stage,
+    .Na__NprHost--Parameters .PainterlyNPR__Graph,
+    .Na__NprHost--Parameters .PainterlyNPR__AssetDrawer,
+    .Na__NprHost--Parameters .PainterlyNPR__Unfold,
+    .Na__NprHost--Parameters .PainterlyNPR__PanelHead .PainterlyNPR__FoldButton,
+    .Na__NprHost--Parameters .PainterlyNPR__WorkMode,
+    .Na__NprHost--Parameters #PainterlyNPR__App__Version,
+    .Na__NprHost--Parameters #PainterlyNPR__App__SheetTag,
+    .Na__NprHost--Parameters .PainterlyNPR__Section[data-panel="Camera"],
+    .Na__NprHost--Parameters .PainterlyNPR__Section[data-panel="ArtDirection"],
+    .Na__NprHost--Parameters .PainterlyNPR__Section[data-panel="Export"] {
+        display                            :  none !important;
+    }
+
+/* #endregion ------------------------------------------------------------------- */
+
+
+/* #region ----------------------------------------------------------------------
+ * HEADER | Live, Refresh, Viewport, Reload Remote Plugin Files
+ * ----------------------------------------------------------------------------- */
+
+    .Na__NprParams__Head {
+        flex                               :  0 0 auto;
+        padding                            :  10px 12px 8px;
+        border-bottom                      :  1px solid var(--PainterlyNPR_Rule);
+        background                         :  var(--PainterlyNPR_Cream);
+        color                              :  var(--PainterlyNPR_Ink);
+        font-family                        :  var(--PainterlyNPR_FontStack);
+        font-size                          :  var(--PainterlyNPR_FontSize);
+    }
+
+    .Na__NprParams__TitleRow {
+        display                            :  flex;
+        align-items                        :  baseline;
+        gap                                :  8px;
+        margin-bottom                      :  8px;
+    }
+
+    .Na__NprParams__Title {
+        font-weight                        :  600;
+    }
+
+    .Na__NprParams__Model {
+        overflow                           :  hidden;
+        color                              :  var(--PainterlyNPR_InkSoft);
+        font-size                          :  var(--PainterlyNPR_FontSizeSmall);
+        text-overflow                      :  ellipsis;
+        white-space                        :  nowrap;
+    }
+
+    .Na__NprParams__Buttons {
+        display                            :  flex;
+        flex-wrap                          :  wrap;
+        gap                                :  6px;
+    }
+
+    .Na__NprParams__Button,
+    .Na__NprParams__Live {
+        display                            :  inline-flex;
+        align-items                        :  center;
+        gap                                :  6px;
+        padding                            :  5px 11px;
+        border                             :  1px solid var(--PainterlyNPR_Rule);
+        border-radius                      :  999px;
+        background                         :  rgba(250, 247, 240, 0.7);
+        color                              :  var(--PainterlyNPR_Ink);
+        font                               :  inherit;
+        font-size                          :  var(--PainterlyNPR_FontSizeSmall);
+        cursor                             :  pointer;
+    }
+
+    .Na__NprParams__Button:hover,
+    .Na__NprParams__Live:hover {
+        border-color                       :  var(--PainterlyNPR_InkSoft);
+    }
+
+    .Na__NprParams__Live img {
+        width                              :  14px;
+        height                             :  14px;
+    }
+
+    .Na__NprParams__Live[aria-pressed="true"] {
+        border-color                       :  var(--PainterlyNPR_Ink);
+        background                         :  var(--PainterlyNPR_Paper);
+        font-weight                        :  600;
+    }
+
+    .Na__NprParams__Live[aria-pressed="false"] {
+        opacity                            :  0.8;
+    }
+
+    .Na__NprParams__StatusHome {
+        min-height                         :  0;
+    }
+
+    .Na__NprParams__Status {
+        margin-top                         :  8px;
+        color                              :  var(--PainterlyNPR_InkSoft);
+        font-size                          :  var(--PainterlyNPR_FontSizeSmall);
+        line-height                        :  1.4;
+    }
+
+    .Na__NprParams__Status[data-level="busy"]::after {
+        content                            :  ' ...';
+    }
+
+    .Na__NprParams__Status[data-level="warn"] {
+        color                              :  #805818;
+    }
+
+    .Na__NprParams__Status[data-level="error"] {
+        color                              :  #8c2828;
+    }
+
+    .Na__NprParams__Status[hidden] {
+        display                            :  none;
+    }
+
+    .Na__NprParams__Engine {
+        margin-top                         :  6px;
+        color                              :  var(--PainterlyNPR_InkSoft);
+        font-size                          :  10.5px;
+    }
+
+/* #endregion ------------------------------------------------------------------- */
