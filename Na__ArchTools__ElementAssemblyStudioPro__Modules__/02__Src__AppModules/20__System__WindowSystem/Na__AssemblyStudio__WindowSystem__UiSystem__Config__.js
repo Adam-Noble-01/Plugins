@@ -707,6 +707,10 @@ const NA_GLAZEBAR_CONFIG = [
     // and the bottom), and the lines between divide the rest evenly: the
     // margin glazing rule glaze bars already use. Off, or a window saved
     // before V2.2.0 (no key), divides each pane evenly as before.
+    //
+    // V2.2.2 - each direction has its own switch inside Lead Line Margins,
+    // so Y can run on its own (the usual case) with X off. A window saved
+    // by V2.2.0 or V2.2.1 has neither key and keeps both directions on.
     // -------------------------------------------------------------------------
     {
         id      :  'leaded_glass_controls',
@@ -779,6 +783,12 @@ const NA_GLAZEBAR_CONFIG = [
                 default :  false
             },
             {
+                id      :  'leaded_margin_x_enabled',
+                label   :  'X Margin (Sides)',
+                type    :  'toggle',
+                default :  false
+            },
+            {
                 id      :  'leaded_margin_x_mm',
                 label   :  'X Margin Offset',
                 unit    :  'mm',
@@ -787,6 +797,12 @@ const NA_GLAZEBAR_CONFIG = [
                 max     :  300,
                 step    :  1,
                 default :  50
+            },
+            {
+                id      :  'leaded_margin_y_enabled',
+                label   :  'Y Margin (Top and Bottom)',
+                type    :  'toggle',
+                default :  true
             },
             {
                 id      :  'leaded_margin_y_mm',

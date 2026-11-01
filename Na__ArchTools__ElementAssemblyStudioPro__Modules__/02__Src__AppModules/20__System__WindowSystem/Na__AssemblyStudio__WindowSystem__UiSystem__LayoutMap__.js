@@ -409,6 +409,10 @@
     const NA_NEED_LEADED       = { text: 'Leaded Glass on', fix: [['leaded_glass_enabled', true]] };
     const NA_NEED_LEAD_WIDTH   = { text: 'Leaded Glass on, Centre Lines Only off', fix: [['leaded_glass_enabled', true], ['leaded_centre_lines_only', false]] };
     const NA_NEED_LEAD_MARGINS = { text: 'Leaded Glass and Lead Line Margins on', fix: [['leaded_glass_enabled', true], ['leaded_margins_enabled', true]] };
+    const NA_NEED_LEAD_MARGIN_X = { text: 'Leaded Glass, Lead Line Margins and X Margin on',
+                                    fix: [['leaded_glass_enabled', true], ['leaded_margins_enabled', true], ['leaded_margin_x_enabled', true]] };
+    const NA_NEED_LEAD_MARGIN_Y = { text: 'Leaded Glass, Lead Line Margins and Y Margin on',
+                                    fix: [['leaded_glass_enabled', true], ['leaded_margins_enabled', true], ['leaded_margin_y_enabled', true]] };
     const NA_NEED_GOTHIC       = { text: 'Glaze Bar Gothic Arch Decoration on', fix: [['glazebar_gothic_arch_enabled', true]] };
 
     const NA_SECTIONS = [
@@ -518,8 +522,10 @@
                 { id: 'leaded_centre_lines_only', tier: 2, group: 'Decoration', need: NA_NEED_LEADED, kw: 'lead centre lines only' },
                 { id: 'leaded_global_alignment', tier: 2, group: 'Decoration', products: ['casement'], need: NA_NEED_LEADED, kw: 'lead align across casements' },
                 { id: 'leaded_margins_enabled', tier: 2, group: 'Decoration', need: NA_NEED_LEADED, kw: 'lead line margins first last set in border offset' },
-                { id: 'leaded_margin_x_mm', tier: 2, group: 'Decoration', need: NA_NEED_LEAD_MARGINS, kw: 'lead margin x offset sides vertical lines' },
-                { id: 'leaded_margin_y_mm', tier: 2, group: 'Decoration', need: NA_NEED_LEAD_MARGINS, kw: 'lead margin y offset top bottom horizontal lines' },
+                { id: 'leaded_margin_x_enabled', tier: 2, group: 'Decoration', need: NA_NEED_LEAD_MARGINS, kw: 'lead margin x sides vertical lines switch' },
+                { id: 'leaded_margin_x_mm', tier: 2, group: 'Decoration', need: NA_NEED_LEAD_MARGIN_X, kw: 'lead margin x offset sides vertical lines' },
+                { id: 'leaded_margin_y_enabled', tier: 2, group: 'Decoration', need: NA_NEED_LEAD_MARGINS, kw: 'lead margin y top bottom horizontal lines switch' },
+                { id: 'leaded_margin_y_mm', tier: 2, group: 'Decoration', need: NA_NEED_LEAD_MARGIN_Y, kw: 'lead margin y offset top bottom horizontal lines' },
                 { id: 'glazebar_horizontal_offset_mm', tier: 3, kw: 'horizontal bar vertical offset raise springing shift',
                   need: { text: 'at least one horizontal bar', fix: [['horizontal_glaze_bars', na_at_least('horizontal_glaze_bars', 1)]] } },
                 { id: 'glazebar_offsets_enabled', tier: 3, kw: 'glaze bar offsets nudge per bar individual' }

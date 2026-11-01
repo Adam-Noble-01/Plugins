@@ -94,8 +94,10 @@ module Na__WindowSystem
         # :margin_x / :margin_y (V2.2.0, Lead Line Margins) are how far the
         # first and last vertical / horizontal lines sit in from each pane's
         # edges, or nil for the even layout (switched off, or a window saved
-        # before the toggle existed). Mirrors na_resolveLeadMargins in the
-        # JS SVG generator.
+        # before the toggle existed). Each direction has its own switch
+        # (V2.2.2, leaded_margin_x_enabled / _y_enabled); an absent one (a
+        # window saved by V2.2.0 or V2.2.1) is on. Mirrors
+        # na_resolveLeadMargins in the JS SVG generator.
         # @param config [Hash] windowConfiguration (string keys, mm values)
         # @return [Hash] typed params (inches where dimensional)
         def self.na_resolve_leaded_params(config)
@@ -106,6 +108,8 @@ module Na__WindowSystem
             mte_id = (config['edge_colour_leaded_id'] || NA_DEFAULT_MTE_ID).to_s
             mte_id = NA_DEFAULT_MTE_ID if mte_id.empty?
             margins_on = config['leaded_margins_enabled'] == true
+            margin_x_on = margins_on && config['leaded_margin_x_enabled'] != false
+            margin_y_on = margins_on && config['leaded_margin_y_enabled'] != false
 
             {
                 enabled:       enabled,
@@ -115,8 +119,8 @@ module Na__WindowSystem
                 depth:         [[(config['leaded_depth_mm'] || 0).to_f, 0.0].max, 5.0].min * NA_MM_TO_INCH,
                 centre_lines:  config['leaded_centre_lines_only'] == true,
                 mte_id:        mte_id,
-                margin_x:      margins_on ? na_margin_inches(config['leaded_margin_x_mm']) : nil,
-                margin_y:      margins_on ? na_margin_inches(config['leaded_margin_y_mm']) : nil
+                margin_x:      margin_x_on ? na_margin_inches(config['leaded_margin_x_mm']) : nil,
+                margin_y:      margin_y_on ? na_margin_inches(config['leaded_margin_y_mm']) : nil
             }
         end
         # ---------------------------------------------------------------

@@ -3,6 +3,41 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.2.2 - 01-Nov-2026 - Leaded Glass: X and Y Lead Margins Switched On Their Own
+
+### Context
+Adam: the X and Y lead margins should switch on and off separately, because a lot of the time only the Y offset is wanted, with X off.
+
+### Feature Summary
+- **Lead Line Margins** now shows two switches when it is on:
+  - **X Margin (Sides)**, which reveals X Margin Offset. Off by default.
+  - **Y Margin (Top and Bottom)**, which reveals Y Margin Offset. On by default.
+- A direction switched off divides each pane evenly in that direction, exactly as with margins off; the other direction keeps its margin. Both off is the same as Lead Line Margins off.
+- With Align Lead Lines Across Casements on, a Y margin still runs on the aligned rows.
+- **Older windows keep what they were built with.** A window saved by V2.2.0 or V2.2.1 with its margins on has neither switch and loads with both on. A window without margins loads with the new defaults.
+- Works in the preview and the model, for windows and the door types that share these lead settings. Sliding and bifold doors save the two switches.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`, `...__UiSystem__LayoutMap__.js`: the two switches and their search entries.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`: visibility, and hydration of the switches for older windows.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`: `na_resolveLeadMargins` returns `null` for a direction switched off.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb`: `:margin_x` / `:margin_y` follow their switches.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb`, `...__DialogCallbacks__.rb`: defaults, and the sliding and bifold door save list.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js`: 126 assertions (was 115).
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.2.2.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js"
+```
+Expect `126 passed, 0 failed`. The other suites are unchanged.
+
+The stand-in Ruby harness builds 43 windows. Every window saved before V2.2.2, margins included, builds and exports exactly as V2.2.1 did. Y only matches the margined rows with even verticals, X only the reverse, both off matches no margins, and the model's lead equals the preview's, line for line.
+
+Then in SketchUp, after Reload Plugin: Leaded Glass on, Lead Line Margins on. X Margin (Sides) is off and Y Margin (Top and Bottom) is on: the top and bottom lines move in, the verticals stay evenly spaced. Switch X on and the verticals move in too.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.2.1 - 01-Nov-2026 - Leaded Glass: Click Single Lead Lines Off in the Preview
 
 ### Context

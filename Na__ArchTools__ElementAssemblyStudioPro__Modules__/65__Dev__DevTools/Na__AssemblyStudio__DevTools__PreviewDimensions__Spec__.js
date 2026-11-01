@@ -35,6 +35,8 @@
      off), a line clicked off and on through Na_DynamicUI, keys pruned when
      the count drops, Reset Elements, an older window selected, and the
      click delegation (a pan's closing click ignored).
+   - V2.2.2: the X and Y lead margins switched on their own, in the
+     resolver, the preview, and how an older window loads.
 
    ============================================================================= */
 
@@ -589,6 +591,32 @@ na_clicked_line = null;
 na_click_state.didPan = true;
 na_click_svg.na_dispatch('click', { target: na_strip });
 na_expect('the click that ends a pan does not', na_clicked_line, null);
+
+na_suite('X and Y margins switched on their own (V2.2.2)');
+const na_margins_on = { leaded_margins_enabled: true, leaded_margin_x_mm: 30, leaded_margin_y_mm: 40 };
+na_expect('Y only: X comes back null', Generator.na_resolveLeadMargins(Object.assign({ leaded_margin_x_enabled: false }, na_margins_on)), { x: null, y: 40 });
+na_expect('X only: Y comes back null', Generator.na_resolveLeadMargins(Object.assign({ leaded_margin_y_enabled: false }, na_margins_on)), { x: 30, y: null });
+na_expect('both switched off: no margins at all',
+    Generator.na_resolveLeadMargins(Object.assign({ leaded_margin_x_enabled: false, leaded_margin_y_enabled: false }, na_margins_on)), null);
+na_expect('no switches (saved by V2.2.0 or V2.2.1): both on', Generator.na_resolveLeadMargins(na_margins_on), { x: 30, y: 40 });
+const na_y_only = na_preview_leads(na_window(Object.assign({ leaded_glass_enabled: true, horizontal_leaded_bars: 6, vertical_leaded_bars: 3,
+    leaded_width_mm: 6, leaded_margin_x_enabled: false, leaded_margin_y_enabled: true }, na_margins_on)));
+na_expect('Y only: the rows sit 40 in from top and bottom', na_y_only.h.filter((y, i, all) => all.indexOf(y) === i), [160, 338, 516, 694, 872, 1050]);
+na_expect('Y only: the verticals divide each light evenly, as with margins off', na_y_only.v, na_even.v);
+const na_x_only = na_preview_leads(na_window(Object.assign({ leaded_glass_enabled: true, horizontal_leaded_bars: 6, vertical_leaded_bars: 3,
+    leaded_width_mm: 6, leaded_margin_x_enabled: true, leaded_margin_y_enabled: false }, na_margins_on)));
+na_expect('X only: the verticals sit 30 in from each side', na_x_only.v, [120, 320, 520, 700, 900, 1100, 1280, 1480, 1680]);
+na_expect('X only: the rows divide evenly, as with margins off', na_x_only.h, na_even.h);
+
+Ui.na_setConfig(na_window(Object.assign({ leaded_glass_enabled: true }, na_margins_on)), { fullConfig: true });
+na_expect('a window saved by V2.2.1 with margins on loads with both directions on',
+    [Ui.na_getConfig().leaded_margin_x_enabled, Ui.na_getConfig().leaded_margin_y_enabled], [true, true]);
+Ui.na_setConfig(na_window(), { fullConfig: true });
+na_expect('a window without margins loads as the new default: X off, Y on',
+    [Ui.na_getConfig().leaded_margin_x_enabled, Ui.na_getConfig().leaded_margin_y_enabled], [false, true]);
+Ui.na_setConfig(na_window(Object.assign({ leaded_margin_x_enabled: false, leaded_margin_y_enabled: true }, na_margins_on)), { fullConfig: true });
+na_expect('a window saved with Y only keeps Y only',
+    [Ui.na_getConfig().leaded_margin_x_enabled, Ui.na_getConfig().leaded_margin_y_enabled], [false, true]);
 
 // endregion -------------------------------------------------------------------
 

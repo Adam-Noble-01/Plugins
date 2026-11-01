@@ -1426,12 +1426,15 @@ const Na_DynamicUI = (function() {
     // When disabled, only the enable toggle stays visible inside the
     // expandable. Centre Lines Only hides Width + Depth (ignored in Ruby).
     // Align Lead Lines Across Casements (V1.8.0) only acts on casement
-    // windows, so a sliding sash or any door hides it. The X and Y Margin
-    // Offsets (V2.2.0) appear only once Lead Line Margins is switched on.
+    // windows, so a sliding sash or any door hides it. Lead Line Margins
+    // (V2.2.0) shows its X and Y switches (V2.2.2) once it is on, and each
+    // Margin Offset appears with its own switch.
     function na_updateLeadedGlassVisibility() {
         const enabled = _config.leaded_glass_enabled === true;
         const centreLinesOnly = _config.leaded_centre_lines_only === true;
         const marginsOn = _config.leaded_margins_enabled === true;
+        const marginXOn = marginsOn && _config.leaded_margin_x_enabled !== false;
+        const marginYOn = marginsOn && _config.leaded_margin_y_enabled !== false;
         const casementWindow = !!(window.Na__CasementMath &&
             window.Na__CasementMath.na_supportsCasementOverrides({ ..._config, show_casements: true }));
 
@@ -1443,7 +1446,9 @@ const Na_DynamicUI = (function() {
             'leaded_centre_lines_only',
             'leaded_global_alignment',
             'leaded_margins_enabled',
+            'leaded_margin_x_enabled',
             'leaded_margin_x_mm',
+            'leaded_margin_y_enabled',
             'leaded_margin_y_mm'
         ];
         dependentIds.forEach(function (id) {
@@ -1461,7 +1466,11 @@ const Na_DynamicUI = (function() {
                 ctrl.style.display = 'none';
                 return;
             }
-            if (!marginsOn && (id === 'leaded_margin_x_mm' || id === 'leaded_margin_y_mm')) {
+            if (!marginsOn && (id === 'leaded_margin_x_enabled' || id === 'leaded_margin_y_enabled')) {
+                ctrl.style.display = 'none';
+                return;
+            }
+            if ((id === 'leaded_margin_x_mm' && !marginXOn) || (id === 'leaded_margin_y_mm' && !marginYOn)) {
                 ctrl.style.display = 'none';
                 return;
             }
@@ -1669,6 +1678,9 @@ const Na_DynamicUI = (function() {
     // Windows saved before V2.2.0 laid their lead out evenly:
     //   * leaded_margins_enabled - Off, or another window's Lead Line
     //     Margins would re-space this one's lead on the next rebuild.
+    // Windows saved before V2.2.2 had no X and Y switches:
+    //   * leaded_margin_x_enabled / leaded_margin_y_enabled - as they were
+    //     built: both on where Lead Line Margins was on.
     // Windows saved before V2.2.1 had every lead line:
     //   * removed_lead_lines - empty, or lines clicked off on the window
     //     shown before would vanish from this one.
@@ -1691,6 +1703,14 @@ const Na_DynamicUI = (function() {
         }
         if (typeof cfg.leaded_margins_enabled === 'undefined') {
             cfg.leaded_margins_enabled = false;
+        }
+        // V2.2.2: a window saved by V2.2.0 or V2.2.1 with its margins on used
+        // them both ways, so it keeps X on; otherwise X starts off, Y on.
+        if (typeof cfg.leaded_margin_x_enabled === 'undefined') {
+            cfg.leaded_margin_x_enabled = cfg.leaded_margins_enabled === true;
+        }
+        if (typeof cfg.leaded_margin_y_enabled === 'undefined') {
+            cfg.leaded_margin_y_enabled = true;
         }
     }
     // ---------------------------------------------------------------

@@ -1107,16 +1107,21 @@ const Na__Viewport__SvgGenerator = (function() {
     // Lead Line Margins on: { x, y } in mm, how far the first and last
     // vertical (x) and horizontal (y) lead lines sit in from the edges of
     // each pane, the lines between dividing the rest evenly. Off, or absent
-    // on a window saved before V2.2.0: null, the even layout. Shared by the
-    // window, sliding, bifold and hinged door previews. Ruby mirror:
+    // on a window saved before V2.2.0: null, the even layout. Each direction
+    // has its own switch (V2.2.2): one switched off comes back null, so that
+    // direction divides evenly; absent (V2.2.0, V2.2.1) means on. Shared by
+    // the window, sliding, bifold and hinged door previews. Ruby mirror:
     // LeadedGlassBuilder.na_resolve_leaded_params (:margin_x, :margin_y).
     function na_resolveLeadMargins(config) {
         if (!config || config.leaded_margins_enabled !== true) return null;
+        const xOn = config.leaded_margin_x_enabled !== false;
+        const yOn = config.leaded_margin_y_enabled !== false;
+        if (!xOn && !yOn) return null;
         const x = config.leaded_margin_x_mm == null ? NaN : Number(config.leaded_margin_x_mm);
         const y = config.leaded_margin_y_mm == null ? NaN : Number(config.leaded_margin_y_mm);
         return {
-            x: Number.isFinite(x) ? Math.max(0, x) : NA_LEAD_MARGIN_DEFAULT_MM,
-            y: Number.isFinite(y) ? Math.max(0, y) : NA_LEAD_MARGIN_DEFAULT_MM
+            x: xOn ? (Number.isFinite(x) ? Math.max(0, x) : NA_LEAD_MARGIN_DEFAULT_MM) : null,
+            y: yOn ? (Number.isFinite(y) ? Math.max(0, y) : NA_LEAD_MARGIN_DEFAULT_MM) : null
         };
     }
     // ---------------------------------------------------------------

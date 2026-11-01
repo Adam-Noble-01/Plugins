@@ -665,7 +665,9 @@ module Na__AssemblyStudio
                 "leaded_depth_mm",
                 "leaded_centre_lines_only",
                 "leaded_margins_enabled",                                                           # <-- V2.2.0 Lead Line Margins
+                "leaded_margin_x_enabled",                                                          # <-- V2.2.2 Each direction switched on its own
                 "leaded_margin_x_mm",
+                "leaded_margin_y_enabled",
                 "leaded_margin_y_mm",
                 "leaded_disabled_cells",                                                            # <-- V1.3.0 Per-cell leaded glass toggles
                 "edge_colour_controls",
