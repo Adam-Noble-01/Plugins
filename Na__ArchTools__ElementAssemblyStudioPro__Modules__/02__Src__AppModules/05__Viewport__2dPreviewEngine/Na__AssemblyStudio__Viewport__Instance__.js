@@ -13,6 +13,12 @@
 // - na_create(spec) validates spec.wrapperId, spec.svgId, and spec.onRender.
 // - Optional spec.fitToContent, beforeRender, afterRender, initialViewBox,
 //   and autoResetOnRender (default true) tune lifecycle.
+// - spec.keepUserView (V2.2.0, default false): once the user has zoomed or
+//   panned, the automatic fit after each render leaves the view alone
+//   (CAD style) until na_resetView or na_releaseView. Callers fitting by
+//   hand use na_autoFitView for the same rule.
+// - A double click on empty canvas (or a middle button double press) fits
+//   the last rendered config again.
 // - DOM is resolved lazily; pan/zoom binds once both nodes exist.
 //
 // REFACTOR NOTES (v2 / EASP)
@@ -54,6 +60,8 @@
         var na_before_render        = (typeof spec.beforeRender === 'function') ? spec.beforeRender : null;
         var na_after_render         = (typeof spec.afterRender  === 'function') ? spec.afterRender  : null;
         var na_auto_reset_on_render = (spec.autoResetOnRender === false) ? false : true;
+        var na_keep_user_view       = spec.keepUserView === true;
+        var na_last_config          = null;                                  // <-- What a double click fits back to
 
         var na_view_box = (spec.initialViewBox && typeof spec.initialViewBox === 'object')
             ? {
@@ -69,7 +77,9 @@
             isPanning    : false,
             didPan       : false,
             lastMousePos : { x: 0, y: 0 },
-            panStartPos  : { x: 0, y: 0 }
+            panStartPos  : { x: 0, y: 0 },
+            userView     : false,                                            // <-- True once the user has zoomed or panned
+            fitWidth     : 0                                                 // <-- viewBox width of the last fit (zoom limits)
         };
 
         var na_wrapper_el     = null;
@@ -97,7 +107,12 @@
                 na_svg_el,
                 na_view_box,
                 na_interaction_state,
-                function () { window.Na__Viewport__Controls.na_updateViewBox(na_svg_el, na_view_box); }
+                function () { window.Na__Viewport__Controls.na_updateViewBox(na_svg_el, na_view_box); },
+                {
+                    onZoomExtents: function () {                              // <-- Double click on empty canvas
+                        if (na_last_config) publicApi.na_resetView(na_last_config);
+                    }
+                }
             );
             na_pan_zoom_bound = true;
         }
@@ -105,6 +120,7 @@
 
         // PUBLIC INSTANCE API | Reset view to fitted box
         // ------------------------------------------------------------
+        // Always fits, and forgets any zoom or pan the user made.
         publicApi.na_resetView = function (config) {
             if (!na_resolve_dom()) return;
             if (typeof na_fit_to_content !== 'function') return;
@@ -115,11 +131,27 @@
         };
         // ---------------------------------------------------------------
 
+        // PUBLIC INSTANCE API | Fit unless the user has zoomed or panned (V2.2.0)
+        // ------------------------------------------------------------
+        publicApi.na_autoFitView = function (config) {
+            if (na_interaction_state.userView === true) return;
+            publicApi.na_resetView(config);
+        };
+        // ---------------------------------------------------------------
+
+        // PUBLIC INSTANCE API | Forget the user's view so the next fit happens (V2.2.0)
+        // ------------------------------------------------------------
+        publicApi.na_releaseView = function () {
+            na_interaction_state.userView = false;
+        };
+        // ---------------------------------------------------------------
+
         // PUBLIC INSTANCE API | Render through onRender + optional hooks
         // ------------------------------------------------------------
         publicApi.na_render = function (config) {
             if (!na_resolve_dom()) return false;
             na_bind_pan_zoom();
+            na_last_config = config;
             if (na_before_render) {
                 try { na_before_render(na_svg_el, config); }
                 catch (err) { console.error('[NA_VIEWPORT_INSTANCE] beforeRender threw:', err); }
@@ -130,7 +162,10 @@
                 try { na_after_render(na_svg_el, config); }
                 catch (err) { console.error('[NA_VIEWPORT_INSTANCE] afterRender threw:', err); }
             }
-            if (na_auto_reset_on_render) publicApi.na_resetView(config);
+            if (na_auto_reset_on_render) {
+                if (na_keep_user_view) publicApi.na_autoFitView(config);
+                else publicApi.na_resetView(config);
+            }
             return true;
         };
         // ---------------------------------------------------------------

@@ -234,7 +234,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
             vBars       : Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0)))),
             widthMm     : Math.max(2, Number(config.leaded_width_mm || 6)),
             centreLines : config.leaded_centre_lines_only === true,
-            colourId    : colourId
+            colourId    : colourId,
+            margins     : (sg && typeof sg.na_resolveLeadMargins === 'function') ? sg.na_resolveLeadMargins(config) : null   // <-- V2.2.0 Lead Line Margins
         };
     }
     // ---------------------------------------------------------------
@@ -824,7 +825,7 @@ const Na__ExtFold__ElevationGenerator = (function () {
         svg += na_build_handle_dot(layout, foldDirections);
 
         if (layout.showDimensions && typeof sg.na_svgDimensions === 'function') {
-            svg += sg.na_svgDimensions(layout.openingWidth, layout.openingHeight);
+            svg += sg.na_svgDimensions(layout.openingWidth, layout.openingHeight, { editable: true });   // <-- V2.2.0 Click a value to type a new Width / Height
         }
 
         svg += clickBucket.leadedClickTargetsSvg;                        // <-- Below glazebar targets so bar clicks win

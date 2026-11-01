@@ -48,14 +48,22 @@
        ordered from `start` upward; degenerate segments are clamped to
        size 0 so callers can skip them.
 
-   - na_computeLeadLinePositions(cells, count)
-       Evenly divides every cell from na_computeCellBounds into count + 1
-       panes and returns all the lead centrelines as one ascending list.
+   - na_computeLeadPositions(start, size, count, marginMm, leadWidthMm)
+       Lead centrelines across one span. With no margin: count + 1 equal
+       panes. With a margin (Lead Line Margins, V2.2.0): the first and last
+       lines sit `marginMm` in from the span's edges and the rest divide
+       evenly between them, exactly as margin glazing places glaze bars.
+
+   - na_computeLeadLinePositions(cells, count, marginMm, leadWidthMm)
+       Lays every cell from na_computeCellBounds out with
+       na_computeLeadPositions and returns all the lead centrelines as one
+       ascending list.
 
    - na_filterPositionsInside(positions, start, size, margin)
        Keeps the positions that sit more than `margin` inside one span.
-       Together these lay the "Align Lead Lines Across Casements" grid out
-       on a reference pane and cut it to each real glazing cell (V1.8.0).
+       Together these lay the "Align Lead Lines Across Casements" rows out
+       on a reference pane and cut them to each real glazing cell (V1.8.0;
+       horizontal lines only since V2.1.1).
 
    ============================================================================= */
 
@@ -280,18 +288,44 @@ const Na__GlazebarMath = (function () {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Lead centrelines across one span, optionally inside a margin
+    // ---------------------------------------------------------------
+    // marginMm null / undefined: count + 1 equal panes, as always.
+    // marginMm a number (Lead Line Margins, V2.2.0): the first and last
+    // lines sit that far in from the span's edges and the lines between
+    // divide the rest evenly, the margin glazing rule. One line has no
+    // first and last, so it stays in the middle. The margin gives way
+    // before the lines can close up past touching (a lead width apart);
+    // a span too small even for that keeps the even layout. Ruby mirror:
+    // LeadedGlassBuilder.na_compute_lead_positions.
+    function na_computeLeadPositions(start, size, count, marginMm, leadWidthMm) {
+        const lineCount = Math.max(0, Math.round(Number(count) || 0));
+        if (lineCount <= 0 || !(size > 0)) return [];
+        if (marginMm === null || marginMm === undefined || lineCount < 2) {
+            return na_computeBarPositions(start, size, lineCount, false, 0);
+        }
+
+        const leadWidth = Math.max(0, Number(leadWidthMm) || 0);
+        const maxMargin = (size - ((lineCount - 1) * leadWidth)) / 2;
+        if (!(maxMargin > 0)) return na_computeBarPositions(start, size, lineCount, false, 0);
+
+        const margin = Math.min(Math.max(0, Number(marginMm) || 0), maxMargin);
+        return na_computeBarPositions(start, size, lineCount, true, margin);
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Lead centrelines laid out across a set of glazing cells
     // ---------------------------------------------------------------
     // `cells` comes from na_computeCellBounds. Each cell with a positive
-    // size is divided into count + 1 equal panes, exactly as a single cell
-    // is in the per-casement layout. Ruby mirror:
-    // LeadedGlassBuilder.na_compute_lead_line_positions.
-    function na_computeLeadLinePositions(cells, count) {
+    // size is laid out by na_computeLeadPositions, exactly as a single cell
+    // is in the per-casement layout (margins included when given). Ruby
+    // mirror: LeadedGlassBuilder.na_compute_lead_line_positions.
+    function na_computeLeadLinePositions(cells, count, marginMm, leadWidthMm) {
         const positions = [];
         if (!Array.isArray(cells) || !count || count <= 0) return positions;
         cells.forEach(function (cell) {
             if (!cell || !(cell.size > 0)) return;
-            na_computeBarPositions(cell.start, cell.size, count, false, 0).forEach(function (position) {
+            na_computeLeadPositions(cell.start, cell.size, count, marginMm, leadWidthMm).forEach(function (position) {
                 positions.push(position);
             });
         });
@@ -325,6 +359,7 @@ const Na__GlazebarMath = (function () {
         na_applyBarOffsets                 : na_applyBarOffsets,
         na_collectBarOffsets               : na_collectBarOffsets,
         na_computeCellBounds               : na_computeCellBounds,
+        na_computeLeadPositions            : na_computeLeadPositions,
         na_computeLeadLinePositions        : na_computeLeadLinePositions,
         na_filterPositionsInside           : na_filterPositionsInside
     };

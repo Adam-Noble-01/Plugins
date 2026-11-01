@@ -691,12 +691,22 @@ const NA_GLAZEBAR_CONFIG = [
     // (na_updateLeadedGlassVisibility).
     //
     // V1.8.0 - Align Lead Lines Across Casements. On, every pane of a
-    // casement window lays its lead out on the glass a casement built to the
-    // window-wide settings would have, and shows the part of that grid its
-    // own glass covers. Lines then run straight through a casement with its
-    // own Per Casement Settings, or with no casement at all, instead of
-    // being re-spaced inside it. Off, each pane divides its own glass, as
-    // before. A window saved before V1.8.0 has no key and loads as Off.
+    // casement window lays its HORIZONTAL lead out on the glass a casement
+    // built to the window-wide settings would have, and shows the part of
+    // those rows its own glass covers. They then run straight through a
+    // casement with its own Per Casement Settings, or with no casement at
+    // all, instead of being re-spaced inside it. Vertical lines always
+    // divide each pane's own glass evenly (V2.1.1), so a light with its
+    // casement clicked off spaces them across its full width. Off, each
+    // pane divides its own glass both ways, as before. A window saved before
+    // V1.8.0 has no key and loads as Off.
+    //
+    // V2.2.0 - Lead Line Margins. On, the first and last lead lines of each
+    // pane sit a set distance in from its edges, X for the vertical lines
+    // (in from each side) and Y for the horizontal ones (in from the top
+    // and the bottom), and the lines between divide the rest evenly: the
+    // margin glazing rule glaze bars already use. Off, or a window saved
+    // before V2.2.0 (no key), divides each pane evenly as before.
     // -------------------------------------------------------------------------
     {
         id      :  'leaded_glass_controls',
@@ -761,6 +771,32 @@ const NA_GLAZEBAR_CONFIG = [
                 label   :  'Align Lead Lines Across Casements',
                 type    :  'toggle',
                 default :  true
+            },
+            {
+                id      :  'leaded_margins_enabled',
+                label   :  'Lead Line Margins',
+                type    :  'toggle',
+                default :  false
+            },
+            {
+                id      :  'leaded_margin_x_mm',
+                label   :  'X Margin Offset',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  300,
+                step    :  1,
+                default :  50
+            },
+            {
+                id      :  'leaded_margin_y_mm',
+                label   :  'Y Margin Offset',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  0,
+                max     :  300,
+                step    :  1,
+                default :  50
             }
         ]
     }

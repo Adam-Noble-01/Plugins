@@ -361,8 +361,8 @@ na_expect('Centre top rail is 100 deep', NA_CENTRE_MEMBERS.some(r => r.x === 700
 na_expect('Centre bottom rail is 90 deep', NA_CENTRE_MEMBERS.some(r => r.x === 700 && r.h === 90 && r.y === 50), true);
 na_expect('Centre lead runs level with the left light', na_horizontalLeads(NA_ALIGNED, 630, 1170), NA_SHARED_HEIGHTS);
 na_expect('Right light lead unchanged', na_horizontalLeads(NA_ALIGNED, 1210, 1750), NA_SHARED_HEIGHTS);
-na_expect('Centre verticals follow its light\'s window-wide grid', na_verticalLeads(NA_ALIGNED, 630, 1170),
-    [1, 2, 3].map(k => na_round(670 + 115 * k)));
+na_expect('Centre verticals divide its own 400 glass evenly (V2.1.1)', na_verticalLeads(NA_ALIGNED, 630, 1170),
+    [800, 900, 1000]);
 
 const NA_OWN = Svg.na_generateWindowSvg(na_window({ casement_overrides: { '1:0:0': NA_CENTRE }, leaded_global_alignment: false }));
 na_expect('Alignment off: centre lead divides its own glass', na_horizontalLeads(NA_OWN, 630, 1170),
@@ -373,9 +373,26 @@ na_expect('A deep top rail hides the top line, the rest stay level', na_horizont
 
 const NA_FIXED = Svg.na_generateWindowSvg(na_window({ removed_casements: ['1:0:0'], leaded_global_alignment: true }));
 na_expect('A fixed centre light lines up with its neighbours', na_horizontalLeads(NA_FIXED, 630, 1170), NA_SHARED_HEIGHTS);
+na_expect('A fixed centre light spaces its verticals across its full width (V2.1.1)', na_verticalLeads(NA_FIXED, 630, 1170),
+    [765, 900, 1035]);
 const NA_FIXED_OWN = Svg.na_generateWindowSvg(na_window({ removed_casements: ['1:0:0'], leaded_global_alignment: false }));
 na_expect('Alignment off: a fixed light divides its own glass, as before', na_horizontalLeads(NA_FIXED_OWN, 630, 1170),
     [1, 2, 3, 4, 5, 6].map(k => na_round(50 + (1100 / 7) * k)));
+
+// Adam, 01-Nov-2026: 70mm casements all round, centre casement kept, both
+// outer casements clicked off in the preview. The horizontals were already
+// right; the outer verticals were bunched onto the missing casement's glass.
+const NA_OUTER_FIXED = Svg.na_generateWindowSvg(na_window({
+    casement_sizes_individual: false, casement_width_mm: 70,
+    removed_casements: ['0:0:0', '2:0:0'], leaded_global_alignment: true
+}));
+const NA_OUTER_ROWS = [1, 2, 3, 4, 5, 6].map(k => na_round(120 + (960 / 7) * k));
+na_expect('Outer fixed lights: horizontals level with the centre casement', [
+    na_horizontalLeads(NA_OUTER_FIXED, 50, 590), na_horizontalLeads(NA_OUTER_FIXED, 630, 1170), na_horizontalLeads(NA_OUTER_FIXED, 1210, 1750)
+], [NA_OUTER_ROWS, NA_OUTER_ROWS, NA_OUTER_ROWS]);
+na_expect('Left fixed light: verticals evenly across 50 to 590', na_verticalLeads(NA_OUTER_FIXED, 50, 590), [185, 320, 455]);
+na_expect('Right fixed light: verticals evenly across 1210 to 1750', na_verticalLeads(NA_OUTER_FIXED, 1210, 1750), [1345, 1480, 1615]);
+na_expect('Centre casement: verticals evenly across its own glass', na_verticalLeads(NA_OUTER_FIXED, 630, 1170), [800, 900, 1000]);
 
 na_suite('Preview: casement numbers');
 

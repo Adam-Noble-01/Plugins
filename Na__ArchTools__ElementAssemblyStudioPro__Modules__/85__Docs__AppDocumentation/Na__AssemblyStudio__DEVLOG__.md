@@ -3,6 +3,148 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.2.1 - 01-Nov-2026 - Leaded Glass: Click Single Lead Lines Off in the Preview
+
+### Context
+Adam, looking at the clerestories (the small top lights): the lead lines there crowd together, and there was no way to take out the ones he does not want. He wanted to zoom in and click individual lead lines off, the way glaze bars already work.
+
+### Feature Summary
+- **Click a lead line in the window preview to switch it off**, and click the same place to bring it back.
+  - Each line has a thin click strip over it, kept when the line is off. The strip highlights on hover, which also shows where a switched off line was.
+  - Strips are as wide as the room either side of their line allows, from the lead width to 14mm, so lines close together in a clerestory stay separate. Zoom in (V2.2.0) to pick one.
+  - Clicking the pane away from a line still switches that pane's lead off or on, as before.
+- **The model follows.** Lines switched off are not built in SketchUp. The lines kept keep their numbers (H1, H3), so nothing else moves.
+- **Reset Elements** brings every line back, along with the glaze bars, casements and transom segments.
+- A line is keyed by its glazing pane and its number in that pane, `opening:cell:panel:sash:col:row:h:2`, counted from 1 bottom up and left to right, as glaze bars are. Lowering the line count drops the keys past the new count. With Align Lead Lines Across Casements on, a pane's numbering follows the rows it shows, so changing that casement's rails can renumber them.
+- **Scope.** Casement and sliding sash windows. The door previews keep their lead as it was.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`: `na_getLeadLineKey`, `na_collectValidLeadLineKeys`, the click strips (`na_generateLeadLineClickTargetsSvg`), and lines switched off left undrawn.
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Controls__.js`: `na_setupCasementClickTargets` takes a lead line callback.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`: `na_toggleLeadLineRemoval`, the `removed_lead_lines` clean up, Reset Elements, and hydration (a window saved before V2.2.1 starts with every line).
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb`: `grid[:removed_lines]`, `na_kept_lead_lines`.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`: passes `removed_lead_lines` through.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb`: `removed_lead_lines` default.
+- `03__Style__AppStylesheets/Na__AssemblyStudio__Styles__Combined__.css`: strip hover.
+- `Na__AssemblyStudio__UiLayout__.html`: the canvas tooltip mentions lead lines.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js`: 115 assertions (was 97).
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.2.1.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js"
+```
+Expect `115 passed, 0 failed`. It fails if the preview draws a line that is off (2), if the keys are not cleaned up (2), or if an older window keeps the last window's choices (1). The other suites are unchanged.
+
+The stand-in Ruby harness builds 38 windows through the shipped GeometryEngine. Every window without lines switched off builds and exports exactly as V2.2.0 did. Lines switched off (in a casement, an aligned casement, a sliding sash and panes split by glaze bars) are left out by name, the lines kept do not move, and the model's lead equals the preview's, line for line.
+
+Then in SketchUp, after Reload Plugin: a window with a transom and leaded glass. Zoom into a clerestory, click a lead line (it highlights on hover) and it goes; click the same place and it comes back. With Live Mode on, or after Update Window, the model matches. Reset Elements brings every line back.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.2.0 - 01-Nov-2026 - Preview: Set Out Dimensions You Can Type Over, CAD Zoom, Lead Line Margins
+
+### Context
+Adam, with a sketch of a chain dimension across the top of the preview, asked for three things:
+- dimensions showing the mullion spacings, and the same for the transoms;
+- every dimension dynamic: click it, type a value, the panel box takes it and the window regenerates, like the Vale Lantern Designer's dimensions, as a second way to set the window out;
+- the preview zoom fixed, because zooming out drifted to the top left corner, and made CAD style so parts can be inspected close up.
+
+Then, with a photo of a leaded window whose top and bottom lead panes were far deeper than the real thing, he asked for **Lead Line Margins**: a switch that shows an X and a Y margin offset, setting how far the first and last lead lines sit in from each pane, with the rest dividing evenly between them.
+
+### Feature Summary
+- **Mullion chain**, above the window: frame edge, each mullion centreline, frame edge, one value per segment. The segments add up to the overall width.
+- **Transom chain**, to the right: frame bottom, each transom centreline, frame top.
+- **Click any dimension to type a size.** A small box opens over the value with it selected. Enter, or clicking away, applies it; Escape cancels. It takes the panel fields' sums and relative entries (`+50`, `1760/3`, `-10`). An entry it cannot read stays open, outlined red, with the reason in its tooltip.
+  - **Overall width and height** set Width and Height. This works in the sliding and bifold door previews too.
+  - **A mullion spacing** moves the mullion at its far end, so the light after it takes up the difference. The last spacing moves the mullion at its near end instead. The frame edges never move, so the overall width holds. It switches Individual Mullion Offsets on and writes every mullion's offset, so only the mullion being set moves.
+  - **A transom spacing** moves the transom at its top; the top spacing moves the transom below it. The value is stored the way Transom Height keeps it, so the panel box shows the clear top light (the chain measures to the transom's centreline, so the two differ by the frame and half the transom).
+  - One edit redraws once and sends one Live Mode rebuild.
+- **CAD zoom and pan.**
+  - The wheel zooms about the point under the cursor, from 1/60 to 6 times the fitted view.
+  - A drag (left or middle button) keeps the drawing under the cursor.
+  - A double click on empty canvas, or a double press of the middle button, fits the drawing again.
+  - The zoom holds through edits. Reset View, another element selected, or another product fits again.
+  - A drag no longer clicks the casement it ends on.
+- **Lead Line Margins** (Glazing, More, under the lead settings). A switch; on, **X Margin Offset** and **Y Margin Offset** appear (50 each to start).
+  - The first and last vertical lines of each pane sit X in from its sides; the first and last horizontal lines sit Y in from its top and bottom. The lines between divide the rest evenly, the same rule as Glaze Bar Margins.
+  - It works pane by pane, between the glaze bars. A single line stays in the middle.
+  - A margin too big for a small pane gives way until the lines are a lead width apart, so they never cross.
+  - With Align Lead Lines Across Casements on, Y is measured on the aligned rows, so the lines still run level from light to light.
+  - Windows and the door products that share these lead settings (sliding, bifold, single and double doors), in the preview and in the model.
+
+### Why the Zoom Drifted
+The wheel scaled the viewBox's width and height but never moved its origin, which is its top left corner, so every zoom closed in on or backed away from that corner. The drag moved the drawing by screen pixels times a zoom number that started at 1 whatever the drawing's scale, so it lagged the cursor. Both now work through the SVG's own screen matrix. The point under the cursor stays put through a zoom, and the drawing follows the cursor exactly through a drag. The preview also refitted after every change, which threw any zoom away; it now refits only while the view has not been zoomed or panned.
+
+### Files Changed
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Controls__.js`: CAD zoom and pan, double click to fit, and the dimension edit box (`na_setupDimensionEditing`, `na_closeDimensionEditor`).
+- `05__Viewport__2dPreviewEngine/Na__AssemblyStudio__Viewport__Instance__.js`: `na_autoFitView`, `na_releaseView`, `spec.keepUserView`; the double click fits the last rendered config. The Interior Doors and Cabinetry previews get the CAD zoom and pan but still refit after every change, as before.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`: the chains (`na_computeDimensionChains`, `na_svgChainDimension`), editable values, `na_solveChainSegmentEdit`, `na_resolveDimensionEdit`, `na_resolveLeadMargins`, and the lead layout with margins.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__GlazebarMath__.js`: `na_computeLeadPositions`; `na_computeLeadLinePositions` takes a margin.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__MainUiLogic__.js`: `na_applyDimensionEdit`; the viewport keeps the user's zoom (`na_autoFitView`, `na_releaseView`); Lead Line Margins visibility; `leaded_margins_enabled` hydrates Off for windows saved before V2.2.0.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`, `...__UiSystem__LayoutMap__.js`: the three new controls and their search entries.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb`: `:margin_x` / `:margin_y`, `na_compute_lead_positions` (mirrors the JS).
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`: passes the margins through.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Defaults__.rb`: defaults for the three keys.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__DialogCallbacks__.rb`: sliding and bifold doors save the three keys.
+- `30__System__ExteriorDoorCommon__/...__Viewport__ElevationGenerator__.js`, `32__System__ExteriorSlidingDoorSystem/...__Viewport__ElevationGenerator__.js`, `33__System__ExteriorMultiFoldingDoorSystem/...__Viewport__ElevationGenerator__.js`: lead margins in the door previews; overall sizes editable in the sliding and bifold previews.
+- `03__Style__AppStylesheets/Na__AssemblyStudio__Styles__Combined__.css`: editable dimension and edit box styles.
+- `Na__AssemblyStudio__UiLayout__.html`: the canvas tooltip mentions dimensions, zoom, pan and fit.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js`: new, 97 assertions.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.2.0.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js"
+```
+Expect `97 passed, 0 failed`. It fails if the old top left zoom comes back (4), if the margins are ignored (8), if a last segment moves the frame (8), or if the hydration goes (1). The other suites are unchanged: ArithmeticEvaluator `108`, CabinetLayout `88`, CasementOverrides `87`, ComponentName `32`, DoorTypeSwitch `71`, ExteriorDoorParity `109`, LayoutCoverage `26`, MeasureOpening `16`, MullionMath `76`, WindowBoard `79` (`78` in a copy without the Profile Path Tracer beside it).
+
+The stand-in Ruby harness builds 33 windows through the shipped GeometryEngine. Every window without Lead Line Margins builds and exports exactly as V2.1.1 did. With margins X 30 and Y 40 on a three-light window, the lead rows sit at 210, 388, 566, 744, 922 and 1100mm (40 in from glass at 170 to 1140), and the verticals 30 in from each light's glass. The model's lead lines equal the preview's, line for line, on all 32 leaded windows.
+
+Then in SketchUp, after Reload Plugin:
+1. Three lights with a transom. The chains show above and to the right of the preview.
+2. Click the middle mullion spacing and type `700`, Enter. The light to its right takes up the difference, and Individual Mullion Offsets is on with the new offset in its box.
+3. Click the top transom spacing and type `300`. The top light changes and Transom 1 Height updates.
+4. Scroll over a glaze bar. It stays under the cursor as it zooms in. Drag to pan, change a setting (the zoom holds), then double click empty canvas to fit.
+5. Leaded Glass on, Lead Line Margins on, X `30`, Y `40`. The first and last lines move in to the margins, in the preview and in the model.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.1.1 - 01-Nov-2026 - Leaded Glass: Vertical Lines Divide Each Light's Own Glass
+
+### Context
+Adam, on a three-light leaded window with 70mm casements: the centre casement kept, the two outer casements clicked off in the preview to make fixed lights. The horizontal lead lines ran level across all three lights, as Align Lead Lines Across Casements promises. The vertical lines in the two fixed lights did not account for there being no casement: they were bunched towards the middle, with wide panes either side.
+
+### Why
+Since V1.8.0 the aligned layout laid BOTH directions out on the reference glass (the glass a casement on the window-wide settings would have in that panel) and cut that grid to the real glass. That is right for the horizontals, which have to run level from light to light. It was wrong for the verticals. A light's verticals never line up with another light's, so the reference only placed them for a casement that is not there: in a fixed light the glass runs 70mm further at each side, so its outer panes came out far wider than the inner ones. A casement with its own wider stiles had the opposite problem, its outer panes cut short.
+
+### Fix
+Align Lead Lines Across Casements now aligns the horizontal lines only. Vertical lines always divide each pane's own glass evenly, glazing cell by glazing cell between the glaze bars, exactly as they do with the toggle off. A fixed light spaces them across its full width; a casement with its own stiles spaces them across its own glass.
+
+The rows are still worked out on the whole reference glass, because a Gothic arch's zone, and so the rows beneath it, depends on the glass width.
+
+Nothing else moves. With the toggle off every pane still divides its own glass both ways. A pane that is its own reference (any casement on the window-wide settings) draws exactly what it drew before, so only fixed lights and casements with their own stiles change, and only their verticals.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`: `na_computeReferenceLeadRows` (was `na_computeReferenceLeadLines`) returns rows only, and the cell loop hands over horizontals only.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb`: `na_compute_reference_lead_rows` (was `na_compute_reference_lead_lines`); each cell gets `{ h: }` only, and `na_create_leaded_cell_geometry` divides any direction it is not given.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__GeometryEngine__.rb`: `na_build_lead_reference_grid` carries rows only.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`, `...__Viewport__GlazebarMath__.js`: comments.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__CasementOverrides__Spec__.js`: 87 assertions (was 82), Adam's window among them.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.1.1.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__CasementOverrides__Spec__.js"
+```
+Expect `87 passed, 0 failed`. Against V2.1.0 it fails the four vertical spacing checks and nothing else. The other suites are unchanged: ArithmeticEvaluator `108`, CabinetLayout `88`, ComponentName `32`, DoorTypeSwitch `71`, ExteriorDoorParity `109`, LayoutCoverage `26`, MeasureOpening `16`, MullionMath `76`, WindowBoard `79` (`78` in a copy without the Profile Path Tracer beside it).
+
+The stand-in Ruby harness builds the same window through the shipped GeometryEngine: in a 540mm fixed light the verticals now sit at 135, 270 and 405mm across it, where V2.1.0 put them at 170, 270 and 370mm; the horizontals are unchanged and level with the centre casement.
+
+Then in SketchUp, after Reload Plugin: three lights, Casement Width `70`, leaded `6` x `3`, Align Lead Lines Across Casements on. Click the two outer casements off in the preview. In the preview and in the model, the outer lights' vertical lines are evenly spaced across their full width, and the horizontal lines still run level with the centre casement.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.1.0 - 29-Oct-2026 - Cabinetry: Parametric UK Kitchen and Fitted Wardrobe Units
 
 ### Context

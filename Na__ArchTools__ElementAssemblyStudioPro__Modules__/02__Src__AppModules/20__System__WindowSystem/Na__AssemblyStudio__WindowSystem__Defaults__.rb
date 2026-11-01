@@ -222,7 +222,11 @@ module Na__WindowSystem
                 "leaded_depth_mm"                       : 0,
                 "leaded_centre_lines_only"              : false,
                 "leaded_global_alignment"               : true,
+                "leaded_margins_enabled"                : false,
+                "leaded_margin_x_mm"                    : 50,
+                "leaded_margin_y_mm"                    : 50,
                 "leaded_disabled_cells"                 : [],
+                "removed_lead_lines"                    : [],
                 "double_door_leaded_disabled_cells"     : [],
 
                 "edge_colour_controls"                  : false,

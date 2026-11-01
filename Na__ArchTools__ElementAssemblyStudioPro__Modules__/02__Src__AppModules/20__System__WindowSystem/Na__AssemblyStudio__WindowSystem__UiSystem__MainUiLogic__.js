@@ -280,6 +280,7 @@ const Na_DynamicUI = (function() {
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
         _config.leaded_disabled_cells = [];
+        _config.removed_lead_lines = [];                                // <-- V2.2.1 Lead lines clicked off in the preview
         NA_EXT_DOOR_PRODUCTS.forEach(product => {                     // <-- Per-product hidden-element state
             _config[`${product.prefix}_removed_glazebars`] = [];
             _config[`${product.prefix}_leaded_disabled_cells`] = [];
@@ -380,6 +381,7 @@ const Na_DynamicUI = (function() {
         na_syncModeFlagsFromHierarchy();
         const nextModeId = na_resolveActiveProductModeId();
         if (nextModeId !== previousModeId) {
+            if (typeof Na_Viewport !== 'undefined') Na_Viewport.na_releaseView();   // <-- V2.2.0 A new product fits the preview again
             if (nextModeId === 'sliding_sash_window') {
                 na_applySlidingSashCasementDefaults();
             } else if (nextModeId) {
@@ -425,6 +427,106 @@ const Na_DynamicUI = (function() {
         const uiValue = na_isTransomHeightControl(id) ? na_convertInternalTransomHeightToUi(value) : value;
         na_onControlChange(id, uiValue);
         na_updateControlValue(id, _config[id]);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Apply a Size Typed Over a Preview Dimension (V2.2.0)
+    // ------------------------------------------------------------
+    // The preview's dimensions are a second way to set the window out.
+    // Na__Viewport__SvgGenerator.na_resolveDimensionEdit says which
+    // controls a typed size lands in (Width, Height, Individual Mullion
+    // Offsets, a transom height); this applies them as the panel would and
+    // redraws once, so the panel boxes, the preview and Live Mode all
+    // follow. The entry takes the panel fields' sums and relative entries:
+    // '+50' adds 50 to the size shown, '1760/3' works it out.
+    // @param  {string} kind    - 'width' | 'height' | 'mullion' | 'transom'
+    // @param  {number} index   - Chain segment (0 for the overall sizes)
+    // @param  {string} rawText - Exactly what was typed
+    // @return {Object}           { ok: true, changed } | { ok: false, error }
+    function na_applyDimensionEdit(kind, index, rawText) {
+        const generator = window.Na__Viewport__SvgGenerator;
+        if (!generator || typeof generator.na_resolveDimensionEdit !== 'function') {
+            return { ok: false, error: 'The preview cannot set sizes' };
+        }
+
+        const current = na_readDimensionValue(kind, index);
+        if (current === null) return { ok: false, error: 'That dimension is not on the drawing' };
+
+        const range = na_dimensionEntryRange(kind);
+        const arithmetic = window.Na__Utils__Arithmetic;
+        let value;
+        if (arithmetic) {
+            const resolved = arithmetic.na_resolve_field_value(rawText, {
+                currentValue      : current,
+                min               : range.min,
+                max               : range.max,
+                allowRelativeMinus: true                                         // <-- No dimension is negative, so '-50' takes 50 off
+            });
+            if (!resolved.ok) return { ok: false, error: resolved.error };
+            value = resolved.value;
+        } else {
+            value = parseFloat(rawText);
+            if (!isFinite(value)) return { ok: false, error: 'Not a number' };
+            value = Math.max(range.min, Math.min(range.max, value));
+        }
+        if (Math.abs(value - current) < 0.0005) return { ok: true, changed: false };   // <-- Same size: nothing to rebuild
+
+        const resolution = generator.na_resolveDimensionEdit(_config, kind, index, value);
+        if (!resolution || resolution.error) {
+            return { ok: false, error: (resolution && resolution.error) || 'Could not apply that size' };
+        }
+
+        const ids = Object.keys(resolution.changes);
+        if (ids.length === 1 && (kind === 'width' || kind === 'height')) {
+            na_applyControlChange(ids[0], resolution.changes[ids[0]]);       // <-- One control: exactly the panel's own path
+            return { ok: true, changed: true };
+        }
+        ids.forEach(id => { _config[id] = resolution.changes[id]; });          // <-- Several controls, one redraw and one Live Mode rebuild
+        ids.forEach(id => { na_updateControlValue(id, _config[id]); });
+        na_onConfigChange();
+        return { ok: true, changed: true };
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | The Size a Preview Dimension Shows Now
+    // ------------------------------------------------------------
+    // @return {number|null} null when the chain or segment is not drawn
+    function na_readDimensionValue(kind, index) {
+        if (kind === 'width') return Number(_config.width_mm || 900);
+        if (kind === 'height') return Number(_config.height_mm || 1200);
+
+        const generator = window.Na__Viewport__SvgGenerator;
+        const chains = generator.na_computeDimensionChains(_config);
+        const stations = kind === 'mullion' ? chains.mullions : (kind === 'transom' ? chains.transoms : null);
+        const segment = Number(index);
+        if (!Array.isArray(stations) || !(segment >= 0 && segment < stations.length - 1)) return null;
+        return stations[segment + 1] - stations[segment];
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | The Range a Typed Dimension Is Held To
+    // ------------------------------------------------------------
+    // Width and Height read their live range off the panel field (Width
+    // widens to 8000 for the multi leaf doors). A chain segment can be
+    // anything inside the overall size; the layout's own clamps (narrowest
+    // light, transom order) then decide what is drawn.
+    function na_dimensionEntryRange(kind) {
+        function na_attributeNumber(element, name) {
+            const raw = element ? element.getAttribute(name) : null;
+            if (raw === null || raw === '') return NaN;
+            const number = Number(raw);
+            return isFinite(number) ? number : NaN;
+        }
+        if (kind === 'width' || kind === 'height') {
+            const id = kind === 'width' ? 'width_mm' : 'height_mm';
+            const input = document.getElementById(`${id}-input`);
+            const slider = document.getElementById(`${id}-slider`);
+            const min = isFinite(na_attributeNumber(input, 'min')) ? na_attributeNumber(input, 'min') : na_attributeNumber(slider, 'min');
+            const max = isFinite(na_attributeNumber(input, 'max')) ? na_attributeNumber(input, 'max') : na_attributeNumber(slider, 'max');
+            return { min: isFinite(min) ? min : 1, max: isFinite(max) ? max : Infinity };
+        }
+        const overall = kind === 'mullion' ? Number(_config.width_mm || 900) : Number(_config.height_mm || 1200);
+        return { min: 1, max: overall };
     }
     // ---------------------------------------------------------------
 
@@ -705,6 +807,21 @@ const Na_DynamicUI = (function() {
             _config.leaded_disabled_cells = _config.leaded_disabled_cells
                 .map(key => String(key))
                 .filter(key => validLeadedCellKeys.has(key));
+        }
+
+        // Clean up removed_lead_lines (V2.2.1) when the cells or the line
+        // counts change. Windows only: in a door mode the list is left as
+        // it is for when the window comes back.
+        if (!Array.isArray(_config.removed_lead_lines)) {
+            _config.removed_lead_lines = [];
+        }
+        const generator = window.Na__Viewport__SvgGenerator;
+        if (!activeExtDoor && _config.sliding_mode !== true && _config.multifold_mode !== true &&
+            generator && typeof generator.na_collectValidLeadLineKeys === 'function') {
+            const validLeadLineKeys = new Set(generator.na_collectValidLeadLineKeys(_config));
+            _config.removed_lead_lines = _config.removed_lead_lines
+                .map(key => String(key))
+                .filter(key => validLeadLineKeys.has(key));
         }
 
         na_syncCasementOverrideControls();                                      // <-- After the removal clean-up: a clicked-off casement drops out of the list
@@ -1309,10 +1426,12 @@ const Na_DynamicUI = (function() {
     // When disabled, only the enable toggle stays visible inside the
     // expandable. Centre Lines Only hides Width + Depth (ignored in Ruby).
     // Align Lead Lines Across Casements (V1.8.0) only acts on casement
-    // windows, so a sliding sash or any door hides it.
+    // windows, so a sliding sash or any door hides it. The X and Y Margin
+    // Offsets (V2.2.0) appear only once Lead Line Margins is switched on.
     function na_updateLeadedGlassVisibility() {
         const enabled = _config.leaded_glass_enabled === true;
         const centreLinesOnly = _config.leaded_centre_lines_only === true;
+        const marginsOn = _config.leaded_margins_enabled === true;
         const casementWindow = !!(window.Na__CasementMath &&
             window.Na__CasementMath.na_supportsCasementOverrides({ ..._config, show_casements: true }));
 
@@ -1322,7 +1441,10 @@ const Na_DynamicUI = (function() {
             'leaded_width_mm',
             'leaded_depth_mm',
             'leaded_centre_lines_only',
-            'leaded_global_alignment'
+            'leaded_global_alignment',
+            'leaded_margins_enabled',
+            'leaded_margin_x_mm',
+            'leaded_margin_y_mm'
         ];
         dependentIds.forEach(function (id) {
             const ctrl = document.querySelector('[data-control-id="' + id + '"]');
@@ -1336,6 +1458,10 @@ const Na_DynamicUI = (function() {
                 return;
             }
             if (id === 'leaded_global_alignment' && !casementWindow) {
+                ctrl.style.display = 'none';
+                return;
+            }
+            if (!marginsOn && (id === 'leaded_margin_x_mm' || id === 'leaded_margin_y_mm')) {
                 ctrl.style.display = 'none';
                 return;
             }
@@ -1528,7 +1654,7 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
-    // FUNCTION | Hydrate V1.8.0 and V1.9.0 Keys on a Full Window Configuration
+    // FUNCTION | Hydrate V1.8.0 to V2.2.1 Keys on a Full Window Configuration
     // ------------------------------------------------------------
     // na_setConfig MERGES what it is given over the live config, so a key
     // a saved window does not hold keeps whatever the dialog had last.
@@ -1540,6 +1666,12 @@ const Na_DynamicUI = (function() {
     // Windows saved before V1.9.0 have no window board:
     //   * window_board_enabled - Off. Inherited from the window shown
     //     before, the next Update or Live Mode rebuild would add a board.
+    // Windows saved before V2.2.0 laid their lead out evenly:
+    //   * leaded_margins_enabled - Off, or another window's Lead Line
+    //     Margins would re-space this one's lead on the next rebuild.
+    // Windows saved before V2.2.1 had every lead line:
+    //   * removed_lead_lines - empty, or lines clicked off on the window
+    //     shown before would vanish from this one.
     // Only called for whole configurations; the measurement path sends a
     // partial one that must not wipe anything.
     function na_hydrateFullWindowConfig(cfg) {
@@ -1548,11 +1680,17 @@ const Na_DynamicUI = (function() {
         if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
             cfg.casement_overrides = {};
         }
+        if (!Array.isArray(cfg.removed_lead_lines)) {
+            cfg.removed_lead_lines = [];
+        }
         if (typeof cfg.leaded_global_alignment === 'undefined') {
             cfg.leaded_global_alignment = false;
         }
         if (typeof cfg.window_board_enabled === 'undefined') {
             cfg.window_board_enabled = false;
+        }
+        if (typeof cfg.leaded_margins_enabled === 'undefined') {
+            cfg.leaded_margins_enabled = false;
         }
     }
     // ---------------------------------------------------------------
@@ -2275,6 +2413,29 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Switch One Lead Line Off or Back On (V2.2.1)
+    // ------------------------------------------------------------
+    // Clicked in the window preview, as a glaze bar is. The key is the line's
+    // glazing cell key plus 'h' or 'v' and its number in that cell. Windows
+    // only; the door products keep their lead as it was.
+    function na_toggleLeadLineRemoval(lineKey) {
+        if (_config.leaded_glass_enabled !== true) return;               // <-- Lines only toggleable while leaded glass is on
+        if (!Array.isArray(_config.removed_lead_lines)) _config.removed_lead_lines = [];
+        const key = String(lineKey);
+        const existingIndex = _config.removed_lead_lines.indexOf(key);
+
+        if (existingIndex === -1) {
+            _config.removed_lead_lines.push(key);
+            console.log(`[NA_UI] Removed lead line ${key}`);
+        } else {
+            _config.removed_lead_lines.splice(existingIndex, 1);
+            console.log(`[NA_UI] Restored lead line ${key}`);
+        }
+
+        na_onConfigChange();
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Check If Any Elements Are Hidden
     // ------------------------------------------------------------
     function na_hasHiddenElements() {
@@ -2284,6 +2445,7 @@ const Na_DynamicUI = (function() {
         const disabledLeadedCellsCount = Array.isArray(_config.leaded_disabled_cells)
             ? _config.leaded_disabled_cells.length
             : 0;
+        const removedLeadLinesCount = Array.isArray(_config.removed_lead_lines) ? _config.removed_lead_lines.length : 0;
         const extDoorHiddenCount = NA_EXT_DOOR_PRODUCTS.reduce((total, product) => {
             const bars  = _config[`${product.prefix}_removed_glazebars`];
             const cells = _config[`${product.prefix}_leaded_disabled_cells`];
@@ -2296,6 +2458,7 @@ const Na_DynamicUI = (function() {
             removedTransomSegmentsCount > 0 ||
             removedGlazebarsCount > 0 ||
             disabledLeadedCellsCount > 0 ||
+            removedLeadLinesCount > 0 ||
             extDoorHiddenCount > 0;
     }
     // ---------------------------------------------------------------
@@ -2307,6 +2470,7 @@ const Na_DynamicUI = (function() {
         _config.removed_transom_segments = [];
         _config.removed_glazebars = [];
         _config.leaded_disabled_cells = [];
+        _config.removed_lead_lines = [];                                 // <-- V2.2.1
         NA_EXT_DOOR_PRODUCTS.forEach(product => {
             _config[`${product.prefix}_removed_glazebars`] = [];
             _config[`${product.prefix}_leaded_disabled_cells`] = [];
@@ -2417,6 +2581,7 @@ const Na_DynamicUI = (function() {
         if (options && options.fullConfig === true) {
             na_hydrateGlazebarOffsetsEnabled(newConfig);
             na_hydrateFullWindowConfig(newConfig);
+            if (typeof Na_Viewport !== 'undefined') Na_Viewport.na_releaseView();   // <-- V2.2.0 Another element: the preview fits it, whatever the last zoom
         }
         _config = { ..._config, ...newConfig };
         _casementOverrideSignature = null;                                     // <-- Rebuild Per Casement Settings from the values just loaded
@@ -2707,6 +2872,7 @@ const Na_DynamicUI = (function() {
         na_toggleGlazebarRemoval: na_toggleGlazebarRemoval,
         na_toggleExtDoorGlazebarRemoval: na_toggleExtDoorGlazebarRemoval,
         na_toggleLeadedCellState: na_toggleLeadedCellState,
+        na_toggleLeadLineRemoval: na_toggleLeadLineRemoval,            // <-- V2.2.1 One lead line clicked off or on
         na_toggleExtDoorLeadedCellState: na_toggleExtDoorLeadedCellState,
         na_getActiveExtDoorProduct: na_getActiveExtDoorProduct,
         na_resetHiddenElements: na_resetHiddenElements,
@@ -2714,6 +2880,7 @@ const Na_DynamicUI = (function() {
         na_rebuild_edge_colour_controls: na_rebuild_edge_colour_controls,
         na_setProduct: na_setProduct,
         na_applyControlChange: na_applyControlChange,
+        na_applyDimensionEdit: na_applyDimensionEdit,                  // <-- V2.2.0 Sizes typed over the preview's dimensions
         na_addChangeListener: na_addChangeListener
     };
     
@@ -2804,8 +2971,27 @@ const Na_Viewport = (function() {
             return;
         }
 
+        na_bind_dimension_editing();
         na_init_ext_door_viewports();
         console.log('[NA_VIEWPORT] Window viewport initialized');
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Let the Preview's Dimensions Be Typed Over (V2.2.0)
+    // ------------------------------------------------------------
+    // Bound once on the persistent SVG element (delegated), so it holds
+    // through every re-paint. What a typed size means is Na_DynamicUI's.
+    function na_bind_dimension_editing() {
+        const controls = window.Na__Viewport__Controls;
+        if (!controls || typeof controls.na_setupDimensionEditing !== 'function') return;
+        controls.na_setupDimensionEditing(
+            _instance.na_get_wrapper(),
+            _svgElement,
+            _instance.na_get_interaction_state(),
+            function (kind, index, text) {
+                return Na_DynamicUI.na_applyDimensionEdit(kind, index, text);
+            }
+        );
     }
     // ---------------------------------------------------------------
 
@@ -2819,6 +3005,7 @@ const Na_Viewport = (function() {
             svgId: 'na-ext-door-plan-svg',
             initialViewBox: { x: -100, y: -300, width: 2200, height: 900 },
             autoResetOnRender: true,
+            keepUserView: true,                                       // <-- V2.2.0 A zoom holds through edits, as on the window canvas
             fitToContent: function (config) {
                 const generators = na_resolve_ext_door_generators(config);
                 if (generators && generators.plan &&
@@ -2837,6 +3024,7 @@ const Na_Viewport = (function() {
             svgId: 'na-ext-door-elevation-svg',
             initialViewBox: { x: -100, y: -2300, width: 2200, height: 2500 },
             autoResetOnRender: true,
+            keepUserView: true,
             fitToContent: function (config) {
                 const generators = na_resolve_ext_door_generators(config);
                 if (generators && generators.elevation &&
@@ -2951,6 +3139,9 @@ const Na_Viewport = (function() {
                     col,
                     row
                 );
+            },
+            function (leadLineKey) {                                  // <-- V2.2.1 One lead line on or off
+                Na_DynamicUI.na_toggleLeadLineRemoval(leadLineKey);
             }
         );
     }
@@ -3010,6 +3201,10 @@ const Na_Viewport = (function() {
                 return false;
             }
 
+            if (window.Na__Viewport__Controls && typeof window.Na__Viewport__Controls.na_closeDimensionEditor === 'function') {
+                window.Na__Viewport__Controls.na_closeDimensionEditor();    // <-- V2.2.0 The value it was over is about to be redrawn
+            }
+
             if (na_resolve_ext_door_generators(config)) {
                 if (!_extDoorPlanInstance || !_extDoorElevationInstance) {
                     throw new Error('Exterior door viewports are not initialised');
@@ -3018,7 +3213,7 @@ const Na_Viewport = (function() {
                 const elevationOk = _extDoorElevationInstance.na_render(config);
                 if (!planOk || !elevationOk) return false;
                 na_bind_ext_door_glazebar_click_targets();
-                na_resetView();
+                na_autoFitView();
                 window.Na__Viewport__Validation.na_showValidationSuccess();
                 return true;
             }
@@ -3028,7 +3223,7 @@ const Na_Viewport = (function() {
 
             const svgEl = _instance.na_get_svg();
             na_bind_window_click_targets(svgEl);                      // <-- Per-render click rebinding (legacy behaviour)
-            na_resetView();                                           // <-- Snap to fit after re-paint
+            na_autoFitView();                                         // <-- Fit after re-paint, unless the user has zoomed or panned (V2.2.0)
 
             window.Na__Viewport__Validation.na_showValidationSuccess();
             return true;
@@ -3044,6 +3239,7 @@ const Na_Viewport = (function() {
 
     // FUNCTION | Reset View to Fit Window
     // ------------------------------------------------------------
+    // The Reset View button. Always fits, and forgets the user's zoom.
     function na_resetView() {
         const config = Na_DynamicUI.na_getConfig();
         if (na_resolve_ext_door_generators(config)) {
@@ -3053,6 +3249,33 @@ const Na_Viewport = (function() {
         }
         if (!_instance) return;
         _instance.na_resetView(config);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Fit the View Unless the User Has Zoomed or Panned (V2.2.0)
+    // ------------------------------------------------------------
+    // After every re-paint. Once the user zooms or pans, edits keep their
+    // view (CAD style) until Reset View, a double click on empty canvas,
+    // another element or another product.
+    function na_autoFitView() {
+        const config = Na_DynamicUI.na_getConfig();
+        if (na_resolve_ext_door_generators(config)) {
+            if (_extDoorPlanInstance) _extDoorPlanInstance.na_autoFitView(config);
+            if (_extDoorElevationInstance) _extDoorElevationInstance.na_autoFitView(config);
+            return;
+        }
+        if (!_instance) return;
+        _instance.na_autoFitView(config);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Forget the User's Zoom So the Next Paint Fits (V2.2.0)
+    // ------------------------------------------------------------
+    // Called when another element is loaded or the product changes.
+    function na_releaseView() {
+        [_instance, _extDoorPlanInstance, _extDoorElevationInstance].forEach(function (instance) {
+            if (instance && typeof instance.na_releaseView === 'function') instance.na_releaseView();
+        });
     }
     // ---------------------------------------------------------------
 
@@ -3074,10 +3297,12 @@ const Na_Viewport = (function() {
     // Public API
     // ------------------------------------------------------------
     return {
-        na_init      : na_init,
-        na_render    : na_render,
-        na_resetView : na_resetView,
-        na_exportDxf : na_exportDxf
+        na_init        : na_init,
+        na_render      : na_render,
+        na_resetView   : na_resetView,
+        na_autoFitView : na_autoFitView,
+        na_releaseView : na_releaseView,
+        na_exportDxf   : na_exportDxf
     };
 
 })();
@@ -3137,7 +3362,7 @@ function na_initViewportResize() {
         if (isResizing) {
             isResizing = false;
             document.body.style.cursor = '';
-            Na_Viewport.na_resetView();
+            Na_Viewport.na_autoFitView();                                // <-- V2.2.0 A zoomed view stays zoomed when the canvas is resized
         }
     });
     

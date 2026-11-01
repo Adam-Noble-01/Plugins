@@ -934,6 +934,71 @@ body {
     /* font-size removed - set per element in JavaScript for responsive sizing */
 }
 
+/* -----------------------------------------------------------------------------
+   Lead Lines Switched Off One By One (V2.2.1)
+   Each lead line in the window preview has a thin click strip over it (left in
+   place when the line is off, so it can be clicked back on). Hover shows it.
+   ----------------------------------------------------------------------------- */
+
+.na-viewport-svg .na-lead-line-click-target:hover {
+    fill: rgba(36, 95, 168, 0.3);
+}
+
+/* -----------------------------------------------------------------------------
+   Click-To-Edit Dimensions (V2.2.0)
+   A dimension value the generator marks editable sits in <g class="na-dim-edit">.
+   One click opens .na-dim-editor, an input placed over it inside the canvas
+   wrapper (which is position: relative).
+   ----------------------------------------------------------------------------- */
+
+.na-canvas-wrapper.na-viewport-interactive {
+    user-select: none;                                  /* A drag pans; it never selects dimension text */
+}
+
+.na-viewport-svg .na-dim-edit {
+    cursor: text;
+}
+
+.na-viewport-svg .na-dim-edit:hover text,
+.na-viewport-svg .na-dim-edit--active text {
+    fill: var(--na-lay-blue-ink, #245fa8);
+    text-decoration: underline;
+}
+
+.na-viewport-svg .na-dim-edit--active text {
+    fill-opacity: 0.25;
+}
+
+.na-dim-editor {
+    position: absolute;
+    z-index: 40;
+    width: 92px;
+    height: 26px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border: 2px solid var(--na-lay-blue, #3a7fd5);
+    border-radius: 7px;
+    background: #ffffff;
+    color: var(--na-lay-ink, #1b222a);
+    font-family: var(--na-font-family);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    user-select: text;
+    cursor: text;
+}
+
+.na-dim-editor:focus {
+    outline: none;
+    border-color: var(--na-lay-blue-ink, #245fa8);
+}
+
+.na-dim-editor.na-dim-editor--error {
+    border-color: var(--na-accent-red);
+    background: #fff4f3;
+}
+
 /* =============================================================================
    LOGO STYLES
    ============================================================================= */

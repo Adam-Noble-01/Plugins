@@ -15,7 +15,9 @@
    - Individual casement rail/stile sizing
    - Clickable casement removal targets
    - Window board outline (dashed, inside the room) when Include Window Board is on
-   - Dimension annotations
+   - Dimension annotations: overall sizes plus mullion and transom set out
+     chains (V2.2.0), each value marked up so the preview can edit it
+   - Lead Line Margins (V2.2.0): first and last lead lines set in from each pane
    - Pure rendering functions with no side effects
    - Window-specific markup; door tab uses Door*Generator modules in this folder.
    
@@ -117,6 +119,23 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     function na_getDisabledLeadedCellSet(disabledCells) {
         return new Set(Array.isArray(disabledCells) ? disabledCells.map(key => String(key)) : []);
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Lead Line Storage Key (V2.2.1)
+    // ------------------------------------------------------------
+    // The line's glazing cell key, then 'h' or 'v', then its number in that
+    // cell counting from 1 (bottom up, left to right), as glaze bars count:
+    // "opening:cell:panel:sash:col:row:h:2".
+    function na_getLeadLineKey(cellKey, axis, number) {
+        return `${cellKey}:${axis}:${number}`;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Build Removed Lead Line Set (V2.2.1)
+    // ------------------------------------------------------------
+    function na_getRemovedLeadLineSet(removedLines) {
+        return new Set(Array.isArray(removedLines) ? removedLines.map(key => String(key)) : []);
     }
     // ---------------------------------------------------------------
 
@@ -252,7 +271,9 @@ const Na__Viewport__SvgGenerator = (function() {
             // V1.8.0 - Align Lead Lines Across Casements. Casement windows
             // only: a sliding sash and a window with no casements already
             // lay every pane out on its own reference glass.
-            globalAlignment: config.leaded_global_alignment === true && !slidingSashWindow && showCasements
+            globalAlignment: config.leaded_global_alignment === true && !slidingSashWindow && showCasements,
+            margins      : na_resolveLeadMargins(config),                    // <-- V2.2.0 Lead Line Margins, null when off
+            removedLines : na_getRemovedLeadLineSet(config.removed_lead_lines)   // <-- V2.2.1 Lines clicked off in the preview (windows only)
         };
         const frameMaterialId = config.frame_material_id || 'MAT001__Default';
         const frameColor = na_getMaterialColor(frameMaterialId);
@@ -396,7 +417,10 @@ const Na__Viewport__SvgGenerator = (function() {
         }
 
         if (showDimensions) {
-            svg += na_svgDimensions(width, height);
+            svg += na_svgDimensions(width, height, {
+                editable : true,                                          // <-- V2.2.0 Click a value to type a new one
+                chains   : na_computeDimensionChains(config)              // <-- Mullion and transom set out chains
+            });
         }
 
         svg += openingClickTargetsSvg;
@@ -577,7 +601,8 @@ const Na__Viewport__SvgGenerator = (function() {
 
             // Align Lead Lines Across Casements (V1.8.0): the glass a casement
             // built to the window-wide settings would have in this panel. Every
-            // pane lays its lead out on it, whatever its own casement does.
+            // pane lays its HORIZONTAL lead out on it, whatever its own casement
+            // does; verticals divide the pane's own glass (V2.1.1).
             const leadReference = (options.leadedGlass && options.leadedGlass.globalAlignment)
                 ? {
                     x: panelX + options.casLeftStile,
@@ -808,9 +833,9 @@ const Na__Viewport__SvgGenerator = (function() {
 
     // FUNCTION | Generate SVG for a Single Casement with Individual Sizes
     // ------------------------------------------------------------
-    // leadReference (V1.8.0, optional): the glass the lead lines are laid
-    // out on when Align Lead Lines Across Casements is on. Omitted, the
-    // lead divides this casement's own glass.
+    // leadReference (V1.8.0, optional): the glass the horizontal lead lines
+    // are laid out on when Align Lead Lines Across Casements is on. Omitted,
+    // the lead divides this casement's own glass. Verticals always do.
     function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, leadedGlass, leadReference) {
         const renderBucket = na_createSvgRenderBucket();
 
@@ -1073,6 +1098,29 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // CONSTANT | Lead Line Margin Until One Is Typed
+    // ------------------------------------------------------------
+    const NA_LEAD_MARGIN_DEFAULT_MM = 50;
+
+    // FUNCTION | Resolve the Lead Line Margins (V2.2.0)
+    // ------------------------------------------------------------
+    // Lead Line Margins on: { x, y } in mm, how far the first and last
+    // vertical (x) and horizontal (y) lead lines sit in from the edges of
+    // each pane, the lines between dividing the rest evenly. Off, or absent
+    // on a window saved before V2.2.0: null, the even layout. Shared by the
+    // window, sliding, bifold and hinged door previews. Ruby mirror:
+    // LeadedGlassBuilder.na_resolve_leaded_params (:margin_x, :margin_y).
+    function na_resolveLeadMargins(config) {
+        if (!config || config.leaded_margins_enabled !== true) return null;
+        const x = config.leaded_margin_x_mm == null ? NaN : Number(config.leaded_margin_x_mm);
+        const y = config.leaded_margin_y_mm == null ? NaN : Number(config.leaded_margin_y_mm);
+        return {
+            x: Number.isFinite(x) ? Math.max(0, x) : NA_LEAD_MARGIN_DEFAULT_MM,
+            y: Number.isFinite(y) ? Math.max(0, y) : NA_LEAD_MARGIN_DEFAULT_MM
+        };
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Compute Final Glaze Bar Centerlines for a Glass Area
     // ------------------------------------------------------------
     // Single source for the FINAL bar positions (spacing -> margin /
@@ -1130,11 +1178,20 @@ const Na__Viewport__SvgGenerator = (function() {
     // cellContext = { hBars, vBars, barWidth, advancedGlazebar,
     //                 panelContext, clickBucket, referenceGlass }
     //
-    // referenceGlass (V1.8.0, optional) = { x, y, width, height }: the
-    // Align Lead Lines Across Casements grid is laid out on this glass and
-    // each real glazing cell shows the lines that land inside it, so lead
-    // runs straight through a casement whose own rails differ. A pane that
-    // IS its reference keeps the per-cell layout, line for line.
+    // referenceGlass (V1.8.0, optional) = { x, y, width, height }: with
+    // Align Lead Lines Across Casements on, the HORIZONTAL lines are laid
+    // out on this glass and each real glazing cell shows the ones that land
+    // inside it, so they run level through a casement whose own rails
+    // differ, or a light with no casement at all. Vertical lines always
+    // divide each cell's own width evenly (V2.1.1): a light's verticals
+    // never line up with another light's, and a pane with no casement or
+    // wider stiles would otherwise get crowded verticals and wide end panes.
+    // A pane that IS its reference keeps the per-cell layout, line for line.
+    //
+    // leadedOptions.margins (V2.2.0, optional) = { x, y } from
+    // na_resolveLeadMargins: the first and last lines of each cell sit that
+    // far in from its edges, the rest dividing evenly between them. The
+    // aligned horizontals take the y margin on the reference glass.
     function na_generateLeadedGlassSvg(glassX, glassY, glassWidth, glassHeight, leadedOptions, cellContext) {
         const opts = leadedOptions || {};
         if (!opts.enabled) return '';
@@ -1164,11 +1221,14 @@ const Na__Viewport__SvgGenerator = (function() {
         );
         const columnBounds = math.na_computeCellBounds(glassX, glassWidth, barLayout.vPositions, glazeBarWidth);
         const rowBounds = math.na_computeCellBounds(glassY, barLayout.effectiveGlassHeight, barLayout.hPositions, glazeBarWidth);
-        const referenceLines = na_computeReferenceLeadLines(
+        const margins = opts.margins || null;
+        const referenceRows = na_computeReferenceLeadRows(
             context.referenceGlass, glassX, glassY, glassWidth, glassHeight,
-            glazeHBars, glazeVBars, glazeBarWidth, context.advancedGlazebar, hLeads, vLeads
+            glazeHBars, glazeVBars, glazeBarWidth, context.advancedGlazebar, hLeads,
+            margins ? margins.y : null, opts.widthMm
         );
         const leadMargin = Math.max(1, Math.max(2, Number(opts.widthMm || 6)) / 2);   // <-- Keeps a line's ribbon off rails and bars
+        const removedLines = opts.removedLines instanceof Set ? opts.removedLines : null;   // <-- V2.2.1 Window lines switched off one by one
 
         let svg = '';
         for (let row = 0; row < rowBounds.length; row++) {
@@ -1179,26 +1239,32 @@ const Na__Viewport__SvgGenerator = (function() {
                 const cellH = rowBounds[row].size;
                 if (cellW <= 0 || cellH <= 0) continue;
 
-                const cellDisabled = panelContext
-                    ? disabledCells.has(na_getLeadedCellKey(
+                const cellKey = panelContext
+                    ? na_getLeadedCellKey(
                         panelContext.openingIndex, panelContext.cellIndex,
-                        panelContext.panelIndex, panelContext.sashIndex, col, row))
-                    : false;
-
-                if (!cellDisabled) {
-                    const linePositions = referenceLines
-                        ? {
-                            h: math.na_filterPositionsInside(referenceLines.h, cellY, cellH, leadMargin),
-                            v: math.na_filterPositionsInside(referenceLines.v, cellX, cellW, leadMargin)
-                        }
-                        : null;
-                    svg += na_generateLeadedCellLinesSvg(cellX, cellY, cellW, cellH, hLeads, vLeads, opts, linePositions);
-                }
+                        panelContext.panelIndex, panelContext.sashIndex, col, row)
+                    : null;
+                const cellDisabled = cellKey ? disabledCells.has(cellKey) : false;
 
                 if (panelContext && clickBucket) {
                     clickBucket.leadedClickTargetsSvg += na_generateLeadedCellClickTargetSvg(
                         cellX, cellY, cellW, cellH, panelContext, col, row
                     );
+                }
+
+                if (!cellDisabled) {
+                    const positions = na_resolveCellLeadPositions(cellX, cellY, cellW, cellH, hLeads, vLeads, opts,
+                        referenceRows ? { h: math.na_filterPositionsInside(referenceRows, cellY, cellH, leadMargin) } : null);   // <-- Verticals stay even in this cell
+                    const isRemoved = (removedLines && cellKey)
+                        ? (axis, number) => removedLines.has(na_getLeadLineKey(cellKey, axis, number))
+                        : null;
+                    svg += na_generateLeadedCellLinesSvg(cellX, cellY, cellW, cellH, opts, positions, isRemoved);
+
+                    if (removedLines && cellKey && clickBucket) {                                  // <-- After the cell's own target, so a line wins over its pane
+                        clickBucket.leadedClickTargetsSvg += na_generateLeadLineClickTargetsSvg(
+                            cellX, cellY, cellW, cellH, positions, cellKey, opts.widthMm
+                        );
+                    }
                 }
             }
         }
@@ -1207,22 +1273,42 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Where One Glazing Cell's Lead Lines Run
+    // ------------------------------------------------------------
+    // linePositions (V1.8.0, optional) = { h: [y...] } already cut from the
+    // aligned rows, either axis optional. An axis it does not give is laid
+    // out on the cell itself: hLeads + 1 by vLeads + 1 equal panes, as it
+    // always was, or inside opts.margins when Lead Line Margins is on
+    // (V2.2.0).
+    // @returns {Object} { h: [y...], v: [x...] }, each ascending
+    function na_resolveCellLeadPositions(cellX, cellY, cellWidth, cellHeight, hLeads, vLeads, opts, linePositions) {
+        const math = window.Na__GlazebarMath;
+        const widthMm = Math.max(1, Number(opts.widthMm || 6));
+        const margins = opts.margins || null;
+        return {
+            h: (linePositions && linePositions.h)
+                ? linePositions.h
+                : (hLeads > 0 ? math.na_computeLeadPositions(cellY, cellHeight, hLeads, margins ? margins.y : null, widthMm) : []),
+            v: (linePositions && linePositions.v)
+                ? linePositions.v
+                : (vLeads > 0 ? math.na_computeLeadPositions(cellX, cellWidth, vLeads, margins ? margins.x : null, widthMm) : [])
+        };
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate Lead Lines Within One Glazing Cell
     // ------------------------------------------------------------
-    // linePositions (V1.8.0, optional) = { h: [y...], v: [x...] }: lines
-    // already cut from the aligned grid. Omitted, the cell is divided into
-    // hLeads + 1 by vLeads + 1 equal panes as it always was.
-    function na_generateLeadedCellLinesSvg(cellX, cellY, cellWidth, cellHeight, hLeads, vLeads, opts, linePositions) {
-        const math = window.Na__GlazebarMath;
+    // positions from na_resolveCellLeadPositions. isRemoved (V2.2.1,
+    // optional) = (axis 'h' | 'v', number from 1) => true for a line
+    // switched off in the preview, which is then not drawn.
+    function na_generateLeadedCellLinesSvg(cellX, cellY, cellWidth, cellHeight, opts, positions, isRemoved) {
         const stroke = na_leadedColourHex(opts.colourId || opts.colour);
         const centreLines = opts.centreLines === true;
         const widthMm = Math.max(1, Number(opts.widthMm || 6));
         let svg = '';
 
-        const hPositions = linePositions
-            ? linePositions.h
-            : (hLeads > 0 ? math.na_computeBarPositions(cellY, cellHeight, hLeads, false, 0) : []);
-        hPositions.forEach(function (cy) {
+        positions.h.forEach(function (cy, index) {
+            if (isRemoved && isRemoved('h', index + 1)) return;
             if (centreLines) {
                 svg += `<line x1="${cellX}" y1="${-cy}" x2="${cellX + cellWidth}" y2="${-cy}" stroke="${stroke}" stroke-width="1" />`;
             } else {
@@ -1230,10 +1316,8 @@ const Na__Viewport__SvgGenerator = (function() {
             }
         });
 
-        const vPositions = linePositions
-            ? linePositions.v
-            : (vLeads > 0 ? math.na_computeBarPositions(cellX, cellWidth, vLeads, false, 0) : []);
-        vPositions.forEach(function (cx) {
+        positions.v.forEach(function (cx, index) {
+            if (isRemoved && isRemoved('v', index + 1)) return;
             if (centreLines) {
                 svg += `<line x1="${cx}" y1="${-cellY}" x2="${cx}" y2="${-(cellY + cellHeight)}" stroke="${stroke}" stroke-width="1" />`;
             } else {
@@ -1245,17 +1329,59 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
-    // FUNCTION | Lay the Aligned Lead Grid Out on a Reference Glass (V1.8.0)
+    // FUNCTION | Click Targets for One Cell's Lead Lines (V2.2.1)
     // ------------------------------------------------------------
-    // Returns { h: [y...], v: [x...] }, every lead centreline of the grid a
-    // pane of `referenceGlass` would carry: its own glaze bar cells, each
-    // divided evenly, exactly as the per-cell layout divides a pane. Returns
-    // null when there is no reference, or when the pane being drawn is the
-    // reference, so a casement on the window-wide settings draws the same
-    // lines it always did. Ruby mirror: GeometryEngine
-    // na_build_lead_reference_grid + LeadedGlassBuilder
-    // na_compute_reference_lead_lines.
-    function na_computeReferenceLeadLines(referenceGlass, glassX, glassY, glassWidth, glassHeight, glazeHBars, glazeVBars, glazeBarWidth, advancedGlazebar, hLeads, vLeads) {
+    // One thin hit strip per line, drawn or switched off, so a line clicked
+    // off is clicked back on where it was, the way glaze bars work. A strip
+    // is as wide as the room either side of its line allows, between the
+    // lead width and 14mm, so lines close together in a small pane (a
+    // clerestory) stay separate: zoom in to pick one.
+    function na_generateLeadLineClickTargetsSvg(cellX, cellY, cellWidth, cellHeight, positions, cellKey, leadWidthMm) {
+        const leadWidth = Math.max(1, Number(leadWidthMm) || 6);
+
+        function na_hitSizes(list, start, size) {
+            return list.map(function (position, index) {
+                const before = index > 0 ? position - list[index - 1] : (position - start) * 2;
+                const after = index < list.length - 1 ? list[index + 1] - position : (start + size - position) * 2;
+                return Math.max(leadWidth, Math.min(14, before, after));
+            });
+        }
+
+        function na_target(key, x, y, width, height) {
+            return `<rect class="na-lead-line-click-target" data-lead-key="${key}"
+                      x="${x}" y="${-y - height}" width="${width}" height="${height}"
+                      fill="rgba(0, 0, 0, 0.001)" stroke="none"
+                      style="cursor: pointer; pointer-events: all;"/>`;
+        }
+
+        let svg = '';
+        const hSizes = na_hitSizes(positions.h, cellY, cellHeight);
+        positions.h.forEach(function (cy, index) {
+            svg += na_target(na_getLeadLineKey(cellKey, 'h', index + 1), cellX, cy - hSizes[index] / 2, cellWidth, hSizes[index]);
+        });
+        const vSizes = na_hitSizes(positions.v, cellX, cellWidth);
+        positions.v.forEach(function (cx, index) {
+            svg += na_target(na_getLeadLineKey(cellKey, 'v', index + 1), cx - vSizes[index] / 2, cellY, vSizes[index], cellHeight);
+        });
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Lay the Aligned Lead Rows Out on a Reference Glass (V1.8.0)
+    // ------------------------------------------------------------
+    // Returns [y...], every HORIZONTAL lead centreline a pane of
+    // `referenceGlass` would carry: its own glaze bar rows, each divided
+    // evenly, exactly as the per-cell layout divides a pane. Verticals are
+    // not aligned (V2.1.1): every cell divides its own width. The full
+    // reference rect is still used, because a Gothic arch's zone, and so the
+    // rows beneath it, depends on the glass width. Returns null when there
+    // is no reference, or when the pane being drawn is the reference, so a
+    // casement on the window-wide settings draws the same lines it always
+    // did. Ruby mirror: GeometryEngine na_build_lead_reference_grid +
+    // LeadedGlassBuilder na_compute_reference_lead_rows. marginY and
+    // leadWidthMm (V2.2.0, optional) set the reference rows' lines inside
+    // the Lead Line Margins, exactly as a cell of their own would be.
+    function na_computeReferenceLeadRows(referenceGlass, glassX, glassY, glassWidth, glassHeight, glazeHBars, glazeVBars, glazeBarWidth, advancedGlazebar, hLeads, marginY, leadWidthMm) {
         if (!referenceGlass) return null;
         if (!(referenceGlass.width > 0) || !(referenceGlass.height > 0)) return null;
 
@@ -1272,13 +1398,9 @@ const Na__Viewport__SvgGenerator = (function() {
             referenceGlass.x, referenceGlass.y, referenceGlass.width, referenceGlass.height,
             glazeHBars, glazeVBars, glazeBarWidth, advancedGlazebar
         );
-        const referenceColumns = math.na_computeCellBounds(referenceGlass.x, referenceGlass.width, referenceLayout.vPositions, glazeBarWidth);
         const referenceRows = math.na_computeCellBounds(referenceGlass.y, referenceLayout.effectiveGlassHeight, referenceLayout.hPositions, glazeBarWidth);
 
-        return {
-            h: math.na_computeLeadLinePositions(referenceRows, hLeads),
-            v: math.na_computeLeadLinePositions(referenceColumns, vLeads)
-        };
+        return math.na_computeLeadLinePositions(referenceRows, hLeads, marginY, leadWidthMm);
     }
     // ---------------------------------------------------------------
 
@@ -1759,6 +1881,24 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Collect Valid Lead Line Keys (V2.2.1)
+    // ------------------------------------------------------------
+    // Every line number each glazing cell can carry: the configured counts.
+    // Aligned rows can leave a cell fewer lines; a key past them just waits
+    // until its line is drawn again. Like the cell keys, independent of
+    // leaded_glass_enabled, so the choices survive switching lead off and on.
+    function na_collectValidLeadLineKeys(config) {
+        const hLeads = Math.max(0, Math.min(10, Math.round(Number(config.horizontal_leaded_bars || 0))));
+        const vLeads = Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0))));
+        const validKeys = [];
+        na_collectValidLeadedCellKeys(config).forEach(cellKey => {
+            for (let number = 1; number <= hLeads; number++) validKeys.push(na_getLeadLineKey(cellKey, 'h', number));
+            for (let number = 1; number <= vLeads; number++) validKeys.push(na_getLeadLineKey(cellKey, 'v', number));
+        });
+        return validKeys;
+    }
+    // ---------------------------------------------------------------
+
 // endregion -------------------------------------------------------------------
 
 
@@ -1784,34 +1924,270 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
     
+    // CONSTANTS | Dimension Drawing (Millimetres, the Preview's Own Units)
+    // ------------------------------------------------------------
+    const NA_DIM_OFFSET_MM        = 100;                                   // <-- Dimension line out from the frame
+    const NA_DIM_TICK_MM          = 15;                                    // <-- Half a tick
+    const NA_DIM_WITNESS_GAP_MM   = 12;                                    // <-- Witness line gap off the frame
+    const NA_DIM_WITNESS_OVER_MM  = 15;                                    // <-- Witness line run past the dimension line
+    const NA_DIM_STROKE           = '#606060';
+    const NA_DIM_WITNESS_STROKE   = '#a8a8a8';
+    const NA_DIM_TEXT_FILL        = '#303030';
+    // ---------------------------------------------------------------
+
     // FUNCTION | Generate Dimension Annotations
     // ------------------------------------------------------------
-    // @param {number} width - Window width
-    // @param {number} height - Window height
+    // Overall width below the window, overall height to its left and, from
+    // V2.2.0, the set out chains: mullion centrelines across the top and
+    // transom centrelines up the right, each segment its own value.
+    // @param {number} width   - Window width
+    // @param {number} height  - Window height
+    // @param {Object} options - Optional (V2.2.0):
+    //        {boolean} editable - Values can be clicked and typed over
+    //        {Object}  chains   - na_computeDimensionChains output
     // @returns {string} SVG dimension lines and text
-    function na_svgDimensions(width, height) {
+    function na_svgDimensions(width, height, options) {
+        const opts = options || {};
+        const editable = opts.editable === true;
+        const chains = opts.chains || null;
         let svg = '';
-        
+
         // Responsive font size scales with window dimensions
         const fontSize = Math.min(height) * 0.04;
         const lineWidth = 2;
         const tickSize = 15;
-        const dimOffset = 100;
+        const dimOffset = NA_DIM_OFFSET_MM;
         const textOffset = fontSize * 0.85;
-        
+
         // Width dimension (below window)
-        svg += `<line x1="0" y1="${dimOffset}" x2="${width}" y2="${dimOffset}" stroke="#606060" stroke-width="${lineWidth}"/>`;
-        svg += `<line x1="0" y1="${dimOffset - tickSize}" x2="0" y2="${dimOffset + tickSize}" stroke="#606060" stroke-width="${lineWidth}"/>`;
-        svg += `<line x1="${width}" y1="${dimOffset - tickSize}" x2="${width}" y2="${dimOffset + tickSize}" stroke="#606060" stroke-width="${lineWidth}"/>`;
-        svg += `<text x="${width / 2}" y="${dimOffset + textOffset}" text-anchor="middle" fill="#303030" font-size="${fontSize}" font-weight="600">${width}mm</text>`;
-        
+        svg += `<line x1="0" y1="${dimOffset}" x2="${width}" y2="${dimOffset}" stroke="${NA_DIM_STROKE}" stroke-width="${lineWidth}"/>`;
+        svg += `<line x1="0" y1="${dimOffset - tickSize}" x2="0" y2="${dimOffset + tickSize}" stroke="${NA_DIM_STROKE}" stroke-width="${lineWidth}"/>`;
+        svg += `<line x1="${width}" y1="${dimOffset - tickSize}" x2="${width}" y2="${dimOffset + tickSize}" stroke="${NA_DIM_STROKE}" stroke-width="${lineWidth}"/>`;
+        svg += na_svgDimensionValue(width / 2, dimOffset + textOffset, `${na_formatDimensionValue(width)}mm`, fontSize, false,
+            editable ? { kind: 'width', index: 0, value: width, label: 'Overall width' } : null);
+
         // Height dimension (left of window)
-        svg += `<line x1="${-dimOffset}" y1="${-height}" x2="${-dimOffset}" y2="0" stroke="#606060" stroke-width="${lineWidth}"/>`;
-        svg += `<line x1="${-dimOffset - tickSize}" y1="${-height}" x2="${-dimOffset + tickSize}" y2="${-height}" stroke="#606060" stroke-width="${lineWidth}"/>`;
-        svg += `<line x1="${-dimOffset - tickSize}" y1="0" x2="${-dimOffset + tickSize}" y2="0" stroke="#606060" stroke-width="${lineWidth}"/>`;
-        svg += `<text x="${-dimOffset - textOffset}" y="${-height / 2}" text-anchor="middle" fill="#303030" font-size="${fontSize}" font-weight="600" transform="rotate(-90, ${-dimOffset - textOffset}, ${-height / 2})">${height}mm</text>`;
-        
+        svg += `<line x1="${-dimOffset}" y1="${-height}" x2="${-dimOffset}" y2="0" stroke="${NA_DIM_STROKE}" stroke-width="${lineWidth}"/>`;
+        svg += `<line x1="${-dimOffset - tickSize}" y1="${-height}" x2="${-dimOffset + tickSize}" y2="${-height}" stroke="${NA_DIM_STROKE}" stroke-width="${lineWidth}"/>`;
+        svg += `<line x1="${-dimOffset - tickSize}" y1="0" x2="${-dimOffset + tickSize}" y2="0" stroke="${NA_DIM_STROKE}" stroke-width="${lineWidth}"/>`;
+        svg += na_svgDimensionValue(-dimOffset - textOffset, -height / 2, `${na_formatDimensionValue(height)}mm`, fontSize, true,
+            editable ? { kind: 'height', index: 0, value: height, label: 'Overall height' } : null);
+
+        // Set out chains (V2.2.0)
+        if (chains && Array.isArray(chains.mullions) && chains.mullions.length > 2) {
+            svg += na_svgChainDimension(chains.mullions, 'horizontal', width, height, fontSize * 0.85, editable ? 'mullion' : null);
+        }
+        if (chains && Array.isArray(chains.transoms) && chains.transoms.length > 2) {
+            svg += na_svgChainDimension(chains.transoms, 'vertical', width, height, fontSize * 0.85, editable ? 'transom' : null);
+        }
+
         return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Draw One Set Out Chain (Mullions Across, Transoms Up)
+    // ------------------------------------------------------------
+    // stations are window millimetres along the chain (x for 'horizontal',
+    // y up for 'vertical'), frame edge to frame edge. Every station gets a
+    // witness line from the frame out past the dimension line and a tick on
+    // it; every segment between two stations gets its own value. The
+    // horizontal chain runs above the window, the vertical one to its right,
+    // so neither meets the overall dimensions.
+    // @param {Array<number>} stations - Ascending, first and last the frame
+    // @param {string}        axis     - 'horizontal' | 'vertical'
+    // @param {string|null}   editKind - 'mullion' | 'transom' to make the
+    //                                    segment values editable
+    function na_svgChainDimension(stations, axis, width, height, fontSize, editKind) {
+        const label = editKind === 'transom' ? 'Transom spacing' : 'Mullion spacing';
+        let svg = '';
+
+        if (axis === 'horizontal') {
+            const lineY = -height - NA_DIM_OFFSET_MM;
+            stations.forEach(x => {
+                svg += `<line class="na-dim-witness" x1="${x}" y1="${-height - NA_DIM_WITNESS_GAP_MM}" x2="${x}" y2="${lineY - NA_DIM_WITNESS_OVER_MM}" stroke="${NA_DIM_WITNESS_STROKE}" stroke-width="1"/>`;
+                svg += `<line x1="${x}" y1="${lineY - NA_DIM_TICK_MM}" x2="${x}" y2="${lineY + NA_DIM_TICK_MM}" stroke="${NA_DIM_STROKE}" stroke-width="2"/>`;
+            });
+            svg += `<line x1="${stations[0]}" y1="${lineY}" x2="${stations[stations.length - 1]}" y2="${lineY}" stroke="${NA_DIM_STROKE}" stroke-width="2"/>`;
+            for (let index = 0; index < stations.length - 1; index++) {
+                const length = stations[index + 1] - stations[index];
+                svg += na_svgDimensionValue((stations[index] + stations[index + 1]) / 2, lineY - fontSize * 0.3,
+                    na_formatDimensionValue(length), fontSize, false,
+                    editKind ? { kind: editKind, index: index, value: length, label: label + ' ' + (index + 1) } : null);
+            }
+            return svg;
+        }
+
+        const lineX = width + NA_DIM_OFFSET_MM;
+        stations.forEach(station => {
+            svg += `<line class="na-dim-witness" x1="${width + NA_DIM_WITNESS_GAP_MM}" y1="${-station}" x2="${lineX + NA_DIM_WITNESS_OVER_MM}" y2="${-station}" stroke="${NA_DIM_WITNESS_STROKE}" stroke-width="1"/>`;
+            svg += `<line x1="${lineX - NA_DIM_TICK_MM}" y1="${-station}" x2="${lineX + NA_DIM_TICK_MM}" y2="${-station}" stroke="${NA_DIM_STROKE}" stroke-width="2"/>`;
+        });
+        svg += `<line x1="${lineX}" y1="${-stations[0]}" x2="${lineX}" y2="${-stations[stations.length - 1]}" stroke="${NA_DIM_STROKE}" stroke-width="2"/>`;
+        for (let index = 0; index < stations.length - 1; index++) {
+            const length = stations[index + 1] - stations[index];
+            svg += na_svgDimensionValue(lineX - fontSize * 0.3, -(stations[index] + stations[index + 1]) / 2,
+                na_formatDimensionValue(length), fontSize, true,
+                editKind ? { kind: editKind, index: index, value: length, label: label + ' ' + (index + 1) } : null);
+        }
+        return svg;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | One Dimension Value, Optionally Click To Edit
+    // ------------------------------------------------------------
+    // (x, y) is the text anchor: middle of the baseline. rotate turns it to
+    // read up the page. An editable value (V2.2.0) is wrapped in
+    // <g class="na-dim-edit"> carrying what it measures (kind, index) and
+    // its exact number, which is all Na__Viewport__Controls needs to open
+    // its edit box over it; a clear hit rect behind the text makes the
+    // whole label easy to click.
+    // @param {Object|null} edit - { kind, index, value, label } or null
+    function na_svgDimensionValue(x, y, text, fontSize, rotate, edit) {
+        const transform = rotate ? ` transform="rotate(-90, ${x}, ${y})"` : '';
+        const textSvg = `<text x="${x}" y="${y}" text-anchor="middle" fill="${NA_DIM_TEXT_FILL}" font-size="${fontSize}" font-weight="600"${edit ? '' : transform}>${text}</text>`;
+        if (!edit) return textSvg;
+
+        const hitWidth = Math.max(text.length * 0.62, 2.4) * fontSize + fontSize * 0.6;
+        const hitHeight = fontSize * 1.4;
+        return `<g class="na-dim-edit" data-dim-kind="${edit.kind}" data-dim-index="${edit.index}" data-dim-value="${edit.value}" data-dim-label="${edit.label}"${transform}>` +
+               `<title>${edit.label}: click to type a new size</title>` +
+               `<rect class="na-dim-hit" x="${x - hitWidth / 2}" y="${y - fontSize * 1.05}" width="${hitWidth}" height="${hitHeight}" fill="rgba(0, 0, 0, 0.001)" stroke="none"/>` +
+               textSvg +
+               `</g>`;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Dimension Value Text (Whole mm, or One Decimal)
+    // ------------------------------------------------------------
+    function na_formatDimensionValue(value) {
+        const rounded = Math.round(Number(value) * 10) / 10;
+        return Number.isFinite(rounded) ? String(rounded) : '';
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | Dimension Chains & Typed Dimension Resolution (V2.2.0)
+// -----------------------------------------------------------------------------
+// The preview's dimensions double as a second way to set the window out:
+// click a value, type a size, and the controls it is made of take it. These
+// pure helpers say what each chain measures and what a typed size means, so
+// the drawing and the edit can never disagree. MainUiLogic applies the
+// result through the panel's own controls (na_applyDimensionEdit).
+
+    // FUNCTION | Set Out Stations for the Preview's Chain Dimensions
+    // ------------------------------------------------------------
+    // Worked out from the config the same way the preview draws it.
+    //   mullions : across the window, outer frame edge, each mullion
+    //              centreline, outer frame edge (null with no mullions)
+    //   transoms : up the window, outer frame bottom, each transom
+    //              centreline, outer frame top (null with no transoms)
+    // Window millimetres: x from the left of the frame, y up from its bottom.
+    // @returns {Object} { width, height, mullions, transoms }
+    function na_computeDimensionChains(config) {
+        const cfg = config || {};
+        const width = cfg.width_mm || 900;
+        const height = cfg.height_mm || 1200;
+        const frame = na_getEffectiveFrameThicknesses(cfg);
+        const innerWidth = width - frame.left - frame.right;
+
+        const mullionLayout = Na__MullionMath.na_resolveMullionLayoutFromConfig(cfg, frame.left, innerWidth);
+        const mullions = mullionLayout.mullions.length > 0
+            ? [0].concat(mullionLayout.mullions.map(mullion => mullion.x + mullion.width / 2), [width])
+            : null;
+
+        const transomCount = Math.max(0, Math.min(3, Math.round(cfg.transoms || 0)));
+        const transomWidth = cfg.transom_width_mm || 40;
+        const transoms = transomCount > 0
+            ? [0].concat(na_getActiveTransomBottoms(cfg, transomCount).map(bottom => frame.bottom + bottom + transomWidth / 2), [height])
+            : null;
+
+        return { width: width, height: height, mullions: mullions, transoms: transoms };
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Which Station a Typed Chain Segment Moves, and Where
+    // ------------------------------------------------------------
+    // Segment k runs from station k to station k + 1. A new length moves
+    // the station at its far end, so the segment after it takes up the
+    // difference; the last segment's far end is the frame, so it moves its
+    // near end instead. The frame edges never move: the overall size holds.
+    // @returns {Object|null} { station, position }, station 1..n
+    function na_solveChainSegmentEdit(stations, segmentIndex, newLength) {
+        if (!Array.isArray(stations) || stations.length < 3) return null;
+        const lastSegment = stations.length - 2;
+        const segment = Math.round(Number(segmentIndex));
+        const length = Number(newLength);
+        if (!(segment >= 0 && segment <= lastSegment) || !Number.isFinite(length)) return null;
+        if (segment < lastSegment) return { station: segment + 1, position: stations[segment] + length };
+        return { station: segment, position: stations[segment + 1] - length };
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Round a Resolved Setting (The Panel Fields' 3 dp)
+    // ------------------------------------------------------------
+    function na_roundSetting(value) {
+        return Math.round(Number(value) * 1000) / 1000;
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Turn a Typed Dimension Into Config Changes
+    // ------------------------------------------------------------
+    // kind 'width' | 'height' | 'mullion' | 'transom', index the chain
+    // segment, value the new size in mm.
+    //   width / height : the Width / Height control.
+    //   mullion        : Individual Mullion Offsets, switched on, with every
+    //                    mullion's offset written from where it is drawn now
+    //                    (so only the one being moved moves) and the moved
+    //                    one's from its new centreline. Offsets are measured
+    //                    from the equal lights position, as the sliders are.
+    //   transom        : the moved transom's stored height, its bottom above
+    //                    the inside of the frame (the form the transom
+    //                    controls keep internally).
+    // The layout's own clamps (narrowest light, transom order) still apply
+    // when the result is drawn.
+    // @returns {Object} { changes: { key: value } } | { error }
+    function na_resolveDimensionEdit(config, kind, index, value) {
+        const cfg = config || {};
+        const newValue = Number(value);
+        if (!Number.isFinite(newValue)) return { error: 'Not a number' };
+        if (kind === 'width') return { changes: { width_mm: newValue } };
+        if (kind === 'height') return { changes: { height_mm: newValue } };
+
+        const chains = na_computeDimensionChains(cfg);
+        const frame = na_getEffectiveFrameThicknesses(cfg);
+
+        if (kind === 'mullion') {
+            const move = na_solveChainSegmentEdit(chains.mullions, index, newValue);
+            if (!move) return { error: 'That mullion spacing is not on the drawing' };
+            const count = chains.mullions.length - 2;
+            const mullionWidth = cfg.mullion_width_mm || 40;
+            const even = Na__MullionMath.na_computeEvenMullionLayout(frame.left, chains.width - frame.left - frame.right, count, mullionWidth);
+            const changes = { mullion_offsets_enabled: true };
+            for (let mullion = 1; mullion <= count; mullion++) {
+                const key = `mullion_offset_${mullion}_mm`;
+                const centre = mullion === move.station ? move.position : chains.mullions[mullion];
+                const offset = centre - (mullionWidth / 2) - even.mullions[mullion - 1].x;
+                const stored = Number(cfg[key]);
+                const keepStored = mullion !== move.station && cfg.mullion_offsets_enabled === true &&
+                                   Number.isFinite(stored) && Math.abs(stored - offset) < 0.001;
+                changes[key] = keepStored ? stored : na_roundSetting(offset);
+            }
+            return { changes: changes };
+        }
+
+        if (kind === 'transom') {
+            const move = na_solveChainSegmentEdit(chains.transoms, index, newValue);
+            if (!move) return { error: 'That transom spacing is not on the drawing' };
+            const transomWidth = cfg.transom_width_mm || 40;
+            const changes = {};
+            changes[`transom_${move.station}_y_mm`] = na_roundSetting(move.position - frame.bottom - (transomWidth / 2));
+            return { changes: changes };
+        }
+
+        return { error: 'That dimension cannot be typed over' };
     }
     // ---------------------------------------------------------------
 
@@ -1836,7 +2212,9 @@ const Na__Viewport__SvgGenerator = (function() {
         na_computeFinalBarPositions: na_computeFinalBarPositions,           // <-- Exposed so DXF / door elevations share final bar math
         na_collectValidGlazebarKeys: na_collectValidGlazebarKeys,
         na_collectValidLeadedCellKeys: na_collectValidLeadedCellKeys,       // <-- Exposed for leaded-cell pruning in UiLogic
+        na_collectValidLeadLineKeys: na_collectValidLeadLineKeys,           // <-- V2.2.1 Exposed for lead line pruning in UiLogic
         na_getLeadedCellKey: na_getLeadedCellKey,                           // <-- Exposed for leaded-cell toggles in UiLogic
+        na_getLeadLineKey: na_getLeadLineKey,                               // <-- V2.2.1
         na_getCasementKey: na_getCasementKey,                            // <-- Exposed for cross-module reuse
         na_getRemovedCasementSet: na_getRemovedCasementSet,              // <-- Exposed for DXF JS fallback
         na_isPanelCasementRemoved: na_isPanelCasementRemoved,            // <-- Exposed for DXF JS fallback
@@ -1846,9 +2224,13 @@ const Na__Viewport__SvgGenerator = (function() {
         na_getEffectiveFrameThicknesses: na_getEffectiveFrameThicknesses,// <-- Exposed for valid-key collectors in UiLogic
         na_svgRect: na_svgRect,
         na_svgDimensions: na_svgDimensions,
+        na_computeDimensionChains: na_computeDimensionChains,            // <-- V2.2.0 Set out chains, shared with the dimension editor
+        na_solveChainSegmentEdit: na_solveChainSegmentEdit,
+        na_resolveDimensionEdit: na_resolveDimensionEdit,
         na_getMaterialColor: na_getMaterialColor,
         na_resolveLeadedColourId: na_resolveLeadedColourId,
-        na_leadedColourHex: na_leadedColourHex
+        na_leadedColourHex: na_leadedColourHex,
+        na_resolveLeadMargins: na_resolveLeadMargins                     // <-- V2.2.0 Shared with the door previews
     };
 
 // endregion -------------------------------------------------------------------

@@ -22,9 +22,15 @@
 #   of spanning the whole pane, so lead never clashes with the bars.
 #   Cell keys: "opening:cell:panel:sash:col:row" (col 0 = left, row 0 = bottom).
 # - ALIGNED layout (V1.8.0): when the grid also carries :reference (a pane
-#   built to the window-wide casement settings), the lines are laid out on
-#   that pane and each real glazing cell keeps the ones that land inside
-#   it, so lead runs straight through casements with their own rails.
+#   built to the window-wide casement settings), the HORIZONTAL lines are
+#   laid out on that pane and each real glazing cell keeps the ones that
+#   land inside it, so they run level through casements with their own
+#   rails. Vertical lines always divide each cell's own width (V2.1.1).
+# - LEAD LINE MARGINS (V2.2.0): with :margin_x / :margin_y set, the first
+#   and last lines of each cell sit that far in from its edges and the
+#   lines between divide the rest evenly (the margin glazing rule).
+# - SINGLE LINES OFF (V2.2.1): grid[:removed_lines] holds the lines clicked
+#   off in the window preview, keyed by cell, axis and number in the cell.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix
@@ -58,6 +64,7 @@ module Na__WindowSystem
 
         NA_DEFAULT_MTE_ID = 'MTE104__LineColour__MidGrey__L60'.freeze
         NA_MM_TO_INCH = 1.0 / 25.4
+        NA_LEAD_MARGIN_DEFAULT_MM = 50.0                                                         # <-- V2.2.0 Lead Line Margins until one is typed
 
 # endregion -------------------------------------------------------------------
 
@@ -84,6 +91,11 @@ module Na__WindowSystem
 
         # FUNCTION | Resolve Leaded Glass Params From Config Hash
         # ------------------------------------------------------------
+        # :margin_x / :margin_y (V2.2.0, Lead Line Margins) are how far the
+        # first and last vertical / horizontal lines sit in from each pane's
+        # edges, or nil for the even layout (switched off, or a window saved
+        # before the toggle existed). Mirrors na_resolveLeadMargins in the
+        # JS SVG generator.
         # @param config [Hash] windowConfiguration (string keys, mm values)
         # @return [Hash] typed params (inches where dimensional)
         def self.na_resolve_leaded_params(config)
@@ -93,6 +105,7 @@ module Na__WindowSystem
             enabled = config['leaded_glass_enabled'] == true
             mte_id = (config['edge_colour_leaded_id'] || NA_DEFAULT_MTE_ID).to_s
             mte_id = NA_DEFAULT_MTE_ID if mte_id.empty?
+            margins_on = config['leaded_margins_enabled'] == true
 
             {
                 enabled:       enabled,
@@ -101,8 +114,19 @@ module Na__WindowSystem
                 width:         [(config['leaded_width_mm'] || 6).to_f, 2.0].max * NA_MM_TO_INCH,
                 depth:         [[(config['leaded_depth_mm'] || 0).to_f, 0.0].max, 5.0].min * NA_MM_TO_INCH,
                 centre_lines:  config['leaded_centre_lines_only'] == true,
-                mte_id:        mte_id
+                mte_id:        mte_id,
+                margin_x:      margins_on ? na_margin_inches(config['leaded_margin_x_mm']) : nil,
+                margin_y:      margins_on ? na_margin_inches(config['leaded_margin_y_mm']) : nil
             }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | One Lead Line Margin, mm Config Value -> Inches (V2.2.0)
+        # ------------------------------------------------------------
+        # A missing value takes the control's default; never below zero.
+        def self.na_margin_inches(value_mm)
+            margin_mm = value_mm.nil? ? NA_LEAD_MARGIN_DEFAULT_MM : value_mm.to_f
+            [margin_mm, 0.0].max * NA_MM_TO_INCH
         end
         # ---------------------------------------------------------------
 
@@ -118,7 +142,9 @@ module Na__WindowSystem
                 width:         (params[:leaded_width] || (6.0 * NA_MM_TO_INCH)).to_f,
                 depth:         (params[:leaded_depth] || 0).to_f,
                 centre_lines:  params[:leaded_centre_lines_only] == true,
-                mte_id:        (params[:leaded_mte_id] || NA_DEFAULT_MTE_ID).to_s
+                mte_id:        (params[:leaded_mte_id] || NA_DEFAULT_MTE_ID).to_s,
+                margin_x:      params[:leaded_margin_x],
+                margin_y:      params[:leaded_margin_y]
             }
         end
         # ---------------------------------------------------------------
@@ -152,14 +178,17 @@ module Na__WindowSystem
         #     effective_glass_height:    lead zone height (arch zone excluded),
         #     panel_context:             { opening:, cell:, panel:, sash: },
         #     disabled_cells:            Array of "o:c:p:s:col:row" keys,
-        #     reference:                 optional (V1.8.0) { offset_x:,
-        #                                offset_z:, glass_width:, h_positions:,
-        #                                v_positions:, effective_glass_height: } }
+        #     removed_lines:             optional (V2.2.1) Array of
+        #                                "o:c:p:s:col:row:h|v:number" keys,
+        #                                single lines clicked off,
+        #     reference:                 optional (V1.8.0) { offset_z:,
+        #                                h_positions:, effective_glass_height: } }
         #   When present, lead lines are laid out per glazing cell between
         #   the bars; cells whose key is disabled are skipped entirely.
         #   Without it the legacy whole-pane single-cell layout applies.
-        #   With :reference the lines are those of the reference pane's own
-        #   per-cell layout, each cell keeping the ones inside it.
+        #   With :reference the horizontal lines are those of the reference
+        #   pane's own rows, each cell keeping the ones inside it; vertical
+        #   lines still divide each cell's own width (V2.1.1).
         # @return [Array<Sketchup::Group>] created groups (may be empty)
         def self.na_create_leaded_glass_geometry(
             entities,
@@ -187,9 +216,12 @@ module Na__WindowSystem
             column_bounds = na_compute_cell_bounds(offset_x, glass_width, grid_hash[:v_positions], bar_width)
             row_bounds = na_compute_cell_bounds(offset_z, lead_zone_height, grid_hash[:h_positions], bar_width)
             disabled_cells = grid_hash[:disabled_cells].is_a?(Array) ? grid_hash[:disabled_cells].map(&:to_s) : []
+            removed_lines = grid_hash[:removed_lines].is_a?(Array) ? grid_hash[:removed_lines].map(&:to_s) : []   # <-- V2.2.1 "cell key:h|v:number"
             panel_context = grid_hash[:panel_context].is_a?(Hash) ? grid_hash[:panel_context] : nil
             multi_cell = column_bounds.length > 1 || row_bounds.length > 1
-            reference_lines = na_compute_reference_lead_lines(grid_hash[:reference], bar_width, h_bars, v_bars)
+            reference_rows = na_compute_reference_lead_rows(
+                grid_hash[:reference], bar_width, h_bars, leaded_params[:margin_y], leaded_params[:width]
+            )
             lead_margin = [leaded_params[:width].to_f / 2.0, NA_MM_TO_INCH].max                        # <-- Keeps a line's ribbon off rails and bars
 
             created = []
@@ -197,10 +229,14 @@ module Na__WindowSystem
                 column_bounds.each_with_index do |column_bound, col_index|
                     next if row_bound[:size] <= 0 || column_bound[:size] <= 0
 
+                    cell_removed = nil
                     if panel_context
                         cell_key = "#{panel_context[:opening]}:#{panel_context[:cell]}:" \
                                    "#{panel_context[:panel]}:#{panel_context[:sash]}:#{col_index}:#{row_index}"
                         next if disabled_cells.include?(cell_key)
+
+                        prefix = "#{cell_key}:"
+                        cell_removed = removed_lines.select { |key| key.start_with?(prefix) }.map { |key| key[prefix.length..] }
                     end
 
                     cell_panel_id = multi_cell ? "#{panel_id}_C#{col_index}_#{row_index}" : panel_id
@@ -210,10 +246,9 @@ module Na__WindowSystem
                     end
 
                     cell_positions = nil
-                    if reference_lines
-                        cell_positions = {
-                            h: na_positions_inside(reference_lines[:h], row_bound[:start], row_bound[:size], lead_margin),
-                            v: na_positions_inside(reference_lines[:v], column_bound[:start], column_bound[:size], lead_margin)
+                    if reference_rows
+                        cell_positions = {                                                              # <-- No :v, so verticals stay even in this cell
+                            h: na_positions_inside(reference_rows, row_bound[:start], row_bound[:size], lead_margin)
                         }
                     end
 
@@ -223,7 +258,8 @@ module Na__WindowSystem
                             column_bound[:size], row_bound[:size],
                             column_bound[:start], row_bound[:start],
                             y_front, leaded_params, cell_naming,
-                            positions: cell_positions
+                            positions: cell_positions,
+                            removed: cell_removed
                         )
                     )
                 end
@@ -257,35 +293,60 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Lay the Aligned Lead Grid Out on a Reference Pane (V1.8.0)
+        # FUNCTION | Lay the Aligned Lead Rows Out on a Reference Pane (V1.8.0)
         # ------------------------------------------------------------
-        # Every lead centreline the reference pane would carry: its glazing
-        # cells (between its own final glaze bars), each divided evenly just
-        # as the per-cell layout divides a pane. nil without a reference.
-        # Mirrors na_computeReferenceLeadLines in the JS SVG generator.
-        # @return [Hash, nil] { h: [z...], v: [x...] }
-        def self.na_compute_reference_lead_lines(reference, bar_width, h_bars, v_bars)
+        # Every HORIZONTAL lead centreline the reference pane would carry: its
+        # glazing rows (between its own final glaze bars), each divided evenly
+        # just as the per-cell layout divides a pane. Verticals are not
+        # aligned (V2.1.1): every cell divides its own width, so a light with
+        # no casement, or with wider stiles, spaces them across its own glass.
+        # nil without a reference. margin / lead_width (V2.2.0) lay each
+        # reference row out inside the Lead Line Margins, as a cell of its own
+        # would be. Mirrors na_computeReferenceLeadRows in the JS SVG
+        # generator.
+        # @return [Array<Float>, nil] z positions
+        def self.na_compute_reference_lead_rows(reference, bar_width, h_bars, margin = nil, lead_width = 0.0)
             return nil unless reference.is_a?(Hash)
 
-            columns = na_compute_cell_bounds(reference[:offset_x], reference[:glass_width], reference[:v_positions], bar_width)
             rows = na_compute_cell_bounds(reference[:offset_z], reference[:effective_glass_height], reference[:h_positions], bar_width)
-            {
-                h: na_compute_lead_line_positions(rows, h_bars),
-                v: na_compute_lead_line_positions(columns, v_bars)
-            }
+            na_compute_lead_line_positions(rows, h_bars, margin, lead_width)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Lead Centrelines Across One Span (V2.2.0)
+        # ------------------------------------------------------------
+        # margin nil: count + 1 equal panes, as always. margin set (Lead Line
+        # Margins): the first and last lines sit that far in from the span's
+        # edges and the lines between divide the rest evenly, the margin
+        # glazing rule. One line stays in the middle. The margin gives way
+        # before the lines close up past touching (a lead width apart); a
+        # span too small even for that keeps the even layout. Mirrors
+        # Na__GlazebarMath.na_computeLeadPositions.
+        def self.na_compute_lead_positions(start, size, count, margin = nil, lead_width = 0.0)
+            line_count = [count.to_i, 0].max
+            return [] if line_count <= 0 || size.to_f <= 0
+            if margin.nil? || line_count < 2
+                return GeometryBuilders.na_compute_bar_positions(start, size, line_count, false, 0)
+            end
+
+            max_margin = (size.to_f - ((line_count - 1) * [lead_width.to_f, 0.0].max)) / 2.0
+            return GeometryBuilders.na_compute_bar_positions(start, size, line_count, false, 0) unless max_margin > 0
+
+            GeometryBuilders.na_compute_bar_positions(start, size, line_count, true, [[margin.to_f, 0.0].max, max_margin].min)
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Lead Centrelines Across a Set of Glazing Cells (V1.8.0)
         # ------------------------------------------------------------
-        # Mirrors Na__GlazebarMath.na_computeLeadLinePositions.
-        def self.na_compute_lead_line_positions(cells, count)
+        # Each cell is laid out by na_compute_lead_positions (margins from
+        # V2.2.0). Mirrors Na__GlazebarMath.na_computeLeadLinePositions.
+        def self.na_compute_lead_line_positions(cells, count, margin = nil, lead_width = 0.0)
             return [] unless cells.is_a?(Array) && count.to_i > 0
 
             cells.flat_map do |cell|
                 next [] unless cell[:size].to_f > 0
 
-                GeometryBuilders.na_compute_bar_positions(cell[:start], cell[:size], count.to_i, false, 0)
+                na_compute_lead_positions(cell[:start], cell[:size], count.to_i, margin, lead_width)
             end
         end
         # ---------------------------------------------------------------
@@ -304,11 +365,27 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Number a Cell's Lines and Drop the Ones Clicked Off (V2.2.1)
+        # ------------------------------------------------------------
+        # @return [Array<Array(Float, Integer)>] [position, number from 1]
+        def self.na_kept_lead_lines(positions, axis, removed)
+            removed_numbers = (removed || []).map(&:to_s)
+            positions.each_with_index
+                     .map { |position, index| [position, index + 1] }
+                     .reject { |_position, number| removed_numbers.include?("#{axis}:#{number}") }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Create Lead Lines Within One Glazing Cell
         # ------------------------------------------------------------
         # The original whole-pane drawing body, applied to one cell rect.
         # positions (V1.8.0, optional): { h: [z...], v: [x...] } already cut
-        # from the aligned grid. Omitted, the cell is divided evenly.
+        # from the aligned grid, either axis optional. An axis it does not
+        # give is laid out on the cell: divided evenly, as it always was, or
+        # inside the Lead Line Margins when they are on (V2.2.0).
+        # removed (V2.2.1, optional): ["h:2", "v:1" ...], this cell's lines
+        # clicked off in the preview, numbered from 1 as the preview numbers
+        # them. They are not built; the rest keep their numbers (H1, H3).
         def self.na_create_leaded_cell_geometry(
             entities,
             panel_id,
@@ -319,7 +396,8 @@ module Na__WindowSystem
             y_front,
             leaded_params,
             naming,
-            positions: nil
+            positions: nil,
+            removed: nil
         )
             return [] if glass_width.to_f <= 0 || glass_height.to_f <= 0
 
@@ -330,21 +408,24 @@ module Na__WindowSystem
             width = centre_lines ? 0.0 : leaded_params[:width].to_f
             depth = centre_lines ? 0.0 : leaded_params[:depth].to_f
 
-            h_positions = positions ? positions[:h] : GeometryBuilders.na_compute_bar_positions(offset_z, glass_height, h_bars, false, 0)
-            v_positions = positions ? positions[:v] : GeometryBuilders.na_compute_bar_positions(offset_x, glass_width, v_bars, false, 0)
+            lead_width = leaded_params[:width].to_f                                                     # <-- The margin clamp uses the set width, centre lines or not (as the preview does)
+            h_positions = positions && positions[:h] ? positions[:h] : na_compute_lead_positions(offset_z, glass_height, h_bars, leaded_params[:margin_y], lead_width)
+            v_positions = positions && positions[:v] ? positions[:v] : na_compute_lead_positions(offset_x, glass_width, v_bars, leaded_params[:margin_x], lead_width)
+            h_lines = na_kept_lead_lines(h_positions, 'h', removed)                                     # <-- [[position, number] ...]
+            v_lines = na_kept_lead_lines(v_positions, 'v', removed)
 
             created = []
 
             if centre_lines
-                h_positions.each_with_index do |z_center, index|
+                h_lines.each do |z_center, number|
                     group = na_create_centre_line_horizontal(
-                        entities, panel_id, offset_x, offset_x + glass_width, z_center, y_front, index + 1, naming
+                        entities, panel_id, offset_x, offset_x + glass_width, z_center, y_front, number, naming
                     )
                     created << group if group
                 end
-                v_positions.each_with_index do |x_center, index|
+                v_lines.each do |x_center, number|
                     group = na_create_centre_line_vertical(
-                        entities, panel_id, offset_z, offset_z + glass_height, x_center, y_front, index + 1, naming
+                        entities, panel_id, offset_z, offset_z + glass_height, x_center, y_front, number, naming
                     )
                     created << group if group
                 end
@@ -353,32 +434,32 @@ module Na__WindowSystem
             end
 
             if depth <= 0
-                h_positions.each_with_index do |z_center, index|
+                h_lines.each do |z_center, number|
                     group = na_create_flat_ribbon_horizontal(
-                        entities, panel_id, offset_x, glass_width, z_center, width, y_front, index + 1, material, naming
+                        entities, panel_id, offset_x, glass_width, z_center, width, y_front, number, material, naming
                     )
                     created << group if group
                 end
-                v_positions.each_with_index do |x_center, index|
+                v_lines.each do |x_center, number|
                     group = na_create_flat_ribbon_vertical(
-                        entities, panel_id, offset_z, glass_height, x_center, width, y_front, index + 1, material, naming
+                        entities, panel_id, offset_z, glass_height, x_center, width, y_front, number, material, naming
                     )
                     created << group if group
                 end
             else
                 # Extrude forward (exterior): box spans [y_front - depth, y_front]
                 y_origin = y_front - depth
-                h_positions.each_with_index do |z_center, index|
+                h_lines.each do |z_center, number|
                     bar_z = z_center - (width / 2.0)
-                    name = na_group_name(panel_id, 'H', index + 1, naming)
+                    name = na_group_name(panel_id, 'H', number, naming)
                     group = GeometryHelpers.na_create_grouped_box(
                         entities, name, offset_x, y_origin, bar_z, glass_width, depth, width, material
                     )
                     created << group if group
                 end
-                v_positions.each_with_index do |x_center, index|
+                v_lines.each do |x_center, number|
                     bar_x = x_center - (width / 2.0)
-                    name = na_group_name(panel_id, 'V', index + 1, naming)
+                    name = na_group_name(panel_id, 'V', number, naming)
                     group = GeometryHelpers.na_create_grouped_box(
                         entities, name, bar_x, y_origin, offset_z, width, depth, glass_height, material
                     )
@@ -409,7 +490,9 @@ module Na__WindowSystem
                 width: 6.0 * NA_MM_TO_INCH,
                 depth: 0.0,
                 centre_lines: false,
-                mte_id: NA_DEFAULT_MTE_ID
+                mte_id: NA_DEFAULT_MTE_ID,
+                margin_x: nil,
+                margin_y: nil
             }
         end
         private_class_method :na_disabled_params

@@ -358,15 +358,17 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
         // HELPER FUNCTION | Draw Lead Lines Inside One Glazing Cell
         // ------------------------------------------------------------
+        // margins (V2.2.0) = { x, y } from Lead Line Margins, or null: the
+        // first and last lines sit that far in from the cell's edges.
         function na_draw_leaded_cell_lines(
             svg, layout, cellX, cellZ, cellW, cellH,
-            hLeads, vLeads, stroke, centreLines, leadWidthMm
+            hLeads, vLeads, stroke, centreLines, leadWidthMm, margins
         ) {
             const math = window.Na__GlazebarMath;
             let index;
 
             if (hLeads > 0) {
-                const hPositions = math.na_computeBarPositions(cellZ, cellH, hLeads, false, 0);
+                const hPositions = math.na_computeLeadPositions(cellZ, cellH, hLeads, margins ? margins.y : null, leadWidthMm);
                 for (index = 0; index < hPositions.length; index += 1) {
                     const z = hPositions[index];
                     if (centreLines) {
@@ -393,7 +395,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
             }
 
             if (vLeads > 0) {
-                const vPositions = math.na_computeBarPositions(cellX, cellW, vLeads, false, 0);
+                const vPositions = math.na_computeLeadPositions(cellX, cellW, vLeads, margins ? margins.x : null, leadWidthMm);
                 for (index = 0; index < vPositions.length; index += 1) {
                     const x = vPositions[index];
                     if (centreLines) {
@@ -478,6 +480,9 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
             const centreLines = config.leaded_centre_lines_only === true;
             const leadWidthMm = Math.max(2, Number(config.leaded_width_mm || 6));
+            const margins = (svgGen && typeof svgGen.na_resolveLeadMargins === 'function')
+                ? svgGen.na_resolveLeadMargins(config)                      // <-- V2.2.0 Lead Line Margins, null when off
+                : null;
             const disabledSource = Array.isArray(config[na_key('leaded_disabled_cells')])
                 ? config[na_key('leaded_disabled_cells')]
                 : config.leaded_disabled_cells;
@@ -502,7 +507,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                     if (!disabledCells.has(cellKey)) {
                         na_draw_leaded_cell_lines(
                             svg, layout, cellX, cellZ, cellW, cellH,
-                            hLeads, vLeads, stroke, centreLines, leadWidthMm
+                            hLeads, vLeads, stroke, centreLines, leadWidthMm, margins
                         );
                     }
                     na_add_leaded_cell_click_target(svg, layout, cellX, cellZ, cellW, cellH, leaf, col, row);

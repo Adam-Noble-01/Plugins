@@ -622,6 +622,8 @@ module Na__WindowSystem
             # Leaded glass overlay (outer glass face; does not trim glass)
             leaded_resolved = LeadedGlassBuilder.na_resolve_leaded_params(config)
             leaded_disabled_cells = config["leaded_disabled_cells"].is_a?(Array) ? config["leaded_disabled_cells"].map(&:to_s) : []
+            # V2.2.1 - single lead lines clicked off in the preview
+            leaded_removed_lines = config["removed_lead_lines"].is_a?(Array) ? config["removed_lead_lines"].map(&:to_s) : []
             # V1.8.0 - Align Lead Lines Across Casements. An absent key is a
             # window saved before the toggle existed, laid out pane by pane.
             leaded_global_alignment = config["leaded_global_alignment"] == true
@@ -774,7 +776,10 @@ module Na__WindowSystem
                 leaded_depth: leaded_resolved[:depth],
                 leaded_centre_lines_only: leaded_resolved[:centre_lines],
                 leaded_mte_id: leaded_resolved[:mte_id],
+                leaded_margin_x: leaded_resolved[:margin_x],                                        # <-- V2.2.0 Lead Line Margins (inches, nil when off)
+                leaded_margin_y: leaded_resolved[:margin_y],
                 leaded_disabled_cells: leaded_disabled_cells,
+                leaded_removed_lines: leaded_removed_lines,
                 leaded_global_alignment: leaded_global_alignment,
                 has_cill: has_cill,
                 cill_depth: cill_depth,
@@ -1249,13 +1254,14 @@ module Na__WindowSystem
         # FUNCTION | Resolve the Glass the Aligned Lead Grid Is Laid Out On (V1.8.0)
         # ------------------------------------------------------------
         # With Align Lead Lines Across Casements on, every pane of a casement
-        # window lays its lead out on the glass a casement built to the
-        # window-wide settings would have in this panel. Lines then run
-        # straight through a casement with its own rails and through a panel
-        # with no casement, and a casement's wider rails simply hide the part
-        # of the grid behind them. nil means "lay out on the pane's own
-        # glass": always so for a sliding sash, or with Show Casements off,
-        # where every pane already is its own reference.
+        # window lays its HORIZONTAL lead out on the glass a casement built to
+        # the window-wide settings would have in this panel. Those lines then
+        # run level through a casement with its own rails and through a panel
+        # with no casement, and a casement's deeper rails simply hide the part
+        # of the grid behind them. Vertical lines always divide the pane's own
+        # glass (V2.1.1). nil means "lay out on the pane's own glass": always
+        # so for a sliding sash, or with Show Casements off, where every pane
+        # already is its own reference.
         # @return [Hash, nil] { x:, z:, width:, height: } (inches)
         def self.na_resolve_lead_reference_glass(params, panel_x, panel_z, panel_width, panel_height)
             return nil unless params[:leaded_global_alignment]
@@ -1272,11 +1278,14 @@ module Na__WindowSystem
 
         # FUNCTION | Build the Reference Glaze Bar Grid for Aligned Lead (V1.8.0)
         # ------------------------------------------------------------
-        # The reference glass with its own final glaze bar centrelines, in the
-        # shape LeadedGlassBuilder reads from grid[:reference]. nil when there
-        # is no reference, or when the pane IS the reference, so a casement on
-        # the window-wide settings builds exactly the lead it always did.
-        # Mirrors na_computeReferenceLeadLines in the SVG generator.
+        # The reference glass's glaze bar rows, in the shape LeadedGlassBuilder
+        # reads from grid[:reference]: only rows, since only the horizontal
+        # lines are aligned (V2.1.1). The layout is still worked out on the
+        # whole reference rect, because a Gothic arch's zone, and so the rows
+        # beneath it, depends on the glass width. nil when there is no
+        # reference, or when the pane IS the reference, so a casement on the
+        # window-wide settings builds exactly the lead it always did.
+        # Mirrors na_computeReferenceLeadRows in the SVG generator.
         def self.na_build_lead_reference_grid(reference_glass, offset_x, offset_z, glass_w, glass_h, params)
             return nil unless reference_glass
             return nil if reference_glass[:width] <= 0 || reference_glass[:height] <= 0
@@ -1293,11 +1302,8 @@ module Na__WindowSystem
                 params[:h_bars], params[:v_bars], params[:bar_width], na_advanced_glazebar_hash(params)
             )
             {
-                offset_x:               reference_glass[:x],
                 offset_z:               reference_glass[:z],
-                glass_width:            reference_glass[:width],
                 h_positions:            layout[:h_positions],
-                v_positions:            layout[:v_positions],
                 effective_glass_height: layout[:effective_glass_height]
             }
         end
@@ -1361,7 +1367,8 @@ module Na__WindowSystem
                 bar_width: params[:bar_width],
                 effective_glass_height: bar_layout[:effective_glass_height],
                 panel_context: { opening: opening_index, cell: cell_index, panel: panel_index, sash: sash_index },
-                disabled_cells: params[:leaded_disabled_cells]
+                disabled_cells: params[:leaded_disabled_cells],
+                removed_lines: params[:leaded_removed_lines]
             }
             reference_grid = na_build_lead_reference_grid(reference_glass, offset_x, offset_z, glass_w, glass_h, params)
             grid[:reference] = reference_grid if reference_grid
