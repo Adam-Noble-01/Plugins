@@ -262,8 +262,8 @@ const Na__Viewport__SvgGenerator = (function() {
         };
         const leadedGlass = {
             enabled      : config.leaded_glass_enabled === true,
-            hBars        : Math.max(0, Math.min(10, Math.round(Number(config.horizontal_leaded_bars || 0)))),
-            vBars        : Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0)))),
+            hBars        : Math.max(0, Math.min(12, Math.round(Number(config.horizontal_leaded_bars || 0)))),
+            vBars        : Math.max(0, Math.min(12, Math.round(Number(config.vertical_leaded_bars || 0)))),
             widthMm      : Math.max(2, Number(config.leaded_width_mm || 6)),
             centreLines  : config.leaded_centre_lines_only === true,
             colourId     : na_resolveLeadedColourId(config),
@@ -1893,8 +1893,8 @@ const Na__Viewport__SvgGenerator = (function() {
     // until its line is drawn again. Like the cell keys, independent of
     // leaded_glass_enabled, so the choices survive switching lead off and on.
     function na_collectValidLeadLineKeys(config) {
-        const hLeads = Math.max(0, Math.min(10, Math.round(Number(config.horizontal_leaded_bars || 0))));
-        const vLeads = Math.max(0, Math.min(8, Math.round(Number(config.vertical_leaded_bars || 0))));
+        const hLeads = Math.max(0, Math.min(12, Math.round(Number(config.horizontal_leaded_bars || 0))));
+        const vLeads = Math.max(0, Math.min(12, Math.round(Number(config.vertical_leaded_bars || 0))));
         const validKeys = [];
         na_collectValidLeadedCellKeys(config).forEach(cellKey => {
             for (let number = 1; number <= hLeads; number++) validKeys.push(na_getLeadLineKey(cellKey, 'h', number));

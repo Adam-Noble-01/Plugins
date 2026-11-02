@@ -618,6 +618,17 @@ Ui.na_setConfig(na_window(Object.assign({ leaded_margin_x_enabled: false, leaded
 na_expect('a window saved with Y only keeps Y only',
     [Ui.na_getConfig().leaded_margin_x_enabled, Ui.na_getConfig().leaded_margin_y_enabled], [false, true]);
 
+na_suite('Up to 12 lead lines each way (V2.2.3)');
+const na_lead_descriptors = window.NA_GLAZEBAR_CONFIG.flatMap(item => item.children || [item]);
+na_expect('both sliders go to 12',
+    ['horizontal_leaded_bars', 'vertical_leaded_bars'].map(id => na_lead_descriptors.find(item => item.id === id).max), [12, 12]);
+const na_twelve = na_window({ mullions: 0, leaded_glass_enabled: true, horizontal_leaded_bars: 12, vertical_leaded_bars: 12, leaded_width_mm: 6 });
+const na_twelve_leads = na_preview_leads(na_twelve);
+na_expect('twelve of each are drawn', [na_twelve_leads.h.length, na_twelve_leads.v.length], [12, 12]);
+na_expect('and each can be clicked off', Generator.na_collectValidLeadLineKeys(na_twelve).length, 24);
+const na_thirteen_leads = na_preview_leads(na_window({ mullions: 0, leaded_glass_enabled: true, horizontal_leaded_bars: 13, vertical_leaded_bars: 13, leaded_width_mm: 6 }));
+na_expect('thirteen stops at twelve', [na_thirteen_leads.h.length, na_thirteen_leads.v.length], [12, 12]);
+
 // endregion -------------------------------------------------------------------
 
 

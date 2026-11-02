@@ -730,7 +730,7 @@ const NA_GLAZEBAR_CONFIG = [
                 unit    :  '',
                 type    :  'slider',
                 min     :  0,
-                max     :  10,
+                max     :  12,
                 step    :  1,
                 default :  0
             },
@@ -740,7 +740,7 @@ const NA_GLAZEBAR_CONFIG = [
                 unit    :  '',
                 type    :  'slider',
                 min     :  0,
-                max     :  8,
+                max     :  12,
                 step    :  1,
                 default :  0
             },

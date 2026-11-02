@@ -3,6 +3,29 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.2.3 - 02-Nov-2026 - Leaded Glass: Up to 12 Lead Lines Each Way
+
+### Context
+Adam: raise the lead line limit to 12. Vertical Lead Lines stopped at 8 and Horizontal Lead Lines at 10.
+
+### Feature Summary
+Horizontal Lead Lines and Vertical Lead Lines both go to 12, per glazing pane as before. This covers windows and every door type that shares these settings, in the preview and the model. Existing windows do not change.
+
+### Files Changed
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__UiSystem__Config__.js`: both sliders' max.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__.rb`: the 3D clamp.
+- `20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__Viewport__SvgGenerator__.js`, `30__System__ExteriorDoorCommon__/...__Viewport__ElevationGenerator__.js`, `32__System__ExteriorSlidingDoorSystem/...__Viewport__ElevationGenerator__.js`, `33__System__ExteriorMultiFoldingDoorSystem/...__Viewport__ElevationGenerator__.js`: the preview clamps.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js`: 130 assertions (was 126).
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.2.3.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__PreviewDimensions__Spec__.js"
+```
+Expect `130 passed, 0 failed`. In SketchUp, after Reload Plugin: set Vertical Lead Lines and Horizontal Lead Lines to `12`. The preview and the model both show twelve each way in every pane.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.2.2 - 01-Nov-2026 - Leaded Glass: X and Y Lead Margins Switched On Their Own
 
 ### Context
