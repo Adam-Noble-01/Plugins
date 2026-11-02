@@ -3,6 +3,35 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.20 - 02-Nov-2026 - Image Viewer: Top Bar Rebuilt as Toolsets With Icons
+
+- **The problem.** The flat top bar needed 1227 px for its 21 buttons. Markup ran off even at the dialog's default 1200 px; at 900 px five buttons were gone, and at 720 px eight.
+- **Home row.** The bar now opens on four pictures: **Folder**, **View**, **Measure** and **Markup**. View and Measure carry a small arrow: they open more tools. Folder and Markup act straight away, as Markup already has its own floating toolbar. The folder button is blue only until there are photos.
+- **Toolsets.** Pressing **View** swaps the row for Fit, Fill, 100%, Zoom In, Zoom Out, Rotate Left, Rotate Right and Full Screen. Pressing **Measure** swaps it for Dimension, Reference, Count, Angle, Select, Delete and Clear All. The blue **Back** button on the left names the set you are in; it or **Esc** returns to the home row. A set stays open after a press, so the next tool is one click away.
+- **Always on the bar.** Previous, Next, Undo and Redo stay at the right in every state.
+- **With a tool running.** The Measure button shows a blue bar when a tool in it is on, so you can leave the set and still see it. Moving to another set does not stop the tool. A shortcut opens the tool's set (C opens Measure with Count on). Esc stops the tool first; a second Esc goes home.
+- **Narrow windows.** Above 860 px every tool has its picture and a short name. At 860 px and below the names drop, the buttons become 38 px squares, the names stay as tooltips and the thumbnail rail narrows to 130 px. If the row still cannot fit it wraps rather than running off. The dialog's minimum width comes down from 900 to 640.
+- **Icons.** 23 new SVGs in `UiIcons__MenuIcons__ImageViewer`, inlined into the dialog so CSS can turn them white on a button that is on. They take the 60 weight of the GeneralWebAppIcons family: the 34 weight fades at 24 px. The folder is that family's Project Manager icon unchanged; Tape, Dimension, Delete, Clear All and Full Screen redraw the MeasureTools and ToolsMenu Gold Standards at 60; the rest are new. Generator in the graphic skill's `01__ProductionFiles/Icon__ImageViewer__.generator`, copies in its 20-Series `2026-11-02__Noble3dTools__ImageViewerToolbar`.
+- **Files.** New `…__ToolbarMenu__.js`, which only reads the tools' `--active` class: no tool's code changed, and every button keeps its id and handler. `…__UiLayout__.html`, `…__Styles__.css` and `…__DialogManager__.rb` (`{{TOOLBAR_MENU_SCRIPT}}`, `{{ICON:name}}`, minimum width).
+- **Known limits.**
+  - Reload Plugin is needed: until the new DialogManager is loaded, a reopened dialog shows the new layout with its placeholders unfilled.
+  - Reveal and Copy Path stay in the status bar: they did not run off the screen.
+- **Validation.**
+  - New `tests/toolbar.ui.test.js` in headless Chromium: 164 checks. At eight window sizes from 640 to 1920 wide, in all three rows, every button is whole, on screen, separate from the others, with a picture and a name. Every old tool can be reached, plus Back, Esc, shortcuts, running tools, the white icon and the canvas keeping its shape.
+  - Existing suites pass: solver 79, guides 15, count maths 28, dialog 31, guides dialog 37, count dialog 63, markup dialog 113, markup Ruby 86, `photo_info.rb.test` 57 (was 35; it now also checks the toolbar script and every icon are inlined). The shared harness opens each nested tool through its set's button, as a person does, at a window 15 px taller so the suites' canvas stays the size their test spots were chosen for.
+  - Native SketchUp testing remains with the user: the sketchup bridge was not connected, so this ran in Chromium, not SketchUp's HtmlDialog.
+- Run from the module folder: `node tests/toolbar.ui.test.js <playwright> <chrome.exe> [screenshot folder]`.
+
+### Validation Checklist
+- [ ] Reload Plugin, then close and reopen Image Viewer. The bar shows Folder, View, Measure and Markup on the left, with Previous, Next, Undo and Redo on the right.
+- [ ] Press View: its eight tools replace the row. Press Fit, then Zoom In: the set stays open. Press Back: the home row returns.
+- [ ] Press C with the home row showing: the Measure set opens with Count on. Press Back: Measure shows a blue bar. Press Esc: Count stops. Open Measure again and press Esc: home.
+- [ ] Drag the window narrow, down to its new 640 px minimum: the names drop, and no button is lost in any row.
+- [ ] Press Angle in the Measure set: the panel opens beside the photo and works as before.
+- [ ] Press Markup: the floating pen, highlighter and eraser toolbar opens as before.
+
+## -----------------------------------------------------------------------------
+
 ## Na Noble3d Modelling Tools | Version 0.9.19 - 30-Oct-2026 - Tag Utils: Load Standard Tags No Longer Raises NameError
 
 - **Asked for.** Fix the latent NameError bugs that the new SketchUp plugin skill's lint (`su_lint.py`, check NA001) found: "Fix them here" (Adam, 30-Oct-2026).

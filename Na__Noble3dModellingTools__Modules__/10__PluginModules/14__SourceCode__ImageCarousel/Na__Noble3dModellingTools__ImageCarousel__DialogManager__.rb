@@ -30,6 +30,9 @@
 #   to the model dictionary by a timer a moment after the last change, and again
 #   when the dialog closes. The model's marks for a folder go to the dialog with
 #   that folder's image list.
+# - The top bar's nesting (ToolbarMenu.js) is inlined before the tools, so its
+#   Esc listener runs first. Toolbar icons are inlined from
+#   UiIcons__MenuIcons__ImageViewer through {{ICON:name}} placeholders.
 #
 # =============================================================================
 
@@ -46,7 +49,7 @@ module Na__Noble3dModellingTools
         NA_DIALOG_PREFERENCES_KEY = 'Na__Noble3dModellingTools__ImageCarousel'.freeze
         NA_DIALOG_WIDTH          = 1200
         NA_DIALOG_HEIGHT         = 800
-        NA_DIALOG_MIN_WIDTH      = 900
+        NA_DIALOG_MIN_WIDTH      = 640
         NA_DIALOG_MIN_HEIGHT     = 600
         NA_MARKUP_FLUSH_SECONDS  = 1.0   # quiet time after a mark before it is written to the model
 
@@ -116,16 +119,27 @@ module Na__Noble3dModellingTools
             solver_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveSolver__.js')
             perspective_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveAngle__.js')
             count_path       = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__CountTool__.js')
+            toolbar_path     = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__ToolbarMenu__.js')
 
-            template = File.read(layout_path)
+            template = na_inline_icons(File.read(layout_path))
             template
                 .gsub('{{STYLESHEET_CONTENT}}')        { File.read(style_path) }
                 .gsub('{{UI_BRIDGE_SCRIPT}}')          { File.read(script_path) }
+                .gsub('{{TOOLBAR_MENU_SCRIPT}}')       { File.read(toolbar_path) }
                 .gsub('{{MARKUP_SCRIPT}}')             { File.read(markup_path) }
                 .gsub('{{MEASUREMENT_SCRIPT}}')        { File.read(measurement_path) }
                 .gsub('{{PERSPECTIVE_SOLVER_SCRIPT}}') { File.read(solver_path) }
                 .gsub('{{PERSPECTIVE_ANGLE_SCRIPT}}')  { File.read(perspective_path) }
                 .gsub('{{COUNT_TOOL_SCRIPT}}')         { File.read(count_path) }
+        end
+
+        # {{ICON:name}} becomes that icon's SVG, inline so CSS can colour it. A
+        # missing file costs the picture only: the button still has its name.
+        def self.na_inline_icons(html)
+            html.gsub(/\{\{ICON:(\w+)\}\}/) do
+                icon_path = File.join(__dir__, 'UiIcons__MenuIcons__ImageViewer', "#{Regexp.last_match(1)}.svg")
+                File.exist?(icon_path) ? File.read(icon_path) : ''
+            end
         end
 
 # endregion -------------------------------------------------------------------

@@ -13,41 +13,52 @@
 
   <div class="naImageViewer__App">
 
-    <!-- Toolbar -->
-    <div class="naImageViewer__Toolbar">
-      <span class="naImageViewer__ToolbarLabel">Image Viewer</span>
-      <button
-        id="naImageViewer_btnChoose"
-        class="naImageViewer__Btn naImageViewer__Btn--primary"
-        onclick="window.location='skp:choose_folder@'; return false;"
-      >Select Folder</button>
-      <div class="naImageViewer__ToolbarSpacer"></div>
-      <button id="naImageViewer_btnPrev"    class="naImageViewer__Btn" title="Previous (&#8592;)">&#10216;</button>
-      <button id="naImageViewer_btnNext"    class="naImageViewer__Btn" title="Next (&#8594;)">&#10217;</button>
-      <button id="naImageViewer_btnFit"     class="naImageViewer__Btn" title="Fit to viewport (0)">Fit</button>
-      <button id="naImageViewer_btnFill"    class="naImageViewer__Btn" title="Fill viewport">Fill</button>
-      <button id="naImageViewer_btn100"     class="naImageViewer__Btn" title="Actual size (1)">100%</button>
-      <button id="naImageViewer_btnZoomIn"  class="naImageViewer__Btn" title="Zoom in (+)">&#65291;</button>
-      <button id="naImageViewer_btnZoomOut" class="naImageViewer__Btn" title="Zoom out (&#8722;)">&#8722;</button>
-      <button id="naImageViewer_btnRotateL" class="naImageViewer__Btn" title="Rotate left (R)">&#10226;</button>
-      <button id="naImageViewer_btnRotateR" class="naImageViewer__Btn" title="Rotate right (Shift+R)">&#10227;</button>
-      <button id="naImageViewer_btnFull"    class="naImageViewer__Btn" title="Fullscreen (F)">&#9974;</button>
+    <!-- Toolbar: the home row holds the folder, the toolsets and Markup. A toolset's
+         button swaps the row for that set's tools and Back returns. Photo stepping,
+         Undo and Redo stay on the bar in every state. ToolbarMenu.js does the swapping. -->
+    <div class="naImageViewer__Toolbar" id="naImageViewer_toolbar" role="toolbar" aria-label="Image Viewer tools">
 
-      <span class="naImageViewer__ToolbarDivider"></span>
-      <button id="naImageViewer_btnMeasure"        class="naImageViewer__Btn" title="Measure (click two points, Esc to stop)">Measure</button>
-      <button id="naImageViewer_btnSetRef"         class="naImageViewer__Btn" title="Set a reference length to scale measurements">Set Reference</button>
-      <button id="naImageViewer_btnSelect"         class="naImageViewer__Btn" title="Select a dimension (click a line, Esc to stop)">Select</button>
-      <button id="naImageViewer_btnDeleteSelected" class="naImageViewer__Btn" title="Delete selected dimension (Delete)" disabled>Delete</button>
-      <button id="naImageViewer_btnUndo"           class="naImageViewer__Btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
-      <button id="naImageViewer_btnRedo"           class="naImageViewer__Btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
-      <button id="naImageViewer_btnClearDims"      class="naImageViewer__Btn" title="Clear all dimensions on this image">Clear Dims</button>
+      <div class="naImageViewer__ToolRow naImageViewer__ToolRow--home naImageViewer__ToolRow--shown" id="naImageViewer_toolHome">
+        <button type="button" id="naImageViewer_btnChoose" class="naImageViewer__Btn naImageViewer__Btn--primary naImageViewer__Tile" title="Select a folder of photos" aria-label="Select Folder" onclick="window.location='skp:choose_folder@'; return false;"><span class="naImageViewer__TileIcon">{{ICON:Icon__NaAdminMenu__ProjectManager__}}</span><span class="naImageViewer__TileLabel">Folder</span></button>
+        <button type="button" data-toolset-open="view" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--opens" title="View tools: fit, fill, zoom, rotate and full screen" aria-label="View" aria-expanded="false"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__View__}}</span><span class="naImageViewer__TileLabel">View</span></button>
+        <button type="button" data-toolset-open="measure" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--opens" title="Measuring tools: dimensions, reference, count and angle" aria-label="Measure" aria-expanded="false"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Tape__}}</span><span class="naImageViewer__TileLabel">Measure</span></button>
+        <button type="button" id="naImageViewer_btnMarkup" class="naImageViewer__Btn naImageViewer__Tile" title="Markup: highlight, draw and erase on the photo. Marks are kept in the SketchUp model." aria-label="Markup"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Markup__}}</span><span class="naImageViewer__TileLabel">Markup</span></button>
+      </div>
 
-      <span class="naImageViewer__ToolbarDivider"></span>
-      <button id="naImageViewer_btnCount"          class="naImageViewer__Btn" title="Count (C): drag along a row of brick courses, bricks or tiles, then move back along it to divide it">Count</button>
-      <button id="naImageViewer_btnPerspective"    class="naImageViewer__Btn" title="Perspective angle: true roof pitches and angles, corrected for the camera">Angle</button>
+      <div class="naImageViewer__ToolRow" data-toolset="view">
+        <button type="button" data-toolset-back class="naImageViewer__Btn naImageViewer__ToolBack" title="Back to all tools (Esc)" aria-label="Back to all tools"><span class="naImageViewer__ToolBackArrow">{{ICON:Icon__ImageViewer__Prev__}}</span><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__View__}}</span><span class="naImageViewer__TileLabel">View</span></button>
+        <button type="button" id="naImageViewer_btnFit" class="naImageViewer__Btn naImageViewer__Tile" title="Fit to viewport (0)" aria-label="Fit"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Fit__}}</span><span class="naImageViewer__TileLabel">Fit</span></button>
+        <button type="button" id="naImageViewer_btnFill" class="naImageViewer__Btn naImageViewer__Tile" title="Fill viewport" aria-label="Fill"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Fill__}}</span><span class="naImageViewer__TileLabel">Fill</span></button>
+        <button type="button" id="naImageViewer_btn100" class="naImageViewer__Btn naImageViewer__Tile" title="Actual size (1)" aria-label="100%"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__ActualSize__}}</span><span class="naImageViewer__TileLabel">100%</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
+        <button type="button" id="naImageViewer_btnZoomIn" class="naImageViewer__Btn naImageViewer__Tile" title="Zoom in (+)" aria-label="Zoom In"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__ZoomIn__}}</span><span class="naImageViewer__TileLabel">Zoom In</span></button>
+        <button type="button" id="naImageViewer_btnZoomOut" class="naImageViewer__Btn naImageViewer__Tile" title="Zoom out (&#8722;)" aria-label="Zoom Out"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__ZoomOut__}}</span><span class="naImageViewer__TileLabel">Zoom Out</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
+        <button type="button" id="naImageViewer_btnRotateL" class="naImageViewer__Btn naImageViewer__Tile" title="Rotate left (R)" aria-label="Left"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__RotateLeft__}}</span><span class="naImageViewer__TileLabel">Left</span></button>
+        <button type="button" id="naImageViewer_btnRotateR" class="naImageViewer__Btn naImageViewer__Tile" title="Rotate right (Shift+R)" aria-label="Right"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__RotateRight__}}</span><span class="naImageViewer__TileLabel">Right</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
+        <button type="button" id="naImageViewer_btnFull" class="naImageViewer__Btn naImageViewer__Tile" title="Fullscreen (F)" aria-label="Full"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__FullScreen__}}</span><span class="naImageViewer__TileLabel">Full</span></button>
+      </div>
 
-      <span class="naImageViewer__ToolbarDivider"></span>
-      <button id="naImageViewer_btnMarkup"         class="naImageViewer__Btn" title="Markup: highlight, draw and erase on the photo. Marks are kept in the SketchUp model.">Markup</button>
+      <div class="naImageViewer__ToolRow" data-toolset="measure">
+        <button type="button" data-toolset-back class="naImageViewer__Btn naImageViewer__ToolBack" title="Back to all tools (Esc)" aria-label="Back to all tools"><span class="naImageViewer__ToolBackArrow">{{ICON:Icon__ImageViewer__Prev__}}</span><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Tape__}}</span><span class="naImageViewer__TileLabel">Measure</span></button>
+        <button type="button" id="naImageViewer_btnMeasure" class="naImageViewer__Btn naImageViewer__Tile" title="Measure (click two points, Esc to stop)" aria-label="Dimension"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Dimension__}}</span><span class="naImageViewer__TileLabel">Dimension</span></button>
+        <button type="button" id="naImageViewer_btnSetRef" class="naImageViewer__Btn naImageViewer__Tile" title="Set a reference length to scale measurements" aria-label="Reference"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__SetScale__}}</span><span class="naImageViewer__TileLabel">Reference</span></button>
+        <button type="button" id="naImageViewer_btnCount" class="naImageViewer__Btn naImageViewer__Tile" title="Count (C): drag along a row of brick courses, bricks or tiles, then move back along it to divide it" aria-label="Count"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Count__}}</span><span class="naImageViewer__TileLabel">Count</span></button>
+        <button type="button" id="naImageViewer_btnPerspective" class="naImageViewer__Btn naImageViewer__Tile" title="Perspective angle: true roof pitches and angles, corrected for the camera" aria-label="Angle"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Angle__}}</span><span class="naImageViewer__TileLabel">Angle</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
+        <button type="button" id="naImageViewer_btnSelect" class="naImageViewer__Btn naImageViewer__Tile" title="Select a dimension (click a line, Esc to stop)" aria-label="Select"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Select__}}</span><span class="naImageViewer__TileLabel">Select</span></button>
+        <button type="button" id="naImageViewer_btnDeleteSelected" class="naImageViewer__Btn naImageViewer__Tile" title="Delete selected dimension (Delete)" aria-label="Delete" disabled><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Delete__}}</span><span class="naImageViewer__TileLabel">Delete</span></button>
+        <button type="button" id="naImageViewer_btnClearDims" class="naImageViewer__Btn naImageViewer__Tile" title="Clear all dimensions on this image" aria-label="Clear All"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__ClearAll__}}</span><span class="naImageViewer__TileLabel">Clear All</span></button>
+      </div>
+
+      <div class="naImageViewer__ToolPins">
+        <button type="button" id="naImageViewer_btnPrev" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--pin" title="Previous (&#8592;)" aria-label="Previous photo"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Prev__}}</span></button>
+        <button type="button" id="naImageViewer_btnNext" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--pin" title="Next (&#8594;)" aria-label="Next photo"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Next__}}</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
+        <button type="button" id="naImageViewer_btnUndo" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--pin" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Undo__}}</span></button>
+        <button type="button" id="naImageViewer_btnRedo" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--pin" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Redo__}}</span></button>
+      </div>
     </div>
 
     <!-- Main: thumbnails + canvas viewer -->
@@ -293,6 +304,11 @@
 
   <script>
     {{UI_BRIDGE_SCRIPT}}
+  </script>
+
+  <!-- Before the tools: it must see Esc while they are still on -->
+  <script>
+    {{TOOLBAR_MENU_SCRIPT}}
   </script>
 
   <!-- Markup comes before the other tools so its marks are drawn under their lines -->

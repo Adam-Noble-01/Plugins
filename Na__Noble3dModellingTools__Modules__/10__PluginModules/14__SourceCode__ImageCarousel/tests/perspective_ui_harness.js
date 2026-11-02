@@ -13,6 +13,9 @@ var scene = require('./perspective_scene.js');
 var ROOT = path.resolve(__dirname, '..');
 var OUT = path.join(__dirname, 'out');
 var PREFIX = 'Na__Noble3dModellingTools__ImageCarousel__';
+// 15 px over a round 1000: the toolbar's tile row is that much taller than the flat bar was,
+// and the suites' photo-space test spots were all chosen for this size of canvas.
+var VIEWPORT = { width: 1600, height: 1015 };
 
 function slash(p) { return p.split(path.sep).join('/'); }
 function part(name) { return fs.readFileSync(path.join(ROOT, PREFIX + name), 'utf8'); }
@@ -20,14 +23,39 @@ function part(name) { return fs.readFileSync(path.join(ROOT, PREFIX + name), 'ut
 // Same placeholders, same order as DialogManager.na_render_html (functions keep $ literal).
 function assemble(file) {
     var html = part('UiLayout__.html')
+        .replace(/\{\{ICON:(\w+)\}\}/g,           function(_m, name) { return fs.readFileSync(path.join(ROOT, 'UiIcons__MenuIcons__ImageViewer', name + '.svg'), 'utf8'); })
         .replace('{{STYLESHEET_CONTENT}}',        function() { return part('Styles__.css'); })
         .replace('{{UI_BRIDGE_SCRIPT}}',          function() { return part('UiBridge__.js'); })
+        .replace('{{TOOLBAR_MENU_SCRIPT}}',       function() { return part('ToolbarMenu__.js'); })
         .replace('{{MARKUP_SCRIPT}}',             function() { return part('MarkupTool__.js'); })
         .replace('{{MEASUREMENT_SCRIPT}}',        function() { return part('Measurement__.js'); })
         .replace('{{PERSPECTIVE_SOLVER_SCRIPT}}', function() { return part('PerspectiveSolver__.js'); })
         .replace('{{PERSPECTIVE_ANGLE_SCRIPT}}',  function() { return part('PerspectiveAngle__.js'); })
         .replace('{{COUNT_TOOL_SCRIPT}}',         function() { return part('CountTool__.js'); });
     fs.writeFileSync(file, html);
+}
+
+// A toolbar button may be nested in a toolset: reach it the way a person does,
+// through Back and the set's own button, so a suite can simply click its tool.
+function reachNestedTools(page) {
+    var pageClick = page.click.bind(page);
+    page.click = async function(sel, opt) {
+        if (/^#naImageViewer_btn/.test(sel)) {
+            var route = await page.evaluate(function(s) {
+                var el = document.querySelector(s), row = el && el.closest('[data-toolset]');
+                return {
+                    hidden: !!el && el.offsetParent === null,
+                    target: row ? row.getAttribute('data-toolset') : null,
+                    open: window.Na__ImageViewer__ToolbarMenu.inspect().open
+                };
+            }, sel);
+            if (route.hidden) {
+                if (route.open) await pageClick('[data-toolset="' + route.open + '"] [data-toolset-back]');
+                if (route.target) await pageClick('[data-toolset-open="' + route.target + '"]');
+            }
+        }
+        return pageClick(sel, opt);
+    };
 }
 
 async function renderPhoto(browser, house, file, w, h) {
@@ -66,7 +94,7 @@ async function open(playwright, chrome, name) {
     var browser = await playwright.chromium.launch(chrome ? { executablePath: chrome, headless: true } : { headless: true });
     await renderPhoto(browser, house, img1, 4032, 3024);
     await renderPhoto(browser, house, img2, 1008, 756);
-    var page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+    var page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
     var errors = [];
     page.on('pageerror', function(e) { errors.push(String(e)); });
     page.on('console', function(m) { if (m.type() === 'error') errors.push(m.text()); });
@@ -84,6 +112,8 @@ async function open(playwright, chrome, name) {
     await page.goto('file:///' + slash(dialog));
     await page.evaluate(function(list) { window.SKP_onFolderChosen(list); }, [img1, img2]);
     await page.waitForFunction(function() { return window.Na__ImageViewer__Core.getImageSize().w === 4032; });
+
+    reachNestedTools(page);
 
     var h = {
         screenOf: async function(pt) {
@@ -126,4 +156,4 @@ function distToSeg(q, seg) {
     return Math.hypot(q.x - (seg.a.x + t * dx), q.y - (seg.a.y + t * dy));
 }
 
-module.exports = { open: open, distToSeg: distToSeg, OUT: OUT };
+module.exports = { open: open, distToSeg: distToSeg, OUT: OUT, VIEWPORT: VIEWPORT, assemble: assemble, reachNestedTools: reachNestedTools };

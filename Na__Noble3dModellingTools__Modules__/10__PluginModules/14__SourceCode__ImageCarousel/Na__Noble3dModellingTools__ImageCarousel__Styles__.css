@@ -62,23 +62,47 @@ body {
 
 .naImageViewer__Toolbar {
     display                             : flex;
+    flex-wrap                           : wrap;
     align-items                         : center;
-    gap                                 : 6px;
-    padding                             : 7px 10px;
+    gap                                 : 6px 12px;
+    padding                             : 6px 10px;
     background                          : var(--naImageViewer__PanelBg);
     border-bottom                       : 1px solid var(--naImageViewer__Border);
     flex-shrink                         : 0;
 }
 
-.naImageViewer__ToolbarLabel {
-    font-weight                         : 600;
-    font-size                           : 12px;
-    color                               : var(--naImageViewer__MutedText);
-    margin-right                        : auto;
+/* One row shows at a time: home, or one toolset. A set comes in from the right, home from the left. */
+.naImageViewer__ToolRow {
+    display                             : none;
+    flex-wrap                           : wrap;
+    align-items                         : center;
+    gap                                 : 4px;
+    min-width                           : 0;
+    animation                           : naImageViewer__ToolRowIn 140ms ease-out;
 }
 
-.naImageViewer__ToolbarSpacer {
-    flex                                : 1;
+.naImageViewer__ToolRow--shown {
+    display                             : flex;
+}
+
+.naImageViewer__ToolRow--home {
+    animation-name                      : naImageViewer__ToolRowHome;
+}
+
+@keyframes naImageViewer__ToolRowIn {
+    from { opacity : 0; transform : translateX(10px); }
+}
+
+@keyframes naImageViewer__ToolRowHome {
+    from { opacity : 0; transform : translateX(-10px); }
+}
+
+/* Photo stepping, Undo and Redo: on the bar whichever row is showing */
+.naImageViewer__ToolPins {
+    display                             : flex;
+    align-items                         : center;
+    gap                                 : 4px;
+    margin-left                         : auto;
 }
 
 /* endregion ------------------------------------------------------------------- */
@@ -100,6 +124,128 @@ body {
     cursor                              : pointer;
     transition                          : border-color 120ms ease, background-color 120ms ease;
     white-space                         : nowrap;
+}
+
+/* A tool: its picture over its short name. Stroke and fill follow the button's
+   text colour, so an icon turns white on a button that is on. */
+.naImageViewer__Tile {
+    position                            : relative;
+    display                             : inline-flex;
+    flex-direction                      : column;
+    align-items                         : center;
+    justify-content                     : center;
+    gap                                 : 2px;
+    width                               : 58px;
+    height                              : 46px;
+    padding                             : 2px;
+    border-color                        : transparent;
+    border-radius                       : 6px;
+    background                          : transparent;
+    color                               : #172b3a;
+}
+
+.naImageViewer__Tile--pin {
+    width                               : 36px;
+    height                              : 36px;
+}
+
+.naImageViewer__TileIcon,
+.naImageViewer__ToolBackArrow {
+    display                             : block;
+    flex-shrink                         : 0;
+    width                               : 24px;
+    height                              : 24px;
+    pointer-events                      : none;
+}
+
+.naImageViewer__ToolBackArrow {
+    width                               : 16px;
+    height                              : 16px;
+}
+
+.naImageViewer__TileIcon svg,
+.naImageViewer__ToolBackArrow svg {
+    display                             : block;
+    width                               : 100%;
+    height                              : 100%;
+    stroke                              : currentColor;
+}
+
+.naImageViewer__TileIcon svg [fill="#172b3a"] {
+    fill                                : currentColor;
+}
+
+.naImageViewer__TileLabel {
+    font-size                           : 11px;
+    line-height                         : 13px;
+    white-space                         : nowrap;
+}
+
+/* A small mark beside the picture: this button opens more tools */
+.naImageViewer__Tile--opens::after {
+    content                             : "";
+    position                            : absolute;
+    right                               : 6px;
+    top                                 : 12px;
+    width                               : 0;
+    height                              : 0;
+    border-top                          : 4px solid transparent;
+    border-bottom                       : 4px solid transparent;
+    border-left                         : 5px solid currentColor;
+    opacity                             : 0.6;
+}
+
+/* A toolset holding a tool that is on */
+.naImageViewer__Tile--holdsActive {
+    border-color                        : var(--naImageViewer__Accent);
+    background                          : #e5eeff;
+    box-shadow                          : inset 0 -3px 0 var(--naImageViewer__Accent);
+}
+
+/* Back: the way home, and the name of the set you are in */
+.naImageViewer__ToolBack {
+    display                             : inline-flex;
+    align-items                         : center;
+    gap                                 : 5px;
+    height                              : 46px;
+    padding                             : 0 10px 0 6px;
+    margin-right                        : 4px;
+    border-color                        : transparent;
+    border-radius                       : 6px;
+    background                          : #e5eeff;
+    color                               : #172b3a;
+    font-weight                         : 600;
+}
+
+.naImageViewer__ToolBack .naImageViewer__TileLabel {
+    font-size                           : 12px;
+}
+
+/* A narrow window drops the words: symbols only, with the names kept as tooltips */
+@media (max-width: 860px) {
+    .naImageViewer__Tile {
+        width                           : 38px;
+        height                          : 38px;
+    }
+
+    .naImageViewer__Tile--pin {
+        width                           : 34px;
+    }
+
+    .naImageViewer__Tile--opens::after {
+        right                           : 1px;
+        top                             : 15px;
+    }
+
+    .naImageViewer__ToolBack {
+        height                          : 38px;
+        padding                         : 0 7px 0 3px;
+        gap                             : 2px;
+    }
+
+    .naImageViewer__TileLabel {
+        display                         : none;
+    }
 }
 
 .naImageViewer__Btn:hover {
@@ -148,6 +294,12 @@ body {
     background                          : var(--naImageViewer__PanelBg);
     padding                             : 8px;
     flex-shrink                         : 0;
+}
+
+@media (max-width: 860px) {
+    .naImageViewer__Thumbs {
+        width                           : 130px;
+    }
 }
 
 .naImageViewer__Thumb {

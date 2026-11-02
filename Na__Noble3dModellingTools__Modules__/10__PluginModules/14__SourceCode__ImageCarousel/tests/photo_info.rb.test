@@ -102,9 +102,12 @@ check('non-image path is not read', p2['none'] == true, p2)
 # ----------------------------------------------------------------------------- html assembly
 html = DM.na_render_html
 check('no placeholder left', !html.include?('{{'), html.scan(/\{\{[A-Z_]+\}\}/))
-%w[UiBridge MarkupTool Measurement PerspectiveSolver PerspectiveAngle CountTool].each do |part|
+%w[UiBridge ToolbarMenu MarkupTool Measurement PerspectiveSolver PerspectiveAngle CountTool].each do |part|
   src = File.read(File.join(MODULE_DIR, "Na__Noble3dModellingTools__ImageCarousel__#{part}__.js"))
   check("#{part} inlined byte for byte", html.include?(src))
+end
+Dir[File.join(MODULE_DIR, 'UiIcons__MenuIcons__ImageViewer', '*.svg')].each do |icon|
+  check("#{File.basename(icon)} is used and inlined", html.include?(File.read(icon)))
 end
 check('html is UTF-8', html.encoding.to_s == 'UTF-8', html.encoding)
 Dir.mkdir(OUT_DIR) unless File.directory?(OUT_DIR)
