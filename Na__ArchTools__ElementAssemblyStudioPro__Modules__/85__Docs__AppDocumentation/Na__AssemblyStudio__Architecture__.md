@@ -137,7 +137,9 @@ Tag JSON entries gain an optional `Layout__LineStyleName` field (string) keyed o
   - standardized `Na__Asset__Mesh3D` vertices/faces (`VertexId`, `OuterLoop_VertexIds`) compatible with `Na__HandleBuilder3D`,
   - recursive nested Group/Component hierarchy metadata in `Na__Asset__ObjectHierarchy3D` with local+world transforms.
 - `40__System__InteriorDoorSystem/Na__AssemblyStudio__InteriorDoorSystem__AssetLibrary__.rb` resolves `handles / architraves / hinges` bucket folder names from AppConfig (`assetLibrary.interiorDoor.*`) with fallbacks.
-- Current door viewport generators still render procedural 2D handle markers; they do not yet consume `Na__Asset__Plan2D` / `Na__Asset__Elevation2D` path geometry directly.
+- Interior and exterior door elevation previews draw a handle from its `Na__Asset__Elevation2D` paths (cache `NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE`, filled by the interior door bridge). An exterior handle without paths, like the Scroll, keeps the drawn schematic. Plan previews and DXF still use a generic marker.
+- Handle edges are all painted `MTE103` by `Na__HandleBuilder3D`, then any edge record naming an `EdgeColourId` is repainted in that MTE (the lever handle's 2D keyhole, `MTE105`).
+- A new handle needs no code: drop its JSON into `InteriorDoor__Handles__` or `ExteriorDoor__Handles__` and the dropdowns list it by `Na__Asset__Name`. Assets can come from the Dev Tools exporter (modelled by hand) or be written by a generator (`DevTools__CabinetryAssetGenerator__.js`; the lever handle's `lever_asset_writer.py` in the `mcp-sketchup-3d-modeling-expert` skill).
 
 ## Materials & Frame Finish Swatches (URL-first cache)
 

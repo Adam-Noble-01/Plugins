@@ -52,6 +52,8 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
     const NA_STROKE     = '#4b4036';                                                      // <-- Frame / leaf outline
     const NA_GLASS_FILL = '#b9dcea';                                                      // <-- Glazing fill tint
 
+    const na_handles_requested = {};                                                      // <-- Handles whose 2D paths have been asked for
+
     // endregion -------------------------------------------------------------------
 
 
@@ -516,11 +518,72 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
         }
         // ---------------------------------------------------------------
 
-        // FUNCTION | Draw Schematic Scroll Handle on One Leaf
+        // HELPER FUNCTION | Elevation2D Block of the Chosen Handle, If It Has One
+        // ------------------------------------------------------------
+        // Reads the cache the Interior Door bridge fills. The first sight of a
+        // handle with paths asks Ruby for them; the answer redraws the preview.
+        function na_handle_elevation_block(config) {
+            const key   = String(config[na_key('handle_asset_key')] || '');
+            const cache = window.NA_DOOR_HANDLE_ASSET_PREVIEW_CACHE || {};
+            if (cache[key]) return cache[key].Na__Asset__Elevation2D || null;
+
+            const withPaths = window.NA_DOOR_HANDLE_KEYS_WITH_ELEVATION || {};
+            if (withPaths[key] && !na_handles_requested[key] && typeof window.na_requestDoorHandlePreviewAsset === 'function') {
+                na_handles_requested[key] = true;
+                window.na_requestDoorHandlePreviewAsset(key);
+            }
+            return null;
+        }
+        // ---------------------------------------------------------------
+
+        // HELPER FUNCTION | Draw a Handle From Its Asset's Elevation2D Paths
+        // ------------------------------------------------------------
+        // Asset frame: origin on the spindle, X towards the lever tip, Y up. The
+        // lever points at the hinge, as the 3D builder's ScaleX hands it. A path
+        // with its own line (the lever handle's keyhole) draws in it; Ruby sends
+        // the hex from the SSOT.
+        function na_draw_handle_from_asset(svg, block, x, y, towardHinge, fill) {
+            const paths = block && block.Na__Geometry__Paths;
+            if (!Array.isArray(paths) || !paths.length) return false;
+
+            const toSvg = function (point) {
+                return { x: x + towardHinge * (Number(point && point.X) || 0), y: y - (Number(point && point.Y) || 0) };
+            };
+            let drew = false;
+            paths.forEach(function (path) {
+                const type   = String((path && path.PathType) || '').toLowerCase();
+                const stroke = (path && path.EdgeColourHex) || NA_STROKE;
+                if (type === 'polygon' && Array.isArray(path.Vertices_mm) && path.Vertices_mm.length) {
+                    svg.appendChild(na_svg('polygon', {
+                        points          : path.Vertices_mm.map(function (vertex) { const p = toSvg(vertex); return p.x + ',' + p.y; }).join(' '),
+                        fill            : fill,
+                        stroke          : stroke,
+                        'stroke-width'  : 0.75
+                    }));
+                    drew = true;
+                } else if (type === 'line' && path.Start_mm && path.End_mm) {
+                    const start = toSvg(path.Start_mm);
+                    const end   = toSvg(path.End_mm);
+                    svg.appendChild(na_svg('line', { x1: start.x, y1: start.y, x2: end.x, y2: end.y, stroke: stroke, 'stroke-width': 0.75 }));
+                    drew = true;
+                } else if (type === 'circle' && path.Center_mm) {
+                    const centre = toSvg(path.Center_mm);
+                    svg.appendChild(na_svg('circle', {
+                        cx: centre.x, cy: centre.y, r: Math.max(0.1, Number(path.Radius_mm) || 0), fill: 'none', stroke: stroke, 'stroke-width': 0.75
+                    }));
+                    drew = true;
+                }
+            });
+            return drew;
+        }
+        // ---------------------------------------------------------------
+
+        // FUNCTION | Draw the Handle on One Leaf
         // ------------------------------------------------------------
         // The handle sits `backset` in from the latch stile - the meeting
-        // stile on a double door, the closing stile on a single door - and
-        // the scroll curls back toward that same edge.
+        // stile on a double door, the closing stile on a single door. A handle
+        // with Elevation2D paths draws from them. One without (the Scroll) gets
+        // the drawn schematic, whose scroll curls back toward that same edge.
         function na_draw_handle(svg, layout, leaf, palette) {
             const backset = Number(layout.config[na_key('handle_backset_mm')]) || 40;
             const height  = Number(layout.config[na_key('handle_height_mm')]) || 900;
@@ -531,6 +594,8 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
             // Scroll hangs down; curl toward the latch stile (left-hung -> +X, right-hung -> -X)
             const towardLatch = leaf.side === 'left' ? 1 : -1;
             const fill = palette.handle || '#6e6558';
+
+            if (na_draw_handle_from_asset(svg, na_handle_elevation_block(layout.config), x, y, -towardLatch, fill)) return;
 
             svg.appendChild(na_svg('circle', {
                 cx: x, cy: y, r: 10, fill: fill, stroke: NA_STROKE, 'stroke-width': 1.5

@@ -103,6 +103,7 @@ module Na__InteriorDoorSystem
             interior_inst = na_place_handle_instance(entities, handle_def, asset, config, :interior, material, leaf)
             exterior_inst = na_place_handle_instance(entities, handle_def, asset, config, :exterior, material, leaf)
             na_apply_standard_dark_grey_edge_colour(interior_inst || exterior_inst)
+            na_apply_asset_edge_colours(handle_def, validation[:mesh_block])
 
             { :interior => interior_inst, :exterior => exterior_inst }
         end
@@ -534,6 +535,47 @@ module Na__InteriorDoorSystem
             0
         end
         private_class_method :na_apply_standard_dark_grey_edge_colour
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Repaint Edges the Asset Gives Their Own Line Colour
+        # ------------------------------------------------------------
+        # Runs after the standard dark grey. An edge record may name an MTE
+        # in EdgeColourId (the lever handle's 2D keyhole is drawn in light
+        # mid grey). Records without one keep the dark grey, so assets that
+        # never name a colour (the Scroll, the interior default) are untouched.
+        #
+        # @param definition [Sketchup::ComponentDefinition]
+        # @param mesh_block [Hash] Na__Asset__Mesh3D block
+        # @return [Integer] Number of edges repainted
+        def self.na_apply_asset_edge_colours(definition, mesh_block)
+            return 0 unless definition && definition.valid?
+
+            coloured = (mesh_block["Na__Geometry__Edges"] || []).select { |record| record.is_a?(Hash) && !record["EdgeColourId"].to_s.empty? }
+            return 0 if coloured.empty?
+
+            point_table = na_build_vertex_point_table(mesh_block["Na__Geometry__Vertices"] || [])
+            colour_by_key = {}
+            coloured.each do |record|
+                start_pt = point_table[record["StartVertex"]]
+                end_pt   = point_table[record["EndVertex"]]
+                colour_by_key[na_edge_position_key(start_pt, end_pt)] = record["EdgeColourId"].to_s if start_pt && end_pt
+            end
+
+            repainted = 0
+            definition.entities.grep(Sketchup::Edge).each do |edge|
+                colour_id = colour_by_key[na_edge_position_key(edge.start.position, edge.end.position)]
+                next unless colour_id
+                material = EdgeColourManager.na_get_edge_material_by_id(colour_id)
+                next unless material
+                edge.material = material
+                repainted += 1
+            end
+            repainted
+        rescue StandardError => e
+            DebugTools.na_debug_error("Failed to apply handle asset edge colours", e)
+            0
+        end
+        private_class_method :na_apply_asset_edge_colours
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Compute the Insertion Transform for a Handle

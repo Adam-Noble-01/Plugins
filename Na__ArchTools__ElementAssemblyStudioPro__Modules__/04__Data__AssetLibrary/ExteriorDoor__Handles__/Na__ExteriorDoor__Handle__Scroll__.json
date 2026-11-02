@@ -2,8 +2,8 @@
   "meta"                         : {
     "fileName"         : "Na__ExteriorDoor__Handle__Scroll__.json",
     "description"      : "Exterior door scroll lever handle. Default hardware for exterior single and double doors. Mesh3D exported by Na__DevTools::Na__JsonExporter3D; metadata authored for the Element Assembly Studio Pro exterior handle bucket.",
-    "version"          : "1.0.0",
-    "lastUpdated"      : "2026-07-16",
+    "version"          : "1.0.1",
+    "lastUpdated"      : "2026-11-02",
     "namingConvention" : "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName.",
     "fieldPrefixes"    : {
         "Na__Asset__"          : "Top-level asset metadata and content blocks",
@@ -16,7 +16,7 @@
     "Na__Asset__Code"                      : "NA__HDL__002",
     "Na__Asset__Type"                      : "DoorHandle",
     "Na__Asset__Description"               : "Exterior door scroll lever handle. Default hardware for exterior single and double doors.",
-    "Na__Asset__Notes"                     : "Mesh3D exported via Na__DevTools::Na__JsonExporter3D on 2026-07-16. Authored lying on back (spindle +Z); builder applies X -90 lay-back plus CorrectionRotZ 180 so the scroll hangs down. ScaleX RH=-1 / LH=1 so levers face the meeting stile. OffsetX is 0 — exterior placement uses HandleAbsoluteX from the meeting stile (UI Handle Position). Has2dPlan/Elevation are false.",
+    "Na__Asset__Notes"                     : "Mesh3D exported via Na__DevTools::Na__JsonExporter3D on 2026-07-16. Authored lying on back (spindle +Z); builder applies X -90 lay-back plus CorrectionRotZ 180 so the scroll hangs down. ScaleX RH=-1 / LH=1 so levers face the meeting stile. OffsetX -60 is only read on interior doors, 60 in from the latch as their preview draws it: exterior placement uses HandleAbsoluteX from the meeting stile (UI Handle Position). Has2dPlan/Elevation are false.",
     "Na__Asset__Has2dPlan"                 : false,
     "Na__Asset__Has2dElevation"            : false,
     "Na__Asset__Has2dProfile"              : false,
@@ -27,12 +27,12 @@
     "Na__PanelPlacement__DefaultHeight_mm" : 900,
     "Na__PanelPlacement__CorrectionRotZ_deg" : 180,
     "Na__PanelPlacement__RightHand"        : {
-        "Na__PanelPlacement__OffsetX_mm" : 0,
+        "Na__PanelPlacement__OffsetX_mm" : -60,
         "Na__PanelPlacement__OffsetY_mm" : 0,
         "Na__PanelPlacement__ScaleX"     : -1
     },
     "Na__PanelPlacement__LeftHand"         : {
-        "Na__PanelPlacement__OffsetX_mm" : 0,
+        "Na__PanelPlacement__OffsetX_mm" : -60,
         "Na__PanelPlacement__OffsetY_mm" : 0,
         "Na__PanelPlacement__ScaleX"     : 1
     },

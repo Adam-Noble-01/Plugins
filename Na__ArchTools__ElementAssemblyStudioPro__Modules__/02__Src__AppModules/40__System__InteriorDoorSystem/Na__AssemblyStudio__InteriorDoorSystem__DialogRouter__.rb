@@ -677,8 +677,8 @@ module Na__InteriorDoorSystem
 
             payload = {
                 "assetKey"              => requested_key,
-                "Na__Asset__Plan2D"     => plan_block,
-                "Na__Asset__Elevation2D"=> elevation_block,
+                "Na__Asset__Plan2D"     => na_resolve_preview_line_colours(plan_block),
+                "Na__Asset__Elevation2D"=> na_resolve_preview_line_colours(elevation_block),
                 "warnings"              => warnings
             }
 
@@ -687,6 +687,23 @@ module Na__InteriorDoorSystem
             DebugTools.na_debug_error("Failed to send handle preview asset", e)
         end
         private_class_method :na_send_handle_preview_asset_to_dialog
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Send a Preview Path's Line Colour as a Hex From the SSOT
+        # ------------------------------------------------------------
+        # A path may name an MTE in EdgeColourId. The dialog only holds the
+        # swatch subset, so the hex travels with the path.
+        def self.na_resolve_preview_line_colours(block)
+            return block unless block.is_a?(Hash) && block["Na__Geometry__Paths"].is_a?(Array)
+
+            paths = block["Na__Geometry__Paths"].map do |path|
+                colour_id = path["EdgeColourId"].to_s
+                entry = colour_id.empty? ? nil : Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager.na_library_entry(colour_id)
+                entry && entry["HexValue"] ? path.merge("EdgeColourHex" => entry["HexValue"]) : path
+            end
+            block.merge("Na__Geometry__Paths" => paths)
+        end
+        private_class_method :na_resolve_preview_line_colours
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Build a Handle Select Option from Asset Metadata
@@ -706,7 +723,7 @@ module Na__InteriorDoorSystem
                 DebugTools.na_debug_warn("Handle option '#{key}' missing Na__Asset__Name - skipping option")
                 return nil
             end
-            { "value" => key.to_s, "label" => label }
+            { "value" => key.to_s, "label" => label, "hasElevation" => metadata["Na__Asset__Has2dElevation"] == true }
         end
         private_class_method :na_build_handle_option
         # ---------------------------------------------------------------

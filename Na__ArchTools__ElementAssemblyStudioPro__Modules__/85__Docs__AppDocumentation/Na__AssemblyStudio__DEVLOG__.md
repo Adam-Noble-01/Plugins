@@ -3,6 +3,70 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.5.1 - 02-Nov-2026 - Interior Door Handle Handing and Scroll Position
+
+### Context
+Both found while testing the V2.5.0 lever on interior doors. Adam: fix both.
+
+### Bug Fixes
+- **The interior door preview now draws the handle for the swing that is set.** On a single door it drew every handle for the right hand, which put it on the hinge side of a left-hand door, the default. `na_compute_layout` worked out `swingSide` but never put it on the layout, so `na_compute_elevation_leaves` passed `undefined`. This dates from V0.9.5a, when double doors brought leaves. The plan preview's layout already carried it, and the 3D build was always right. Double doors are unchanged.
+- **The Scroll now sits 60 in from the latch on an interior door.** `Na__PanelPlacement__OffsetX_mm` was 0, which put the spindle on the door's edge with the plate 14 mm past it, while the preview drew it 60 in. It is now -60 on both hands, the same as the lever. A door already placed moves when it is next updated. Exterior doors pass `HandleAbsoluteX`, so they do not read it and do not move.
+
+### Files Changed
+- `40__System__InteriorDoorSystem/...__Viewport__ElevationGenerator__.js`: `swingSide` on the layout.
+- `04__Data__AssetLibrary/ExteriorDoor__Handles__/Na__ExteriorDoor__Handle__Scroll__.json`: `OffsetX_mm` -60 on both hands, notes, file version 1.0.1.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__LeverHandle__Spec__.js`: the interior preview on both hands and doubles, and where the builder's sums land the lever and the Scroll. 84 checks.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.5.1.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__LeverHandle__Spec__.js"
+```
+In SketchUp, after Reload Scripts: on the Interior Doors tab, click the swing toggle with any handle chosen. The handle moves to the latch side and the lever points at the hinge. Create a door with the Scroll: its plate sits on the leaf, 46 in from the edge. On an exterior door the Scroll stays where its Handle Position puts it.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.5.0 - 02-Nov-2026 - Curved Lever on Long Plate Handle
+
+### Context
+Adam, with a photo of a satin lever on a long plate: model it at UK standard sizes for an exterior door, then add it as a door handle option, with edge colours and hierarchy in line with the Scroll. His calls on the model: a solid plate, the keyhole a 2D grouped shape in his light mid grey line, and the collar narrowed so it sits between the plate's roll lines instead of fouling the radius.
+
+### Feature Summary
+- **Curved Lever on Long Plate (92 PZ)** is a new handle in the Handle Asset dropdown on single and double exterior doors and interior doors. The Scroll stays the default, so existing doors and presets do not change.
+- **Sizes are the maker's**, from HOPPE's drawings of the Atlanta 1530/3346 family: plate 245 x 30 x 8, spindle 93 below the top, cylinder 92 below the spindle, 59 projection, lever tip 113 from the spindle. 692 faces, 0 triangulated.
+- **It builds exactly as the Scroll builds.** One definition `Na__InteriorDoor__Handle__Na__ExteriorDoor__Handle__LeverOnLongPlate`, instances `Na__DoorHandle__Interior` and `Na__DoorHandle__Exterior` in the leaf's MOD group, tag `Na__DoorHandle`, finish on the instance, every edge `MTE103__LineColour__DarkGrey__L40`, except the keyhole's.
+- **An asset can now name a line colour per edge.** `EdgeColourId` on a `Na__Geometry__Edges` record is painted after the standard dark grey. The lever's keyhole uses it for `MTE105__LineColour__LightMidGrey__L70`. Assets that name none are untouched.
+- **The exterior door preview draws a handle from its own Elevation2D paths**, handed so the lever points at the hinge, as the interior door preview does. A handle without paths, like the Scroll, keeps the drawn schematic. Before this every handle drew as a scroll.
+- **A preview path can name its line too.** Ruby looks up the hex from the SSOT and sends it with the path, because the dialog only holds the swatch subset, which has no MTE105. Both previews draw the keyhole in it.
+- **Interior doors place it 60 in from the latch.** `Na__PanelPlacement__OffsetX_mm` is -60 on both hands, where the interior preview draws a handle. Exterior doors ignore it and use `HandleAbsoluteX`.
+
+### How the Asset Was Made
+The same way as the cabinet handles: written directly by a generator, so it can be regenerated. `lever_asset_writer.py` in the `mcp-sketchup-3d-modeling-expert` skill (`learning/generators/door_furniture/`) writes it from the same geometry as the approved SketchUp model. No SketchUp, no Save panel, no new MCP tools. The Dev Tools JSON exporters remain the route for anything modelled by hand.
+
+### Known Limits
+- DXF and the plan preview show the same generic handle marker for every handle, as they did. The asset's Plan2D is there when they want it.
+- Sliding and bifold doors have no handle dropdown, so the option does not appear there.
+
+### Files Changed
+- `04__Data__AssetLibrary/ExteriorDoor__Handles__/Na__ExteriorDoor__Handle__LeverOnLongPlate__.json`: new.
+- `04__Data__AssetLibrary/Na__AssemblyStudio__AssetIndex__.json`: lists `ExteriorDoor__Handles__`, which it had missed.
+- `40__System__InteriorDoorSystem/...__HandleBuilder3D__.rb`: `na_apply_asset_edge_colours`.
+- `40__System__InteriorDoorSystem/...__DialogRouter__.rb`: handle options say `hasElevation`; `na_resolve_preview_line_colours`.
+- `40__System__InteriorDoorSystem/...__Viewport__ElevationGenerator__.js`: polygons draw in a path's own line.
+- `40__System__InteriorDoorSystem/...__UiSystem__Bridge__.js`: records which handles have paths, redraws the exterior preview when options or paths arrive.
+- `30__System__ExteriorDoorCommon__/...__Viewport__ElevationGenerator__.js`: `na_handle_elevation_block`, `na_draw_handle_from_asset`; `na_draw_handle` tries them before the schematic.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__LeverHandle__Spec__.js`: new.
+- `85__Docs__AppDocumentation/Na__AssemblyStudio__Architecture__.md`: handle asset notes.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.5.0.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__LeverHandle__Spec__.js"
+```
+In SketchUp, after Reload Scripts: on an exterior single door, pick the handle from Handle Asset. The preview redraws as the lever. Create the door, and check the keyhole's line with edges set to by material. On an interior door, create it on both hands: the spindle is 60 in from the latch and the lever points at the hinge.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.2.3 - 02-Nov-2026 - Leaded Glass: Up to 12 Lead Lines Each Way
 
 ### Context

@@ -186,6 +186,7 @@
             panelTopY        : panelTopY,
             panelClearWidth  : panelClearWidth,
             panelClearHeight : panelClearHeight,
+            swingSide        : swingSide,
             handleX          : handleX,
             handleY          : handleY,
             handleMirrorX    : handleMirrorX
@@ -287,7 +288,7 @@
                 svg.appendChild(na_make_svg('polygon', {
                     points: pointString,
                     fill: palette.handleFill,
-                    stroke: NA_HANDLE_STROKE,
+                    stroke: pathItem.EdgeColourHex || NA_HANDLE_STROKE,
                     'stroke-width': 0.75
                 }));
                 drew = true;

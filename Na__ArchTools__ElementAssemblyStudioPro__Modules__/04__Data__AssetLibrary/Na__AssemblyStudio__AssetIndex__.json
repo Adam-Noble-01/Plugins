@@ -14,6 +14,10 @@
                 "category": "Interior Door Hinge 3D Models",
                 "consumers": ["Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D"]
             },
+            "ExteriorDoor__Handles__": {
+                "category": "Exterior Door Handle 3D Models",
+                "consumers": ["Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__HandleBuilder", "Na__AssemblyStudio::Na__InteriorDoorSystem::Na__HandleBuilder3D"]
+            },
             "Windows__WindowBoards__": {
                 "category": "Window Board Nosing Profiles (Profile2D)",
                 "consumers": ["Na__AssemblyStudio::Na__WindowSystem::Na__WindowBoardBuilder"]

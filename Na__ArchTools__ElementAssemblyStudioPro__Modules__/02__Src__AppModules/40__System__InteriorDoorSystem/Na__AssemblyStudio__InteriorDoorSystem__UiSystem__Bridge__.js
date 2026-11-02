@@ -244,6 +244,15 @@
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Redraw the Window Tab's Preview (Exterior Doors Draw There)
+    // ------------------------------------------------------------
+    function na_door_redraw_exterior_preview() {
+        if (typeof Na_DynamicUI !== 'undefined' && typeof Na_Viewport !== 'undefined') {
+            Na_Viewport.na_render(Na_DynamicUI.na_getConfig());
+        }
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | Emit Preview Warnings to Console + Status
     // ------------------------------------------------------------
     function na_door_emit_preview_warnings(assetKey, warnings) {
@@ -356,6 +365,15 @@
                 }
                 na_door_patch_select_options(exteriorControl.id, options, exteriorSelectedKey);
             });
+
+            // The exterior door previews draw a handle from its Elevation2D paths
+            // when it has them. This says which do, so the preview asks for those
+            // only; the Scroll has none and keeps its drawn schematic.
+            window.NA_DOOR_HANDLE_KEYS_WITH_ELEVATION = {};
+            options.forEach(function (opt) {
+                if (opt.hasElevation) window.NA_DOOR_HANDLE_KEYS_WITH_ELEVATION[opt.value] = true;
+            });
+            na_door_redraw_exterior_preview();
         } catch (err) {
             console.error('[Na_DoorBridge] Failed to receive handle asset options:', err);
         }
@@ -432,6 +450,7 @@
                     Na_DoorUI.na_render(activeConfig);
                 }
             }
+            na_door_redraw_exterior_preview();
         } catch (err) {
             console.error('[Na_DoorBridge] Failed to receive handle preview asset:', err);
         }
