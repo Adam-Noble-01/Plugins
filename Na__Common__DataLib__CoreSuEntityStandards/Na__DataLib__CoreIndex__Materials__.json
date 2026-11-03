@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.9.0",
-        "lastUpdated"       : "30-Oct-2026",
+        "version"           : "1.9.1",
+        "lastUpdated"       : "03-Nov-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -489,6 +489,17 @@
                 "NprClassKey"        : "Terracotta",
                 "NprClassId"         : 8,
                 "NprClassLabel"      : "Terracotta",
+                "NprGroup"           : "Walls"
+            },
+            "MAT228__Npr__Stonework": {
+                "SketchUpName"       : "MAT000E__Npr__Stonework",
+                "Description"        : "PainterlyNPR material class 28, Stonework (Walls). A rubble stone wall under a pale limewash: groups of stones in broken pen, loose tan washes inside them; every upright wall given it takes stones. Paint it on faces of a model ValeVision AURA draws in pen and wash: exempt by the MAT000E__ prefix, so it exports in every mode with its own colour and its class in the name.",
+                "IsExempt"           : true,
+                "BaseColor"          : "rgb(233, 224, 198)",
+                "Opacity"            : 1.00,
+                "NprClassKey"        : "Stonework",
+                "NprClassId"         : 28,
+                "NprClassLabel"      : "Stonework",
                 "NprGroup"           : "Walls"
             },
             "MAT204__Npr__Slate": {
