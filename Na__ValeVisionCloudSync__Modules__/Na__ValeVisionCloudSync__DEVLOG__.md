@@ -1,5 +1,38 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.5.5 — 03-Nov-2026 — Plops Sent to AURA Keep Their Proxy's Shape
+
+### Overview
+**Reported by Adam:** "The rotation of the drawing does not seem to match the proxy". The cause was in the engine: a plant's
+foliage masses kept their squash and lumps on the world's axes as it turned, while a proxy is the model turned whole.
+PainterlyNPR v0.8.37 (`b60b2ce`) added `Rigid` to a plop for that, and the engine's `MakePlacement` sets it. This tab writes
+AURA's plops by hand, so the ones it made never had it. Asked for by Adam as its own task: "Make Sync Aura's plops keep their
+proxy's shape".
+
+### Changed
+- `na_plop_maker`: a plop made for a proxy placed in SketchUp carries `"Rigid": True`, as the engine's does.
+- `na_merge`'s `push_pose`: a proxy turned in SketchUp sets `Rigid` on its plop. `na_turned` is the sum `na_differs` already
+  used, past AURA's tenth of a degree, the short way round.
+- A plop only moved or scaled keeps the shape it was drawn with, as in the engine: a later change never alters a finished
+  drawing unless it is turned. A turn made in AURA is the engine's to flag, so the merge leaves that record as it is, and when
+  both sides changed AURA still wins and SketchUp's turn does not flag it.
+- The flag is not in the base and `na_differs` does not read it, so it is never a change to sync. `AuraRender__Api__Drawings__`
+  refuses unknown keys at the drawing set's root only, and an older pin of the engine ignores the key.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.py` (1.1.0)
+
+### Verified (03-Nov-2026, from Python, no SketchUp and no server)
+19 checks of `na_plop_maker` and `na_merge`, all passing, against AURA's real v0.8.37 pinned library, in a placement turned and
+moved: a new plop and one swapped for another asset are rigid; turned in SketchUp is flagged, across north too; only moved,
+only scaled, or turned under the tolerance is not; already rigid stays so; turned in AURA and changed in both add no flag; the
+flag alone is no change. An asset not in the pin is still refused.
+
+### Testing
+- [ ] Not run in SketchUp or against the server. Sync Aura tab: place a ball standard proxy, turn it, Sync NPR Assets Only. In
+  AURA, on an engine of v0.8.37 or later, its drawing and its proxy should be the same shape.
+- [ ] Turn an older proxy in SketchUp and sync: it takes the new shape. Only move another: it keeps its old one.
+
 ## Version 0.5.4 — 30-Oct-2026 — The Project Found From a Model Kept Deeper
 
 ### Overview

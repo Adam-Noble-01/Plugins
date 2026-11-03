@@ -35,6 +35,10 @@ DESCRIPTION:
   through AURA's API with a Vale sign-in. A three-way merge against the last
   synced state (kept in the SketchUp model) decides each plop: changed on one
   side goes to the other; changed on both, AURA wins and the clash is reported.
+- A PLOP KEEPS ITS PROXY'S SHAPE (1.1.0): a proxy is the asset's model turned
+  whole, so a plop made here, or one whose proxy was turned in SketchUp, carries
+  Rigid (PainterlyNPR v0.8.37): the engine then turns its foliage masses with it.
+  A plop only moved or scaled keeps the shape it was drawn with.
 - COORDINATES are all here: SketchUp inches, Z up, front -Y; the GLB builder's
   glTF metres (x, z, -y); AURA's world is that turned about +Y by the scene's
   RotationDeg, then moved by OffsetM (the engine's own GlbTransform). Ruby hands
@@ -53,6 +57,10 @@ USAGE:
 -----------------------------------------------------------------------------
 
 DEVELOPMENT LOG:
+03-Nov-2026 - Version 1.1.0
+- Plops carry Rigid, made here or turned in SketchUp, so AURA's drawing keeps its
+  proxy's shape at any turn.
+
 30-Oct-2026 - Version 1.0.0
 - Initial build: sign-in, the model to AURA (package, push, import), the
   two-way asset merge, the scene brought back down.
@@ -83,7 +91,7 @@ import Na__ValeVisionCloudSync__LibraryPublisher__ as pub                    # n
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-NA__AURA__VERSION               = "1.0.0"
+NA__AURA__VERSION               = "1.1.0"
 NA__AURA__ACTIONS               = ("signin", "signout", "sync", "assets")
 NA__AURA__API                   = "/aura/api"
 NA__AURA__COOKIE                = "vale_session"                            # <-- ValeShared__Auth__'s cookie: one sign-in for every Vale app
@@ -336,6 +344,13 @@ def na_norm_deg(deg: float, places: int = 1) -> float:
 # REGION | The Three-Way Merge (base: what both sides held after the last sync)
 # -----------------------------------------------------------------------------
 
+# HELPER FUNCTION | Has a Plop Been Turned Against Another (the short way round)
+# ------------------------------------------------------------
+def na_turned(a: dict, b: dict) -> bool:
+    turn = abs(float(a.get("RotationDeg") or 0) - float(b.get("RotationDeg") or 0)) % 360.0
+    return min(turn, 360.0 - turn) > NA__AURA__TOL_DEG
+# ---------------------------------------------------------------
+
 # HELPER FUNCTION | Has a Plop Changed Against Another (pose and asset)
 # ------------------------------------------------------------
 def na_differs(a: dict, b: dict) -> bool:
@@ -344,8 +359,7 @@ def na_differs(a: dict, b: dict) -> bool:
     pa, pb = a.get("Position") or [0, 0, 0], b.get("Position") or [0, 0, 0]
     if any(abs(float(x) - float(y)) > NA__AURA__TOL_M for x, y in zip(pa, pb)):
         return True
-    turn = abs(float(a.get("RotationDeg") or 0) - float(b.get("RotationDeg") or 0)) % 360.0
-    if min(turn, 360.0 - turn) > NA__AURA__TOL_DEG:
+    if na_turned(a, b):
         return True
     return abs(float(a.get("Scale") or 1) - float(b.get("Scale") or 1)) > NA__AURA__TOL_SCALE
 # ---------------------------------------------------------------
@@ -394,6 +408,8 @@ def na_merge(base: list, aura: list, proxies: list, placement: dict, new_plop) -
 
     def push_pose(uid, s):                                                   # <-- SketchUp's pose into AURA's record
         rec = out[uid]
+        if na_turned(s, rec):
+            rec["Rigid"] = True                                              # <-- Turned: its masses go round with it from now on, as its proxy does
         rec.update(Position=s["Position"], RotationDeg=s["RotationDeg"], Scale=s["Scale"])
 
     def pull(uid, s=None):                                                   # <-- AURA's plop onto SketchUp
@@ -506,6 +522,7 @@ def na_plop_maker(library: Path | None):
         return {"Uid": uid, "AssetId": asset_id,
                 "Name": (dat.get("PainterlyNPR__AssetData__Identity") or {}).get("DisplayName") or asset_id,
                 "Position": pose["Position"], "RotationDeg": pose["RotationDeg"], "Scale": pose["Scale"], "Seed": seed,
+                "Rigid": True,                                               # <-- As the engine's MakePlacement: it keeps its proxy's shape at any turn
                 "Recipe": {"Generator": paint.get("Generator"), "Params": dict(paint.get("Params") or {}), "Kind": paint.get("Kind"),
                            "Material": paint.get("Material"), "Role": paint.get("Role"),
                            "Flowers": dict(paint["Flowers"]) if paint.get("Flowers") else None}}, ""
