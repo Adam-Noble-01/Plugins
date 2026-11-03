@@ -216,6 +216,7 @@ def fetch(args):
         'Bytes'       : size,
         'FetchedIso'  : iso_now(),
         'Previous'    : state.get('Folder'),
+        'Patterns'    : patterns,                                             # <-- What this cache holds: a plugin that asks for more tops it up
     }
     write_json(root / STATE_FILE, record)
 

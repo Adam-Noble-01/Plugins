@@ -59,6 +59,27 @@ module Na__PainterlyAssets
             self.na_paint(model, swatch, faces, containers)
         end
 
+        # FUNCTION | Paint What the NPR Viewport's Pointer Landed On, Inside the Caller's Operation (v0.4.0)
+        # ------------------------------------------------------------
+        # The same rules as a click on a swatch, with what the pointer landed on
+        # in place of the selection. One face on its own always takes the swatch;
+        # several (a loose connected mesh, a smooth surface) keep their glass, as
+        # a group does.
+        # @return [Hash] { 'ok', 'level', 'message', 'painted' }
+        def self.Na__Painter__PaintNow(model, swatch, faces, containers)
+            glass  = swatch['glass'] ? nil : Na__MaterialPalette.Na__Palette__GlassTest
+            chosen = glass && faces.length > 1 ? faces.reject { |face| [face.material, face.back_material].any? { |material| material && glass.call(material) } } : faces
+            walk   = self.na_collect(chosen, containers, glass)
+            walk['kept'] += faces.length - chosen.length
+            return self.na_result(false, 'warn', "Nothing to paint: #{self.na_left_alone(walk['stats'], walk['kept'])}").merge('painted' => 0) if walk['faces'].empty?
+
+            material = Na__MaterialPalette.Na__Palette__EnsureMaterial(model, swatch)
+            both     = material.alpha.to_f < 0.999 || material.use_alpha?
+            painted  = walk['faces'].count { |face| self.na_paint_face(face, material, both) }
+            self.na_result(true, 'success', self.na_painted_words(painted, walk, swatch)).merge('painted' => painted)
+        end
+        # ---------------------------------------------------------------
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -86,6 +107,11 @@ module Na__PainterlyAssets
                 walk['faces'].count { |face| self.na_paint_face(face, material, both) }
             end
 
+            self.na_result(true, 'success', self.na_painted_words(painted, walk, swatch))
+        end
+
+        def self.na_painted_words(painted, walk, swatch)
+            stats = walk['stats']
             parts = ["Painted #{self.na_count(painted)} of #{self.na_count(walk['faces'].length)} faces #{swatch['label']} (#{swatch['name']})"]
             parts << "in #{self.na_count(stats['containers'])} groups and components" if stats['containers'] > 0
             message = parts.join(' ') + '.'
@@ -93,7 +119,7 @@ module Na__PainterlyAssets
             message += " #{stats['shared']} of them are shared by #{stats['copies']} copies: every copy took it." if stats['shared'] > 0
             left = self.na_left_alone(stats, 0)
             message += " Left alone: #{left}" unless left.empty?
-            self.na_result(true, 'success', message)
+            message
         end
 
     # endregion ----------------------------------------------------------------

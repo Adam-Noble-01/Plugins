@@ -25,6 +25,7 @@
 #                  (Seed, Sun, Style, Paper, Composition), as its engine
 #                  serialises it, so every parameter of NPR Parameters
 #   export         NPR Export's settings (Na__NprSettings says which)
+#   points         the art control points, one set a scene (v0.4.0, Na__NprSettings)
 #
 # NOTHING ON OPEN: read when an NPR window opens or asks, never while a model
 #   opens; nothing is written until something is changed.
@@ -60,7 +61,7 @@ module Na__PainterlyAssets
         NA_SCHEMA           = 'Na__PainterlyAssets__NprSettings'.freeze           unless defined?(NA_SCHEMA)
         NA_SCHEMA_VERSION   = 1                                                   unless defined?(NA_SCHEMA_VERSION)
         NA_STORE_ID_PATTERN = /\Anpst_[0-9a-f]{8,32}\z/.freeze                    unless defined?(NA_STORE_ID_PATTERN)
-        NA_BLOCKS           = %w[look export].freeze                              unless defined?(NA_BLOCKS)
+        NA_BLOCKS           = %w[look export points].freeze                       unless defined?(NA_BLOCKS)
         NA_META_KEYS        = %w[schema schemaVersion storeId revision updatedAt updatedEpoch pluginVersion].freeze unless defined?(NA_META_KEYS)
 
     # endregion ----------------------------------------------------------------

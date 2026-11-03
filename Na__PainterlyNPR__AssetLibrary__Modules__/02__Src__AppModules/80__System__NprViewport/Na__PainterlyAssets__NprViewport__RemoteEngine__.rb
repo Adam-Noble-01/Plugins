@@ -95,6 +95,21 @@ module Na__PainterlyAssets
             !@na_job.nil?
         end
 
+        # FUNCTION | Does This Plugin Want More of the Repo Than the Cache Holds?
+        # ------------------------------------------------------------
+        # The cache's state records the patterns it was downloaded with. A plugin
+        # that asks for others (v0.4.0: the asset library's pictures, for the
+        # viewport's Assets drawer) tops the cache up once, by itself. Never for
+        # an override folder, which holds everything.
+        def self.Na__Remote__Outdated?
+            return false if self.Na__Remote__Override
+            state = self.Na__Remote__State
+            return false unless state.is_a?(Hash)
+            wanted = Array((Na__ConfigLoader.Na__Config__Get('nprViewport', 'remoteEngine') || {})['patterns'])
+            Array(state['Patterns']) != wanted
+        end
+        # ---------------------------------------------------------------
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------

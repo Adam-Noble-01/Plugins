@@ -21,6 +21,8 @@
 #   placement is known. A scene that keeps no camera is drawn from the view's.
 # - WHAT IS DRAWN is the model as the NPR Viewport has it: a scene's own
 #   hidden tags and objects are not applied (the GLB cache is the whole model).
+#   Each scene is drawn with its own art control points (v0.4.0); the current
+#   view with the ones on the viewport's sheet.
 # - THE VIEWPORT HOLDS STILL while the job runs (no camera, no new scene),
 #   then follows SketchUp again.
 # - NOTHING IS WRITTEN BUT THE PICTURES, each to the name planned for it (a
@@ -203,7 +205,7 @@ module Na__PainterlyAssets
                 return [nil, 'Tick at least one scene to export, or choose The Current SketchUp View.'] if pages.empty?
                 items = pages.each_with_index.map do |page, index|
                     camera = page.use_camera? ? page.camera : view.camera                     # <-- A scene that keeps no camera shows the view's
-                    base.merge('Id' => index + 1, 'Label' => page.name.to_s, 'View' => page.name.to_s,
+                    base.merge('Id' => index + 1, 'Label' => page.name.to_s, 'View' => page.name.to_s, 'PointsKey' => page.persistent_id.to_s,
                                'Snapshot' => Na__CameraSync.Na__Camera__Snapshot(camera, aspect))
                 end
                 return [items, nil]
@@ -316,7 +318,8 @@ module Na__PainterlyAssets
             items = job['items'].map do |item|
                 camera = item['Snapshot'] ? Na__CameraSync.Na__Camera__FromSnapshot(item['Snapshot'], placement) : nil
                 { 'Id' => item['Id'], 'Label' => item['Label'], 'Which' => item['Which'], 'Format' => item['Format'],
-                  'Quality' => item['Quality'], 'Dpi' => item['Dpi'], 'Camera' => camera }
+                  'Quality' => item['Quality'], 'Dpi' => item['Dpi'], 'Camera' => camera,
+                  'Points' => item['PointsKey'] ? Na__NprSettings.Na__Settings__Points(job['model'], item['PointsKey']) : nil }
             end
             Na__LiveSync.Na__Live__Hold(true)
             job['state'] = 'sent'

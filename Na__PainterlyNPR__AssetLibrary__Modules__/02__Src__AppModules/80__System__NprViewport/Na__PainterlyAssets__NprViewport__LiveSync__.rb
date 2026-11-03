@@ -34,6 +34,11 @@
 # - AN EXPORT HOLDS THE VIEWPORT STILL (Na__Live__Hold): no camera and no new
 #   scene reach it while NPR Export draws its pictures; afterwards SketchUp's
 #   camera goes again, and a sync that waited runs.
+# - THE VIEWPORT'S OWN MENUS (v0.4.0): what its Assets drawer changes is made in
+#   the model (Na__ModelEdits) and synced like any edit, sooner, with the
+#   definitions it painted forgotten; each scene says which of those edits it
+#   shows (EditsThrough). Its art control points are kept in the model, one set
+#   a scene: selecting a scene brings its set to the viewport with the camera.
 # - State survives Reload Plugin Data (every module variable is guarded), and
 #   the observers attached before a reload keep calling the reloaded methods.
 #
@@ -86,6 +91,8 @@ module Na__PainterlyAssets
         @na_scene_sent   = nil   unless defined?(@na_scene_sent)                         # <-- The project whose scene the viewport's page now has
         @na_hold         = false unless defined?(@na_hold)                               # <-- NPR Export is drawing: nothing moves the viewport
         @na_held_sync    = false unless defined?(@na_held_sync)                          # <-- A sync came due while held
+        @na_edits_through = 0    unless defined?(@na_edits_through)                      # <-- The last batch of the viewport's edits made in the model
+        @na_points_key   = nil   unless defined?(@na_points_key)                         # <-- The set of art control points the viewport was last given
 
     # endregion ----------------------------------------------------------------
 
@@ -145,6 +152,8 @@ module Na__PainterlyAssets
             return unless role == 'viewport'
 
             @na_scene_sent = nil                                                         # <-- A new page has no scene yet
+            @na_edits_through = 0                                                        # <-- And it counts its edits from one again
+            self.na_send_points(model)                                                   # <-- It holds them until the model has loaded
             unless info['Booted']
                 Na__NprWindows.Na__Windows__SendAll('status', { 'Text' => "PainterlyNPR could not start in SketchUp's browser: #{info['Error']}", 'Level' => 'error' })
                 return
@@ -189,6 +198,33 @@ module Na__PainterlyAssets
         def self.Na__Live__LookChanged(model)
             return unless model && model.equal?(Sketchup.active_model)
             Na__NprWindows::NA_ROLES.each { |role| self.na_send_look(role, model) }
+            self.na_send_points(model)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Viewport's Art Control Points Changed: Kept in the Model
+        # ------------------------------------------------------------
+        def self.Na__Live__PointsChanged(payload)
+            model   = Sketchup.active_model
+            return unless model && payload['Project'].to_s == Na__CacheStore.Na__Cache__Key(model)   # <-- Another model came to the front as the page saved: these were not its points
+            problem = Na__NprSettings.Na__Settings__SavePoints(model, payload['Key'], payload['Points'], payload['Sheet'])
+            Na__NprWindows.Na__Windows__Send('parameters', 'record', Na__NprSettings.Na__Settings__Status(model))
+            Na__NprWindows.Na__Windows__Send('viewport', 'status', { 'Text' => problem, 'Level' => 'warn' }) if problem
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A Batch of the Viewport's Edits Has Been Made in the Model
+        # ------------------------------------------------------------
+        # Live or not, the next scene says it shows this batch. Live, the sync
+        # comes sooner than for an edit in SketchUp (nobody is mid-gesture) and
+        # forgets the definitions the batch painted: nothing was selected, so the
+        # commit's own note cannot know them. Paused, the page draws its own
+        # preview, and turning live back on checks everything.
+        def self.Na__Live__ModelEdited(model, seq, touched)
+            @na_edits_through = [@na_edits_through.to_i, seq.to_i].max
+            return unless @na_live && model && self.na_watching?(model)
+            Array(touched).each { |definition| @na_pending['forget'][definition.persistent_id] = definition }
+            self.na_schedule_sync(Na__ConfigLoader.Na__Config__GetOr(0.25, 'nprViewport', 'live', 'editSeconds').to_f)
         end
         # ---------------------------------------------------------------
 
@@ -332,8 +368,9 @@ module Na__PainterlyAssets
                 return
             end
 
-            mode   = @na_pending['full'] ? :full : :incremental
-            forget = @na_pending['forget'].values.select { |d| d.valid? rescue false }
+            mode    = @na_pending['full'] ? :full : :incremental
+            forget  = @na_pending['forget'].values.select { |d| d.valid? rescue false }
+            through = @na_edits_through                                                  # <-- Every batch made before this sync read the model
             @na_pending = { 'full' => false, 'forget' => {}, 'waiting' => false }
             @na_syncing = true
             begin
@@ -350,7 +387,7 @@ module Na__PainterlyAssets
             end
             if result['scene']
                 @na_placement[result['key']] = result['scene']['NprScene__ModelPlacement'] || {}
-                @na_scene_sent = result['key'] if Na__NprWindows.Na__Windows__Send('viewport', 'scene', Na__CacheSync.Na__Sync__Payload(result))
+                @na_scene_sent = result['key'] if Na__NprWindows.Na__Windows__Send('viewport', 'scene', Na__CacheSync.Na__Sync__Payload(result).merge('EditsThrough' => through))
                 self.na_schedule_camera(force: true)
             end
             Na__NprWindows.Na__Windows__SendAll('status', { 'Text' => "#{result['message']} (#{result['seconds']} s)", 'Level' => result['ok'] ? 'info' : 'error' })
@@ -380,6 +417,7 @@ module Na__PainterlyAssets
             return unless model && Na__NprWindows.Na__Windows__Ready?('viewport')
             key = Na__CacheStore.Na__Cache__Key(model)
             return unless @na_placement.key?(key)                                          # <-- No scene yet: the first sync sends it, then the camera
+            self.na_send_points(model) unless Na__NprSettings.Na__Settings__PointsKey(model) == @na_points_key   # <-- A scene selected: its art control points come with its camera
             Na__NprWindows.Na__Windows__Send('viewport', 'camera', Na__CameraSync.Na__Camera__Payload(model.active_view, @na_placement[key]))
         rescue StandardError => error
             Na__DebugTools.Na__Debug__Error('The NPR camera could not be sent.', error)
@@ -443,6 +481,14 @@ module Na__PainterlyAssets
             look = Na__NprSettings.Na__Settings__Look(model)
             return unless look['settings']
             Na__NprWindows.Na__Windows__Send(role, 'settings', { 'Settings' => look['settings'], 'Project' => Na__CacheStore.Na__Cache__Key(model), 'Source' => look['source'] })
+        end
+
+        # The art control points of the scene the model's view is on, to the viewport
+        def self.na_send_points(model)
+            return unless model
+            set = Na__NprSettings.Na__Settings__Points(model)
+            @na_points_key = set['Key']
+            Na__NprWindows.Na__Windows__Send('viewport', 'points', set.merge('Project' => Na__CacheStore.Na__Cache__Key(model)))
         end
 
         def self.na_live_payload

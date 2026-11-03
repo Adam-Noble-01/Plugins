@@ -7,16 +7,17 @@
 // MODULE     : NPR Viewport - Host, Viewport
 // AUTHOR     : Adam Noble - Noble Architecture
 // PURPOSE    : Turn PainterlyNPR's own app page into SketchUp's NPR Viewport:
-//              only the drawing shows; the scene is the model's local GLB cache
-//              (fetched file by file, only what changed); the camera is
-//              SketchUp's; the look comes from the NPR Parameters window
-// CREATED    : 01-Nov-2026
+//              the drawing, with the engine's Assets drawer and art direction
+//              folded away each side (HostEditing); the scene is the model's
+//              local GLB cache (fetched file by file, only what changed); the
+//              camera is SketchUp's; the look comes from the NPR Parameters window
+// CREATED    : 01-Nov-2026 (v0.4.0: the menus)
 //
 // DESCRIPTION:
 // - RUNS AFTER THE APP'S OWN INIT (the server adds this module after Init's
 //   script; module scripts run in order), so the engine has booted, built its
-//   panel and drawn its demo cottage's first preview. The panel stays in the
-//   page, hidden: the engine's own controls are what the look moves.
+//   panel and drawn its demo cottage's first preview. The rest of the panel stays
+//   in the page, hidden: the engine's own controls are what the look moves.
 // - THE SCENE is handed over as ValeVision AURA's host hands its project's
 //   scene (its Na__EngineHost__Scene__): the scene file's objects in Id order,
 //   each GLB read with the engine's GlbRead, each mesh file paired with its
@@ -29,12 +30,17 @@
 //   made into the engine's orbit camera; the field of view or ortho height is
 //   widened when SketchUp's view is wider than the engine's sheet, so all of
 //   SketchUp's view shows. Up is always +Y in the engine (no roll).
-// - Nothing in the window takes the mouse or the keyboard: the drawing follows
-//   SketchUp, never the other way round.
+// - THE DRAWING FOLLOWS SKETCHUP, never the other way round: nothing in the
+//   window moves the camera (HostEditing holds the engine's own view lock). Until
+//   the model is here, and while an export draws, nothing takes the mouse or the
+//   keyboard at all.
+// - WHAT THE MENUS DO IS KEPT IN THE MODEL (v0.4.0, HostEditing and Ruby's
+//   Na__ModelEdits); a scene with nothing new in it is not drawn again.
 // - NPR EXPORT (v0.3.0) draws its pictures here, in this window's engine with
 //   its scene and its look (HostExport): each picture's camera is set as
-//   SketchUp's is, and while a job runs a newer scene waits and SketchUp's
-//   camera is not followed (Ruby holds both too).
+//   SketchUp's is, a scene's picture drawn with that scene's art control points,
+//   and while a job runs a newer scene waits and SketchUp's camera is not followed
+//   (Ruby holds both too).
 //
 // =============================================================================
 
@@ -63,6 +69,16 @@
         Na__NprExport__Cancel,
         Na__NprExport__Run,
     } from './Na__PainterlyAssets__NprViewport__HostExport__.mjs';
+    import {
+        Na__NprEdit__Boot,
+        Na__NprEdit__Edited,
+        Na__NprEdit__ExportPoints,
+        Na__NprEdit__ExportPointsDone,
+        Na__NprEdit__Points,
+        Na__NprEdit__Rebuild,
+        Na__NprEdit__SceneLoaded,
+        Na__NprEdit__TakeScene,
+    } from './Na__PainterlyAssets__NprViewport__HostEditing__.mjs';
 
 // endregion -------------------------------------------------------------------
 
@@ -84,6 +100,9 @@
         state     :  AppState.PainterlyNPR__AppCore__State,
         glbs      :  new Map(),                                                  // <-- File name -> { Version, Glb } (the engine's GlbRead)
         loaded    :  false,                                                      // <-- The model has replaced the demo cottage
+        editing   :  false,                                                      // <-- The engine's menus are in their places (HostEditing)
+        baseKey   :  '',                                                         // <-- The project, the scene's revision and every file's version the engine's base was made from
+        sayUntil  :  0,                                                          // <-- What a batch of edits did stays on the status line until then
         loading   :  false,
         queued    :  null,                                                       // <-- The newest scene message while one loads
         live      :  true,
@@ -99,7 +118,7 @@
 // REGION | Boot
 // -----------------------------------------------------------------------------
 
-    // FUNCTION | Take Over the Page: quiet, still, listening, then say ready
+    // FUNCTION | Take Over the Page: quiet, held still, listening, then say ready and give the menus their places
     // ------------------------------------------------------------
     function Na__NprViewport__Boot() {
         const S  =  Na__NprViewport__State;
@@ -120,20 +139,46 @@
         }
         if (typeof RenderGraph.PainterlyNPR__RenderGraph__SetProxy === 'function') RenderGraph.PainterlyNPR__RenderGraph__SetProxy(true);   // <-- No pen and wash for the demo cottage while the model comes
         S.status.Say('Waiting for the SketchUp model', 'busy');
+        S.editing  =  Na__NprEdit__Boot({ Say: Na__NprViewport__Say, Action: Na__NprHost__Action });
     }
     // ------------------------------------------------------------
 
 
-    // HELPER FUNCTION | No Mouse, No Keys: the drawing follows SketchUp
+    // HELPER FUNCTION | The Status Line, Where What a Batch of Edits Did Is Not Talked Over
+    // ------------------------------------------------------------
+    // holdMs: how long ordinary lines wait behind this one (a sync's, a moment
+    // later). A warning or an error is always said.
+    function Na__NprViewport__Say(text, level, holdMs) {
+        const S  =  Na__NprViewport__State;
+        if (performance.now() < S.sayUntil && level !== 'warn' && level !== 'error' && !holdMs) return;
+        if (holdMs) S.sayUntil = performance.now() + holdMs;
+        S.status.Say(text, level);
+    }
+    // ------------------------------------------------------------
+
+
+    // HELPER FUNCTION | No Mouse, No Keys Until the Model Is Here, and While an Export Draws
     // ------------------------------------------------------------
     // Caught before the engine's own handlers (capture, on the window). F5
     // still reloads the page; the engine's keys and its navigation never see it.
+    // Otherwise the mouse is the menus' and the drawing's: the camera is held by
+    // the engine's own view lock, and the keys kept to the editing ones (HostEditing).
+    function Na__NprViewport__Held() {
+        const S  =  Na__NprViewport__State;
+        return !S.loaded || !S.editing || Na__NprExport__Busy();
+    }
+
     function Na__NprViewport__HoldStill() {
-        const stop  =  (event) => { event.stopImmediatePropagation(); if (event.cancelable && event.type !== 'keydown') event.preventDefault(); };
+        const stop  =  (event) => {
+            if (!Na__NprViewport__Held()) return;
+            event.stopImmediatePropagation();
+            if (event.cancelable && event.type !== 'keydown') event.preventDefault();
+        };
         for (const type of ['pointerdown', 'pointermove', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'wheel', 'contextmenu', 'touchstart', 'keyup', 'keypress']) {
             window.addEventListener(type, stop, { capture: true, passive: false });
         }
         window.addEventListener('keydown', (event) => {
+            if (!Na__NprViewport__Held()) return;
             event.stopImmediatePropagation();
             if (event.key !== 'F5') event.preventDefault();
         }, { capture: true });
@@ -147,14 +192,16 @@
 // REGION | Messages From SketchUp
 // -----------------------------------------------------------------------------
 
-    // FUNCTION | One Message: scene | camera | settings | live | status | export | exportCancel
+    // FUNCTION | One Message: scene | camera | settings | live | status | export | exportCancel | edited | points
     // ------------------------------------------------------------
     function Na__NprViewport__Receive(kind, payload) {
         const S  =  Na__NprViewport__State;
         if (kind === 'scene') return Na__NprViewport__QueueScene(payload);
         if (kind === 'camera') return Na__NprExport__Busy() ? null : Na__NprViewport__Camera(payload);   // <-- An export sets each picture's own
         if (kind === 'settings') return Na__NprViewport__Settings(payload);
-        if (kind === 'status') return S.status.Say(payload.Text, payload.Level);
+        if (kind === 'edited') return Na__NprEdit__Edited(payload);
+        if (kind === 'points') return Na__NprEdit__Points(payload);
+        if (kind === 'status') return Na__NprViewport__Say(payload.Text, payload.Level);
         if (kind === 'export') return Na__NprViewport__Export(payload);
         if (kind === 'exportCancel') return Na__NprExport__Cancel(payload.Job);
         if (kind === 'live') {
@@ -218,7 +265,7 @@
             const version  =  versions.get(name) || 0;
             const held     =  S.glbs.get(name);
             if (held && held.Version === version) continue;
-            S.status.Say(`Loading ${name.replace(/__+/g, ' ').replace(/\.glb$/i, '').trim()}`, 'busy');
+            Na__NprViewport__Say(`Loading ${name.replace(/__+/g, ' ').replace(/\.glb$/i, '').trim()}`, 'busy');
             const reply  =  await fetch(`${base}${encodeURIComponent(name)}?v=${version}`, { cache: 'no-store' });
             if (!reply.ok) throw new Error(`${name} answered ${reply.status}`);
             S.glbs.set(name, { Version: version, Glb: ScenePackage.PainterlyNPR__ScenePackage__GlbRead(new Uint8Array(await reply.arrayBuffer())) });
@@ -227,25 +274,33 @@
         const names  =  new Set(wanted.map((f) => f.ModelFile__FileName));
         for (const name of [...S.glbs.keys()]) if (!names.has(name)) S.glbs.delete(name);
 
-        // The base in the cottage's place, the model's placed assets on it
-        const glbs   =  new Map([...S.glbs].map(([name, held]) => [name, held.Glb]));
-        ScenePackage.PainterlyNPR__ScenePackage__SetBase(ScenePackage.PainterlyNPR__ScenePackage__GlbBase(Na__NprViewport__Source(scene, glbs)));
-        const plops  =  await Na__NprViewport__Plops(message.Proxies || []);
-        S.state.Assets  =  plops.Plops;
-        ScenePackage.PainterlyNPR__ScenePackage__Reload(S.state.Assets, S.state.Materials || []);
-        RenderGraph.PainterlyNPR__RenderGraph__Bump('Scene');
-        if (!S.loaded) {
+        // The base in the cottage's place (made again only when its files moved), the model's placed assets on it
+        const glbs     =  new Map([...S.glbs].map(([name, held]) => [name, held.Glb]));
+        const baseKey  =  [message.Key, message.SceneRevision, ...wanted.map((f) => `${f.ModelFile__FileName}:${versions.get(f.ModelFile__FileName) || 0}`)].join('|');
+        const moved    =  baseKey !== S.baseKey;
+        if (moved) {
+            ScenePackage.PainterlyNPR__ScenePackage__SetBase(ScenePackage.PainterlyNPR__ScenePackage__GlbBase(Na__NprViewport__Source(scene, glbs)));
+            S.baseKey  =  baseKey;
+        }
+        const plops    =  await Na__NprViewport__Plops(message.Proxies || []);
+        const changed  =  Na__NprEdit__TakeScene(plops.Plops, message.Proxies || [], message.EditsThrough, message.Key);
+        const first    =  !S.loaded;
+        const redraw   =  moved || changed || first;
+        if (redraw) Na__NprEdit__Rebuild();
+        if (first) {
             S.loaded  =  true;
             document.documentElement.classList.remove('Na__NprHost--Waiting');
             if (typeof RenderGraph.PainterlyNPR__RenderGraph__SetProxy === 'function') RenderGraph.PainterlyNPR__RenderGraph__SetProxy(false);
+            Na__NprEdit__SceneLoaded();
         }
-        RenderGraph.PainterlyNPR__RenderGraph__Request('Navigate');
+        if (redraw) RenderGraph.PainterlyNPR__RenderGraph__Request('Navigate');
+        if (!redraw && !plops.Missing.length) return;                            // <-- The model's own answer to an edit it has already been drawn with: nothing to draw, nothing to say
 
         const counts  =  ScenePackage.PainterlyNPR__ScenePackage__Scene && ScenePackage.PainterlyNPR__ScenePackage__Scene.Source;
         const ms      =  Math.round(performance.now() - started);
         const note    =  `${counts ? counts.Objects : '?'} objects from ${wanted.filter((f) => f.ModelFile__Kind === 'Mesh').length} model files (${fetched} fetched), ${plops.Plops.length} placed assets, in ${ms} ms.`
                       +  (plops.Missing.length ? ` Not in PainterlyNPR's library yet: ${plops.Missing.join(', ')}.` : '');
-        S.status.Say(note, plops.Missing.length ? 'warn' : 'info');
+        Na__NprViewport__Say(note, plops.Missing.length ? 'warn' : 'info');
         Na__NprHost__Action('status', { Text: `NPR Viewport: ${note}`, Level: plops.Missing.length ? 'warn' : 'info' });
     }
     // ------------------------------------------------------------
@@ -283,6 +338,7 @@
     // Made by the engine's own MakePlacement from the asset's record in the
     // cached library (its recipe and its shape's seed), then put where SketchUp
     // has it: SketchUp's turn and scale stand, never the asset's Facing or jitter.
+    // A shape this window gave the proxy (a drop, Grow a New Shape) stands too.
     async function Na__NprViewport__Plops(proxies) {
         if (!proxies.length || typeof Placement.PainterlyNPR__AssetLibrary__MakePlacement !== 'function') return { Plops: [], Missing: [] };
         await Catalogue.PainterlyNPR__AssetLibrary__LoadCatalogue();
@@ -296,6 +352,7 @@
             plop.Position     =  proxy.PositionM.slice();
             plop.RotationDeg  =  proxy.RotationDeg;
             plop.Scale        =  proxy.Scale;
+            if (Number.isFinite(proxy.ShapeSeed)) plop.Seed = proxy.ShapeSeed >>> 0;
             plops.push(plop);
         }
         return { Plops: plops, Missing: [...missing] };
@@ -355,6 +412,8 @@
         const S  =  Na__NprViewport__State;
         await Na__NprExport__Run(message, {
             Camera       :  Na__NprViewport__Camera,
+            Points       :  Na__NprEdit__ExportPoints,
+            PointsDone   :  Na__NprEdit__ExportPointsDone,
             SceneSettled :  Na__NprViewport__SceneSettled,
             Say          :  (text, level) => S.status.Say(text, level),
             Action       :  Na__NprHost__Action,
@@ -391,8 +450,9 @@
     // ------------------------------------------------------------
     // A control goes through the engine's own SetControl (only its inputs are
     // bumped). A settings object is put back through the engine's own
-    // ApplySettingsJson with this window's camera, points and placed assets
-    // kept, and only when it differs from what is drawn.
+    // ApplySettingsJson with this window's camera and placed assets kept, and
+    // only when it differs from what is drawn. It says nothing of the points, so
+    // the engine leaves them as they are, the one being edited still selected.
     function Na__NprViewport__Settings(payload) {
         if (payload.Control && typeof Controls.PainterlyNPR__Interface__SetControl === 'function') {
             Controls.PainterlyNPR__Interface__SetControl(String(payload.Control.Key), Number(payload.Control.Value));
@@ -402,7 +462,9 @@
         const now   =  SettingsJson.PainterlyNPR__Interface__SettingsObject();
         const look  =  Na__NprHost__Look(payload.Settings);
         if (JSON.stringify(look) === JSON.stringify(Na__NprHost__Look(now))) return;
-        SettingsJson.PainterlyNPR__Interface__ApplySettingsJson(JSON.stringify(Object.assign({}, now, look)));
+        const settings  =  Object.assign({}, now, look);
+        delete settings.ArtDirectionPoints;
+        SettingsJson.PainterlyNPR__Interface__ApplySettingsJson(JSON.stringify(settings));
     }
     // ------------------------------------------------------------
 

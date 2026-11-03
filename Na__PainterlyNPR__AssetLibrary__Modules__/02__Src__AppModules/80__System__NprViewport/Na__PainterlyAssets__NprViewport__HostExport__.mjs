@@ -66,8 +66,8 @@
 
     // FUNCTION | Draw a Job's Pictures, One After Another
     // ------------------------------------------------------------
-    // message: { Job, Token, Upload, Items: [{ Id, Label, Which, Format, Quality, Dpi, Camera }] }
-    // hooks:   { Camera(c), SceneSettled(), Say(text, level), Action(name, payload) }
+    // message: { Job, Token, Upload, Items: [{ Id, Label, Which, Format, Quality, Dpi, Camera, Points }] }
+    // hooks:   { Camera(c), Points(set), PointsDone(), SceneSettled(), Say(text, level), Action(name, payload) }
     async function Na__NprExport__Run(message, hooks) {
         const S      =  Na__NprExport__State;
         const items  =  Array.isArray(message.Items) ? message.Items : [];
@@ -94,7 +94,8 @@
             console.error('[Na NPR Export]', error);
         } finally {
             S.job  =  null;
-            hooks.Action('exportDone', { Job: message.Job, Ok: !reason && failed === 0 && !S.cancelled, Cancelled: S.cancelled, Done: done, Failed: failed, Message: reason });
+            if (hooks.PointsDone) hooks.PointsDone();                            // <-- The sheet's own points back, whatever a scene's picture drew with
+            hooks.Action('exportDone',{ Job: message.Job, Ok: !reason && failed === 0 && !S.cancelled, Cancelled: S.cancelled, Done: done, Failed: failed, Message: reason });
         }
         return null;
     }
@@ -125,6 +126,7 @@
     async function Na__NprExport__Item(message, item, hooks) {
         const started  =  performance.now();
         try {
+            if (item.Points && hooks.Points) hooks.Points(item.Points);
             if (item.Camera) hooks.Camera(item.Camera);
             const caught  =  await Na__NprExport__Catch(() => StillRender.PainterlyNPR__Export__Png(String(item.Which)));
             if (!caught) throw new Error(Na__NprExport__EngineReason());

@@ -3,11 +3,137 @@
 The SketchUp side of PainterlyNPR's asset library (`Na__PainterlyNPR\12__Data__AssetLibrary`): a catalogue of every
 asset with its pictures, placing an asset in the model, authoring a selected component as a new asset, and
 PainterlyNPR's own validator in the dialog. Since 0.2.0 also PainterlyNPR's drawing of the model inside SketchUp (the
-NPR Viewport and NPR Parameters windows); since 0.3.0 its look and export settings kept in the model, and NPR Export.
+NPR Viewport and NPR Parameters windows); since 0.3.0 its look and export settings kept in the model, and NPR Export;
+since 0.4.0 the engine's Assets drawer and art direction in the NPR Viewport, everything they do kept in the model.
 Newest entry first.
 
 Module `Na__PainterlyAssets`, files `Na__PainterlyAssets__*`, loader `Na__PainterlyNPR__AssetLibrary__Loader__.rb`,
 menu Extensions > Na PainterlyNPR Assets.
+
+---
+
+## Version 0.4.0 - 03-Nov-2026 - Assets, Materials and Art Control Points in the NPR Viewport
+
+### Asked For
+
+Adam, 03-Nov-2026: *"Add art control points system and a in engine assets / materials system in the SketchUp Plugin"*;
+*"Collapsed by default to keep the SketchUp NPR Viewer clean and lightweight but you can pop each side open and resize the
+menus if needed"*; *"Works the same as the NPR Standalone, drag + drop assets and materials"*; *"Materials toggle for per
+object / per face material assingment"*; *"Assets need to sync with the SketchUp Model, so when a new material is dragged
+and assigned it updates the corresponding SketchUp Model, same with dragging in a asset like a plant etc."*; *"DO NOT
+REINVENT THE WHEEL ... never duplicate code"*; *"Load the system and parameter mapping from the main project do not create
+any new files if possible always call and cache the repo"*.
+
+Asked what three things should mean, he chose: Object paints **the group under the pointer**; **one set of points per
+scene**, his rule in AURA; a dropped asset lands on **the surface under the pointer**.
+
+### What It Does
+
+| Where | What |
+|---|---|
+| NPR Viewport, left | The engine's own Assets drawer: its Objects and Materials tabs, search, categories and filters, cards dragged onto the drawing, the Give to Object / Face toggle, the brush, its right-click menu and the Move Tool (M). Folded to a small tab whenever the window opens |
+| NPR Viewport, right | The engine's own Art direction section: every point type, the point on the sheet with its sliders, the list, groups, copy and paste, Show influence. Folded to a small tab whenever the window opens |
+| Both | Folded, a column takes no room, so the drawing is as large as before. Open, the engine's own drag handle sizes it and the engine remembers the width |
+| The drawing | Still SketchUp's camera: a drag never orbits (the engine's own view lock), and the lock's, camera and work mode keys are kept from it. Ctrl + Z, Ctrl + Y and the right-click menu's Undo and Redo are SketchUp's |
+
+| Done in the viewport | What happens in the SketchUp model (one named undo step a batch) |
+|---|---|
+| A card dropped, or clicked then the sheet clicked | The asset's proxy at the model's root, on the proxy tag `04__AuraRender__NprAssetProxies`, standing on the face under the pointer when it faces upward, else on the ground. The shape the drop grew is kept on the instance |
+| A plop moved, turned, sized, swapped, copied or taken out; Grow a New Shape | That proxy moved, turned, sized, given the other definition, added or erased; the new shape kept on the instance |
+| A swatch on an object, Object | Every face in the innermost group or component under the pointer takes the swatch's `MAT000E__Npr__<Class>`, by the Materials tab's own rules: glass kept, locked left alone, every copy of a component changing, the status line saying how many. Loose geometry: its connected faces |
+| A swatch on an object, Face | The face under the pointer, and any joined to it across a soft or hidden edge |
+| A swatch on a placed plant or pot | Kept on the instance (`Materials`), drawn by the engine. The proxy's faces are never painted: Write SKP would save the paint |
+| A point placed, moved or changed | The model's NPR settings record, in that scene's set. A run of changes is one undo step, as the look's is |
+
+### How It Works, and Why
+
+- **No engine code here, and no change to the engine.** `...HostEditing__.mjs` runs after the engine's own Init in the
+  engine's own page and calls only what it exports: `SetFold`, `SetAssetDrawer`, `ToggleViewLock`, `OnAssetsChanged`,
+  `AssetsChanged`, `PickAt`, `Select`, `Give`, `SettingsObject`, `ApplySettingsJson`, `SceneEdit__Wire({ History })`, and
+  `Ui.Status` as a stand-in. Every control, label, range and parameter mapping is the repo's: a point type or a slider
+  added there shows here at the next Reload Remote Plugin Files. The stylesheet only lays out and hides.
+- **New files, and why:** the points needed none of their own. Two were needed for the model: `...HostEditing__.mjs`
+  (`HostViewport` would have passed 800 lines) and `...ModelEdits__.rb`.
+- **The model is the truth; the engine's draw is the preview.** The drawer's every change reaches `OnAssetsChanged`,
+  whoever made it. The page compares the engine's lists with what the model last held and sends what moved as one batch
+  (Add, Pose, Remove, PlopMaterials, Paint). The next scene from the model replaces the preview. Each scene says which
+  batches it shows (`EditsThrough`), so one still on its way is never lost from the drawing, and a scene with nothing new
+  in it is not drawn again.
+- **A new plop takes its proxy's persistent id at once.** Its strokes are seeded by its Uid, so the page renames it as soon
+  as Ruby answers: the rebuild then is the one that lasts, and the scene that follows changes nothing.
+- **A material given to the model's geometry is painted, and the assignment dropped.** The engine reads the paint from the
+  GLB (v0.8.19), so the assignment is only a preview until the scene arrives. A paint's ray is the engine's own pick, which
+  starts just short of the surface, or from a menu a point on what it was given to. Rays pass through proxies, edges, and
+  what the GLB builder leaves out.
+- **The cache grew by the asset library's `.webp`** (the drawer's card pictures; AURA's pin already has them). The cache's
+  state now records its patterns, and a window tops up a cache with other patterns once, by itself.
+- **The server, the record and NPR Export:** the server needed nothing. The record's new block is `points` (`sets` by
+  scene persistent id or `working`, `sheet`, the engine's version), carried untouched by an older plugin. NPR Export draws
+  each ticked scene with its own points, and the sheet's own come back after; the current view draws with the sheet's.
+- **A proxy on the proxy tag is drawn even when the tag is hidden:** the tag is hidden scene by scene to keep proxies out of
+  the whitecard pictures, not out of the drawing.
+
+### Measured
+
+- Ruby: 11 changed files compile under SketchUp 2027's Ruby 3.4.9; `su_lint.py` 0 errors, 0 warnings. `node --check` on the
+  five host modules; the fetch script parses; the AppConfig parses. API names checked with `ruby_api_lookup`; in the live
+  model (read only), a `raytest` path ends in its Face: `[Group, Group, Face]`.
+- **The page, in headless Edge with real pointer events:** the plugin's own server on a test port, engine from the working
+  tree, Thrower's real cache, Ruby stood in for by a recording stub. 36 steps of the second run, 0 errors; nothing in the
+  console but the worker that is never served. All of these were checked in that run or the one before it, which stopped
+  at a time limit once it had covered its own steps:
+  - Collapsed: the sheet 1273 px wide in a 1500 px window, two small tabs. Open: the drawer's 28 cards with their pictures,
+    no factory sections, the panel showing Art direction alone. Its width dragged from 300 to 370 px. Folded again: the
+    points' layer hidden, the section closed, the sheet back to 1273 px.
+  - A drag on the sheet left the camera's yaw as it was; L and P never reached the engine; Ctrl + Z asked for SketchUp's undo;
+    the menu reads Undo in SketchUp and Redo in SketchUp.
+  - A Focus point placed on the model: selected, kept under its set with all its values and the sheet. Sets swapped both ways
+    with no save caused.
+  - A card dropped: an Add with its ray, shape and pose. On the answer it took the proxy's Uid and height, and the model's next
+    scene caused no rebuild. Turn sent a Pose 45 degrees on; Remove sent a Remove.
+  - A swatch on Object and on Face: a Paint each, each with its ray. A scene showing that batch dropped the previews.
+  - A failed paint's and a failed proxy's message came up as a warning; the proxy's asked for a Refresh.
+  Looked at: collapsed, both open with a point on the sheet, the Materials tab, all as designed.
+- **Not run by the build:** anything in SketchUp itself. Every Ruby path that changes a model (placing, moving, painting, the
+  record's new block, the per-scene export) was compiled and linted, then left to Adam's test in SketchUp. Nor was NPR
+  Export's per-scene drawing run in the page, or a status line held after a batch (added after those runs, checked by
+  `node --check` only).
+
+### Not Yet
+
+- **Taking a painted material off** from the viewport: the assignment has gone once the paint is in the model, so its Take
+  Off does nothing there. Undo in SketchUp, or paint another.
+- **A move of a proxy inside an open group** follows the coordinate rule but has not been measured.
+- **Reusing a set of points across scenes** is by the engine's Ctrl + C and Ctrl + V, one point at a time.
+- **A point's anchored object** is held by the scene file's Id, which is per PC: on the other PC, after edits there, a point
+  may anchor to another object until it is placed again.
+- **A scene's hidden tags** are still not applied to the drawing.
+
+### Files
+
+- New: `02__Src__AppModules/80__System__NprViewport/Na__PainterlyAssets__NprViewport__HostEditing__.mjs`,
+  `.../Na__PainterlyAssets__NprViewport__ModelEdits__.rb`.
+- Changed: HostViewport, HostExport, LiveSync, Windows, RemoteEngine, RemoteFetch; `85` AssetProxies; `87` Store, Settings;
+  `88` Jobs; `70` Palette, Painter; AppCore Main; the AppConfig (0.4.0, the `.webp` pattern, `live.editSeconds`,
+  `assets.proxyTag`, `assets.landUpwardZ`); the NprViewport stylesheet.
+
+### Testing
+
+- [ ] **Restart SketchUp** (or Reload Plugin Data), then open the NPR Viewport: two small tabs, and the drawing as large as
+      before. On the GitHub cache it downloads once more for the card pictures.
+- [ ] Open each side, drag its edge wider, close it, close and reopen the window: folded, the width kept.
+- [ ] Drag a tree onto a lawn, and a pot onto a raised patio: a proxy in the Outliner on the proxy tag, standing on the
+      surface; one Ctrl + Z takes it out of both.
+- [ ] Move it in SketchUp: the drawing follows. Turn and move it in the drawer: SketchUp follows. Try one nested in a moved,
+      rotated group three deep, and one in a scaled group.
+- [ ] Materials, Object: drop Brick on a wall in a group: that group's faces paint, its glass stays. Face: one face. A loose
+      wall. A component with copies (the status says how many).
+- [ ] A swatch on a placed plant: the drawing changes, the proxy does not; reopen the model and it stays.
+- [ ] Place points with scene A selected, then select scene B: its own set. Back to A: A's. Save, reopen: both there.
+- [ ] Ctrl + Z in the viewport undoes a run of point changes as one.
+- [ ] NPR Export, two ticked scenes: each picture with its own points.
+
+**Status:** TESTED BY ADAM IN SKETCHUP. Adam, 03-Nov-2026, after trying it: *"Works, commit it"*.
 
 ---
 

@@ -28,6 +28,11 @@
 #   AppConfig (nprExport.defaults), every key coerced, unknown keys carried.
 #   A chosen folder is kept relative to the model's folder where it can be (the
 #   model moves between PCs); scenes by their persistent id, the name a hint.
+# - THE ART CONTROL POINTS (v0.4.0; Adam: "One set per scene", his rule in
+#   ValeVision AURA): as the engine's settings object serialises them
+#   (ArtDirectionPoints), so every value of every point type is kept with nothing
+#   changed here. One set a SketchUp scene, by its persistent id, and a working
+#   set for when no scene is selected. A set with no points is not kept.
 # - ONE UNDO STEP A RUN OF CHANGES: a look change after our own look change,
 #   with nothing else done to the model in between, joins that step
 #   (transparent), so a minute at the sliders is one Ctrl+Z, and any other
@@ -76,8 +81,10 @@ module Na__PainterlyAssets
             'lookLoad'      => 'PainterlyNPR Assets: Load NPR Look',
             'export'        => 'PainterlyNPR Assets: NPR Export Settings',
             'exportReset'   => 'PainterlyNPR Assets: Reset NPR Export Settings',
-            'restore'       => 'PainterlyNPR Assets: Restore NPR Settings'
+            'restore'       => 'PainterlyNPR Assets: Restore NPR Settings',
+            'points'        => 'PainterlyNPR Assets: NPR Art Control Points'
         }.freeze unless defined?(NA_OPERATION)
+        NA_WORKING_SET  = 'working'.freeze unless defined?(NA_WORKING_SET)                  # <-- The art control points with no scene selected
         NA_EXPORT_FALLBACK = {
             'views'       => 'current',
             'scenes'      => [],
@@ -155,6 +162,30 @@ module Na__PainterlyAssets
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Which Set of Art Control Points the Model's View Is On: a Scene's Persistent Id, or the Working Set
+        # ------------------------------------------------------------
+        def self.Na__Settings__PointsKey(model)
+            page = model ? model.pages.selected_page : nil
+            page ? page.persistent_id.to_s : NA_WORKING_SET
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | One Set of Art Control Points: { 'Key', 'Name', 'Points', 'Sheet' }
+        # ------------------------------------------------------------
+        # @param key [String, nil] none: the set the model's view is on
+        def self.Na__Settings__Points(model, key = nil)
+            key   = (key || self.Na__Settings__PointsKey(model)).to_s
+            block = self.Na__Settings__Loaded(model)['blocks']['points']
+            block = {} unless block.is_a?(Hash)
+            sets  = block['sets'].is_a?(Hash) ? block['sets'] : {}
+            set   = sets[key].is_a?(Hash) ? sets[key] : {}
+            { 'Key' => key, 'Name' => set['name'].to_s, 'Points' => set['points'].is_a?(Array) ? set['points'] : [], 'Sheet' => block['sheet'] }
+        rescue StandardError => error
+            Na__DebugTools.Na__Debug__Error('The art control points could not be read.', error)
+            { 'Key' => key.to_s, 'Name' => '', 'Points' => [], 'Sheet' => nil }
+        end
+        # ---------------------------------------------------------------
+
         def self.Na__Settings__ExportDefaults
             configured = Na__ConfigLoader.Na__Config__GetOr({}, 'nprExport', 'defaults')
             JSON.parse(JSON.generate(NA_EXPORT_FALLBACK.merge(configured.is_a?(Hash) ? configured.reject { |key, _| key.start_with?('_') } : {})))
@@ -173,6 +204,7 @@ module Na__PainterlyAssets
                 'SavedText' => epoch > 0 ? Time.at(epoch).strftime('%d %b %Y %H:%M') : '',
                 'HasLook'   => loaded['blocks'].key?('look'),
                 'HasExport' => loaded['blocks'].key?('export'),
+                'HasPoints' => loaded['blocks'].key?('points'),
                 'Backup'    => Na__NprSettingsBackup.Na__Backup__Offer(model, loaded),
                 'Model'     => self.na_title(model)
             }
@@ -231,6 +263,35 @@ module Na__PainterlyAssets
             current = self.Na__Settings__NormaliseExport(block.is_a?(Hash) ? block : {})
             return nil if self.na_same?(current, clean)                                    # <-- Unchanged (and the defaults, unchanged, are never written)
             self.na_write(model, loaded, { 'export' => clean }, kind, kind == 'export' ? 'export' : nil)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Keep One Set of Art Control Points in the Model
+        # ------------------------------------------------------------
+        # A run of changes is one undo step, as the look's is. No points: the
+        # set is dropped from the record.
+        # @param key [String] the set the page is showing (the view may have moved on since)
+        # @param points [Array<Hash>] the engine's ArtDirectionPoints
+        # @return [String, nil] why nothing was written, or nil (written, or unchanged)
+        def self.Na__Settings__SavePoints(model, key, points, sheet)
+            return 'There is no model.' unless model
+            key  = key.to_s.empty? ? NA_WORKING_SET : key.to_s
+            list = Array(points).select { |point| point.is_a?(Hash) }
+            return 'Those art control points are too large to keep in the model.' if JSON.generate(list).length > NA_MAX_LOOK
+            loaded  = self.Na__Settings__Reload(model)
+            block   = loaded['blocks']['points'].is_a?(Hash) ? loaded['blocks']['points'] : {}
+            sets    = block['sets'].is_a?(Hash) ? block['sets'].dup : {}
+            current = sets[key].is_a?(Hash) ? sets[key] : {}
+            return nil if self.na_same?(current['points'].is_a?(Array) ? current['points'] : [], list)
+            if list.empty?
+                sets.delete(key)
+            else
+                page = key == NA_WORKING_SET ? nil : model.pages.to_a.find { |candidate| candidate.persistent_id.to_s == key }
+                sets[key] = current.merge('name' => page ? page.name.to_s : current['name'].to_s, 'points' => list)
+            end
+            engine  = Na__RemoteEngine.Na__Remote__Current || {}
+            changed = block.merge('sets' => sets, 'sheet' => sheet.is_a?(Hash) ? sheet : block['sheet'], 'engineVersion' => engine['appVersion'].to_s, 'engineCommit' => engine['commit'].to_s)
+            self.na_write(model, loaded, { 'points' => changed }, 'points', 'points')
         end
         # ---------------------------------------------------------------
 

@@ -3,23 +3,35 @@
    =============================================================================
 
    FILE       : Na__PainterlyAssets__UiFeature__Styles__NprViewport__.css
-   PURPOSE    : PainterlyNPR's own app page as the NPR Viewport: nothing but the
-                drawing, as large as the window allows, with a status line that
-                speaks only while something happens
-   CREATED    : 01-Nov-2026
+   PURPOSE    : PainterlyNPR's own app page as the NPR Viewport: the drawing as
+                large as the window allows, the engine's Assets drawer on its
+                left and its Art direction section on its right, each folded to
+                a small tab until it is wanted, and a status line that speaks
+                only while something happens
+   CREATED    : 01-Nov-2026 (v0.4.0: the menus)
 
    DESCRIPTION:
    - Linked by the plugin's local server into the engine's page (after the
      engine's own stylesheet), for ?na-host=viewport. Only hides and lays out:
      every colour and font is the engine's own token, never a copy of its value.
-   - The engine's panel, graph strip, drawer and status bar stay in the page,
-     hidden: the engine's own controls are what the NPR Parameters move.
+   - Adam, 03-Nov-2026: "Collapsed by default to keep the SketchUp NPR Viewer
+     clean and lightweight but you can pop each side open and resize the menus
+     if needed". Folded, a column takes no room at all, so the sheet is as large
+     as it was with no menus. The drawer, the panel, their fold buttons and their
+     drag handles are the engine's; a width dragged is the engine's variable
+     (--PainterlyNPR_DrawerWidth, --PainterlyNPR_PanelWidth), remembered by it.
+   - The engine's own layout drops the panel under the sheet below 1100 px wide.
+     This window keeps the three columns at any width, so each rule the engine's
+     narrow layout changes is set again here.
+   - The engine's panel shows its Art direction section alone; the others stay in
+     the page, hidden: NPR Parameters is where they are moved from. Its graph
+     strip, meta strip and status bar stay in the page, hidden too.
 
    ============================================================================= */
 
 
 /* #region ----------------------------------------------------------------------
- * LAYOUT | The Drawing Alone
+ * LAYOUT | The Drawing, a Column Each Side
  * ----------------------------------------------------------------------------- */
 
     html.Na__NprHost--Viewport,
@@ -31,31 +43,40 @@
     }
 
     .Na__NprHost--Viewport .PainterlyNPR {
+        --Na__NprHost__LeftColumn          :  0px;
+        --Na__NprHost__RightColumn         :  var(--PainterlyNPR_PanelWidth);
         grid-template-rows                 :  minmax(0, 1fr);
         height                             :  100vh;                         /* <-- The engine's page scrolls below 1100 px wide (its panel drops under the sheet); this window never does */
         overflow                           :  hidden;
     }
 
-    .Na__NprHost--Viewport .PainterlyNPR__Main {
-        grid-template-columns              :  minmax(0, 1fr);
+    .Na__NprHost--Viewport .PainterlyNPR--assetsOpen {
+        --Na__NprHost__LeftColumn          :  var(--PainterlyNPR_DrawerWidth);
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel {
+        --Na__NprHost__RightColumn         :  0px;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Main,
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel .PainterlyNPR__Main,
+    .Na__NprHost--Viewport .PainterlyNPR--assetsOpen .PainterlyNPR__Main,
+    .Na__NprHost--Viewport .PainterlyNPR--assetsOpen.PainterlyNPR--foldPanel .PainterlyNPR__Main {
+        grid-template-columns              :  var(--Na__NprHost__LeftColumn) minmax(0, 1fr) var(--Na__NprHost__RightColumn);
         grid-template-rows                 :  minmax(0, 1fr);
         padding                            :  0;
         gap                                :  0;
     }
 
     .Na__NprHost--Viewport .PainterlyNPR__Graph,
-    .Na__NprHost--Viewport .PainterlyNPR__AssetDrawer,
     .Na__NprHost--Viewport .PainterlyNPR__Meta,
-    .Na__NprHost--Viewport .PainterlyNPR__Panel,
     .Na__NprHost--Viewport .PainterlyNPR__StatusBar,
-    .Na__NprHost--Viewport .PainterlyNPR__Resize,
-    .Na__NprHost--Viewport #PainterlyNPR__App__ViewBadge,
-    .Na__NprHost--Viewport #PainterlyNPR__App__PointLayer {
+    .Na__NprHost--Viewport #PainterlyNPR__App__ViewBadge {
         display                            :  none !important;
     }
 
     .Na__NprHost--Viewport .PainterlyNPR__Stage {
-        grid-column                        :  1;
+        grid-column                        :  2;
         grid-row                           :  1;
     }
 
@@ -68,7 +89,11 @@
     .Na__NprHost--Viewport .PainterlyNPR__Sheet {
         width                              :  min(100cqw, calc(var(--PainterlyNPR_SheetAspect, 1.41414) * 100cqh));
         box-shadow                         :  none;
-        cursor                             :  default;
+    }
+
+    :where(.Na__NprHost--Viewport) .PainterlyNPR__Sheet,
+    :where(.Na__NprHost--Viewport) .PainterlyNPR__Sheet:active {
+        cursor                             :  default;                       /* <-- The drawing follows SketchUp, so no grab; the engine's cursors for placing, painting and moving still win */
     }
 
     .Na__NprHost--Viewport .PainterlyNPR__Sheet::after {
@@ -77,6 +102,116 @@
 
     .Na__NprHost--Waiting .PainterlyNPR__Sheet__Canvas {
         visibility                         :  hidden;                        /* <-- The demo cottage never shows: the model is on its way */
+    }
+
+    /* Nothing to edit until the model is here, or in an engine too old to edit it */
+    .Na__NprHost--Waiting .PainterlyNPR__AssetDrawer,
+    .Na__NprHost--Waiting .PainterlyNPR__Panel,
+    .Na__NprHost--Waiting .PainterlyNPR__Resize,
+    .Na__NprHost--Waiting #PainterlyNPR__App__PointLayer,
+    .Na__NprHost--NoMenus .PainterlyNPR__AssetDrawer,
+    .Na__NprHost--NoMenus .PainterlyNPR__Panel,
+    .Na__NprHost--NoMenus .PainterlyNPR__Resize,
+    .Na__NprHost--NoMenus #PainterlyNPR__App__PointLayer {
+        display                            :  none !important;
+    }
+
+/* #endregion ------------------------------------------------------------------- */
+
+
+/* #region ----------------------------------------------------------------------
+ * MENUS | The Tabs, the Columns, the Handles
+ * ----------------------------------------------------------------------------- */
+
+    /* A small tab at the window's edge, over the desk: the way back */
+    .Na__NprHost--Viewport .PainterlyNPR__AssetDrawer__Tab,
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel .PainterlyNPR__Unfold--panel {
+        position                           :  fixed;
+        top                                :  50%;
+        z-index                            :  15;
+        flex                               :  none;
+        width                              :  24px;
+        min-height                         :  104px;
+        padding                            :  12px 0;
+        border                             :  1px solid var(--PainterlyNPR_Rule);
+        background                         :  var(--PainterlyNPR_Cream);
+        color                              :  var(--PainterlyNPR_InkSoft);
+        writing-mode                       :  vertical-rl;
+        text-orientation                   :  mixed;
+        opacity                            :  0.78;
+        transform                          :  translateY(-50%);
+        transition                         :  opacity var(--PainterlyNPR_Transition);
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__AssetDrawer__Tab:hover,
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel .PainterlyNPR__Unfold--panel:hover {
+        background                         :  var(--PainterlyNPR_Cream);
+        color                              :  var(--PainterlyNPR_Ink);
+        opacity                            :  1;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__AssetDrawer__Tab {
+        left                               :  0;
+        border-left                        :  0;
+        border-radius                      :  0 var(--PainterlyNPR_Radius) var(--PainterlyNPR_Radius) 0;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel .PainterlyNPR__Unfold--panel {
+        right                              :  0;
+        border-right                       :  0;
+        border-radius                      :  var(--PainterlyNPR_Radius) 0 0 var(--PainterlyNPR_Radius);
+    }
+
+    /* The drawer, left: the engine's, its full height */
+    .Na__NprHost--Viewport .PainterlyNPR__AssetDrawer {
+        grid-column                        :  1;
+        grid-row                           :  1;
+        margin                             :  0;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR--assetsOpen .PainterlyNPR__AssetDrawer__Body {
+        max-height                         :  none;
+        border-width                       :  0 1px 0 0;
+        border-radius                      :  0;
+    }
+
+    /* The panel, right: the engine's, its Art direction section alone */
+    .Na__NprHost--Viewport .PainterlyNPR__Panel,
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel .PainterlyNPR__Panel {
+        grid-column                        :  3;
+        grid-row                           :  1;
+        margin                             :  0;
+        border-width                       :  0 0 0 1px;
+        border-radius                      :  0;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR--foldPanel .PainterlyNPR__Panel {
+        border                             :  0;
+        background                         :  transparent;
+        overflow                           :  visible;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Section[data-panel]:not([data-panel="ArtDirection"]),
+    .Na__NprHost--Viewport .PainterlyNPR__Section[data-panel="ArtDirection"] > summary {
+        display                            :  none;                          /* <-- Its head would fold it, and the points with it: the panel's own fold does that */
+    }
+
+    /* The engine's drag handles, on the columns' edges at any width */
+    .Na__NprHost--Viewport .PainterlyNPR--assetsOpen .PainterlyNPR__Resize--drawer,
+    .Na__NprHost--Viewport .PainterlyNPR:not(.PainterlyNPR--foldPanel) .PainterlyNPR__Resize--panel {
+        display                            :  block;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Resize {
+        bottom                             :  0;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Resize--drawer {
+        left                               :  -6px;
+    }
+
+    .Na__NprHost--Viewport .PainterlyNPR__Resize--panel {
+        right                              :  -6px;
     }
 
 /* #endregion ------------------------------------------------------------------- */
@@ -88,7 +223,7 @@
 
     .Na__NprHost__Status {
         position                           :  fixed;
-        left                               :  10px;
+        left                               :  50%;
         bottom                             :  10px;
         z-index                            :  20;
         max-width                          :  calc(100% - 20px);
@@ -100,6 +235,7 @@
         font-size                          :  var(--PainterlyNPR_FontSizeSmall);
         line-height                        :  1.4;
         pointer-events                     :  none;
+        transform                          :  translateX(-50%);              /* <-- Over the drawing, clear of both menus */
     }
 
     .Na__NprHost__Status[data-level="warn"] {
@@ -118,7 +254,7 @@
     .Na__NprHost__Paused {
         position                           :  fixed;
         top                                :  10px;
-        left                               :  10px;
+        left                               :  50%;
         z-index                            :  20;
         width                              :  24px;
         height                             :  24px;
@@ -126,6 +262,7 @@
         background                         :  url('/host/01__AppAssets__PainterlyAssets/Na__PainterlyAssets__Toolbar__NprLiveOff__.svg') center / 14px no-repeat, rgba(250, 247, 240, 0.86);
         box-shadow                         :  0 0 0 1px var(--PainterlyNPR_Rule);
         opacity                            :  0.85;
+        transform                          :  translateX(-50%);
     }
 
 /* #endregion ------------------------------------------------------------------- */

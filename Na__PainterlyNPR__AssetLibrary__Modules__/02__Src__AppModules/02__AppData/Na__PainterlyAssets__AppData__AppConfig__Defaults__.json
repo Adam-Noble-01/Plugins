@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na PainterlyNPR Assets",
-        "version" : "0.3.1"
+        "version" : "0.4.0"
     },
 
     "dialog" : {
@@ -66,7 +66,7 @@
         "_comment" : "The NPR Viewport and NPR Parameters windows: PainterlyNPR's own app page, from its GitHub repo, cached on this PC (93__RemoteCache__CoreEngine) and served by the plugin's local server; the model's GLBs cached per project (92__UserProjects__ProjectCache), only what changed re-exported. Nothing of the engine is in this plugin (Adam, 01-Nov-2026).",
 
         "remoteEngine" : {
-            "_comment"       : "Where PainterlyNPR comes from. git downloads it with this PC's own GitHub credentials (Git Credential Manager), a shallow, sparse clone of the branch's latest commit: only the files the engine reads when it runs (ValeVision AURA's pin selection: the modules, the asset library's and material recipes' .json and .webp, the stylesheets) plus the app page and its icons. It downloads when the cache is missing and on Reload Remote Plugin Files. git: a full path to git.exe when it is not on PATH. timeoutSeconds stops a download that hangs.",
+            "_comment"       : "Where PainterlyNPR comes from. git downloads it with this PC's own GitHub credentials (Git Credential Manager), a shallow, sparse clone of the branch's latest commit: only the files the engine reads when it runs (ValeVision AURA's pin selection: the modules, the asset library's and material recipes' .json and .webp, the stylesheets) plus the app page and its icons. It downloads when the cache is missing, when these patterns no longer match the ones the cache was downloaded with (a window tops it up once, by itself), and on Reload Remote Plugin Files. git: a full path to git.exe when it is not on PATH. timeoutSeconds stops a download that hangs.",
             "url"            : "https://github.com/Adam-Noble-01/Na__PainterlyNPR.git",
             "branch"         : "main",
             "git"            : "",
@@ -78,7 +78,8 @@
                 "/03__Style__AppStylesheets/",
                 "/07__Data__MaterialRecipes/**/*.json",
                 "/07__Data__MaterialRecipes/**/*.webp",
-                "/12__Data__AssetLibrary/**/*.json"
+                "/12__Data__AssetLibrary/**/*.json",
+                "/12__Data__AssetLibrary/**/*.webp"
             ]
         },
 
@@ -107,8 +108,9 @@
         },
 
         "live" : {
-            "_comment"      : "Live NPR updates (on when the NPR Viewport opens: the viewport's user config, live.onWhenOpened). idleSeconds: how long the model must be still after a change before its stale GLBs are exported (the export runs on SketchUp's own thread). cameraSeconds: the most often SketchUp's camera is sent while it moves.",
+            "_comment"      : "Live NPR updates (on when the NPR Viewport opens: the viewport's user config, live.onWhenOpened). idleSeconds: how long the model must be still after a change before its stale GLBs are exported (the export runs on SketchUp's own thread). editSeconds: the same after a change the viewport's own menus made (nobody is mid-gesture in SketchUp). cameraSeconds: the most often SketchUp's camera is sent while it moves.",
             "idleSeconds"   : 1.0,
+            "editSeconds"   : 0.25,
             "cameraSeconds" : 0.08
         },
 
@@ -121,8 +123,10 @@
         },
 
         "assets" : {
-            "_comment"       : "includeProxies: the PainterlyNPR library assets placed in the model (this plugin's proxies) are drawn as the engine draws them (its generators, from the asset's record in the cached library), at SketchUp's position, turn and scale.",
-            "includeProxies" : true
+            "_comment"       : "includeProxies: the PainterlyNPR library assets placed in the model (this plugin's proxies) are drawn as the engine draws them (its generators, from the asset's record in the cached library), at SketchUp's position, turn and scale. proxyTag: the tag an asset dropped on the NPR Viewport is placed on (Sync Aura's proxy tag: in the GLB builder's skip range, so its mesh never reaches a GLB). landUpwardZ: how nearly upward a face must look (the z of its normal) for a dropped asset to stand on it; below that it goes to the engine's ground point.",
+            "includeProxies" : true,
+            "proxyTag"       : "04__AuraRender__NprAssetProxies",
+            "landUpwardZ"    : 0.7
         },
 
         "sceneImport" : {

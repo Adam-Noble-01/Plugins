@@ -92,6 +92,19 @@ module Na__PainterlyAssets
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | One Swatch by Its Engine Class (Brick): what the NPR Viewport's drawer gives (v0.4.0)
+        # ------------------------------------------------------------
+        def self.Na__Palette__FindClass(class_key)
+            self.Na__Palette__Build unless @na_last && @na_last['ok']
+            return nil unless @na_last && @na_last['ok']
+            @na_last['groups'].each do |group|
+                swatch = group['swatches'].find { |candidate| candidate['classKey'] == class_key.to_s }
+                return swatch if swatch
+            end
+            nil
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Is the Model's Material Already This Swatch?
         # ------------------------------------------------------------
         # True when its colour, opacity and class stamp match, so arming the

@@ -5,20 +5,23 @@
 # FILE       : Na__PainterlyAssets__NprViewport__Windows__.rb
 # NAMESPACE  : Na__PainterlyAssets::Na__NprWindows
 # PURPOSE    : The two NPR windows: NPR Viewport (PainterlyNPR's drawing of the
-#              model, nothing else) and NPR Parameters (the engine's own panel,
-#              every parameter it has). Both are PainterlyNPR's own app page,
-#              served by the local server with this plugin's host added.
+#              model, with its Assets drawer and art direction folded away each
+#              side) and NPR Parameters (the engine's own panel, every parameter
+#              it has). Both are PainterlyNPR's own app page, served by the
+#              local server with this plugin's host added.
 #              JS -> Ruby:
 #                na_npr_window_ready(json)          - the engine booted, the host is listening
 #                na_npr_window_action(action, json) - toggleLive | refresh | reloadRemote |
 #                                                     parameters | openViewport | openParameters |
 #                                                     openExport | restoreBackup | status |
-#                                                     exportItem | exportDone (the viewport, for NPR Export)
+#                                                     exportItem | exportDone (the viewport, for NPR Export) |
+#                                                     modelEdits | points | undo | redo (the viewport's menus)
 #                na_npr_waiting_ready()             - the waiting page can be told what is happening
 #              Ruby -> JS:
 #                window.Na__NprHost__Receive(kind, payload)   kinds: scene | camera | settings | live |
-#                                                              status | record | export | exportCancel
-# CREATED    : 01-Nov-2026 (v0.3.0: the model's NPR settings record, NPR Export)
+#                                                              status | record | export | exportCancel |
+#                                                              edited | points
+# CREATED    : 01-Nov-2026 (v0.3.0: the model's NPR settings record, NPR Export; v0.4.0: the viewport's menus)
 #
 # DESCRIPTION:
 # - A WINDOW OPENS AT ONCE on a small waiting page of this plugin's (set_file),
@@ -153,11 +156,11 @@ module Na__PainterlyAssets
         def self.na_prepare(role, tries)
             return unless self.Na__Windows__Visible?(role)
             engine = Na__RemoteEngine.Na__Remote__Current
-            if engine.nil?
+            if engine.nil? || (tries.zero? && Na__RemoteEngine.Na__Remote__Outdated?)              # <-- This version of the plugin wants more of the repo than the cache holds
                 return self.na_say(role, 'PainterlyNPR could not be downloaded into the cache. Use Reload Remote Plugin Files to try again.', 'error') if tries > 0
                 self.na_say(role, 'Downloading PainterlyNPR from GitHub (the first time only)...', 'busy')
-                Na__RemoteEngine.Na__Remote__Fetch do |result|
-                    if result['ok']
+                Na__RemoteEngine.Na__Remote__Fetch(force: !engine.nil?) do |result|
+                    if result['ok'] || engine                                                      # <-- A cache that could not be topped up still runs
                         Na__PainterlyAssets::Na__NprWindows.na_prepare(role, tries + 1)
                     else
                         Na__PainterlyAssets::Na__NprWindows.na_say(role, "PainterlyNPR could not be downloaded: #{result['message']}", 'error')
@@ -261,6 +264,10 @@ module Na__PainterlyAssets
             when 'restoreBackup'   then self.na_restore(role)
             when 'exportItem'      then Na__NprExport.Na__Export__ItemDone(payload)
             when 'exportDone'      then Na__NprExport.Na__Export__JobDone(payload)
+            when 'modelEdits'      then Na__ModelEdits.Na__Edits__Apply(payload)
+            when 'points'          then Na__LiveSync.Na__Live__PointsChanged(payload)
+            when 'undo'            then self.na_defer { Sketchup.undo }
+            when 'redo'            then self.na_defer { Sketchup.redo }
             when 'status'          then self.Na__Windows__Send(role == 'viewport' ? 'parameters' : 'viewport', 'status', payload)
             else
                 Na__DebugTools.Na__Debug__Warn("The NPR #{role} window asked for an unknown action: #{action}")

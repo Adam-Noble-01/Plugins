@@ -18,7 +18,7 @@
 #   7. Validate  - Runner
 #   8. Materials - Palette (the SSOT's NPR swatches), Painter
 #   9. ProjectCache - Store, SceneFile, Fingerprint, GlbBridge, AssetProxies, Sync (the model's local GLB cache)
-#  10. NprViewport  - UserConfig, RemoteEngine, LocalServer, CameraSync, LiveSync, Windows (the two NPR windows)
+#  10. NprViewport  - UserConfig, RemoteEngine, LocalServer, CameraSync, LiveSync, Windows, ModelEdits (the two NPR windows, and what the viewport's menus do to the model)
 #  11. ModelPersistence - Store, LocalBackup, Settings (the model's NPR settings record: the look, the export settings)
 #  12. NprExport    - Naming, Jobs, Window (pictures of the drawing, at a print resolution)
 #  13. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager (last: they use all of the above)
@@ -153,6 +153,7 @@ require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__L
 require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__CameraSync__'
 require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__LiveSync__'
 require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__Windows__'
+require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__ModelEdits__'
 
 # -----------------------------------------------------------------------------
 # REGION | Model Persistence - the model's NPR settings record (model-persistent styles)
