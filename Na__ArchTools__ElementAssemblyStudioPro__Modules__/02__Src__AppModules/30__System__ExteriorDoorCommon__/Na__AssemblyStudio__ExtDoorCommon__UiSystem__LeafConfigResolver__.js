@@ -204,6 +204,8 @@ const Na__ExtDoorCommon__LeafConfigResolver = (function () {
 
         let field  = null;
         let glazed = null;
+        let lowerGlazed = null;
+        let midRailZ = null;
         if (settings.composition === 'FullyGlazed') {
             glazed = full;
         } else if (settings.composition === 'FullyFielded') {
@@ -214,7 +216,10 @@ const Na__ExtDoorCommon__LeafConfigResolver = (function () {
                 100,
                 Math.max(100, full.heightMm - midRail - 100)
             );
-            field = Object.assign({}, full, { heightMm: fieldHeight });
+            const lowerSection = Object.assign({}, full, { heightMm: fieldHeight });
+            if (settings.composition === 'GlazedOverGlazed') lowerGlazed = lowerSection;
+            else field = lowerSection;
+            midRailZ = full.zMm + fieldHeight;
             glazed = {
                 xMm      : full.xMm,
                 zMm      : full.zMm + fieldHeight + midRail,
@@ -231,6 +236,8 @@ const Na__ExtDoorCommon__LeafConfigResolver = (function () {
             midRailMm     : midRail,
             fieldRegion   : field,
             glazedRegion  : glazed,
+            lowerGlazedRegion : lowerGlazed,                                // <-- V2.3.0 Glazed Over Glazed: the pane under the mid rail
+            midRailZMm    : midRailZ,                                       // <-- Null when the leaf has no mid rail
             fieldCells    : fieldCells,
             fieldDividers : na_field_dividers(field, fieldCells)
         };
@@ -456,7 +463,7 @@ const Na__ExtDoorCommon__LeafConfigResolver = (function () {
                 errors.push('Clear frame height must be positive.');
             }
             resolved.leaves.forEach(function (leaf) {
-                if (!leaf.panelLayout.fieldCells.length && leaf.settings.composition !== 'FullyGlazed') {
+                if (!leaf.panelLayout.fieldCells.length && leaf.panelLayout.fieldRegion) {
                     errors.push(leaf.sideName + ' field layout is too small for the selected settings.');
                 }
             });

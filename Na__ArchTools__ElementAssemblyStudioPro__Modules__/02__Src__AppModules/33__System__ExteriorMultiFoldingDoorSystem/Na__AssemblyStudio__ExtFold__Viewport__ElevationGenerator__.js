@@ -192,7 +192,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
         const paint    = config.paint_cill === true;
         const matId    = paint ? (config.frame_material_id || DEFAULT_FRAME_MATERIAL_ID) : DEFAULT_CILL_MATERIAL_ID;
         const colour   = paint ? na_safe_material_colour(matId) : FILL_CILL_DEFAULT;
-        return { enabled: enabled, heightMm: heightMm, colour: colour };
+        const sg       = window.Na__Viewport__SvgGenerator;
+        const hornMm   = enabled && sg && typeof sg.na_cillHornLengthMm === 'function' ? sg.na_cillHornLengthMm(config) : 0;   // <-- V2.4.0 Zero unless Cill Horns is on
+        return { enabled: enabled, heightMm: heightMm, colour: colour, hornMm: hornMm };
     }
     // ---------------------------------------------------------------
 
@@ -263,8 +265,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // HELPER FUNCTION | Per-Panel Context for Shared Click-Target Keys
     // ------------------------------------------------------------
-    function na_panel_context(panelIndex) {
-        return { openingIndex: 0, cellIndex: 0, panelIndex: panelIndex, sashIndex: 0 };
+    function na_panel_context(panelIndex, cellIndex) {
+        return { openingIndex: 0, cellIndex: cellIndex || 0, panelIndex: panelIndex, sashIndex: 0 };
     }
     // ---------------------------------------------------------------
 
@@ -373,8 +375,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
         if (!sg || typeof sg.na_svgRect !== 'function') return '';
 
         return sg.na_svgRect(
-            0, -layout.cill.heightMm,
-            layout.openingWidth, layout.cill.heightMm,
+            0 - layout.cill.hornMm, -layout.cill.heightMm,
+            layout.openingWidth + 2 * layout.cill.hornMm, layout.cill.heightMm,
             layout.cill.colour, STROKE_BLACK, 1
         );
     }
@@ -456,6 +458,16 @@ const Na__ExtFold__ElevationGenerator = (function () {
                 svg += na_build_panel_glazebars(g.xMm, g.zMm, g.widthMm, g.heightMm, layout, panelIndex, clickBucket);
             }
             svg += na_build_panel_leaded(g.xMm, g.zMm, g.widthMm, g.heightMm, layout, panelIndex, clickBucket);
+
+            if (pl.lowerGlazedRegion) {                                     // <-- V2.3.0 Glazed Over Glazed
+                const lower = pl.lowerGlazedRegion;
+                const pane  = window.Na__GlazebarMath.na_lowerPaneLayout(layout.glazeBars.hBars, g.heightMm, lower.heightMm);
+                svg += sg.na_svgRect(lower.xMm, lower.zMm, lower.widthMm, lower.heightMm, FILL_GLAZING, STROKE_BLACK, 1);
+                if (layout.glazeBars.enabled) {
+                    svg += na_build_panel_glazebars(lower.xMm, lower.zMm, lower.widthMm, lower.heightMm, layout, panelIndex, clickBucket, pane);
+                }
+                svg += na_build_panel_leaded(lower.xMm, lower.zMm, lower.widthMm, lower.heightMm, layout, panelIndex, clickBucket, pane);
+            }
         }
 
         if (panelHeight > 0) {
@@ -472,9 +484,8 @@ const Na__ExtFold__ElevationGenerator = (function () {
             svg += sg.na_svgRect(railX, panelY + panelHeight - headRail, railW, headRail, colour, STROKE_BLACK, 1);
         }
 
-        if (settings.composition === 'GlazedOverFielded' && pl.fieldRegion && midRail > 0) {
-            const midZ = pl.fieldRegion.zMm + pl.fieldRegion.heightMm;
-            svg += sg.na_svgRect(railX, midZ, railW, midRail, colour, STROKE_BLACK, 1);
+        if (pl.midRailZMm !== null && pl.midRailZMm !== undefined && midRail > 0) {
+            svg += sg.na_svgRect(railX, pl.midRailZMm, railW, midRail, colour, STROKE_BLACK, 1);
         }
 
         if (pl.fieldDividers && pl.fieldDividers.length) {
@@ -585,17 +596,17 @@ const Na__ExtFold__ElevationGenerator = (function () {
     // ------------------------------------------------------------
     // Delegates to the shared WindowSystem grille builder so removed-bar
     // state and invisible click targets stay in sync with Window / Double Door.
-    function na_build_panel_glazebars(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket) {
+    function na_build_panel_glazebars(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket, pane) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg || typeof sg.na_generateGlazeBarsSvg !== 'function') return '';
 
         const { hBars, vBars, barW, advanced } = layout.glazeBars;
         const bucket = sg.na_generateGlazeBarsSvg(
             glassX, glassY, glassW, glassH,
-            hBars, vBars, barW, layout.frameColour,
-            na_panel_context(panelIndex),
+            pane ? pane.hBars : hBars, vBars, barW, layout.frameColour,
+            na_panel_context(panelIndex, pane ? pane.cellIndex : 0),
             layout.removedGlazebars || new Set(),
-            advanced
+            pane ? Object.assign({}, advanced, { archEnabled: false, hOffsetMm: 0, hOffsetsMm: [] }) : advanced
         );
         if (clickBucket) {
             clickBucket.clickTargetsSvg += bucket.clickTargetsSvg || '';
@@ -607,20 +618,22 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
     // SUB FUNCTION | Draw Leaded Glass With Per-Cell Click Targets
     // ------------------------------------------------------------
-    function na_build_panel_leaded(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket) {
+    function na_build_panel_leaded(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket, pane) {
         if (!layout.leadedGlass || !layout.leadedGlass.enabled) return '';
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg || typeof sg.na_generateLeadedGlassSvg !== 'function') return '';
 
+        const advanced = layout.glazeBars.advanced;
         const leadedOpts = Object.assign({}, layout.leadedGlass, {
-            disabledCells: layout.disabledLeadedCells || new Set()
+            disabledCells: layout.disabledLeadedCells || new Set(),
+            hBars: pane ? window.Na__GlazebarMath.na_scaleLineCount(layout.leadedGlass.hBars, pane.leadRatio) : layout.leadedGlass.hBars
         });
         return sg.na_generateLeadedGlassSvg(glassX, glassY, glassW, glassH, leadedOpts, {
-            hBars: layout.glazeBars.hBars,
+            hBars: pane ? pane.hBars : layout.glazeBars.hBars,
             vBars: layout.glazeBars.vBars,
             barWidth: layout.glazeBars.barW,
-            advancedGlazebar: layout.glazeBars.advanced,
-            panelContext: na_panel_context(panelIndex),
+            advancedGlazebar: pane ? Object.assign({}, advanced, { archEnabled: false, hOffsetMm: 0, hOffsetsMm: [] }) : advanced,
+            panelContext: na_panel_context(panelIndex, pane ? pane.cellIndex : 0),
             clickBucket: clickBucket
         });
     }

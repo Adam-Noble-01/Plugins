@@ -67,6 +67,93 @@ In SketchUp, after Reload Scripts: on an exterior single door, pick the handle f
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.4.0 - 02-Nov-2026 - Cill Horns on Windows and Exterior Doors
+
+### Context
+Adam, with two photos of brick openings: the cill runs on past the reveal each side in front of the wall and steps back to the reveal width behind it. The window board has had a version of this since V1.9.0; the cill had none.
+
+### Feature Summary
+- **Frame & Cill > More > Cill > Cill Horns**, a switch, off by default, on every window and all four exterior door types. Switched on it opens two sizes:
+  - **Horn Length Past Reveal** (default 40, 5 to 150): how far the cill runs past each side.
+  - **Horn Let Into Wall** (default 0, 0 to 100): zero stops the horns at the wall face. More carries them back into the wall, as they are built in on site.
+- **The cill is a T in plan.** Reveal width from the back of the slab to the wall face, full width with its horns from the wall face to the nose. Let in as far as the back of the slab, it is one plain rectangle at full width.
+- **It is still one solid group called `Na_Cill`** in the same finish, so Paint Cill and everything that looks for the cill behave as before. It stays out of Fuse Parts, as the cill always has.
+- **Previews and DXF draw the wider cill.** Window, single, double, sliding and bifold previews; the window DXF (extents too) and the hinged door DXF. Overall dimensions still read the frame, because the frame has not moved.
+- **Older windows and doors keep plain cills.** An absent switch reads as off, and loading one switches the live dialog off so the last element's horns cannot ride in.
+
+### Known Limits
+- A cill with no Protrusion or a negative one has no timber in front of the wall, so the switch does nothing there until the horns are let in further than the cill is set back.
+- Create at Cursor drops the corner of the bounding box on the click, as it does for the cill's protrusion and the window board's returns. So a horned window lands one horn length to the right of the click. Measure Opening places by the frame's own origin and is not affected.
+- The hinged door plan view has never drawn the cill, and still does not.
+
+### Files Changed
+- `20__System__WindowSystem/...__GeometryBuilders__.rb`: `na_cill_horn_length_mm`, `na_cill_horns`, `na_cill_horn_outline`; `na_create_cill_geometry` takes the horns.
+- `20__System__WindowSystem/...__GeometryHelpers__.rb`: `na_create_horned_cill`.
+- `20__System__WindowSystem/...__GeometryEngine__.rb`, `31__.../...__AssemblyComposer__.rb`, `34__.../...__AssemblyComposer__.rb`, `32__.../...__AssemblyComposer__.rb`, `33__.../...__AssemblyComposer__.rb`: hand the horns to the shared builder.
+- `20__System__WindowSystem/...__DxfExporter__.rb`, `30__System__ExteriorDoorCommon__/...__DxfExporter__.rb`, `...__UiSystem__DxfExporter__.js`: DXF.
+- `20__System__WindowSystem/...__Viewport__SvgGenerator__.js`: `na_cillHornLengthMm`, shared with the door previews and door DXF; window preview.
+- `30__System__ExteriorDoorCommon__/...__Viewport__ElevationGenerator__.js`, `32__.../...__Viewport__ElevationGenerator__.js`, `33__.../...__Viewport__ElevationGenerator__.js`: door previews.
+- `20__System__WindowSystem/...__UiSystem__Config__.js`, `...__UiSystem__LayoutMap__.js`, `...__UiSystem__MainUiLogic__.js`, `...__Defaults__.rb`, `...__DialogCallbacks__.rb`: the controls, their place in Cill, loading older elements, saving on sliding and bifold doors.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__CillHorns__Spec__.js`: new, 61 assertions.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.4.0.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__CillHorns__Spec__.js"
+```
+Expect `61 passed, 0 failed`. The other suites are unchanged.
+
+A stand-in Ruby harness runs the real window engine, all four door builders and both Ruby DXF exporters, with 188 checks: every existing test window builds and exports exactly as V2.3.0, and each horned cill's outline, volume and face winding are checked as a closed solid against hand-worked numbers. It also flips faces drawn at Z = 0 as SketchUp does. Twenty deliberate breaks to the new code were each caught. None of this ran in SketchUp itself.
+
+Then in SketchUp, after Reload Plugin: a window with Frame Wall Inset `100`, Frame & Cill > More > Cill Horns on. Check the preview and the model: horns 40 past each reveal in front of the wall, cut back to the frame width through the reveal, and the cill group reads as a solid in Entity Info. Then the same on a double door.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.3.0 - 02-Nov-2026 - Exterior Doors: Glazed Over Glazed Leaves
+
+### Context
+Adam, with a photo of a porch door: a pair of leaded leaves, each a tall pane over a shorter pane with a mid rail between. The leaf compositions could only put fielded panels under the mid rail.
+
+### Feature Summary
+- **Leaf Composition > Glazed Over Glazed**, on single, double, sliding and bifold doors, and on a double door's per leaf overrides.
+- **Separating Midrail Width** and **Lower Section Height** set out the two panes, as they do for Glazed Over Fielded. Fielded Section Height is renamed Lower Section Height because it now serves both.
+- **Lead and glaze bars run in both panes.**
+  - Vertical counts are the same in each, so the verticals line up through the mid rail.
+  - Horizontal counts are set for the top pane. The lower pane gets its share by height, so its quarries stay about the same size: nine lines in a 985 top pane give five in a 600 lower pane.
+  - Lead Line Margins apply pane by pane.
+  - Horizontal bar nudges and Gothic arches stay with the top pane.
+- **Click off in the preview works per pane.** The lower pane's glaze bars and lead cells have their own keys, using cell 1 (`0:1:leaf:0:...`); the top pane stays cell 0, so existing doors keep theirs.
+- **Fuse Parts** fuses and trims the lower pane on its own, under its own part names (`...__LowerGlass`, `...__LowerGlazeBarV1`, `Na_Glass_Lower_<panel>`), so its bars cut its own glass. The mid rail fuses with the leaf joinery.
+- **Hinged door DXF** draws the mid rail, both panes and their bars.
+
+### Known Limits
+- The sliding and bifold door DXF does not draw any leaf composition, as before.
+- Clicking off single lead lines (V2.2.1) stays windows only. On a door, lead switches off per glazing cell.
+
+### Files Changed
+- `30__System__ExteriorDoorCommon__/...__PanelLayoutResolver__.rb`: the composition, `:mid_rail_z_mm`, `:lower_pane` (a view of the layout the same builders read).
+- `31__System__ExteriorSingleDoorSystem/...__AssemblyComposer__.rb`, `34__System__ExteriorDoubleDoorSystem/...__AssemblyComposer__.rb`, `32__System__ExteriorSlidingDoorSystem/...__AssemblyComposer__.rb`, `33__System__ExteriorMultiFoldingDoorSystem/...__AssemblyComposer__.rb`: build the second pane.
+- `30__System__ExteriorDoorCommon__/...__FuseParts__Panel__.rb`, `32__.../...__FuseParts__Panel__.rb`, `33__.../...__FuseParts__Panel__.rb`: the lower pane's fuse and trim.
+- `30__System__ExteriorDoorCommon__/...__DxfExporter__.rb`, `...__UiSystem__DxfExporter__.js`: hinged door DXF.
+- `20__System__WindowSystem/...__Viewport__GlazebarMath__.js`: `na_scaleLineCount`, `na_lowerPaneLayout`.
+- `30__System__ExteriorDoorCommon__/...__UiSystem__LeafConfigResolver__.js`, `33__.../...__UiSystem__PanelConfigResolver__.js`: `lowerGlazedRegion`, `midRailZMm`.
+- `30__System__ExteriorDoorCommon__/...__Viewport__ElevationGenerator__.js`, `32__.../...__Viewport__ElevationGenerator__.js`, `33__.../...__Viewport__ElevationGenerator__.js`: the previews.
+- `20__System__WindowSystem/...__UiSystem__MainUiLogic__.js`, `...__UiSystem__LayoutMap__.js`, the four door `...__UiSystem__Config__.js` files: the option, the label, visibility, removal keys, search.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__GlazedOverGlazed__Spec__.js`: new, 39 assertions.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.3.0.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__GlazedOverGlazed__Spec__.js"
+```
+Expect `39 passed, 0 failed`. The other suites are unchanged.
+
+A stand-in Ruby harness runs the real layout resolver and the real glazing and member builders of all four door types, with 69 checks against a hand-worked 900 x 2000 leaf. Glazed Over Fielded builds exactly as V2.2.3 did, and Fully Glazed hinged doors too. Fuse Parts ran against a stand-in for SketchUp's solid tools, which proves the names and pairings, not the solids.
+
+Then in SketchUp, after Reload Plugin: Double door, Leaf Composition Glazed Over Glazed, Lower Section Height `620`, Separating Midrail Width `70`, Leaded Glass on with `12` x `5`. Check the preview and the model both show two panes per leaf with the verticals in line, then Fuse Parts on and off.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.2.3 - 02-Nov-2026 - Leaded Glass: Up to 12 Lead Lines Each Way
 
 ### Context

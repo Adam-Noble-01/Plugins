@@ -123,8 +123,8 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
 
     // HELPER FUNCTION | Glazebar Removal Key Matching Elevation Preview
     // ------------------------------------------------------------
-    function na_glazebar_key(leaf, orientation, barIndex) {
-        return '0:0:' + (leaf.index - 1) + ':0:' + orientation + ':' + barIndex;
+    function na_glazebar_key(leaf, orientation, barIndex, cellIndex) {
+        return '0:' + (cellIndex || 0) + ':' + (leaf.index - 1) + ':0:' + orientation + ':' + barIndex;
     }
     // ---------------------------------------------------------------
 
@@ -194,7 +194,9 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
         );
         if (config.has_cill !== false && dimensions.frameBottomMm > 0) {
             const cillHeight = Math.max(0, Number(config.cill_height_mm || 50));
-            dxf += na_rect('NA_CILL', 0, -cillHeight + lift, dimensions.widthMm, cillHeight);
+            const svgGen = window.Na__Viewport__SvgGenerator;
+            const horn = svgGen && typeof svgGen.na_cillHornLengthMm === 'function' ? svgGen.na_cillHornLengthMm(config) : 0;   // <-- V2.4.0 Zero unless Cill Horns is on
+            dxf += na_rect('NA_CILL', 0 - horn, -cillHeight + lift, dimensions.widthMm + 2 * horn, cillHeight);
         }
         return dxf;
     }
@@ -231,7 +233,8 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
 
         // HELPER FUNCTION | Append Glaze Bar Lines for One Leaf Glazed Region
         // ------------------------------------------------------------
-        function na_add_leaf_glazebars(config, leaf, glass, lift) {
+        function na_add_leaf_glazebars(config, leaf, glass, lift, pane) {
+            const cellIndex = pane ? pane.cellIndex : 0;                    // <-- V2.3.0 Lower pane of a Glazed Over Glazed leaf
             let dxf = '';
             const verticalPositions = na_apply_offsets(
                 na_bar_positions(
@@ -242,10 +245,10 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
             );
             const horizontalPositions = na_apply_offsets(
                 na_bar_positions(
-                    glass.zMm, glass.heightMm, leaf.settings.horizontalBars,
+                    glass.zMm, glass.heightMm, pane ? pane.hBars : leaf.settings.horizontalBars,
                     leaf.settings.marginEnabled, leaf.settings.marginOffsetMm
                 ),
-                leaf.settings.horizontalOffsetsMm
+                pane ? [] : leaf.settings.horizontalOffsetsMm
             );
             const removedSource = Array.isArray(config[na_key('removed_glazebars')])
                 ? config[na_key('removed_glazebars')]
@@ -255,7 +258,7 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
                 : []);
 
             verticalPositions.forEach(function (vx, index) {
-                if (removedBars.has(na_glazebar_key(leaf, 'vertical', index + 1))) return;
+                if (removedBars.has(na_glazebar_key(leaf, 'vertical', index + 1, cellIndex))) return;
                 dxf += na_line(
                     'NA_GLAZEBAR',
                     vx,
@@ -265,8 +268,8 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
                 );
             });
             horizontalPositions.forEach(function (position, index) {
-                if (removedBars.has(na_glazebar_key(leaf, 'horizontal', index + 1))) return;
-                const hz = position + leaf.settings.horizontalOffsetMm;
+                if (removedBars.has(na_glazebar_key(leaf, 'horizontal', index + 1, cellIndex))) return;
+                const hz = position + (pane ? 0 : leaf.settings.horizontalOffsetMm);
                 dxf += na_line(
                     'NA_GLAZEBAR',
                     glass.xMm,
@@ -313,12 +316,12 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
                 layout.topRailMm
             );
 
-            if (layout.fieldRegion && layout.glazedRegion) {
+            if (layout.midRailZMm !== null && layout.glazedRegion) {
                 dxf += na_rect(
                     'NA_RAIL_STILE',
-                    layout.fieldRegion.xMm,
-                    layout.fieldRegion.zMm + layout.fieldRegion.heightMm + lift,
-                    layout.fieldRegion.widthMm,
+                    layout.glazedRegion.xMm,
+                    layout.midRailZMm + lift,
+                    layout.glazedRegion.widthMm,
                     layout.midRailMm
                 );
             }
@@ -339,6 +342,13 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
                 const glass = layout.glazedRegion;
                 dxf += na_rect('NA_GLASS', glass.xMm, glass.zMm + lift, glass.widthMm, glass.heightMm);
                 dxf += na_add_leaf_glazebars(config, leaf, glass, lift);
+            }
+            if (layout.lowerGlazedRegion && layout.glazedRegion) {          // <-- V2.3.0 Glazed Over Glazed
+                const lower = layout.lowerGlazedRegion;
+                dxf += na_rect('NA_GLASS', lower.xMm, lower.zMm + lift, lower.widthMm, lower.heightMm);
+                dxf += na_add_leaf_glazebars(config, leaf, lower, lift, window.Na__GlazebarMath.na_lowerPaneLayout(
+                    leaf.settings.horizontalBars, layout.glazedRegion.heightMm, lower.heightMm
+                ));
             }
 
             if (!na_fixed_panels(config) && spec.na_draw_handle_for_leaf(config, leaf)) {

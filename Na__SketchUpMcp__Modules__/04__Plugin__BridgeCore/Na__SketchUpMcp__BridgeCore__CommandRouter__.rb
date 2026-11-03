@@ -6,7 +6,7 @@
 # NAMESPACE  : Na__SketchUpMcp::Na__CommandRouter
 # PURPOSE    : Route each request to its handler with the safety rules applied:
 #              read-only gate, API availability, one undo step per call,
-#              abort on failure, atomic batches
+#              abort on failure, atomic batches, zero-trace trial batches
 # CREATED    : 2026
 #
 # CONFIG-FIRST DESIGN NOTE:
@@ -236,21 +236,51 @@ module Na__SketchUpMcp
             steps = Na__Params.Na__Params__Array(params, 'steps', nil, required: true, min_items: 1, max_items: 200)
             atomic = Na__Params.Na__Params__Boolean(params, 'atomic', true)
             stop_on_error = Na__Params.Na__Params__Boolean(params, 'stop_on_error', true)
+            rollback = Na__Params.Na__Params__Boolean(params, 'rollback', false)
+            if rollback && !atomic
+                raise Na__McpError.new('invalid_params', 'rollback needs an atomic batch: a trial undoes every step, so there is nothing for atomic:false to keep.',
+                                       'Leave atomic at its default (true) when you pass rollback:true.')
+            end
             tools = steps.each_with_index.map { |step, index| na_batch_tool(step, index, atomic) }
             mutating = tools.any? { |tool| tool['mutates'] == true }
             operation_name = "MCP: #{Na__Params.Na__Params__String(params, 'operation_name', "Batch (#{steps.length} steps)")}"
 
             na_check_safety({ 'name' => 'batch_execute', 'mutates' => mutating })
             results = []
-            runner = -> { na_run_batch_steps(steps, tools, results, ctx, atomic, stop_on_error) }
-            mutating ? self.Na__CommandRouter__WithOperation(ctx, operation_name, &runner) : runner.call
+            runner = -> { na_run_batch_steps(steps, tools, results, ctx, atomic, stop_on_error, rollback) }
+            if rollback
+                na_with_rollback(ctx, "#{operation_name} (trial)", &runner)
+            elsif mutating
+                self.Na__CommandRouter__WithOperation(ctx, operation_name, &runner)
+            else
+                runner.call
+            end
 
-            {
+            outcome = {
                 'steps'     => results,
                 'completed' => results.count { |entry| entry['ok'] },
                 'failed'    => results.count { |entry| !entry['ok'] },
                 'atomic'    => atomic
             }
+            return outcome unless rollback
+
+            # A trial reads as one in the activity log, not as a failure (it used to end on a step that always failed).
+            outcome.merge('rolled_back' => true,
+                          'summary' => "Trial: #{results.length} step(s) ran, then every step was undone; the model is unchanged.")
+        end
+
+        # A zero-trace trial: the steps run inside one operation that is always aborted, so the model is left
+        # exactly as it was and no undo step is added. Camera moves and scene activation are not undone by SketchUp.
+        def self.na_with_rollback(ctx, operation_name)
+            model = ctx[:model]
+            model.start_operation(operation_name, true)
+            ctx[:in_operation] = true
+            begin
+                yield
+            ensure
+                model.abort_operation
+                ctx[:in_operation] = false
+            end
         end
 
         def self.na_batch_tool(step, index, atomic)
@@ -266,7 +296,7 @@ module Na__SketchUpMcp
             na_tool_definition(name)
         end
 
-        def self.na_run_batch_steps(steps, tools, results, ctx, atomic, stop_on_error)
+        def self.na_run_batch_steps(steps, tools, results, ctx, atomic, stop_on_error, rollback = false)
             steps.each_with_index do |step, index|
                 started = na_clock
                 begin
@@ -284,8 +314,10 @@ module Na__SketchUpMcp
                     failure = error.is_a?(Na__McpError) ? error.na_to_hash : { 'code' => 'sketchup_error', 'message' => "#{error.class}: #{error.message}" }
                     results << { 'step' => index, 'tool' => tools[index]['name'], 'ok' => false, 'error' => failure }
                     if atomic
+                        label = rollback ? 'Trial step' : 'Batch step'
+                        undone = rollback ? 'Nothing was changed (trial).' : 'Every step was undone (atomic batch).'
                         raise Na__McpError.new('operation_failed',
-                                               "Batch step #{index} (#{tools[index]['name']}) failed: #{failure['message']} Every step was undone (atomic batch).",
+                                               "#{label} #{index} (#{tools[index]['name']}) failed: #{failure['message']} #{undone}",
                                                failure['hint'] || 'Fix that step and send the batch again, or pass atomic:false to keep the steps that succeed.',
                                                { 'steps' => results })
                     end

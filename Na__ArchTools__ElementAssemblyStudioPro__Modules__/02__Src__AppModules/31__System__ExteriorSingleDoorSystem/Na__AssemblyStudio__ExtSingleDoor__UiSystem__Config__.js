@@ -37,6 +37,7 @@
     var na_compositions = [
         { value: 'FullyGlazed', label: 'Fully Glazed' },
         { value: 'GlazedOverFielded', label: 'Glazed Over Fielded' },
+        { value: 'GlazedOverGlazed', label: 'Glazed Over Glazed' },
         { value: 'FullyFielded', label: 'Fully Fielded' }
     ];
     var na_presets = [
@@ -84,7 +85,7 @@
         na_select('single_door_panel_preset', 'Panel Layout', 'OnePanel', na_presets, 'Fielded Panels'),
         Object.assign(na_slider('single_door_panel_columns', 'Custom Columns', 1, 6, 1, 1, 'Fielded Panels'), { unit: '' }),
         Object.assign(na_slider('single_door_panel_rows', 'Custom Rows', 1, 6, 1, 1, 'Fielded Panels'), { unit: '' }),
-        na_slider('single_door_fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 300, 'Fielded Panels'),
+        na_slider('single_door_fielded_section_height_mm', 'Lower Section Height', 100, 1800, 5, 300, 'Fielded Panels'),
         na_slider('single_door_panel_inset_mm', 'Panel Inset', 5, 100, 1, 25, 'Fielded Panels'),
         na_slider('single_door_panel_depth_mm', 'Panel Depth', 1, 30, 1, 12, 'Fielded Panels'),
         na_slider('single_door_panel_bevel_width_mm', 'Panel Bevel Width', 2, 60, 1, 18, 'Fielded Panels'),

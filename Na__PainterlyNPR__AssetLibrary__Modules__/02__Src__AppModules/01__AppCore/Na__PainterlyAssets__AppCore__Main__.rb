@@ -19,7 +19,9 @@
 #   8. Materials - Palette (the SSOT's NPR swatches), Painter
 #   9. ProjectCache - Store, SceneFile, Fingerprint, GlbBridge, AssetProxies, Sync (the model's local GLB cache)
 #  10. NprViewport  - UserConfig, RemoteEngine, LocalServer, CameraSync, LiveSync, Windows (the two NPR windows)
-#  11. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager (last: they use all of the above)
+#  11. ModelPersistence - Store, LocalBackup, Settings (the model's NPR settings record: the look, the export settings)
+#  12. NprExport    - Naming, Jobs, Window (pictures of the drawing, at a print resolution)
+#  13. AppCore   - StatePayload, ActionRouter, PluginReloader, DialogManager (last: they use all of the above)
 #
 # THE ENGINE IS NOT IN THIS PLUGIN:
 #   The NPR Viewport and NPR Parameters windows run PainterlyNPR's own app page
@@ -28,6 +30,13 @@
 #   local server. The plugin only hosts them (Adam, 01-Nov-2026: "This SketchUp
 #   plugin is effectively just a wrapper that calls all of that code from that
 #   repo").
+#
+# MODEL-PERSISTENT STYLES (v0.3.0):
+#   The NPR look (every parameter of NPR Parameters) and NPR Export's settings
+#   are kept in the model, in one dictionary of this plugin's
+#   (Na__PainterlyAssets__NprSettings), the Point Cloud Viewer's way: a
+#   versioned record, a newer one never rewritten, a backup on this PC with
+#   Restore, nothing read or written as a model opens.
 #
 # THE LIBRARY BELONGS TO PAINTERLYNPR:
 #   12__Data__AssetLibrary and its register live in the Na__PainterlyNPR repo.
@@ -146,6 +155,20 @@ require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__L
 require_relative '../80__System__NprViewport/Na__PainterlyAssets__NprViewport__Windows__'
 
 # -----------------------------------------------------------------------------
+# REGION | Model Persistence - the model's NPR settings record (model-persistent styles)
+# -----------------------------------------------------------------------------
+require_relative '../87__System__ModelPersistence/Na__PainterlyAssets__ModelPersistence__Store__'
+require_relative '../87__System__ModelPersistence/Na__PainterlyAssets__ModelPersistence__LocalBackup__'
+require_relative '../87__System__ModelPersistence/Na__PainterlyAssets__ModelPersistence__Settings__'
+
+# -----------------------------------------------------------------------------
+# REGION | NPR Export - pictures of the drawing, drawn by the engine's own export
+# -----------------------------------------------------------------------------
+require_relative '../88__System__NprExport/Na__PainterlyAssets__NprExport__Naming__'
+require_relative '../88__System__NprExport/Na__PainterlyAssets__NprExport__Jobs__'
+require_relative '../88__System__NprExport/Na__PainterlyAssets__NprExport__Window__'
+
+# -----------------------------------------------------------------------------
 # REGION | AppCore - Dialog (must load last - depends on all systems above)
 # -----------------------------------------------------------------------------
 
@@ -220,6 +243,14 @@ module Na__PainterlyAssets
     rescue StandardError => error
         Na__DebugTools.Na__Debug__Error('Reload Remote Plugin Files failed.', error)
         UI.messagebox("Na PainterlyNPR Assets could not reload the remote plugin files.\n\n#{error.message}")
+    end
+
+    # v0.3.0: NPR Export (its own window; the pictures are drawn in the NPR Viewport)
+    def self.Na__PublicApi__OpenNprExport
+        Na__NprExport.Na__Export__OpenWindow
+    rescue StandardError => error
+        Na__DebugTools.Na__Debug__Error('Opening NPR Export failed.', error)
+        UI.messagebox("Na PainterlyNPR Assets could not open NPR Export.\n\n#{error.message}")
     end
     # ---------------------------------------------------------------
 

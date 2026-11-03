@@ -99,7 +99,8 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         const rearSet    = Math.max(20, safeNum(config.sliding_door_rear_setback_mm, 60));
         const slideMode  = String(config.sliding_door_mode || 'FrontSlidesRight');
         const panelCount = Math.min(3, Math.max(2, Math.round(safeNum(config.sliding_door_panel_count, 2))));
-        const isGlazed   = config.sliding_door_glazed !== false;
+        const composition = config.sliding_door_leaf_composition;
+        const isGlazed   = composition === 'GlazedOverGlazed' || config.sliding_door_glazed !== false;
         const showDims   = config.show_dimensions      !== false;
 
         const frameEdges = na_resolve_frame_edges(config);
@@ -125,6 +126,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
             slideMode      : slideMode,
             panelCount     : panelCount,
             isGlazed       : isGlazed,
+            glazedOverGlazed : composition === 'GlazedOverGlazed',          // <-- V2.3.0 Two panes and a mid rail
+            lowerSectionMm : safeNum(config.sliding_door_fielded_section_height_mm, 300),
+            midRailMm      : safeNum(config.sliding_door_mid_rail_width_mm, 120),
             showDimensions : showDims,
             frameEdges     : frameEdges,
             cill           : cill,
@@ -173,7 +177,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         const paint    = config.paint_cill === true;
         const matId    = paint ? (config.frame_material_id || DEFAULT_FRAME_MATERIAL_ID) : DEFAULT_CILL_MATERIAL_ID;
         const colour   = paint ? na_safe_material_colour(matId) : FILL_CILL_DEFAULT;
-        return { enabled: enabled, heightMm: heightMm, colour: colour };
+        const sg       = window.Na__Viewport__SvgGenerator;
+        const hornMm   = enabled && sg && typeof sg.na_cillHornLengthMm === 'function' ? sg.na_cillHornLengthMm(config) : 0;   // <-- V2.4.0 Zero unless Cill Horns is on
+        return { enabled: enabled, heightMm: heightMm, colour: colour, hornMm: hornMm };
     }
     // ---------------------------------------------------------------
 
@@ -247,8 +253,8 @@ const Na__ExtSlide__ElevationGenerator = (function () {
     // panelIndex is the TRACK index: 0 = lead leaf, last = fixed leaf
     // (matches Ruby descriptor index - 1 and Window / Double Door
     // 0-based keys).
-    function na_panel_context(panelIndex) {
-        return { openingIndex: 0, cellIndex: 0, panelIndex: panelIndex, sashIndex: 0 };
+    function na_panel_context(panelIndex, cellIndex) {
+        return { openingIndex: 0, cellIndex: cellIndex || 0, panelIndex: panelIndex, sashIndex: 0 };
     }
     // ---------------------------------------------------------------
 
@@ -306,8 +312,8 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         if (!sg || typeof sg.na_svgRect !== 'function') return '';
 
         return sg.na_svgRect(
-            0, -layout.cill.heightMm,
-            layout.openingWidth, layout.cill.heightMm,
+            0 - layout.cill.hornMm, -layout.cill.heightMm,
+            layout.openingWidth + 2 * layout.cill.hornMm, layout.cill.heightMm,
             layout.cill.colour, STROKE_BLACK, 1
         );
     }
@@ -394,14 +400,30 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         const baseRail  = Math.min(layout.baseRail,   leafHeight * 0.30);
 
         const glazedX  = leafX + stile;
-        const glazedY  = leafY + baseRail;
         const glazedW  = Math.max(0, leafWidth  - 2 * stile);
-        const glazedH  = Math.max(0, leafHeight - baseRail - headRail);
+        const fullH    = Math.max(0, leafHeight - baseRail - headRail);
+
+        // V2.3.0 Glazed Over Glazed: the mid rail splits the glass in two,
+        // with the same limits as the 3D layout.
+        const midRail  = Math.max(20, Math.min(leafHeight / 3, layout.midRailMm));
+        const lowerH   = layout.glazedOverGlazed
+            ? Math.max(100, Math.min(Math.max(100, fullH - midRail - 100), layout.lowerSectionMm))
+            : 0;
+        const glazedY  = layout.glazedOverGlazed ? leafY + baseRail + lowerH + midRail : leafY + baseRail;
+        const glazedH  = layout.glazedOverGlazed ? Math.max(0, fullH - lowerH - midRail) : fullH;
+        const lowerY   = leafY + baseRail;
+        const pane     = layout.glazedOverGlazed
+            ? window.Na__GlazebarMath.na_lowerPaneLayout(layout.glazeBars.hBars, glazedH, lowerH)
+            : null;
 
         let svg = '';
         if (glazedW > 0 && glazedH > 0) {
             const fill = layout.isGlazed ? glazingColour : (panelIndex === 0 ? colour : '#A8B2BE');
             svg += sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, fill, STROKE_BLACK, 1);
+        }
+        if (pane && glazedW > 0) {
+            svg += sg.na_svgRect(glazedX, lowerY, glazedW, lowerH, glazingColour, STROKE_BLACK, 1);
+            svg += sg.na_svgRect(glazedX, lowerY + lowerH, glazedW, midRail, colour, STROKE_BLACK, 1);
         }
 
         if (leafHeight > 0) {
@@ -426,6 +448,13 @@ const Na__ExtSlide__ElevationGenerator = (function () {
             svg += na_build_leaf_leaded(glazedX, glazedY, glazedW, glazedH, layout, panelIndex, clickBucket);
         }
 
+        if (pane && glazedW > 0) {
+            if (layout.glazeBars.enabled) {
+                svg += na_build_leaf_glazebars(glazedX, lowerY, glazedW, lowerH, layout, panelIndex, clickBucket, pane);
+            }
+            svg += na_build_leaf_leaded(glazedX, lowerY, glazedW, lowerH, layout, panelIndex, clickBucket, pane);
+        }
+
         return svg;
     }
     // ---------------------------------------------------------------
@@ -435,17 +464,17 @@ const Na__ExtSlide__ElevationGenerator = (function () {
     // ------------------------------------------------------------
     // Delegates to the shared WindowSystem grille builder so removed-bar
     // state and invisible click targets stay in sync with Window / Double Door.
-    function na_build_leaf_glazebars(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket) {
+    function na_build_leaf_glazebars(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket, pane) {
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg || typeof sg.na_generateGlazeBarsSvg !== 'function') return '';
 
         const { hBars, vBars, barW, advanced } = layout.glazeBars;
         const bucket = sg.na_generateGlazeBarsSvg(
             glassX, glassY, glassW, glassH,
-            hBars, vBars, barW, layout.frameColour,
-            na_panel_context(panelIndex),
+            pane ? pane.hBars : hBars, vBars, barW, layout.frameColour,
+            na_panel_context(panelIndex, pane ? pane.cellIndex : 0),
             layout.removedGlazebars || new Set(),
-            advanced
+            pane ? Object.assign({}, advanced, { archEnabled: false, hOffsetMm: 0, hOffsetsMm: [] }) : advanced
         );
         if (clickBucket) {
             clickBucket.clickTargetsSvg += bucket.clickTargetsSvg || '';
@@ -457,20 +486,22 @@ const Na__ExtSlide__ElevationGenerator = (function () {
 
     // SUB FUNCTION | Draw Leaded Glass With Per-Cell Click Targets
     // ------------------------------------------------------------
-    function na_build_leaf_leaded(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket) {
+    function na_build_leaf_leaded(glassX, glassY, glassW, glassH, layout, panelIndex, clickBucket, pane) {
         if (!layout.leadedGlass || !layout.leadedGlass.enabled) return '';
         const sg = window.Na__Viewport__SvgGenerator;
         if (!sg || typeof sg.na_generateLeadedGlassSvg !== 'function') return '';
 
+        const advanced = layout.glazeBars.advanced;
         const leadedOpts = Object.assign({}, layout.leadedGlass, {
-            disabledCells: layout.disabledLeadedCells || new Set()
+            disabledCells: layout.disabledLeadedCells || new Set(),
+            hBars: pane ? window.Na__GlazebarMath.na_scaleLineCount(layout.leadedGlass.hBars, pane.leadRatio) : layout.leadedGlass.hBars
         });
         return sg.na_generateLeadedGlassSvg(glassX, glassY, glassW, glassH, leadedOpts, {
-            hBars: layout.glazeBars.hBars,
+            hBars: pane ? pane.hBars : layout.glazeBars.hBars,
             vBars: layout.glazeBars.vBars,
             barWidth: layout.glazeBars.barW,
-            advancedGlazebar: layout.glazeBars.advanced,
-            panelContext: na_panel_context(panelIndex),
+            advancedGlazebar: pane ? Object.assign({}, advanced, { archEnabled: false, hOffsetMm: 0, hOffsetsMm: [] }) : advanced,
+            panelContext: na_panel_context(panelIndex, pane ? pane.cellIndex : 0),
             clickBucket: clickBucket
         });
     }

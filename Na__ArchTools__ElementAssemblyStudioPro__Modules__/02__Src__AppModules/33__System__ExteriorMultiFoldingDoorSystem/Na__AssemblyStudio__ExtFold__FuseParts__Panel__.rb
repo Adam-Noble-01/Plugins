@@ -144,6 +144,15 @@ module Na__FuseParts__Panel
             na_accumulate_result(result, na_fuse_glaze_bars_for_panel(inner_entities, panel_id))
             na_accumulate_result(result, na_fuse_leaded_glass_for_panel(inner_entities, panel_id))
             na_accumulate_result(result, na_trim_glass_for_panel(inner_entities, panel_id))
+
+            # V2.3.0 The lower pane of a Glazed Over Glazed leaf: its own names
+            # (Lower_<id>), so its bars trim its own glass.
+            lower_id = "Lower_#{panel_id}"
+            next unless na_find_group_by_name(inner_entities, "Na_Glass_#{lower_id}")
+
+            na_accumulate_result(result, na_fuse_glaze_bars_for_panel(inner_entities, lower_id))
+            na_accumulate_result(result, na_fuse_leaded_glass_for_panel(inner_entities, lower_id))
+            na_accumulate_result(result, na_trim_glass_for_panel(inner_entities, lower_id))
         end
 
         result

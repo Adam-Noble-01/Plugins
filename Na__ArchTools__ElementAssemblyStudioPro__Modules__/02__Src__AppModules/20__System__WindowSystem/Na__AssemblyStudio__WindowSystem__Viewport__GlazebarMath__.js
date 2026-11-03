@@ -59,6 +59,11 @@
        na_computeLeadPositions and returns all the lead centrelines as one
        ascending list.
 
+   - na_scaleLineCount(count, ratio) / na_lowerPaneLayout(hBars, upperHeight, lowerHeight)
+       The lower pane of a Glazed Over Glazed door leaf (V2.3.0): horizontal
+       counts scaled with its height, so it keeps the top pane's size of
+       quarry. Ruby mirror: ExtDoorCommon PanelLayoutResolver.
+
    - na_filterPositionsInside(positions, start, size, margin)
        Keeps the positions that sit more than `margin` inside one span.
        Together these lay the "Align Lead Lines Across Casements" rows out
@@ -333,6 +338,36 @@ const Na__GlazebarMath = (function () {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | A line count scaled to a pane of another height (V2.3.0)
+    // ---------------------------------------------------------------
+    // Keeps the gaps between lines about the same size. Ruby mirror:
+    // PanelLayoutResolver.na_scaled_line_count.
+    function na_scaleLineCount(count, ratio) {
+        const lines = Math.max(0, Math.round(Number(count) || 0));
+        if (lines <= 0) return 0;
+        if (!(ratio > 0)) return lines;
+        return Math.min(12, Math.max(0, Math.round((lines + 1) * ratio) - 1));
+    }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | The lower pane of a Glazed Over Glazed leaf (V2.3.0)
+    // ---------------------------------------------------------------
+    // cellIndex is the cell number in its removal keys (the top pane stays
+    // cell 0). hBars is its horizontal glaze bar count; leadRatio scales its
+    // horizontal lead count, cell for cell. Vertical counts are unchanged, so
+    // they line up with the top pane. Ruby mirror:
+    // PanelLayoutResolver.na_resolve_lower_pane.
+    function na_lowerPaneLayout(hBars, upperHeight, lowerHeight) {
+        const count = Math.max(0, Math.round(Number(hBars) || 0));
+        const lowerCount = upperHeight > 0 ? na_scaleLineCount(count, lowerHeight / upperHeight) : count;
+        return {
+            cellIndex : 1,
+            hBars     : lowerCount,
+            leadRatio : upperHeight > 0 ? (lowerHeight / (lowerCount + 1)) / (upperHeight / (count + 1)) : 1
+        };
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Keep the positions that sit clearly inside one span
     // ---------------------------------------------------------------
     // A lead whose centreline lands within `margin` of the span's edge
@@ -361,7 +396,9 @@ const Na__GlazebarMath = (function () {
         na_computeCellBounds               : na_computeCellBounds,
         na_computeLeadPositions            : na_computeLeadPositions,
         na_computeLeadLinePositions        : na_computeLeadLinePositions,
-        na_filterPositionsInside           : na_filterPositionsInside
+        na_filterPositionsInside           : na_filterPositionsInside,
+        na_scaleLineCount                  : na_scaleLineCount,
+        na_lowerPaneLayout                 : na_lowerPaneLayout
     };
 })();
 

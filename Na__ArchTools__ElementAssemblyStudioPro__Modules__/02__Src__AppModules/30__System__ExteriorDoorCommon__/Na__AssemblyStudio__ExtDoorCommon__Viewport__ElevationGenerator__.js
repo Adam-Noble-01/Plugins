@@ -127,6 +127,10 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
         const cillLift = hasCill && resolved.dimensions.frameBottomMm > 0
             ? Math.max(0, Number(config.cill_height_mm) || 50)
             : 0;
+        const svgGen   = window.Na__Viewport__SvgGenerator;
+        const cillHorn = cillLift > 0 && svgGen && typeof svgGen.na_cillHornLengthMm === 'function'
+            ? svgGen.na_cillHornLengthMm(config)                                                 // <-- V2.4.0 Zero unless Cill Horns is on
+            : 0;
 
         return {
             config      : config,
@@ -135,6 +139,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
             widthMm     : resolved.dimensions.widthMm,
             heightMm    : resolved.dimensions.heightMm,
             cillLiftMm  : cillLift,
+            cillHornMm  : cillHorn,
             totalWidth  : resolved.dimensions.widthMm + 2 * NA_PADDING_MM,
             totalHeight : resolved.dimensions.heightMm + cillLift + 2 * NA_PADDING_MM
         };
@@ -179,9 +184,9 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
         if (layout.cillLiftMm > 0) {
             na_rect(
                 svg,
-                layout.openingX,
+                layout.openingX - layout.cillHornMm,
                 layout.openingY + layout.heightMm,
-                layout.widthMm,
+                layout.widthMm + 2 * layout.cillHornMm,
                 layout.cillLiftMm,
                 palette.frame
             );
@@ -211,8 +216,9 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
     // ------------------------------------------------------------
     // Even / margin spacing, then the uniform horizontal offset, then the
     // per-bar offsets. Shared by the bar drawer and the leaded cell grid
-    // so the two can never disagree.
-    function na_final_bar_positions(leaf, region) {
+    // so the two can never disagree. pane (V2.3.0, optional) is the lower
+    // pane of a Glazed Over Glazed leaf: its own horizontal count, no nudges.
+    function na_final_bar_positions(leaf, region, pane) {
         const settings = leaf.settings;
         const math     = window.Na__GlazebarMath;
 
@@ -225,17 +231,17 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
         let horizontal = math && typeof math.na_computeBarPositions === 'function'
             ? math.na_computeBarPositions(
-                region.zMm, region.heightMm, settings.horizontalBars,
+                region.zMm, region.heightMm, pane ? pane.hBars : settings.horizontalBars,
                 settings.marginEnabled, settings.marginOffsetMm
             )
-            : na_even_bar_positions(region.zMm, region.heightMm, settings.horizontalBars);
+            : na_even_bar_positions(region.zMm, region.heightMm, pane ? pane.hBars : settings.horizontalBars);
 
         horizontal = horizontal.map(function (position) {
-            return position + settings.horizontalOffsetMm;
+            return position + (pane ? 0 : settings.horizontalOffsetMm);
         });
 
         if (math && typeof math.na_applyBarOffsets === 'function') {
-            horizontal = math.na_applyBarOffsets(horizontal, settings.horizontalOffsetsMm);
+            horizontal = math.na_applyBarOffsets(horizontal, pane ? [] : settings.horizontalOffsetsMm);
             vertical   = math.na_applyBarOffsets(vertical, settings.verticalOffsetsMm);
         }
 
@@ -245,14 +251,14 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
     // HELPER FUNCTION | Glazebar Removal / Click Key for One Leaf Bar
     // ------------------------------------------------------------
-    function na_glazebar_key(leaf, orientation, barIndex) {
-        return '0:0:' + (leaf.index - 1) + ':0:' + orientation + ':' + barIndex;
+    function na_glazebar_key(leaf, orientation, barIndex, cellIndex) {
+        return '0:' + (cellIndex || 0) + ':' + (leaf.index - 1) + ':0:' + orientation + ':' + barIndex;
     }
     // ---------------------------------------------------------------
 
     // HELPER FUNCTION | Append Invisible Glazebar Hit Target
     // ------------------------------------------------------------
-    function na_add_glazebar_click_target(svg, x, y, width, height, leaf, orientation, barIndex) {
+    function na_add_glazebar_click_target(svg, x, y, width, height, leaf, orientation, barIndex, cellIndex) {
         const minimumHitSize = 16;
         let targetX      = x;
         let targetY      = y;
@@ -272,7 +278,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
         svg.appendChild(na_svg('rect', {
             class               : 'na-glazebar-click-target',
             'data-opening-index': 0,
-            'data-cell-index'   : 0,
+            'data-cell-index'   : cellIndex || 0,
             'data-panel-index'  : leaf.index - 1,
             'data-sash-index'   : 0,
             'data-orientation'  : orientation,
@@ -320,26 +326,27 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
         // FUNCTION | Draw Vertical and Horizontal Glaze Bars for One Leaf
         // ------------------------------------------------------------
-        function na_draw_glaze_bars(svg, layout, leaf, region, palette) {
+        function na_draw_glaze_bars(svg, layout, leaf, region, palette, pane) {
             const settings      = leaf.settings;
+            const cellIndex     = pane ? pane.cellIndex : 0;
             const removedSource = Array.isArray(layout.config[na_key('removed_glazebars')])
                 ? layout.config[na_key('removed_glazebars')]
                 : layout.config.removed_glazebars;
             const removedBars = new Set(Array.isArray(removedSource)
                 ? removedSource.map(String)
                 : []);
-            const positions = na_final_bar_positions(leaf, region);
+            const positions = na_final_bar_positions(leaf, region, pane);
 
             positions.vertical.forEach(function (x, index) {
                 const barIndex = index + 1;
                 const barX     = layout.openingX + x - settings.glazeBarWidthMm / 2;
                 const barY     = na_y(layout, region.zMm + region.heightMm);
-                if (!removedBars.has(na_glazebar_key(leaf, 'vertical', barIndex))) {
+                if (!removedBars.has(na_glazebar_key(leaf, 'vertical', barIndex, cellIndex))) {
                     na_rect(svg, barX, barY, settings.glazeBarWidthMm, region.heightMm, palette.leaf);
                 }
                 na_add_glazebar_click_target(
                     svg, barX, barY, settings.glazeBarWidthMm, region.heightMm,
-                    leaf, 'vertical', barIndex
+                    leaf, 'vertical', barIndex, cellIndex
                 );
             });
 
@@ -347,12 +354,12 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                 const barIndex = index + 1;
                 const barX     = layout.openingX + region.xMm;
                 const barY     = na_y(layout, z + settings.glazeBarWidthMm / 2);
-                if (!removedBars.has(na_glazebar_key(leaf, 'horizontal', barIndex))) {
+                if (!removedBars.has(na_glazebar_key(leaf, 'horizontal', barIndex, cellIndex))) {
                     na_rect(svg, barX, barY, region.widthMm, settings.glazeBarWidthMm, palette.leaf);
                 }
                 na_add_glazebar_click_target(
                     svg, barX, barY, region.widthMm, settings.glazeBarWidthMm,
-                    leaf, 'horizontal', barIndex
+                    leaf, 'horizontal', barIndex, cellIndex
                 );
             });
         }
@@ -427,7 +434,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
         // HELPER FUNCTION | Append Invisible Leaded-Cell Hit Target
         // ------------------------------------------------------------
-        function na_add_leaded_cell_click_target(svg, layout, cellX, cellZ, cellW, cellH, leaf, col, row) {
+        function na_add_leaded_cell_click_target(svg, layout, cellX, cellZ, cellW, cellH, leaf, col, row, cellIndex) {
             const inset   = 4;
             const targetW = cellW - inset * 2;
             const targetH = cellH - inset * 2;
@@ -436,7 +443,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
             svg.appendChild(na_svg('rect', {
                 class               : 'na-leaded-cell-click-target',
                 'data-opening-index': 0,
-                'data-cell-index'   : 0,
+                'data-cell-index'   : cellIndex || 0,
                 'data-panel-index'  : leaf.index - 1,
                 'data-sash-index'   : 0,
                 'data-col'          : col,
@@ -458,11 +465,14 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
         // matching the WindowSystem SVG generator and the Ruby 3D builder.
         // Each cell gets a whole-cell click target so the user can toggle
         // its leaded glass off/on directly in the preview.
-        function na_draw_leaded_glass(svg, layout, leaf, region) {
+        function na_draw_leaded_glass(svg, layout, leaf, region, pane) {
             const config = layout.config || {};
             if (config.leaded_glass_enabled !== true) return;
 
-            const hLeads = Math.max(0, Math.min(12, Math.round(Number(config.horizontal_leaded_bars || 0))));
+            const allLeads = Math.max(0, Math.min(12, Math.round(Number(config.horizontal_leaded_bars || 0))));
+            const hLeads = (pane && window.Na__GlazebarMath)
+                ? window.Na__GlazebarMath.na_scaleLineCount(allLeads, pane.leadRatio)     // <-- V2.3.0 Lower pane: same size of quarry
+                : allLeads;
             const vLeads = Math.max(0, Math.min(12, Math.round(Number(config.vertical_leaded_bars || 0))));
             if (hLeads <= 0 && vLeads <= 0) return;
             if (region.widthMm <= 0 || region.heightMm <= 0) return;
@@ -492,8 +502,9 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                 ? disabledSource.map(String)
                 : []);
 
-            const positions    = na_final_bar_positions(leaf, region);
+            const positions    = na_final_bar_positions(leaf, region, pane);
             const barWidth     = leaf.settings.glazeBarWidthMm;
+            const cellIndex    = pane ? pane.cellIndex : 0;
             const columnBounds = math.na_computeCellBounds(region.xMm, region.widthMm, positions.vertical, barWidth);
             const rowBounds    = math.na_computeCellBounds(region.zMm, region.heightMm, positions.horizontal, barWidth);
 
@@ -505,14 +516,14 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                     const cellH = rowBounds[row].size;
                     if (cellW <= 0 || cellH <= 0) continue;
 
-                    const cellKey = '0:0:' + (leaf.index - 1) + ':0:' + col + ':' + row;
+                    const cellKey = '0:' + cellIndex + ':' + (leaf.index - 1) + ':0:' + col + ':' + row;
                     if (!disabledCells.has(cellKey)) {
                         na_draw_leaded_cell_lines(
                             svg, layout, cellX, cellZ, cellW, cellH,
                             hLeads, vLeads, stroke, centreLines, leadWidthMm, margins
                         );
                     }
-                    na_add_leaded_cell_click_target(svg, layout, cellX, cellZ, cellW, cellH, leaf, col, row);
+                    na_add_leaded_cell_click_target(svg, layout, cellX, cellZ, cellW, cellH, leaf, col, row, cellIndex);
                 }
             }
         }
@@ -648,6 +659,23 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                 );
                 na_draw_leaded_glass(svg, layout, leaf, glazed);
                 na_draw_glaze_bars(svg, layout, leaf, glazed, palette);
+
+                if (panel.lowerGlazedRegion) {                              // <-- V2.3.0 Glazed Over Glazed
+                    const lower = panel.lowerGlazedRegion;
+                    const pane  = window.Na__GlazebarMath.na_lowerPaneLayout(
+                        leaf.settings.horizontalBars, glazed.heightMm, lower.heightMm
+                    );
+                    na_rect(
+                        svg,
+                        layout.openingX + lower.xMm,
+                        na_y(layout, lower.zMm + lower.heightMm),
+                        lower.widthMm,
+                        lower.heightMm,
+                        NA_GLASS_FILL
+                    );
+                    na_draw_leaded_glass(svg, layout, leaf, lower, pane);
+                    na_draw_glaze_bars(svg, layout, leaf, lower, palette, pane);
+                }
             }
 
             panel.fieldCells.forEach(function (cell) {

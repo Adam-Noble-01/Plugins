@@ -21,6 +21,9 @@
 # - ONE SERVER A SESSION: it survives Reload Plugin Data (its state is guarded)
 #   and stops itself when SketchUp exits (it watches SketchUp's process id).
 #   Stop asks it with the session's token, then ends the process if it must.
+#   A server started by an older version of this file (its ready file names
+#   its version) is restarted the next time a window needs it (v0.3.0: the
+#   1.1.0 server takes NPR Export's pictures into its outbox).
 #
 # =============================================================================
 
@@ -37,6 +40,8 @@ module Na__PainterlyAssets
         NA_READY_FILE    = 'Na__PainterlyAssets__LocalServer__Ready__.json'.freeze     unless defined?(NA_READY_FILE)
         NA_LOG_FILE      = 'Na__PainterlyAssets__LocalServer__Run__.log'.freeze        unless defined?(NA_LOG_FILE)
         NA_POLL_SECONDS  = 0.1                                                         unless defined?(NA_POLL_SECONDS)
+        NA_SERVER_VERSION = '1.1.0'                                                    # <-- The .py's SERVER_VERSION: a running server of another is restarted
+        NA_OUTBOX_FOLDER  = 'Na__PainterlyAssets__NprExport__Outbox'                   # <-- In 90__AppCache__TempFilesCache: NPR Export's pictures as they arrive
 
         @na_server   = nil unless defined?(@na_server)                                    # <-- { pid, port, token, override }
         @na_starting = nil unless defined?(@na_starting)                                  # <-- The start in flight: { pid, timer, started }
@@ -71,7 +76,7 @@ module Na__PainterlyAssets
         #   is fixed when the server starts, so a changed one restarts it.
         def self.Na__Server__Ensure(&on_ready)
             override = Na__RemoteEngine.Na__Remote__Override.to_s
-            self.Na__Server__Stop if self.Na__Server__Running? && @na_server['override'] != override
+            self.Na__Server__Stop if self.Na__Server__Running? && (@na_server['override'] != override || !self.Na__Server__Current?)
             return on_ready.call('ok' => true, 'port' => @na_server['port']) if on_ready && self.Na__Server__Running?
             @na_waiters << on_ready if on_ready
             return if @na_starting
@@ -125,6 +130,24 @@ module Na__PainterlyAssets
             File.join(Na__PathResolver.Na__Paths__CacheDir, NA_LOG_FILE)
         end
 
+        # FUNCTION | Is the Running Server This Version's? (an older one has no export route)
+        # ------------------------------------------------------------
+        def self.Na__Server__Current?
+            self.Na__Server__Running? && @na_server['version'].to_s == NA_SERVER_VERSION
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Where NPR Export's Pictures Arrive, and the Token That Lets Them In
+        # ------------------------------------------------------------
+        def self.Na__Server__Outbox
+            File.join(Na__PathResolver.Na__Paths__CacheDir, NA_OUTBOX_FOLDER)
+        end
+
+        def self.Na__Server__Token
+            self.Na__Server__Running? ? @na_server['token'] : nil
+        end
+        # ---------------------------------------------------------------
+
     # endregion ----------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -148,7 +171,8 @@ module Na__PainterlyAssets
                        '--ready-file', ready,
                        '--token', token,
                        '--port', Na__ConfigLoader.Na__Config__GetOr(8147, 'nprViewport', 'server', 'port').to_i.to_s,   # <-- The usual port (taken: the system's choice)
-                       '--log', self.Na__Server__LogPath]
+                       '--log', self.Na__Server__LogPath,
+                       '--outbox', self.Na__Server__Outbox]
             command += ['--override', override] unless override.empty?
             pid = Process.spawn(Na__BuildUtil::NA_CLEAN_ENV, *command, chdir: work, in: File::NULL,              # <-- Not detached: Running? reaps it with wait2
                                 out: File.join(work, 'Na__PainterlyAssets__LocalServer__Console__.log'), err: [:child, :out])
@@ -168,7 +192,7 @@ module Na__PainterlyAssets
                 ready = Na__SafeFileWriter.Na__SafeFile__ReadJson(job['ready'])
                 limit = Na__ConfigLoader.Na__Config__GetOr(15, 'nprViewport', 'server', 'startTimeoutSeconds').to_f
                 if ready && ready['port'].to_i > 0
-                    @na_server = { 'pid' => job['pid'], 'port' => ready['port'].to_i, 'token' => job['token'], 'override' => job['override'] }
+                    @na_server = { 'pid' => job['pid'], 'port' => ready['port'].to_i, 'token' => job['token'], 'override' => job['override'], 'version' => ready['version'].to_s }
                     self.na_end_start
                     Na__DebugTools.Na__Debug__Info("NPR server on 127.0.0.1:#{ready['port']} (pid #{job['pid']}).")
                     return self.na_finish('ok' => true, 'port' => ready['port'].to_i)

@@ -3,6 +3,46 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.5 - 01-Nov-2026 - Zero-Trace Trials Without FAILED Rows (`batch_execute` rollback)
+
+- **What Adam asked for.** "Check the MCP plugin in my SketchUp folders itself and make sure any of these errors listed here are corrected." His activity log from the bed range session (`SK02__ModelingHelper__AssetOptimisation__`) had six FAILED rows:
+  - four `batch_execute ... FAILED - Batch step N (entity_get) failed: No entity for ids: 987654321. Every step was undone (atomic batch).`, at 13:03:55, 13:29:09, 13:35:33 and 13:38:39;
+  - 13:03:35 `FAILED - Batch step 0 (ruby_eval) failed: TypeError: reference to deleted Group`;
+  - 13:00:36 `FAILED - Batch step 0 (ruby_eval) failed: ArgumentError: cannot remove an instance in the active editing path`.
+- **The four `987654321` rows were zero-trace trials, not faults.** The skill's `su_bridge.py trial` ended every trial with `entity_get [987654321]`, a step that always fails, so that SketchUp would undo the batch. The log could only record that as FAILED.
+- **`batch_execute rollback: true` makes the trial a feature** (CommandRouter `na_run_batch`, new `na_with_rollback`):
+  - every step runs inside one operation that is always aborted, so no undo step is left;
+  - the results come back in `result.steps`, with `rolled_back: true`;
+  - the log reads `ok - Trial: N step(s) ran, then every step was undone; the model is unchanged.`;
+  - a step that really fails inside a trial is logged as `FAILED - Trial step N (...) failed: ... Nothing was changed (trial).`;
+  - `rollback` with `atomic: false` is refused, since a trial keeps nothing;
+  - camera moves and scene activation are still not undone, as before.
+  - The registry has `rollback` in the schema and one sentence in the description.
+- **The two `ruby_eval` rows were the agent's own code**, fixed in the skill's generators rather than the plugin:
+  - names are now read before `erase_entities`, because a deleted entity raises on access;
+  - the rebuild step stops with a plain message when the asset is open for editing (`model.active_path`), instead of SketchUp's ArgumentError.
+- **Skill side.**
+  - `su_bridge.py trial` sends `rollback: true` to bridge 1.0.5 and newer. It checks `bridge_version` with `ping` first, because an older bridge would ignore the flag and keep the batch.
+  - Older bridges keep the sentinel step.
+- **Docs.** AGENTS.md (Live Testing Without Leaving a Trace) and the agent guide (Undo, Safety and Timeouts).
+- **Versions.** `bridge_version` and `server.version` are `1.0.5`.
+- **Validation.**
+  - `ValidateApiUsage` passes: 45 tools, 182 API dependencies, 4,372 method calls, 214 constants and 45 routes, with 7 partner files checked.
+  - All 44 Ruby files compile. BridgeCore passes 50 of 50. PythonServer passes 24 of 24: `test_batch_validation` now also sends a rollback batch, and one with `rollback: "yes"`, which is refused. `--check` and `node --check` pass.
+  - **Live** in `SK02__ModelingHelper__AssetOptimisation__1.2.0__` (pid 31588), after Reload Plugin Data (42 files, 0 errors):
+    - a two-step trial came back rolled back and logged `ok - Trial: 2 step(s) ran...`;
+    - a trial with a failing step logged `FAILED - Trial step 1 ... Nothing was changed (trial).`;
+    - `rollback` with `atomic: false` was refused;
+    - the definitions (309) and root entities (33) were unchanged, with no trial geometry left.
+
+### Validation Checklist
+- [ ] Restart the MCP server or client, so it reports 1.0.5 and shows `rollback` on `batch_execute`.
+- [ ] Use Extensions > Na SketchUp MCP > Reload Plugin Data in every other open SketchUp window. Only the asset optimisation workshop was reloaded.
+- [ ] Ask an agent for a zero-trace trial. The status dialog shows `ok - Trial: ...`, not FAILED.
+- [ ] The two FAILED rows at about 15:32 in the workshop's log were the deliberate negative tests above, not faults.
+
+## -----------------------------------------------------------------------------
+
 ## Na SketchUp MCP | Version 1.0.4 - 26-Oct-2026 - `list_entities` Tool Alias & Multi-Machine Component Library Path Fallback
 
 - **What Adam asked for.**

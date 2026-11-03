@@ -341,7 +341,7 @@ const Na_DynamicUI = (function() {
         // Keep legacy bifold_door_glazed in sync with leaf composition so
         // Ruby PanelLayoutResolver fallback and any remaining glazed-only
         // readers stay consistent when the user picks FullyFielded /
-        // GlazedOverFielded / FullyGlazed.
+        // GlazedOverFielded / GlazedOverGlazed / FullyGlazed.
         if (id === 'bifold_door_leaf_composition') {
             na_syncBifoldGlazedFromComposition(_config);
         }
@@ -981,6 +981,7 @@ const Na_DynamicUI = (function() {
         const preset = _config[`${prefix}_panel_preset`] || 'OnePanel';
         const hasFielded = composition === 'GlazedOverFielded' || composition === 'FullyFielded';
         const midRailKey = `${prefix}_mid_rail_width_mm`;
+        const hasMidRail = composition === 'GlazedOverFielded' || composition === 'GlazedOverGlazed';   // <-- V2.3.0
 
         const visibilityMap = [
             { id: `${prefix}_panel_output_mode`, visible: hasFielded },
@@ -989,8 +990,8 @@ const Na_DynamicUI = (function() {
             { id: `${prefix}_panel_profile`, visible: hasFielded && panelOutput === 'ThreeDimensional' },
             { id: `${prefix}_panel_depth_mm`, visible: hasFielded && panelOutput === 'ThreeDimensional' },
             { id: `${prefix}_panel_bevel_width_mm`, visible: hasFielded && panelOutput === 'ThreeDimensional' },
-            { id: `${prefix}_fielded_section_height_mm`, visible: composition === 'GlazedOverFielded' },
-            { id: midRailKey, visible: composition === 'GlazedOverFielded' },
+            { id: `${prefix}_fielded_section_height_mm`, visible: hasMidRail },
+            { id: midRailKey, visible: hasMidRail },
             { id: `${prefix}_panel_columns`, visible: hasFielded && preset === 'Custom' },
             { id: `${prefix}_panel_rows`, visible: hasFielded && preset === 'Custom' }
         ];
@@ -1108,18 +1109,19 @@ const Na_DynamicUI = (function() {
             'double_door_panel_rows'
         ];
 
-        sharedFieldIds.forEach(id => na_setControlVisibility(id, isDoubleDoorMode && composition !== 'FullyGlazed'));
+        const hasField = composition === 'GlazedOverFielded' || composition === 'FullyFielded';         // <-- V2.3.0 Glazed Over Glazed has neither panels
+        sharedFieldIds.forEach(id => na_setControlVisibility(id, isDoubleDoorMode && hasField));
         sharedThreeDimensionalIds.forEach(id => na_setControlVisibility(
             id,
-            isDoubleDoorMode && composition !== 'FullyGlazed' && panelOutput === 'ThreeDimensional'
+            isDoubleDoorMode && hasField && panelOutput === 'ThreeDimensional'
         ));
         sharedHybridIds.forEach(id => na_setControlVisibility(
             id,
-            isDoubleDoorMode && composition === 'GlazedOverFielded'
+            isDoubleDoorMode && (composition === 'GlazedOverFielded' || composition === 'GlazedOverGlazed')
         ));
         sharedCustomIds.forEach(id => na_setControlVisibility(
             id,
-            isDoubleDoorMode && composition !== 'FullyGlazed' && preset === 'Custom'
+            isDoubleDoorMode && hasField && preset === 'Custom'
         ));
 
         ['left', 'right'].forEach(side => {
@@ -1154,7 +1156,7 @@ const Na_DynamicUI = (function() {
             childIds.forEach(suffix => na_setControlVisibility(`${prefix}${suffix}`, showOverride && overrideEnabled));
 
             if (!showOverride || !overrideEnabled) return;
-            const usesField = leafComposition !== 'FullyGlazed';
+            const usesField = leafComposition === 'GlazedOverFielded' || leafComposition === 'FullyFielded';
             const usesGlazing = leafComposition !== 'FullyFielded';
             ['panel_output_mode', 'panel_preset', 'panel_inset_mm'].forEach(suffix =>
                 na_setControlVisibility(`${prefix}${suffix}`, usesField)
@@ -1166,7 +1168,7 @@ const Na_DynamicUI = (function() {
                 na_setControlVisibility(`${prefix}${suffix}`, usesField && leafPreset === 'Custom')
             );
             ['fielded_section_height_mm', 'mid_rail_width_mm'].forEach(suffix =>
-                na_setControlVisibility(`${prefix}${suffix}`, leafComposition === 'GlazedOverFielded')
+                na_setControlVisibility(`${prefix}${suffix}`, leafComposition === 'GlazedOverFielded' || leafComposition === 'GlazedOverGlazed')
             );
             ['horizontal_glaze_bars', 'vertical_glaze_bars', 'glaze_bar_width_mm', 'glazebar_inset_mm'].forEach(suffix =>
                 na_setControlVisibility(`${prefix}${suffix}`, usesGlazing)
@@ -1312,7 +1314,7 @@ const Na_DynamicUI = (function() {
         if (extDoorResolver) {
             const resolved = extDoorResolver.na_resolve(_config);
             const glazedRegions = resolved.leaves
-                .map(leaf => leaf.panelLayout && leaf.panelLayout.glazedRegion)
+                .flatMap(leaf => leaf.panelLayout ? [leaf.panelLayout.glazedRegion, leaf.panelLayout.lowerGlazedRegion] : [])
                 .filter(Boolean);
             if (glazedRegions.length > 0) {
                 glassWidth = Math.min(...glazedRegions.map(region => region.widthMm));
@@ -1684,6 +1686,9 @@ const Na_DynamicUI = (function() {
     // Windows saved before V2.2.1 had every lead line:
     //   * removed_lead_lines - empty, or lines clicked off on the window
     //     shown before would vanish from this one.
+    // Windows and doors saved before V2.4.0 have plain cills:
+    //   * cill_horns_enabled - Off, or another element's horns would ride
+    //     into this one on the next rebuild.
     // Only called for whole configurations; the measurement path sends a
     // partial one that must not wipe anything.
     function na_hydrateFullWindowConfig(cfg) {
@@ -1700,6 +1705,9 @@ const Na_DynamicUI = (function() {
         }
         if (typeof cfg.window_board_enabled === 'undefined') {
             cfg.window_board_enabled = false;
+        }
+        if (typeof cfg.cill_horns_enabled === 'undefined') {
+            cfg.cill_horns_enabled = false;
         }
         if (typeof cfg.leaded_margins_enabled === 'undefined') {
             cfg.leaded_margins_enabled = false;
@@ -2209,6 +2217,9 @@ const Na_DynamicUI = (function() {
                 for (let index = 1; index <= leaf.settings.verticalBars; index += 1) {
                     validKeys.add(na_getGlazebarKey(0, 0, leaf.index - 1, 0, 'vertical', index));
                 }
+                if (leaf.panelLayout && leaf.panelLayout.lowerGlazedRegion) {   // <-- V2.3.0 Glazed Over Glazed: the lower pane is cell 1
+                    na_addLowerPaneGlazebarKeys(validKeys, leaf.index - 1, leaf.settings.verticalBars);
+                }
             });
             return validKeys;
         }
@@ -2261,6 +2272,7 @@ const Na_DynamicUI = (function() {
             for (let index = 1; index <= vBars; index += 1) {
                 validKeys.add(na_getGlazebarKey(0, 0, panelIndex, 0, 'vertical', index));
             }
+            if (na_doorPanelsHaveLowerPane()) na_addLowerPaneGlazebarKeys(validKeys, panelIndex, vBars);
         }
         return validKeys;
     }
@@ -2280,8 +2292,39 @@ const Na_DynamicUI = (function() {
                     validKeys.add(na_getLeadedCellKey(0, 0, panelIndex, 0, col, row));
                 }
             }
+            if (na_doorPanelsHaveLowerPane()) na_addLowerPaneLeadedCellKeys(validKeys, panelIndex, vBars);
         }
         return validKeys;
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Is the Active Sliding / Bifold Door Glazed Over Glazed (V2.3.0)
+    // ------------------------------------------------------------
+    function na_doorPanelsHaveLowerPane() {
+        const key = _config.sliding_mode === true ? 'sliding_door_leaf_composition' : 'bifold_door_leaf_composition';
+        return _config[key] === 'GlazedOverGlazed';
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Valid Keys of a Lower Pane (Cell 1, V2.3.0)
+    // ------------------------------------------------------------
+    // Its horizontal count scales with its height, so every number it could
+    // reach (up to 12) stays valid; a key past the count just draws nothing.
+    function na_addLowerPaneGlazebarKeys(validKeys, panelIndex, verticalBars) {
+        for (let index = 1; index <= 12; index += 1) {
+            validKeys.add(na_getGlazebarKey(0, 1, panelIndex, 0, 'horizontal', index));
+        }
+        for (let index = 1; index <= verticalBars; index += 1) {
+            validKeys.add(na_getGlazebarKey(0, 1, panelIndex, 0, 'vertical', index));
+        }
+    }
+
+    function na_addLowerPaneLeadedCellKeys(validKeys, panelIndex, verticalBars) {
+        for (let row = 0; row <= 12; row += 1) {
+            for (let col = 0; col <= verticalBars; col += 1) {
+                validKeys.add(na_getLeadedCellKey(0, 1, panelIndex, 0, col, row));
+            }
+        }
     }
     // ---------------------------------------------------------------
 
@@ -2373,6 +2416,9 @@ const Na_DynamicUI = (function() {
                     for (let col = 0; col <= leaf.settings.verticalBars; col += 1) {
                         validKeys.add(na_getLeadedCellKey(0, 0, leaf.index - 1, 0, col, row));
                     }
+                }
+                if (leaf.panelLayout && leaf.panelLayout.lowerGlazedRegion) {
+                    na_addLowerPaneLeadedCellKeys(validKeys, leaf.index - 1, leaf.settings.verticalBars);
                 }
             });
             return validKeys;
@@ -2649,7 +2695,8 @@ const Na_DynamicUI = (function() {
     function na_syncBifoldGlazedFromComposition(cfg) {
         if (!cfg || typeof cfg !== 'object') return;
         if (cfg.bifold_door_leaf_composition) {
-            cfg.bifold_door_glazed = (cfg.bifold_door_leaf_composition === 'FullyGlazed');
+            cfg.bifold_door_glazed = (cfg.bifold_door_leaf_composition === 'FullyGlazed' ||
+                                      cfg.bifold_door_leaf_composition === 'GlazedOverGlazed');
         }
     }
     // ---------------------------------------------------------------

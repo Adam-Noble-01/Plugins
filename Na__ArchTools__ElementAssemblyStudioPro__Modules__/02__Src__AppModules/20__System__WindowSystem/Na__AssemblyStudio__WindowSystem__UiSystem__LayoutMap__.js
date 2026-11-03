@@ -139,7 +139,7 @@
         const composition = prefix + '_leaf_composition';
         return {
             text: 'a Leaf Composition with fielded panels',
-            fix : [[composition, cfg => (cfg[composition] === 'FullyGlazed' ? 'GlazedOverFielded' : cfg[composition])]]
+            fix : [[composition, cfg => ((cfg[composition] === 'FullyGlazed' || cfg[composition] === 'GlazedOverGlazed') ? 'GlazedOverFielded' : cfg[composition])]]
         };
     }
     // ---------------------------------------------------------------
@@ -290,7 +290,7 @@
             const prefix = NA_DOOR_PREFIX[product];
             const composition = na_door_composition(cfg, product);
             const parts = [na_option_label(prefix + '_leaf_composition', composition)];
-            if (composition === 'GlazedOverFielded') parts.push('midrail ' + na_num(cfg[prefix + '_mid_rail_width_mm']));
+            if (composition === 'GlazedOverFielded' || composition === 'GlazedOverGlazed') parts.push('midrail ' + na_num(cfg[prefix + '_mid_rail_width_mm']));
             if (product === 'double' && cfg.double_door_leaf_settings_linked === false) parts.push('leaves differ');
             return parts.join(' · ');
         },
@@ -318,7 +318,7 @@
             const frame = cfg.advanced_frame_controls === true ? 'Per-side frame'
                         : (thickness === 0 ? 'No frame' : na_num(thickness) + ' frame');
             const parts = [frame, 'set back ' + na_num(cfg.frame_wall_inset_mm),
-                           cfg.has_cill === false ? 'no cill' : 'cill ' + na_num(cfg.cill_height_mm)];
+                           cfg.has_cill === false ? 'no cill' : 'cill ' + na_num(cfg.cill_height_mm) + (cfg.cill_horns_enabled === true ? ' with horns' : '')];
             if (na_is_window(product) && cfg.window_board_enabled === true) parts.push('window board');
             return parts.join(' · ');
         },
@@ -405,6 +405,7 @@
     // ---------------------------------------------------------------
 
     const NA_NEED_CILL         = { text: 'Include Cill on', fix: [['has_cill', true]] };
+    const NA_NEED_CILL_HORNS   = { text: 'Include Cill and Cill Horns on', fix: [['has_cill', true], ['cill_horns_enabled', true]] };
     const NA_NEED_WINDOW_BOARD = { text: 'Include Window Board on', fix: [['window_board_enabled', true]] };
     const NA_NEED_LEADED       = { text: 'Leaded Glass on', fix: [['leaded_glass_enabled', true]] };
     const NA_NEED_LEAD_WIDTH   = { text: 'Leaded Glass on, Centre Lines Only off', fix: [['leaded_glass_enabled', true], ['leaded_centre_lines_only', false]] };
@@ -481,11 +482,11 @@
         {
             key: 'leaves', title: 'Leaves', products: NA_D, summary: NA_SUMMARY.leaves,
             items: [].concat(
-                na_door_items(NA_D, 'leaf_composition', 1, () => ({ kw: 'leaf composition style glazed fielded solid panel' })),
+                na_door_items(NA_D, 'leaf_composition', 1, () => ({ kw: 'leaf composition style glazed fielded solid panel glazed over glazed two panes' })),
                 na_door_items(NA_D, 'mid_rail_width_mm', 1, (product, prefix) => ({
                     need: na_need_glazed_over_fielded(prefix), kw: 'separating midrail mid rail lock rail' })),
                 na_door_items(NA_D, 'fielded_section_height_mm', 1, (product, prefix) => ({
-                    need: na_need_glazed_over_fielded(prefix), kw: 'fielded section panel height' })),
+                    need: na_need_glazed_over_fielded(prefix), kw: 'lower section fielded panel height pane' })),
                 na_door_items(NA_D, { hinged: 'leaf_thickness_mm', set: 'panel_thickness_mm' }, 2, () => ({ kw: 'leaf panel thickness depth' })),
                 na_door_items(NA_D, { hinged: 'panel_stile_width_mm', set: 'stile_width_mm' }, 2, () => ({ kw: 'perimeter stile width' })),
                 na_door_items(NA_D, { hinged: 'panel_top_rail_width_mm', set: 'head_rail_mm' }, 2, () => ({ kw: 'top rail head rail' })),
@@ -542,8 +543,8 @@
         },
         {
             key: 'panels', title: 'Fielded Panels', products: NA_D, summary: NA_SUMMARY.panels,
-            offNote: (cfg, product) => na_door_composition(cfg, product) === 'FullyGlazed'
-                ? 'Fully glazed leaves have no fielded panels. Change Leaf Composition under Leaves to add some.' : '',
+            offNote: (cfg, product) => (na_door_composition(cfg, product) === 'FullyGlazed' || na_door_composition(cfg, product) === 'GlazedOverGlazed')
+                ? 'Glazed leaves have no fielded panels. Change Leaf Composition under Leaves to add some.' : '',
             items: [].concat(
                 na_door_items(NA_D, 'panel_preset', 1, (product, prefix) => ({ need: na_need_fielded(prefix), kw: 'panel layout preset fielded' })),
                 na_door_items(NA_D, 'panel_profile', 1, (product, prefix) => ({ need: na_need_three_dimensional(prefix), kw: 'raised bevelled recessed shaker profile' })),
@@ -576,6 +577,9 @@
                 { id: 'cill_height_mm', tier: 2, group: 'Cill', showIf: cfg => cfg.has_cill !== false, need: NA_NEED_CILL, kw: 'cill sill height' },
                 { id: 'cill_depth_mm', tier: 2, group: 'Cill', showIf: cfg => cfg.has_cill !== false, need: NA_NEED_CILL, kw: 'cill sill protrusion projection stub depth' },
                 { id: 'paint_cill', tier: 2, group: 'Cill', showIf: cfg => cfg.has_cill !== false, need: NA_NEED_CILL, kw: 'paint cill sill finish' },
+                { id: 'cill_horns_enabled', tier: 2, group: 'Cill', showIf: cfg => cfg.has_cill !== false, need: NA_NEED_CILL, kw: 'cill sill horns ears stooling cut around reveal' },
+                { id: 'cill_horn_length_mm', tier: 2, group: 'Cill', showIf: cfg => cfg.has_cill !== false && cfg.cill_horns_enabled === true, need: NA_NEED_CILL_HORNS, kw: 'cill sill horn length past reveal' },
+                { id: 'cill_horn_let_in_mm', tier: 2, group: 'Cill', showIf: cfg => cfg.has_cill !== false && cfg.cill_horns_enabled === true, need: NA_NEED_CILL_HORNS, kw: 'cill sill horn let into wall built in' },
                 { id: 'window_board_enabled', tier: 2, group: 'Window Board', products: NA_W, kw: 'include window board internal sill board nosing' },
                 { id: 'window_board_reveal_depth_mm', tier: 2, group: 'Window Board', products: NA_W, kw: 'window board reveal depth',
                   showIf: cfg => cfg.window_board_enabled === true, need: NA_NEED_WINDOW_BOARD },

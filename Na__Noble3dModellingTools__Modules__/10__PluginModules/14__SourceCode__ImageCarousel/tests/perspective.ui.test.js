@@ -9,6 +9,7 @@
  * screenshots go to tests/out/.
  */
 'use strict';
+var harness = require('./perspective_ui_harness.js');
 var path = require('path');
 var fs = require('fs');
 var playwright = require(process.argv[2] || 'playwright');
@@ -21,16 +22,7 @@ if (!fs.existsSync(OUT)) fs.mkdirSync(OUT);
 function slash(p) { return p.split(path.sep).join('/'); }
 function part(name) { return fs.readFileSync(path.join(ROOT, PREFIX + name), 'utf8'); }
 
-// Same placeholders, same order as DialogManager.na_render_html (functions keep $ literal).
-var html = part('UiLayout__.html')
-    .replace('{{STYLESHEET_CONTENT}}',        function() { return part('Styles__.css'); })
-    .replace('{{UI_BRIDGE_SCRIPT}}',          function() { return part('UiBridge__.js'); })
-    .replace('{{MARKUP_SCRIPT}}',             function() { return part('MarkupTool__.js'); })
-    .replace('{{MEASUREMENT_SCRIPT}}',        function() { return part('Measurement__.js'); })
-    .replace('{{PERSPECTIVE_SOLVER_SCRIPT}}', function() { return part('PerspectiveSolver__.js'); })
-    .replace('{{PERSPECTIVE_ANGLE_SCRIPT}}',  function() { return part('PerspectiveAngle__.js'); })
-    .replace('{{COUNT_TOOL_SCRIPT}}',         function() { return part('CountTool__.js'); });
-fs.writeFileSync(path.join(OUT, 'dialog.html'), html);
+harness.assemble(path.join(OUT, 'dialog.html'));
 
 var house = scene.house();
 var IMG1 = slash(path.join(OUT, 'house.png'));
@@ -73,7 +65,7 @@ function check(name, cond, detail) {
     var browser = await playwright.chromium.launch(CHROME ? { executablePath: CHROME, headless: true } : { headless: true });
     await renderPhoto(browser, IMG1, 4032, 3024);
     await renderPhoto(browser, IMG2, 1008, 756);
-    var page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+    var page = await browser.newPage({ viewport: harness.VIEWPORT, deviceScaleFactor: 1 });
     var errors = [];
     page.on('pageerror', function(e) { errors.push(String(e)); });
     page.on('console', function(m) { if (m.type() === 'error') errors.push(m.text()); });
@@ -95,6 +87,7 @@ function check(name, cond, detail) {
     await page.evaluate(function(list) { window.SKP_onFolderChosen(list); }, [IMG1, IMG2]);
     await page.waitForFunction(function() { var s = window.Na__ImageViewer__Core.getImageSize(); return s.w === 4032; });
 
+    harness.reachNestedTools(page);
     var widthBefore = await page.evaluate(function() { return document.getElementById('naImageViewer_canvas').width; });
     await page.click('#naImageViewer_btnPerspective');
     var widthAfter = await page.evaluate(function() { return document.getElementById('naImageViewer_canvas').width; });

@@ -12,11 +12,12 @@
 # DESCRIPTION:
 # - Loader only: path setup, require the AppCore main file, register the
 #   UI::Commands (Open Asset Library, NPR Viewport, NPR Parameters, Live NPR
-#   Updates, Reload Remote Plugin Files, Reload Plugin Data), the submenu and a
-#   toolbar. All logic lives in Na__PainterlyNPR__AssetLibrary__Modules__.
+#   Updates, NPR Export, Reload Remote Plugin Files, Reload Plugin Data), the
+#   submenu and a toolbar. All logic lives in Na__PainterlyNPR__AssetLibrary__Modules__.
 # - The toolbar (v0.2.0): the asset library, the NPR Viewport (PainterlyNPR's
 #   drawing of the model, nothing else), the NPR Parameters (every parameter
-#   the engine has) and Live NPR Updates, pressed while on.
+#   the engine has) and Live NPR Updates, pressed while on; NPR Export (v0.3.0:
+#   pictures of the drawing at a print resolution, PNG, JPEG or PDF).
 # - The library is PainterlyNPR's own (12__Data__AssetLibrary in the
 #   Na__PainterlyNPR repo). This plugin reads it, places its assets, and files
 #   new ones into it by the rules of its register; PainterlyNPR's build
@@ -127,6 +128,11 @@ unless file_loaded?(__FILE__)
             live ? MF_CHECKED : MF_UNCHECKED                                                   # <-- The button shows pressed while live
         end
 
+        na_export_command = UI::Command.new('NPR Export') { na_npr_call.call(:Na__PublicApi__OpenNprExport, 'NPR Export') }
+        na_export_command.menu_text       = 'NPR Export'
+        na_export_command.tooltip         = 'NPR Export'
+        na_export_command.status_bar_text = 'Pictures of PainterlyNPR\'s drawing (PNG, JPEG or a true-size PDF) at a print resolution, for the SketchUp view or its scenes'
+
         na_remote_command = UI::Command.new('Reload Remote Plugin Files') { na_npr_call.call(:Na__PublicApi__ReloadRemotePluginFiles, 'the remote plugin files') }
         na_remote_command.menu_text       = 'Reload Remote Plugin Files'
         na_remote_command.tooltip         = "#{na_plugin_name}: Reload Remote Plugin Files"
@@ -135,7 +141,8 @@ unless file_loaded?(__FILE__)
         {
             na_viewport_command   => 'Na__PainterlyAssets__Toolbar__NprViewport__.svg',
             na_parameters_command => 'Na__PainterlyAssets__Toolbar__NprParameters__.svg',
-            na_live_command       => 'Na__PainterlyAssets__Toolbar__NprLiveOn__.svg'
+            na_live_command       => 'Na__PainterlyAssets__Toolbar__NprLiveOn__.svg',
+            na_export_command     => 'Na__PainterlyAssets__Toolbar__NprExport__.svg'
         }.each do |command, icon|
             path = File.join(na_icon_folder, icon)
             next unless File.exist?(path)
@@ -155,6 +162,7 @@ unless file_loaded?(__FILE__)
         na_submenu.add_item(na_viewport_command)
         na_submenu.add_item(na_parameters_command)
         na_submenu.add_item(na_live_command)
+        na_submenu.add_item(na_export_command)
         na_submenu.add_item(na_remote_command)
         na_submenu.add_separator
         na_submenu.add_item(na_reload_command)
@@ -164,6 +172,7 @@ unless file_loaded?(__FILE__)
         na_toolbar.add_item(na_viewport_command)
         na_toolbar.add_item(na_parameters_command)
         na_toolbar.add_item(na_live_command)
+        na_toolbar.add_item(na_export_command)
         na_toolbar.show if na_toolbar.get_last_state != TB_HIDDEN
 
     # endregion ---------------------------------------------------------------

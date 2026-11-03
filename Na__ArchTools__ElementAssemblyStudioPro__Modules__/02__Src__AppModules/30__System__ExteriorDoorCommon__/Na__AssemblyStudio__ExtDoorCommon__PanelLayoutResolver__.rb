@@ -20,13 +20,14 @@
 #   bifold_door_*) into the canonical panel_config keys consumed here.
 #
 # INPUT panel_config (all keys optional, sensible fallbacks applied):
-#   'composition'                 FullyGlazed | GlazedOverFielded | FullyFielded
+#   'composition'                 FullyGlazed | GlazedOverFielded | GlazedOverGlazed |
+#                                 FullyFielded
 #   'output_mode'                 Linework | ThreeDimensional
 #   'profile'                     RaisedBevelled | RecessedShaker
 #   'preset'                      OnePanel | TwoVertical | TwoHorizontal |
 #                                 FourPanel | SixPanel | Custom
 #   'columns' / 'rows'            Custom grid counts
-#   'fielded_height_mm'           Lower fielded region height (GlazedOverFielded)
+#   'fielded_height_mm'           Lower section height (GlazedOverFielded, GlazedOverGlazed)
 #   'mid_rail_width_mm'           Separating mid rail width
 #   'stile_width_mm'              Perimeter stile width
 #   'top_rail_width_mm'           Perimeter top rail width
@@ -69,7 +70,7 @@ module Na__PanelLayoutResolver
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-    NA_COMPOSITIONS = %w[FullyGlazed GlazedOverFielded FullyFielded].freeze
+    NA_COMPOSITIONS = %w[FullyGlazed GlazedOverFielded GlazedOverGlazed FullyFielded].freeze
     NA_OUTPUT_MODES = %w[Linework ThreeDimensional].freeze
     NA_PROFILES     = %w[RaisedBevelled RecessedShaker].freeze
     NA_PRESET_GRIDS = {
@@ -98,6 +99,7 @@ module Na__PanelLayoutResolver
         regions = na_resolve_regions(effective, leaf, members, composition)
         fields = na_resolve_field_cells(effective, regions[:field], members)
         field_dividers = na_resolve_field_dividers(regions[:field], fields)
+        glaze_bars = na_resolve_glaze_bars(effective, leaf)
 
         {
             :composition => composition,
@@ -106,9 +108,11 @@ module Na__PanelLayoutResolver
             :members => members.freeze,
             :glazed_region => regions[:glazed]&.freeze,
             :field_region => regions[:field]&.freeze,
+            :mid_rail_z_mm => regions[:mid_rail_z_mm],
+            :lower_pane => na_resolve_lower_pane(regions, glaze_bars),
             :field_cells => fields.map(&:freeze).freeze,
             :field_dividers => field_dividers.map(&:freeze).freeze,
-            :glaze_bars => na_resolve_glaze_bars(effective, leaf),
+            :glaze_bars => glaze_bars,
             :panel_inset_mm => GeometryHelpers.na_clamp(effective['panel_inset_mm'], 5, 100),
             :panel_depth_mm => GeometryHelpers.na_clamp(effective['panel_depth_mm'], 1, leaf[:thickness_mm] / 2.0 - 0.5),
             :panel_bevel_width_mm => GeometryHelpers.na_clamp(effective['panel_bevel_width_mm'], 2, 100)
@@ -154,7 +158,7 @@ module Na__PanelLayoutResolver
         field_height = GeometryHelpers.na_clamp(
             effective['fielded_height_mm'], 100, inner_h - members[:mid_rail_width_mm] - 100
         )
-        field = full.merge(:height_mm => field_height)
+        lower = full.merge(:height_mm => field_height)
         glazed_z = inner_z + field_height + members[:mid_rail_width_mm]
         glazed = {
             :x_mm => inner_x,
@@ -162,7 +166,58 @@ module Na__PanelLayoutResolver
             :width_mm => inner_w,
             :height_mm => [inner_z + inner_h - glazed_z, 0.0].max
         }
-        { :field => field, :glazed => glazed }
+        {
+            :field => composition == 'GlazedOverGlazed' ? nil : lower,
+            :lower_glazed => composition == 'GlazedOverGlazed' ? lower : nil,
+            :glazed => glazed,
+            :mid_rail_z_mm => inner_z + field_height
+        }
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | A Line Count Scaled to a Pane of Another Height (V2.3.0)
+    # ------------------------------------------------------------
+    # Keeps the gaps between lines about the same size. Mirrors
+    # Na__GlazebarMath.na_scaleLineCount.
+    def self.na_scaled_line_count(count, ratio)
+        lines = [count.to_i, 0].max
+        return 0 if lines <= 0
+        return lines unless ratio.to_f > 0
+
+        [[((lines + 1) * ratio.to_f).round - 1, 0].max, 12].min
+    end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | The Lower Glass of a Glazed Over Glazed Leaf (V2.3.0)
+    # ------------------------------------------------------------
+    # A view of the layout for the second pane, read by the same glass, bar
+    # and lead builders as the top one. :pane_cell is the cell number in its
+    # removal keys ("0:1:leaf:0:..."; the top pane stays cell 0). Vertical
+    # bars and lead keep their counts, so they line up with the top pane;
+    # horizontal counts scale with the height, so a shorter pane gets fewer
+    # lines and the same size of quarry. Horizontal nudges and offsets belong
+    # to the top pane. Mirrors Na__GlazebarMath.na_lowerPaneLayout.
+    # @return [Hash, nil] { :glazed_region, :glaze_bars, :pane_cell, :lead_rows }
+    def self.na_resolve_lower_pane(regions, glaze_bars)
+        lower = regions[:lower_glazed]
+        upper = regions[:glazed]
+        return nil unless lower && upper && upper[:height_mm].to_f > 0
+
+        upper_height = upper[:height_mm].to_f
+        lower_height = lower[:height_mm].to_f
+        count = glaze_bars[:horizontal_count]
+        lower_count = na_scaled_line_count(count, lower_height / upper_height)
+        lead_ratio = (lower_height / (lower_count + 1)) / (upper_height / (count + 1))
+        {
+            :glazed_region => lower.freeze,
+            :glaze_bars => glaze_bars.merge(
+                :horizontal_count => lower_count,
+                :horizontal_offset_mm => 0.0,
+                :h_offsets_mm => [].freeze
+            ).freeze,
+            :pane_cell => 1,
+            :lead_rows => ->(lines) { na_scaled_line_count(lines, lead_ratio) }
+        }.freeze
     end
     # ---------------------------------------------------------------
 

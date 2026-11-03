@@ -632,6 +632,9 @@ module Na__AssemblyStudio
                 "paint_cill",
                 "cill_height_mm",
                 "cill_depth_mm",
+                "cill_horns_enabled",                                                               # <-- V2.4.0 Cill horns
+                "cill_horn_length_mm",
+                "cill_horn_let_in_mm",
                 "frame_material_id",
                 "horizontal_glaze_bars",
                 "vertical_glaze_bars",

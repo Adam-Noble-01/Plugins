@@ -18,7 +18,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.4",
+        "version": "1.0.5",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -1323,7 +1323,7 @@
             "timeout_s": 600,
             "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
             "api": [],
-            "description": "Run several tool calls in ONE round trip and ONE undo step. steps: [{\"tool\": \"geometry_create_solid\", \"arguments\": {...}}, ...]. A string argument \"$<step>.<path>\" is replaced by a value from an earlier step's result, e.g. \"$0.id\" or \"$2.ids.0\", so you can create something and then move, paint or tag it in the same batch. atomic (default true): if any step fails, every step is undone and you get each step's outcome. atomic:false keeps the steps that worked (stop_on_error decides whether to continue). model_file and nested batches are not allowed; context_set only when atomic is false. Ideal for building assemblies (walls, stairs, arrays of components) quickly.",
+            "description": "Run several tool calls in ONE round trip and ONE undo step. steps: [{\"tool\": \"geometry_create_solid\", \"arguments\": {...}}, ...]. A string argument \"$<step>.<path>\" is replaced by a value from an earlier step's result, e.g. \"$0.id\" or \"$2.ids.0\", so you can create something and then move, paint or tag it in the same batch. atomic (default true): if any step fails, every step is undone and you get each step's outcome. atomic:false keeps the steps that worked (stop_on_error decides whether to continue). rollback:true is a zero-trace trial: every step runs and you get each result (captures saved to disk stay), then every step is undone, nothing changes, and the activity log reads 'Trial' instead of FAILED; camera moves and scene changes are not undone. model_file and nested batches are not allowed; context_set only when atomic is false. Ideal for building assemblies (walls, stairs, arrays of components) quickly.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1342,6 +1342,7 @@
                     },
                     "atomic": {"type": "boolean"},
                     "stop_on_error": {"type": "boolean"},
+                    "rollback": {"type": "boolean", "description": "Trial: run every step, return the results, then undo them all (default false). Needs atomic."},
                     "operation_name": {"type": "string", "description": "Undo step name (default 'Batch (n steps)')."}
                 },
                 "required": ["steps"],

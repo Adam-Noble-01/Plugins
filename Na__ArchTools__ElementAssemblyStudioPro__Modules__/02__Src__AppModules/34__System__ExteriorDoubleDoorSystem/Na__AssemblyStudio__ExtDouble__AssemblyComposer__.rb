@@ -92,6 +92,7 @@ module Na__AssemblyComposer
         na_build_leaf_members(mod.entities, leaf, panel_layout, materials[:leaf], door_id)
         na_build_field_dividers(mod.entities, leaf, panel_layout, materials[:leaf], door_id)
         na_build_glazed_region(mod.entities, leaf, panel_layout, materials, config)
+        na_build_glazed_region(mod.entities, leaf, panel_layout[:lower_pane], materials, config) if panel_layout[:lower_pane]   # <-- V2.3.0 Glazed Over Glazed
 
         if panel_layout[:output_mode] == 'Linework'
             # @delegate: Na__AssemblyStudio__ExtDouble__PanelLineworkBuilder__.rb
@@ -139,8 +140,8 @@ module Na__AssemblyComposer
                leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
                inner_width, leaf[:thickness_mm], top_rail, material)
 
-        return unless layout[:composition] == 'GlazedOverFielded' && layout[:field_region]
-        mid_z = layout[:field_region][:z_mm] + layout[:field_region][:height_mm]
+        mid_z = layout[:mid_rail_z_mm]
+        return unless mid_z
         na_box(entities, "#{prefix}__RailMid", leaf[:origin_x_mm] + stile, leaf[:origin_y_mm], mid_z,
                inner_width, leaf[:thickness_mm], members[:mid_rail_width_mm], material)
     end
@@ -177,11 +178,12 @@ module Na__AssemblyComposer
 
         glass_depth = [leaf[:thickness_mm] * 0.35, 2.0].max
         glass_y = leaf[:origin_y_mm] + (leaf[:thickness_mm] - glass_depth) / 2.0
-        na_box(entities, 'Na__ExteriorDoubleDoor__Glass',
+        pane_name = layout[:pane_cell] ? 'Lower' : ''                     # <-- V2.3.0 The lower pane has its own names, fused and trimmed on its own
+        na_box(entities, "Na__ExteriorDoubleDoor__#{pane_name}Glass",
                region[:x_mm], glass_y, region[:z_mm],
                region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
         na_build_glaze_bars(entities, leaf, layout, materials[:leaf])
-        na_build_leaded_glass(entities, config, leaf, layout, glass_y, 'Na__ExteriorDoubleDoor')
+        na_build_leaded_glass(entities, config, leaf, layout, glass_y, layout[:pane_cell] ? 'Na__ExteriorDoubleDoor__Lower' : 'Na__ExteriorDoubleDoor')
     end
     private_class_method :na_build_glazed_region
 
@@ -222,15 +224,16 @@ module Na__AssemblyComposer
         vertical_positions = positions[:vertical]
         horizontal_positions = positions[:horizontal]
 
+        pane_name = layout[:pane_cell] ? 'Lower' : ''
         vertical_positions.each_with_index do |x, index|
-            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1))
-            na_box(entities, "Na__ExteriorDoubleDoor__GlazeBarV#{index + 1}",
+            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1, layout[:pane_cell].to_i))
+            na_box(entities, "Na__ExteriorDoubleDoor__#{pane_name}GlazeBarV#{index + 1}",
                    x - bars[:width_mm] / 2.0, y, region[:z_mm],
                    bars[:width_mm], depth, region[:height_mm], material)
         end
         horizontal_positions.each_with_index do |z, index|
-            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1))
-            na_box(entities, "Na__ExteriorDoubleDoor__GlazeBarH#{index + 1}",
+            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1, layout[:pane_cell].to_i))
+            na_box(entities, "Na__ExteriorDoubleDoor__#{pane_name}GlazeBarH#{index + 1}",
                    region[:x_mm], y, z - bars[:width_mm] / 2.0,
                    region[:width_mm], depth, bars[:width_mm], material)
         end
@@ -245,6 +248,7 @@ module Na__AssemblyComposer
         region = layout[:glazed_region]
         return unless region && region[:height_mm].to_f > 0
 
+        leaded = leaded.merge(h_bars: layout[:lead_rows].call(leaded[:h_bars])) if layout[:lead_rows]   # <-- V2.3.0 Lower pane: same size of quarry
         mm = 1.0 / 25.4
         positions = na_final_bar_positions_mm(layout)
         disabled_source = config['double_door_leaded_disabled_cells'].is_a?(Array) ? config['double_door_leaded_disabled_cells'] : config['leaded_disabled_cells']
@@ -252,7 +256,7 @@ module Na__AssemblyComposer
             h_positions: positions[:horizontal].map { |position| position * mm },
             v_positions: positions[:vertical].map { |position| position * mm },
             bar_width: layout[:glaze_bars][:width_mm] * mm,
-            panel_context: { opening: 0, cell: 0, panel: leaf[:index] - 1, sash: 0 },
+            panel_context: { opening: 0, cell: layout[:pane_cell].to_i, panel: leaf[:index] - 1, sash: 0 },
             disabled_cells: Array(disabled_source).map(&:to_s)
         }
         LeadedGlassBuilder.na_create_leaded_glass_geometry(
@@ -270,8 +274,8 @@ module Na__AssemblyComposer
     end
     private_class_method :na_build_leaded_glass
 
-    def self.na_glazebar_key(leaf, orientation, bar_index)
-        "0:0:#{leaf[:index] - 1}:0:#{orientation}:#{bar_index}"
+    def self.na_glazebar_key(leaf, orientation, bar_index, cell = 0)
+        "0:#{cell}:#{leaf[:index] - 1}:0:#{orientation}:#{bar_index}"
     end
     private_class_method :na_glazebar_key
 
@@ -348,7 +352,8 @@ module Na__AssemblyComposer
             GeometryHelpers.na_mm_to_inch(height),
             GeometryHelpers.na_mm_to_inch(dimensions[:frame_depth_mm]),
             material,
-            GeometryHelpers.na_mm_to_inch(dimensions[:frame_wall_inset_mm])
+            GeometryHelpers.na_mm_to_inch(dimensions[:frame_wall_inset_mm]),
+            WindowBuilders.na_cill_horns(config)
         )
     end
     private_class_method :na_build_cill

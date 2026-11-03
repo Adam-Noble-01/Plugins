@@ -25,9 +25,15 @@
 # - THE SYNC WAITS FOR A CLOSED GROUP: the GLB builder exports the model, not
 #   an open context, so changes made inside a group reach the drawing when it
 #   is closed (the camera keeps following meanwhile).
-# - THE LOOK: the NPR Parameters window's settings are kept per project (in
-#   its cache folder) and handed to the viewport; a slider's move goes over at
-#   once as one control, the rest as the engine's settings object.
+# - THE LOOK (v0.3.0): the NPR Parameters window's settings are kept in the
+#   MODEL (Na__NprSettings: its NPR settings record) and handed to the
+#   viewport; a slider's move goes over at once as one control, the rest as the
+#   engine's settings object. An Undo or Redo of a look change brings that look
+#   back in both windows (Na__NprSettings watches the undo, and says whether it
+#   was only the record that moved: then the geometry is not checked again).
+# - AN EXPORT HOLDS THE VIEWPORT STILL (Na__Live__Hold): no camera and no new
+#   scene reach it while NPR Export draws its pictures; afterwards SketchUp's
+#   camera goes again, and a sync that waited runs.
 # - State survives Reload Plugin Data (every module variable is guarded), and
 #   the observers attached before a reload keep calling the reloaded methods.
 #
@@ -40,10 +46,10 @@ module Na__PainterlyAssets
     # REGION | Observers (they only note and schedule)
     # -------------------------------------------------------------------------
 
+        # Undo and Redo come through Na__NprSettings' watch (Na__Live__ModelUndone):
+        # it alone can tell an undone look from an undone edit.
         class Na__LiveSync__ModelWatch < Sketchup::ModelObserver
             def onTransactionCommit(model);  Na__PainterlyAssets::Na__LiveSync.na_on_commit(model);    end
-            def onTransactionUndo(model);    Na__PainterlyAssets::Na__LiveSync.na_on_full(model);      end
-            def onTransactionRedo(model);    Na__PainterlyAssets::Na__LiveSync.na_on_full(model);      end
             def onActivePathChanged(model);  Na__PainterlyAssets::Na__LiveSync.na_on_path(model);      end
         end
 
@@ -73,12 +79,13 @@ module Na__PainterlyAssets
         @na_app_watch    = nil   unless defined?(@na_app_watch)
         @na_sync_timer   = nil   unless defined?(@na_sync_timer)
         @na_camera_timer = nil   unless defined?(@na_camera_timer)
-        @na_save_timer   = nil   unless defined?(@na_save_timer)
         @na_syncing      = false unless defined?(@na_syncing)
         @na_pending      = { 'full' => true, 'forget' => {}, 'waiting' => false } unless defined?(@na_pending)
         @na_placement    = {}    unless defined?(@na_placement)                          # <-- Project key => the scene's placement (the camera's frame)
-        @na_settings     = {}    unless defined?(@na_settings)                           # <-- Project key => the engine's look
         @na_last         = nil   unless defined?(@na_last)                               # <-- The last sync's answer, for the status line
+        @na_scene_sent   = nil   unless defined?(@na_scene_sent)                         # <-- The project whose scene the viewport's page now has
+        @na_hold         = false unless defined?(@na_hold)                               # <-- NPR Export is drawing: nothing moves the viewport
+        @na_held_sync    = false unless defined?(@na_held_sync)                          # <-- A sync came due while held
 
     # endregion ----------------------------------------------------------------
 
@@ -131,13 +138,13 @@ module Na__PainterlyAssets
         # ------------------------------------------------------------
         def self.Na__Live__WindowReady(role, info)
             model = Sketchup.active_model
-            key   = Na__CacheStore.Na__Cache__Key(model)
             Na__NprWindows.Na__Windows__Send(role, 'live', self.na_live_payload)
-            settings = self.na_settings_for(model)
-            Na__NprWindows.Na__Windows__Send(role, 'settings', { 'Settings' => settings, 'Project' => key }) if settings
+            self.na_send_look(role, model)
+            Na__NprWindows.Na__Windows__Send(role, 'record', Na__NprSettings.Na__Settings__Status(model))
             Na__NprWindows.Na__Windows__Send(role, 'status', { 'Text' => @na_last['message'], 'Level' => @na_last['ok'] ? 'info' : 'warn' }) if @na_last && role == 'parameters'
             return unless role == 'viewport'
 
+            @na_scene_sent = nil                                                         # <-- A new page has no scene yet
             unless info['Booted']
                 Na__NprWindows.Na__Windows__SendAll('status', { 'Text' => "PainterlyNPR could not start in SketchUp's browser: #{info['Error']}", 'Level' => 'error' })
                 return
@@ -151,13 +158,17 @@ module Na__PainterlyAssets
         # ---------------------------------------------------------------
 
         def self.Na__Live__ViewportClosed
+            @na_scene_sent = nil
+            self.Na__Live__Hold(false) if @na_hold
             self.Na__Live__Set(false) if @na_live                                        # <-- Nothing to draw into: stop watching
         end
 
         # FUNCTION | The NPR Parameters Window Moved the Engine's Look
         # ------------------------------------------------------------
-        # A control goes straight to the viewport; a settings object is kept for
-        # the project (written a moment after the last change) and handed on.
+        # A control goes straight to the viewport; a settings object goes to the
+        # viewport too, and is kept in the model (one undo step a run of changes;
+        # Reset is a step of its own). The parameters window is told what the
+        # record now says.
         def self.Na__Live__ParametersChanged(payload)
             if payload['Control'].is_a?(Hash)
                 Na__NprWindows.Na__Windows__Send('viewport', 'settings', { 'Control' => payload['Control'] })
@@ -165,19 +176,67 @@ module Na__PainterlyAssets
             return unless payload['Settings'].is_a?(Hash)
 
             model = Sketchup.active_model
-            key   = Na__CacheStore.Na__Cache__Key(model)
-            @na_settings[key] = payload['Settings']
-            Na__NprWindows.Na__Windows__Send('viewport', 'settings', { 'Settings' => payload['Settings'], 'Project' => key })
-            self.na_stop(:@na_save_timer)
-            folder = Na__CacheStore.Na__Cache__Folder(model)
-            @na_save_timer = UI.start_timer(1.0, false) do
-                @na_save_timer = nil
-                begin
-                    Na__CacheStore.Na__Cache__WriteSettings(folder, payload['Settings'])
-                rescue StandardError => error
-                    Na__DebugTools.Na__Debug__Warn("The NPR look could not be saved: #{error.message}")
-                end
+            Na__NprWindows.Na__Windows__Send('viewport', 'settings', { 'Settings' => payload['Settings'], 'Project' => Na__CacheStore.Na__Cache__Key(model) })
+            problem = Na__NprSettings.Na__Settings__SaveLook(model, payload['Settings'], payload['Reset'] ? 'lookReset' : 'look')
+            Na__NprWindows.Na__Windows__Send('parameters', 'record', Na__NprSettings.Na__Settings__Status(model))
+            Na__NprWindows.Na__Windows__Send('parameters', 'status', { 'Text' => problem, 'Level' => 'warn' }) if problem
+            Na__NprWindows.Na__Windows__Send('parameters', 'status', { 'Text' => 'The look is back to PainterlyNPR\'s defaults (the GitHub engine\'s own). Undo in SketchUp puts the last one back.', 'Level' => 'info' }) if payload['Reset'] && !problem
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Model's Look Changed Behind the Windows (an Undo, a Restore, a model brought to the front)
+        # ------------------------------------------------------------
+        def self.Na__Live__LookChanged(model)
+            return unless model && model.equal?(Sketchup.active_model)
+            Na__NprWindows::NA_ROLES.each { |role| self.na_send_look(role, model) }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | An Undo or Redo (from Na__NprSettings' watch): only the look moved, or the model
+        # ------------------------------------------------------------
+        def self.Na__Live__ModelUndone(model, only_the_record)
+            return if only_the_record                                                    # <-- An undone look: the geometry is as it was
+            self.na_on_full(model)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Hold the Viewport Still (NPR Export is drawing) or Let It Follow Again
+        # ------------------------------------------------------------
+        def self.Na__Live__Hold(on)
+            @na_hold = on ? true : false
+            return if @na_hold
+            self.na_schedule_camera(force: true)                                         # <-- Back to SketchUp's view
+            if @na_held_sync
+                @na_held_sync = false
+                self.na_schedule_sync(0.2)
             end
+        end
+        # ---------------------------------------------------------------
+
+        def self.Na__Live__Held?
+            @na_hold ? true : false
+        end
+
+        # FUNCTION | Has the Viewport's Page the Model's Scene? (an export draws nothing else)
+        # ------------------------------------------------------------
+        def self.Na__Live__SceneReady?(model)
+            return false unless model && Na__NprWindows.Na__Windows__Ready?('viewport')
+            key = Na__CacheStore.Na__Cache__Key(model)
+            @na_scene_sent == key && @na_placement.key?(key)
+        end
+        # ---------------------------------------------------------------
+
+        # The scene's placement (the frame every camera is sent in)
+        def self.Na__Live__Placement(model)
+            @na_placement[Na__CacheStore.Na__Cache__Key(model)] || {}
+        end
+
+        # FUNCTION | Make Sure the Viewport Has the Scene (an export asked, live or not)
+        # ------------------------------------------------------------
+        def self.Na__Live__EnsureScene(model)
+            return if self.Na__Live__SceneReady?(model) || @na_syncing
+            @na_pending['full'] = true if @na_scene_sent.nil?
+            self.na_schedule_sync(0.05)
         end
         # ---------------------------------------------------------------
 
@@ -193,6 +252,7 @@ module Na__PainterlyAssets
 
         def self.na_on_commit(model)
             return unless @na_live && self.na_watching?(model)
+            return if Na__NprSettings.Na__Settings__Writing?                             # <-- Our own NPR settings record: nothing drawn has changed
             path = model.active_path
             touched = if path && !path.empty?
                           path.map(&:definition)                                           # <-- The open contexts: an edit lands in the innermost
@@ -258,6 +318,10 @@ module Na__PainterlyAssets
         def self.na_run_sync
             return if @na_syncing
             return unless Na__NprWindows.Na__Windows__Ready?('viewport')
+            if @na_hold
+                @na_held_sync = true                                                     # <-- NPR Export is drawing: this runs when it is done
+                return
+            end
             model = Sketchup.active_model
             return unless model
             if model.active_path
@@ -286,7 +350,7 @@ module Na__PainterlyAssets
             end
             if result['scene']
                 @na_placement[result['key']] = result['scene']['NprScene__ModelPlacement'] || {}
-                Na__NprWindows.Na__Windows__Send('viewport', 'scene', Na__CacheSync.Na__Sync__Payload(result))
+                @na_scene_sent = result['key'] if Na__NprWindows.Na__Windows__Send('viewport', 'scene', Na__CacheSync.Na__Sync__Payload(result))
                 self.na_schedule_camera(force: true)
             end
             Na__NprWindows.Na__Windows__SendAll('status', { 'Text' => "#{result['message']} (#{result['seconds']} s)", 'Level' => result['ok'] ? 'info' : 'error' })
@@ -311,6 +375,7 @@ module Na__PainterlyAssets
         end
 
         def self.na_send_camera
+            return if @na_hold                                                           # <-- NPR Export sets each picture's camera itself
             model = Sketchup.active_model
             return unless model && Na__NprWindows.Na__Windows__Ready?('viewport')
             key = Na__CacheStore.Na__Cache__Key(model)
@@ -371,9 +436,13 @@ module Na__PainterlyAssets
             instance_variable_set(name, nil)
         end
 
-        def self.na_settings_for(model)
-            key = Na__CacheStore.Na__Cache__Key(model)
-            @na_settings[key] ||= Na__CacheStore.Na__Cache__ReadSettings(Na__CacheStore.Na__Cache__Folder(model))
+        # The model's look to one window (the record's, else this PC's 0.2.0
+        # cache; nothing kept: the engine's own defaults stand)
+        def self.na_send_look(role, model)
+            return unless model
+            look = Na__NprSettings.Na__Settings__Look(model)
+            return unless look['settings']
+            Na__NprWindows.Na__Windows__Send(role, 'settings', { 'Settings' => look['settings'], 'Project' => Na__CacheStore.Na__Cache__Key(model), 'Source' => look['source'] })
         end
 
         def self.na_live_payload

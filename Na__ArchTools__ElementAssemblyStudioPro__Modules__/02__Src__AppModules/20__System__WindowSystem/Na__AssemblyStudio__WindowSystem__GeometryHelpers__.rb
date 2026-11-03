@@ -374,6 +374,45 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Create Horned Cill (V2.4.0)
+        # ------------------------------------------------------------
+        # A T shaped slab under the same group name as the plain cill. The box's
+        # own normal check (face centre away from box centre) is wrong at the
+        # shoulders of a T, so each face is turned against the outward direction
+        # its outline edge gives. SketchUp also flips a face drawn at Z = 0.
+        #
+        # @param outline [Array] Plan [x, y] pairs, anticlockwise from above
+        def self.na_create_horned_cill(entities, outline, z, height, material)
+            group = entities.add_group
+            group.name = "Na_Cill"
+            group_entities = group.entities
+
+            bottom = outline.map { |x, y| Geom::Point3d.new(x, y, z) }
+            top    = outline.map { |x, y| Geom::Point3d.new(x, y, z + height) }
+
+            faces = [
+                [group_entities.add_face(bottom.reverse), Geom::Vector3d.new(0, 0, -1)],
+                [group_entities.add_face(top), Geom::Vector3d.new(0, 0, 1)]
+            ]
+            outline.each_index do |i|
+                j = (i + 1) % outline.length
+                faces << [group_entities.add_face(bottom[i], bottom[j], top[j], top[i]),
+                          Geom::Vector3d.new(outline[j][1] - outline[i][1], outline[i][0] - outline[j][0], 0)]
+            end
+
+            faces.each do |face, outward|
+                next unless face && face.valid?
+                face.reverse! if face.normal % outward < 0
+                next unless material
+                face.material = material
+                face.back_material = material
+            end
+
+            DebugTools.na_debug_geometry("Created horned cill: #{outline.length} sided")
+            group
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
     end # module Na__GeometryHelpers

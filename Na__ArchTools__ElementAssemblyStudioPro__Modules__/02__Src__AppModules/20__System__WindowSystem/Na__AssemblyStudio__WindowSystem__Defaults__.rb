@@ -70,6 +70,7 @@ module Na__WindowSystem
     # ------------------------------------------------------------
     NA_DEFAULT_CILL_DEPTH               = 50
     NA_DEFAULT_CILL_HEIGHT              = 50
+    NA_DEFAULT_CILL_HORN_LENGTH         = 40
     NA_DEFAULT_MULLION_COUNT            = 0
     NA_DEFAULT_MULLION_WIDTH            = 40
     NA_DEFAULT_TRANSOM_COUNT            = 0
@@ -242,6 +243,9 @@ module Na__WindowSystem
                 "has_cill"                              : true,
                 "cill_depth_mm"                         : 50,
                 "cill_height_mm"                        : 50,
+                "cill_horns_enabled"                    : false,
+                "cill_horn_length_mm"                   : 40,
+                "cill_horn_let_in_mm"                   : 0,
 
                 "window_board_enabled"                  : false,
                 "window_board_reveal_depth_mm"          : 250,

@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na PainterlyNPR Assets",
-        "version" : "0.2.0"
+        "version" : "0.3.0"
     },
 
     "dialog" : {
@@ -155,6 +155,37 @@
             "componentRules" : [
                 { "Type": "Column", "Category": "Porch", "Material": "Timber", "Role": "Focal" }
             ]
+        }
+    },
+
+    "nprExport" : {
+        "_comment"           : "NPR Export (v0.3.0): pictures of the NPR Viewport's drawing, drawn by the engine's own still export (PNG with its print size, a true-size PDF; JPEG made from its PNG) at a print resolution on the engine's sheet, for the current SketchUp view or ticked scenes. Each model keeps its own export settings (its NPR settings record); defaults are what a model starts with and what Reset Export Settings puts back. dpiPresets: the resolution buttons (127 is the engine's screen sheet). dpiLimits: the lowest and highest a custom resolution may be. readySeconds: how long an export waits for the NPR Viewport to have the model. itemTimeoutSeconds: how long one picture may take before the export stops (600 dpi on a small graphics card is slow).",
+        "window" : {
+            "title"          : "NPR Export",
+            "preferencesKey" : "Na__PainterlyNPR__NprExport",
+            "width"          : 540,
+            "height"         : 900,
+            "minWidth"       : 420,
+            "minHeight"      : 480
+        },
+        "dpiPresets"         : [127, 150, 200, 254, 300, 400, 600],
+        "dpiLimits"          : [50, 1200],
+        "readySeconds"       : 300,
+        "itemTimeoutSeconds" : 600,
+        "defaults" : {
+            "_comment"    : "views: current (the SketchUp view) or scenes. format: png, jpeg or pdf. folderMode: besideModel (the subfolder beside the .skp; empty: its own folder) or chosen. fileName tokens: {model} {view} {dpi} {date} {time} {seed}. ifExists: number (add __02 ...) or replace.",
+            "views"       : "current",
+            "scenes"      : [],
+            "format"      : "png",
+            "dpi"         : 300,
+            "jpegQuality" : 92,
+            "folderMode"  : "besideModel",
+            "subfolder"   : "PainterlyNPR__Exports",
+            "folder"      : "",
+            "fileName"    : "{model}__{view}__PainterlyNPR__{dpi}dpi__",
+            "ifExists"    : "number",
+            "openFolder"  : true,
+            "openFile"    : false
         }
     },
 

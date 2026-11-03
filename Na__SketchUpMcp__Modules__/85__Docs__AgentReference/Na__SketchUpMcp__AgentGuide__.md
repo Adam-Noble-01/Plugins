@@ -57,6 +57,7 @@ How to drive a live SketchUp 2026 model through this server. It is written for a
 - **`batch_execute`** runs up to 200 steps in one round trip and one undo step.
   - `atomic: true` is the default. If any step fails, the bridge undoes every step and returns each step's outcome in `error.details.steps`.
   - With `atomic: false`, the steps that worked are kept. `stop_on_error` (default true) decides whether the batch carries on.
+  - `rollback: true` makes the batch a zero-trace trial (bridge 1.0.5+): every step runs and reports, then everything is undone and no undo step is left. Captures saved during it stay on disk. The activity log shows `Trial: ...`, not FAILED. Camera moves and scene activation are not undone, so note the view first.
   - `model_file` and nested batches are not allowed. `context_set` is only allowed when `atomic` is false.
 - **Read-only mode.** Model-changing tools return `Error (read_only)`. `view_capture` and the query tools still work.
 - **Eval switched off.** `ruby_eval` returns `Error (eval_disabled)`. The user controls both switches in the status dialog.

@@ -11,6 +11,9 @@
  *  - Set Reference on two of a count's ticks dimensions every part and the
  *    whole; Measure snaps to the ticks
  *  - select, Delete, Clear counts, per photo, tool hand-off, Esc
+ *  - Count Points beside Count Spans: the same line and ticks, reading points
+ *    (both ends counted), typed and stepped as points, its own words, colour
+ *    and drawing; turning a line the other way; which button decides what
  */
 'use strict';
 var path = require('path');
@@ -57,7 +60,9 @@ function dist(p, q) { return Math.hypot(p.x - q.x, p.y - q.y); }
     await page.keyboard.press('c');
     var info = await inspect();
     check('C starts the Count tool', info.active && info.bar.open, info.active);
-    check('the bar says what to do first', /Drag from where the first one starts/.test(info.bar.hint), info.bar.hint);
+    check('the bar says what to do first', /Drag from where the first span starts/.test(info.bar.hint), info.bar.hint);
+    check('and that it counts the spaces', /counts the spaces between the points/.test(info.bar.hint), info.bar.hint);
+    check('the bar is titled Count Spans', info.bar.title === 'Count Spans', info.bar.title);
     check('the Count button shows the tool is on', await page.$eval('#naImageViewer_btnCount', function(b) { return b.classList.contains('naImageViewer__Btn--active'); }));
 
     // ---------------------------------------------------------------- drag a line up the corner, then divide it
@@ -83,6 +88,8 @@ function dist(p, q) { return Math.hypot(p.x - q.x, p.y - q.y); }
     info = await inspect();
     var first = info.counts[0];
     check('a click sets the count', info.phase === null && info.counts.length === 1 && first.n === 15 && info.selected === first.id, info);
+    check('it is a count of spans, and says so on the photo', first.kind === 'spans' && first.total === '15 spans', [first.kind, first.total]);
+    check('the bar gives the other reading of the same line', info.bar.value === '15' && info.bar.unit === 'spans, between 16 points', [info.bar.value, info.bar.unit]);
     check('without calibration the parts are even on the photo', first.spacing === 'even' && info.bar.spacing === 'Even spacing', info.bar.spacing);
     check('and the bar says how to get perspective', /calibrate the photo in Angle/.test(info.bar.hint), info.bar.hint);
     var evenMiss = tickMiss(first, 8, 0.3);
@@ -248,6 +255,200 @@ function dist(p, q) { return Math.hypot(p.x - q.x, p.y - q.y); }
     check('C starts it again', (await inspect()).active);
     await page.keyboard.press('c');
     check('and C stops it', !(await inspect()).active);
+
+    // ---------------------------------------------------------------- Count Points: starting it
+    function lit() {
+        return page.evaluate(function() {
+            function on(id) { return document.getElementById(id).classList.contains('naImageViewer__Btn--active'); }
+            return { spans: on('naImageViewer_btnCount'), points: on('naImageViewer_btnCountPoints') };
+        });
+    }
+    async function dialShown(n) {
+        var live = (await inspect()).live;
+        await page.mouse.wheel(0, -40 * (n - live.shown));
+        await page.waitForFunction(function(want) { var l = window.Na__ImageViewer__Count.inspect().live; return l && l.shown === want; }, n);
+    }
+    async function typeCount(text) {
+        await page.fill('#naImageViewer_countInput', text);
+        await page.press('#naImageViewer_countInput', 'Enter');
+    }
+    function indigo(px) { return Math.abs(px[0] - 57) < 30 && Math.abs(px[1] - 73) < 30 && Math.abs(px[2] - 171) < 30; }
+
+    // The dimensions read differently on the same line, while the reference is still set.
+    await page.keyboard.press('c');
+    await h.clickImg(body);
+    await page.click('#naImageViewer_countSwitch');
+    info = await inspect();
+    check('turned to points, a dimensioned count reads its spacing as centres', info.bar.dims === '300 mm centres \u00b7 4500 mm overall', info.bar.dims);
+    await page.click('#naImageViewer_countSwitch');
+    check('and back to spans, as each', (await inspect()).bar.dims === '300 mm each \u00b7 4500 mm overall');
+    await page.click('#naImageViewer_countClear');
+    await page.keyboard.press('Escape');
+    check('C has left the tool off for what follows', !(await inspect()).active);
+
+    await page.keyboard.press('Shift+C');
+    info = await inspect();
+    check('Shift+C starts Count Points', info.active && info.mode === 'points' && info.bar.title === 'Count Points', [info.mode, info.bar.title]);
+    var buttons = await lit();
+    check('only the Count Points button is lit', buttons.points && !buttons.spans, buttons);
+    check('the bar says it counts the items themselves', /counts the items themselves, both ends included/.test(info.bar.hint), info.bar.hint);
+    check('and names what it is for', /transoms, mullions, glazing bars, brick joints/.test(info.bar.hint), info.bar.hint);
+    check('the bar turns to its colour', await page.$eval('#naImageViewer_countBar', function(b) { return b.classList.contains('naImageViewer__CountBar--points'); }));
+
+    // ---------------------------------------------------------------- the same courses, counted as points
+    await dragImg(P(8, 0, 0.3), P(8, 0, 4.8));       // 16 course lines, 15 courses between them
+    info = await inspect();
+    check('a line starts as two points: its ends', info.phase === 'divide' && info.live.kind === 'points' && info.live.shown === 2 && info.live.total === '2 points', info.live);
+    check('the bar says the second point follows the pointer', /second point follows the pointer/.test(info.bar.hint), info.bar.hint);
+    await h.moveImg(P(8, 0, 0.6));
+    var nPoints = (await inspect()).live.shown;
+    console.log('  Count Points: the pointer on the second course line reads ' + nPoints);
+    check('the pointer on the second course line makes about sixteen', Math.abs(nPoints - 16) <= 3, nPoints);
+    await dialShown(16);
+    var dialled = (await inspect()).live;
+    check('the wheel dials points, with the spans one fewer', dialled.shown === 16 && dialled.n === 15 && dialled.total === '16 points', dialled.total);
+    await page.keyboard.press('Enter');
+    info = await inspect();
+    var pts = info.counts[0];
+    check('Enter sets sixteen points', info.counts.length === 1 && pts.kind === 'points' && pts.shown === 16, [pts.kind, pts.shown]);
+    check('the box shows points', info.bar.value === '16', info.bar.value);
+    check('the bar gives the spans between them', info.bar.unit === 'points, with 15 spans between', info.bar.unit);
+    check('the bar offers to read it the other way', info.bar.swap === 'Count its spans instead', info.bar.swap);
+
+    // ---------------------------------------------------------------- what is drawn: beads on the things, no blocks
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(60);
+    async function shotAt() {
+        var png = harness.decodePng(await page.screenshot());
+        return async function(q, dx, dy) { var s = await h.screenOf(q); return png.px(s.x + (dx || 0), s.y + (dy || 0)); };
+    }
+    var at = await shotAt();
+    var beads = 0;
+    for (var bi = 0; bi < pts.ticks.length; bi++) if (indigo(await at(pts.ticks[bi]))) beads++;
+    check('a bead sits on every point, both ends included', beads === 16, beads);
+
+    // ---------------------------------------------------------------- typing and stepping counts points
+    await typeCount('1');
+    check('1 is refused: a line has two ends', /Type 2 or more/.test((await inspect()).bar.error), (await inspect()).bar.error);
+    await typeCount('2');
+    info = await inspect();
+    check('2 points is one span', !info.bar.error && info.counts[0].n === 1 && info.counts[0].shown === 2, info.counts[0].n);
+    check('with Minus shut', await page.$eval('#naImageViewer_countMinus', function(b) { return b.disabled; }));
+    await page.keyboard.press('ArrowDown');
+    info = await inspect();
+    check('Down says two points are the fewest', info.counts[0].shown === 2 && /2 is the fewest points/.test(info.bar.hint), info.bar.hint);
+    await typeCount('999');
+    info = await inspect();
+    check('999 points can be typed, as 999 spans can', info.counts[0].shown === 999 && info.counts[0].n === 998, info.counts[0].n);
+    check('with Plus shut', await page.$eval('#naImageViewer_countPlus', function(b) { return b.disabled; }));
+    await page.keyboard.press('ArrowUp');
+    check('Up says that is the most', (await inspect()).counts[0].shown === 999 && /999 is the most/.test((await inspect()).bar.hint), (await inspect()).bar.hint);
+    await typeCount('1000');
+    check('1000 points is refused', /up to 999/.test((await inspect()).bar.error));
+    await typeCount('16');
+    check('a good number clears the error', (await inspect()).counts[0].shown === 16 && !(await inspect()).bar.error);
+    await page.keyboard.press('ArrowUp');
+    check('Up adds a point', (await inspect()).counts[0].shown === 17);
+    await page.keyboard.press('Control+z');
+    check('Ctrl+Z takes it back', (await inspect()).counts[0].shown === 16);
+
+    // ---------------------------------------------------------------- turning the line the other way
+    var ticksBefore = (await inspect()).counts[0].ticks;
+    await page.click('#naImageViewer_countSwitch');
+    info = await inspect();
+    var turned = info.counts[0];
+    check('turned to spans it reads one fewer', turned.kind === 'spans' && turned.shown === 15 && info.bar.value === '15' && info.bar.unit === 'spans, between 16 points', [turned.kind, turned.shown, info.bar.value]);
+    check('on exactly the same ticks', turned.ticks.every(function(q, j) { return dist(q, ticksBefore[j]) < 1e-9; }));
+    check('the bar follows it', info.bar.title === 'Count Spans' && info.bar.swap === 'Count its points instead', [info.bar.title, info.bar.swap]);
+    buttons = await lit();
+    check('the lit button follows it, so the next line matches', buttons.spans && !buttons.points && info.mode === 'spans', buttons);
+
+    // ---------------------------------------------------------------- what is drawn: blocks and numbers in the spans
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(60);
+    at = await shotAt();
+    function faceOff(j) { return { x: (turned.ticks[j].x * 0.75 + turned.ticks[j + 1].x * 0.25), y: (turned.ticks[j].y * 0.75 + turned.ticks[j + 1].y * 0.25) }; }
+    var tealStrong = 0, tealFaint = 0;
+    for (var bj = 0; bj < 14; bj++) {
+        var seen = await at(faceOff(bj), 4, 0);
+        // A wall in shadow has little green in it; the blocks' teal lifts green and blue over red.
+        var tint = (seen[1] + seen[2]) / 2 - seen[0];
+        if (bj % 2 === 0) tealStrong += tint; else tealFaint += tint;
+    }
+    console.log('  span blocks, how far toward teal: strong ' + (tealStrong / 7).toFixed(0) + ', faint ' + (tealFaint / 7).toFixed(0));
+    check('the spans are blocks, alternately strong and faint', tealStrong > tealFaint + 7 * 20, [tealStrong, tealFaint]);
+
+    await page.keyboard.press('Control+z');
+    info = await inspect();
+    check('Ctrl+Z turns it back to points', info.counts[0].kind === 'points' && info.counts[0].shown === 16, info.counts[0].kind);
+
+    // ---------------------------------------------------------------- which button decides what
+    await page.click('#naImageViewer_btnCountPoints');
+    info = await inspect();
+    buttons = await lit();
+    check('pressing the other button takes over without stopping', info.active && info.mode === 'points' && buttons.points && !buttons.spans, buttons);
+    check('it lets go of the finished count', info.selected === null);
+    check('and does not change what that count reads', info.counts[0].kind === 'points' && info.counts[0].shown === 16);
+    await page.click('#naImageViewer_btnCount');
+    info = await inspect();
+    check('the other way too', info.active && info.mode === 'spans' && info.counts[0].kind === 'points');
+    await dragImg(P(4, 0, 0.3), P(4, 0, 4.8));
+    await dialShown(5);
+    await page.click('#naImageViewer_btnCountPoints');
+    info = await inspect();
+    check('pressing the other button mid-line turns that line, keeping its ticks', info.phase === 'divide' && info.live.kind === 'points' && info.live.n === 5 && info.live.shown === 6, info.live);
+    await page.keyboard.press('Enter');
+    info = await inspect();
+    check('and it is set as points', info.counts[1].kind === 'points' && info.counts[1].shown === 6, info.counts[1].shown);
+    await page.click('#naImageViewer_countSwitch');
+    info = await inspect();
+    var spanCount = info.counts[1];
+    check('a selected count can be turned to spans', spanCount.kind === 'spans' && spanCount.shown === 5 && info.mode === 'spans', spanCount.shown);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Shift+C');
+    check('Shift+C with Spans lit moves to Points', (await inspect()).active && (await inspect()).mode === 'points');
+    await h.clickImg({ x: (spanCount.ticks[1].x + spanCount.ticks[2].x) / 2, y: (spanCount.ticks[1].y + spanCount.ticks[2].y) / 2 });
+    info = await inspect();
+    buttons = await lit();
+    check('selecting a span count: the bar speaks for it', info.selected === spanCount.id && info.bar.title === 'Count Spans' && info.bar.value === '5', [info.bar.title, info.bar.value]);
+    check('the lit button still decides the next line', info.mode === 'points' && buttons.points && !buttons.spans, buttons);
+    await page.keyboard.press('Escape');
+    await dragImg(P(6, 0, 1), P(6, 0, 4));
+    info = await inspect();
+    check('the next line follows the lit button', info.phase === 'divide' && info.live.kind === 'points', info.live && info.live.kind);
+    await page.click('#naImageViewer_countSwitch');
+    info = await inspect();
+    check('turning a line mid-way needs no history', info.live.kind === 'spans' && info.mode === 'spans', info.live.kind);
+    await page.keyboard.press('Escape');
+    check('Esc drops it', (await inspect()).phase === null && (await inspect()).counts.length === 2);
+
+    await page.keyboard.press('Shift+C');
+    check('Shift+C from Spans again moves to Points', (await inspect()).mode === 'points' && (await inspect()).active);
+    await page.keyboard.press('c');
+    check('C moves back to Spans without stopping', (await inspect()).mode === 'spans' && (await inspect()).active);
+    await page.keyboard.press('Shift+C');
+    await page.keyboard.press('Shift+C');
+    check('Shift+C on Points stops it', !(await inspect()).active);
+    buttons = await lit();
+    check('and neither button is lit', !buttons.spans && !buttons.points, buttons);
+
+    // ---------------------------------------------------------------- Measure snaps to the points
+    await page.keyboard.press('Shift+C');
+    await h.clickImg({ x: (spanCount.ticks[1].x + spanCount.ticks[2].x) / 2, y: (spanCount.ticks[1].y + spanCount.ticks[2].y) / 2 });
+    await page.click('#naImageViewer_countSwitch');
+    check('turned back, that line reads six points', (await inspect()).counts[1].total === '6 points', (await inspect()).counts[1].total);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await page.click('#naImageViewer_btnMeasure');
+    await h.moveImg(pts.ticks[5], 3, 2);
+    marker = await page.evaluate(function() { var m = window.Na__ImageViewer__Core.getSnapMarker(); return m && { kind: m.kind, label: m.label }; });
+    check('Measure snaps to a point, named by its number', !!marker && marker.kind === 'division' && marker.label === 'Point 6', marker);
+    // The far end of the line up the gable: on the corner (pts) the calibration lines' own ends come first.
+    await h.moveImg(spanCount.ticks[5], 3, 2);
+    marker = await page.evaluate(function() { var m = window.Na__ImageViewer__Core.getSnapMarker(); return m && { kind: m.kind, label: m.label }; });
+    check('a last point is named by its number too, and snaps as a line end', !!marker && marker.kind === 'endpoint' && marker.label === 'Point 6', marker);
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: path.join(t.out, 'count_points_and_spans.png') });
 
     check('no page errors', t.errors.length === 0, t.errors);
     await t.browser.close();

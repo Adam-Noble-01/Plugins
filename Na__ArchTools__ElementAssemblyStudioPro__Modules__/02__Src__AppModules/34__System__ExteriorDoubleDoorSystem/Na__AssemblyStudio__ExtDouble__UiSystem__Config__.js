@@ -73,6 +73,7 @@ const Na__ExtDouble__UiConfig = (function () {
     const NA_COMPOSITIONS = [
         { value: 'FullyGlazed', label: 'Fully Glazed' },
         { value: 'GlazedOverFielded', label: 'Glazed Over Fielded' },
+        { value: 'GlazedOverGlazed', label: 'Glazed Over Glazed' },
         { value: 'FullyFielded', label: 'Fully Fielded' }
     ];
 
@@ -146,7 +147,7 @@ const Na__ExtDouble__UiConfig = (function () {
         na_select('double_door_panel_preset', 'Panel Layout', 'OnePanel', NA_PRESETS, 'Fielded Panels'),
         Object.assign(na_slider('double_door_panel_columns', 'Custom Columns', 1, 6, 1, 1, 'Fielded Panels'), { unit: '' }),
         Object.assign(na_slider('double_door_panel_rows', 'Custom Rows', 1, 6, 1, 1, 'Fielded Panels'), { unit: '' }),
-        na_slider('double_door_fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 300, 'Fielded Panels'),
+        na_slider('double_door_fielded_section_height_mm', 'Lower Section Height', 100, 1800, 5, 300, 'Fielded Panels'),
         na_slider('double_door_panel_inset_mm', 'Panel Inset', 5, 100, 1, 25, 'Fielded Panels'),
         na_slider('double_door_panel_depth_mm', 'Panel Depth', 1, 30, 1, 12, 'Fielded Panels'),
         na_slider('double_door_panel_bevel_width_mm', 'Panel Bevel Width', 2, 60, 1, 18, 'Fielded Panels'),
@@ -202,7 +203,7 @@ const Na__ExtDouble__UiConfig = (function () {
             na_select(prefix + 'panel_preset', 'Panel Layout', 'OnePanel', NA_PRESETS, section),
             Object.assign(na_slider(prefix + 'panel_columns', 'Custom Columns', 1, 6, 1, 1, section), { unit: '' }),
             Object.assign(na_slider(prefix + 'panel_rows', 'Custom Rows', 1, 6, 1, 1, section), { unit: '' }),
-            na_slider(prefix + 'fielded_section_height_mm', 'Fielded Section Height', 100, 1800, 5, 300, section),
+            na_slider(prefix + 'fielded_section_height_mm', 'Lower Section Height', 100, 1800, 5, 300, section),
             na_slider(prefix + 'mid_rail_width_mm', 'Separating Midrail Width', 40, 300, 5, 120, section),
             na_slider(prefix + 'panel_stile_width_mm', 'Perimeter Stile Width', 40, 250, 5, 95, section),
             na_slider(prefix + 'panel_top_rail_width_mm', 'Top Rail Width', 40, 300, 5, 95, section),

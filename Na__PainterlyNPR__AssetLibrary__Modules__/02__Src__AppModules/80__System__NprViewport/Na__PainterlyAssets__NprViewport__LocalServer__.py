@@ -24,6 +24,11 @@
 #     /api/...               404: the app's saves fall back to its own storage
 #     /__na/ping             is it up (the plugin asks before it opens a window)
 #     /__na/shutdown         POST with the token: stop
+#     /__na/export           POST with the token (v1.1.0): one picture NPR Export
+#                            drew, written into the outbox folder as
+#                            <job>__<item>.<png|jpg|pdf>; the plugin moves it to
+#                            where it belongs. SketchUp's browser cannot
+#                            download a file, so the page hands it here.
 # - THE APP'S OWN PAGE, WITH THE HOST ADDED: PainterlyNPR__App__.html?na-host=
 #   viewport (or parameters) is the repo's page byte for byte plus an import
 #   map in its head (PainterlyNPR/ is the engine's modules, as ValeVision
@@ -32,17 +37,25 @@
 #   the engine has booted.
 # - The service worker is never served: it would keep a stale copy of the
 #   engine in SketchUp's browser after Reload Remote Plugin Files.
-# - Only loopback; only GET and HEAD, and the token-guarded shutdown. A path
-#   that leaves its root is refused. Files are opened with the \\?\ prefix:
-#   the engine's deepest files sit past 260 characters in the Plugins folder.
+# - Only loopback; only GET and HEAD, and the two token-guarded POSTs (the
+#   export writes one file of a fixed shape into the one outbox folder, never a
+#   path the page names). A path that leaves its root is refused. Files are
+#   opened with the \\?\ prefix: the engine's deepest files sit past 260
+#   characters in the Plugins folder.
 # - Stops by itself when SketchUp exits (its process id is watched), so it never
 #   outlives the session that started it.
+# - ITS PORT IS ITS OWN (1.1.0): on Windows a socket with SO_REUSEADDR (Python's
+#   default for an HTTP server) can bind a port another server already listens
+#   on, and then either one answers. Two SketchUps each ran a 1.0.0 server on
+#   8147 that way (found 01-Nov-2026). So the port is taken exclusively, and a
+#   second SketchUp's server is given another by the system.
 #
 # USAGE:
 #   pythonw -I -X utf8 Na__PainterlyAssets__NprViewport__LocalServer__.py
 #       --engine-root <93__RemoteCache__CoreEngine> --host-root <plugin modules folder>
 #       --projects-root <92__UserProjects__ProjectCache> --parent-pid <SketchUp pid>
 #       --ready-file <json> --token <random> [--override <folder>] [--log <file>]
+#       [--outbox <folder>]
 #
 # =============================================================================
 
@@ -51,6 +64,8 @@ import ctypes
 import json
 import mimetypes
 import os
+import re
+import socket
 import sys
 import threading
 import time
@@ -64,8 +79,12 @@ from pathlib import Path
 # REGION | Constants
 # -----------------------------------------------------------------------------
 
-SERVER_VERSION  = '1.0.0'
+SERVER_VERSION  = '1.1.0'                                                    # <-- 1.1.0 (plugin 0.3.0): /__na/export; the plugin restarts an older server
 APP_PAGE        = 'PainterlyNPR__App__.html'
+EXPORT_NAME     = re.compile(r'\A[0-9a-f]{12}__[0-9]{1,4}\.(png|jpg|pdf)\Z')
+EXPORT_MAX      = 2 * 1024 * 1024 * 1024                                     # <-- 2 GB: past a 600 dpi A3 PNG many times
+EXPORT_CHUNK    = 1024 * 1024
+DISCARD_MAX     = 64 * 1024 * 1024                                           # <-- A refused body up to this is read, so the reason reaches the page
 NEVER_SERVED    = {'Na__Pwa__ServiceWorker__.js'}                            # <-- A worker would pin a stale engine in SketchUp's browser
 HOST_FOLDERS    = ('02__Src__AppModules/80__System__NprViewport/', '03__Style__AppStylesheets/', '01__AppAssets__PainterlyAssets/')
 CACHE_TYPES     = {'.glb', '.json'}
@@ -117,6 +136,7 @@ class Settings:
     host_root     = ''
     projects_root = ''
     override      = ''
+    outbox        = ''
     token         = ''
     log_path      = ''
     lock          = threading.Lock()
@@ -131,6 +151,17 @@ def log(message):
                 handle.write(f'{datetime.now().strftime("%H:%M:%S")} {message}\n')
         except OSError:
             pass
+
+
+class Server(ThreadingHTTPServer):
+    """A port no other server shares: never SO_REUSEADDR on Windows, SO_EXCLUSIVEADDRUSE instead."""
+    allow_reuse_address = os.name != 'nt'
+    daemon_threads = True
+
+    def server_bind(self):
+        if os.name == 'nt' and hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -177,12 +208,76 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):                                                         # noqa: N802
         url = urllib.parse.urlsplit(self.path)
-        if url.path == '/__na/shutdown' and self.headers.get('X-Na-Token') == Settings.token:
+        token_ok = bool(Settings.token) and self.headers.get('X-Na-Token') == Settings.token
+        if url.path == '/__na/shutdown' and token_ok:
             self.send_json(200, {'ok': True, 'stopping': True})
             log('Shutdown asked for by the plugin.')
             threading.Thread(target=self.server.shutdown, daemon=True).start()
             return
-        self.send_json(403 if url.path == '/__na/shutdown' else 405, {'error': 'refused'})
+        if url.path == '/__na/export' and token_ok:
+            return self.receive_export()
+        self.discard_body()
+        self.send_json(403 if url.path in ('/__na/shutdown', '/__na/export') else 405, {'error': 'refused'})
+
+    def discard_body(self):
+        """A refused request's body read and dropped (up to DISCARD_MAX), so the page hears why, not a reset connection."""
+        self.close_connection = True
+        try:
+            remaining = int(self.headers.get('Content-Length', '0') or 0)
+        except ValueError:
+            return
+        if remaining > DISCARD_MAX:
+            return
+        while remaining > 0:
+            chunk = self.rfile.read(min(EXPORT_CHUNK, remaining))
+            if not chunk:
+                return
+            remaining -= len(chunk)
+
+    def receive_export(self):
+        """One picture into the outbox: <job>__<item>.<png|jpg|pdf>, written whole or not at all."""
+        name = self.headers.get('X-Na-File', '')
+        try:
+            size = int(self.headers.get('Content-Length', ''))
+        except ValueError:
+            size = -1
+        problem = None
+        if not Settings.outbox:
+            problem = (503, 'This server has no outbox for exports.')
+        elif not EXPORT_NAME.match(name):
+            problem = (400, 'An export file is named <job>__<item>.<png|jpg|pdf>.')
+        elif size <= 0 or size > EXPORT_MAX:
+            problem = (413 if size > EXPORT_MAX else 411, 'An export needs its length, at most 2 GB.')
+        if problem:
+            self.discard_body()
+            return self.send_json(problem[0], {'error': problem[1]})
+        target = os.path.join(Settings.outbox, name)
+        part   = target + '.part'
+        try:
+            os.makedirs(long_path(Settings.outbox), exist_ok=True)
+            remaining = size
+            with open(long_path(part), 'wb') as handle:
+                while remaining > 0:
+                    chunk = self.rfile.read(min(EXPORT_CHUNK, remaining))
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                    remaining -= len(chunk)
+            if remaining:
+                os.remove(long_path(part))
+                self.close_connection = True
+                return self.send_json(400, {'error': f'The picture arrived short by {remaining} bytes.'})
+            os.replace(long_path(part), long_path(target))
+        except OSError as error:
+            log(f'EXPORT FAILED {name}: {error}')
+            try:
+                os.remove(long_path(part))
+            except OSError:
+                pass
+            self.close_connection = True
+            return self.send_json(500, {'error': str(error)})
+        log(f'Export {name}: {size} bytes.')
+        self.send_json(200, {'ok': True, 'file': name, 'bytes': size})
 
     def route(self, head):
         url   = urllib.parse.urlsplit(self.path)
@@ -315,12 +410,14 @@ def main():
     parser.add_argument('--override', default='')
     parser.add_argument('--log', default='')
     parser.add_argument('--port', type=int, default=0)
+    parser.add_argument('--outbox', default='')
     args = parser.parse_args()
 
     Settings.engine_root   = os.path.abspath(args.engine_root)
     Settings.host_root     = os.path.abspath(args.host_root)
     Settings.projects_root = os.path.abspath(args.projects_root)
     Settings.override      = os.path.abspath(args.override) if args.override else ''
+    Settings.outbox        = os.path.abspath(args.outbox) if args.outbox else ''
     Settings.token         = args.token
     Settings.log_path      = args.log
     if args.log:
@@ -330,11 +427,10 @@ def main():
             Settings.log_path = ''
 
     try:
-        server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)        # <-- The usual port keeps the windows' browser storage from one day to the next
+        server = Server(('127.0.0.1', args.port), Handler)                     # <-- The usual port keeps the windows' browser storage from one day to the next
     except OSError as error:
         log(f'Port {args.port} is taken ({error}): the system chooses one.')
-        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-    server.daemon_threads = True
+        server = Server(('127.0.0.1', 0), Handler)
     port = server.server_address[1]
     ready = {'ok': True, 'port': port, 'pid': os.getpid(), 'version': SERVER_VERSION, 'started': datetime.now().isoformat(timespec='seconds')}
     part = Path(args.ready_file + '.part')

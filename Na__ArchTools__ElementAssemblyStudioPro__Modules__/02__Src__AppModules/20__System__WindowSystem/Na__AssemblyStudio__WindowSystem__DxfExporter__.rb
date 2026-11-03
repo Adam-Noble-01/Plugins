@@ -167,11 +167,13 @@ module Na__WindowSystem
             height = config["height_mm"] || 1200
             frame_thicknesses = na_get_effective_frame_thicknesses(config)
             
-            # Include cill in extents if present
+            # Include cill in extents if present, and its horns (V2.4.0)
             min_y = 0
+            cill_horn = 0
             if config["has_cill"] != false && frame_thicknesses[:bottom] > 0
                 cill_height = config["cill_height_mm"] || 50
                 min_y = -cill_height
+                cill_horn = Na__GeometryBuilders.na_cill_horn_length_mm(config).round
             end
             
             header = <<~DXF
@@ -194,7 +196,7 @@ module Na__WindowSystem
                 9
                 $EXTMIN
                 10
-                0.0
+                #{-cill_horn}.0
                 20
                 #{min_y}.0
                 30
@@ -202,7 +204,7 @@ module Na__WindowSystem
                 9
                 $EXTMAX
                 10
-                #{width}.0
+                #{width + cill_horn}.0
                 20
                 #{height}.0
                 30
@@ -474,7 +476,8 @@ module Na__WindowSystem
             
             # Draw cill (skip in frameless mode)
             if has_cill && bottom_frame_thickness > 0
-                entities += na_dxf_rect(0, -cill_height, width, cill_height, NA_LAYER_CILL)
+                cill_horn = Na__GeometryBuilders.na_cill_horn_length_mm(config)         # <-- V2.4.0 Zero unless Cill Horns is on
+                entities += na_dxf_rect(-cill_horn, -cill_height, width + (2 * cill_horn), cill_height, NA_LAYER_CILL)
             end
             
             entities += "0\nENDSEC\n"

@@ -2,13 +2,19 @@
 // NA NOBLE3D MODELLING TOOLS - IMAGE VIEWER - COUNT TOOL
 //
 // FILE       : Na__Noble3dModellingTools__ImageCarousel__CountTool__.js
-// PURPOSE    : Count repeated things on a photo: brick courses, bricks in a
-//              course, tiles, balusters. Drag a line from where the first
-//              one starts to where the last one ends, then move back along
-//              it: the line divides as you go, as SketchUp's Divide does,
-//              and every part is numbered 01, 02, 03... On a calibrated
-//              photo the parts are equal on the building rather than on the
-//              picture, so the ticks stay on the joints in perspective.
+// PURPOSE    : Count repeated things on a photo, two ways:
+//                Count Spans  the spaces between points: panels, panes, bricks,
+//                             courses. Numbered between the ticks, drawn as a
+//                             dimension chain.
+//                Count Points the things at the points, both ends included:
+//                             transoms, mullions, glazing bars, brick joints.
+//                             Numbered at each one, drawn as beads on the line.
+//              A line of 4 spans has 5 points, and the ticks are the same
+//              either way. Drag a line from one end to the other, then move
+//              back along it: the line divides as you go, as SketchUp's Divide
+//              does. On a calibrated photo the spans are equal on the building
+//              rather than on the picture, so the ticks stay on the joints in
+//              perspective.
 //
 // DESIGN     : Self-contained feature file, like the Measurement overlay. It
 //              talks to the viewer through window.Na__ImageViewer__Core
@@ -18,24 +24,28 @@
 //              window.Na__ImageViewer__PerspectiveSolver. Counts are kept
 //              per image path for the session.
 //
-// INTERACTION: C or the Count button. Drag from the first edge to the last
-//              (or click both ends). Move back along the line toward its
-//              start: the first part follows the pointer and the rest of
-//              the line fills with parts of that size, for a first guess.
+// INTERACTION: C or the Count Spans button, Shift+C or the Count Points button:
+//              the one that is lit decides what the next line counts. Drag
+//              from the first edge to the last (or click both ends). Move back
+//              along the line toward its start: the first span follows the
+//              pointer and the rest of the line fills with spans of that size,
+//              for a first guess.
 //              Then dial it in while watching the ticks against the joints:
 //              the wheel (while dividing), Up and Down add or remove one,
 //              typing a number sets it. Click or Enter sets the count. Drag
 //              an end to move it; drag a tick onto its joint to match the
 //              perspective by hand. Delete removes the count, Esc steps
 //              back. Right-drag pans and the wheel zooms without leaving
-//              the tool.
+//              the tool. The bar can turn a line the other way without
+//              redrawing it.
 //
-// DIMENSIONS : Once Set Reference has given the photo a scale, every part
-//              and the whole count are dimensioned in its units. The parts
-//              are equal on the building, so each is the whole over the
-//              count: counting 13 courses gives the gauge from 13 courses,
-//              not from one. A reference drawn beside the count, along it
-//              (one course, say), is read on the count's own perspective.
+// DIMENSIONS : Once Set Reference has given the photo a scale, every span
+//              and the whole count are dimensioned in its units (each span,
+//              or the points' centres). The spans are equal on the building,
+//              so each is the whole over the spans: counting 13 courses gives
+//              the gauge from 13 courses, not from one. A reference drawn
+//              beside the count, along it (one course, say), is read on the
+//              count's own perspective.
 // =============================================================================
 
 (function() {
@@ -58,12 +68,18 @@
     // -------------------------------------------------------------------------
 
     var NA_TOOL_NAME       = 'count';
-    var NA_COLOR           = '#00838f';   // teal: no other tool draws in it
+    var NA_KIND_SPANS      = 'spans';
+    var NA_KIND_POINTS     = 'points';
+    var NA_COLOR           = '#00838f';   // Count Spans. Teal: no other tool draws in it
+    var NA_POINTS_COLOR    = '#3949ab';   // Count Points. Indigo: stands off teal, and off brick
     var NA_SELECT_COLOR    = '#f5a623';
     var NA_HALO_COLOR      = 'rgba(255, 255, 255, 0.92)';
     var NA_LINE_PX         = 2.2;
     var NA_END_TICK_PX     = 10;
     var NA_TICK_PX         = 7;
+    var NA_POINT_TICK_PX   = 9;     // every point is a counted thing, so the ends get no longer tick
+    var NA_DOT_PX          = 4;
+    var NA_BLOCK_ALPHA     = [0.5, 0.16];   // Count Spans: alternate blocks along the line, as on a scale bar
     var NA_HANDLE_PX       = 4.5;
     var NA_HIT_PX          = 9;
     var NA_TICK_HIT_PX     = 7;
@@ -93,11 +109,12 @@
     // REGION | Feature State
     // -------------------------------------------------------------------------
 
-    var na_countsByKey = {};    // image key -> [ { id, a:{x,y}, b:{x,y}, n, vp:{x,y,w}|null } ]
+    var na_countsByKey = {};    // image key -> [ { id, kind, a:{x,y}, b:{x,y}, n (spans), vp:{x,y,w}|null } ]
     var na_nextId      = 1;
     var na_active      = false;
+    var na_mode        = NA_KIND_SPANS;   // what the next line counts: the lit button
     var na_phase       = null;  // null | 'draw' (placing the far end) | 'divide' (setting the count)
-    var na_live        = null;  // the count being made: { a, b, n, follow }
+    var na_live        = null;  // the count being made: { kind, a, b, n, follow }
     var na_selectedId  = null;
     var na_press       = null;  // a mouse press that may become a click, a drag or a pan
     var na_drag        = null;  // { item, part:'a'|'b'|'tick', index } while a handle is dragged
@@ -119,6 +136,10 @@
     var na_canvas    = null;
     var na_wrap      = null;
     var na_btnTool   = null;
+    var na_btnPoints = null;
+    var na_titleEl   = null;
+    var na_unitEl    = null;
+    var na_btnSwitch = null;
     var na_bar       = null;
     var na_input     = null;
     var na_btnMinus  = null;
@@ -151,11 +172,12 @@
 
     function Na__ImageViewerCount__Clone(c) {
         return {
-            id : c.id,
-            a  : { x: c.a.x, y: c.a.y },
-            b  : { x: c.b.x, y: c.b.y },
-            n  : c.n,
-            vp : c.vp ? { x: c.vp.x, y: c.vp.y, w: c.vp.w } : null
+            id   : c.id,
+            kind : c.kind,
+            a    : { x: c.a.x, y: c.a.y },
+            b    : { x: c.b.x, y: c.b.y },
+            n    : c.n,
+            vp   : c.vp ? { x: c.vp.x, y: c.vp.y, w: c.vp.w } : null
         };
     }
 
@@ -189,6 +211,51 @@
     function Na__ImageViewerCount__Target() {
         if (na_live && na_phase === 'divide') return na_live;
         return na_selectedId !== null ? Na__ImageViewerCount__Find(na_selectedId) : null;
+    }
+
+    // endregion ---------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
+    // REGION | Spans And Points
+    // -------------------------------------------------------------------------
+    // item.n is always the spans: a line of n spans has n + 1 points. The ticks
+    // and the sizes come from n alone, so only what is shown differs by kind.
+
+    function Na__ImageViewerCount__IsPoints(item) {
+        return item.kind === NA_KIND_POINTS;
+    }
+
+    function Na__ImageViewerCount__Color(item) {
+        return Na__ImageViewerCount__IsPoints(item) ? NA_POINTS_COLOR : NA_COLOR;
+    }
+
+    // The number the count reads: its spans, or its points.
+    function Na__ImageViewerCount__Shown(item) {
+        return item.n + (Na__ImageViewerCount__IsPoints(item) ? 1 : 0);
+    }
+
+    function Na__ImageViewerCount__MaxSpans(item) {
+        return NA_MAX_COUNT - (Na__ImageViewerCount__IsPoints(item) ? 1 : 0);
+    }
+
+    function Na__ImageViewerCount__Plural(n, word) {
+        return n + ' ' + word + (n === 1 ? '' : 's');
+    }
+
+    // On the photo: never a bare number, which is what made the two easy to mix up.
+    function Na__ImageViewerCount__Total(item) {
+        return Na__ImageViewerCount__Plural(Na__ImageViewerCount__Shown(item), Na__ImageViewerCount__IsPoints(item) ? 'point' : 'span');
+    }
+
+    // In the bar, after the number: the other reading of the same line.
+    function Na__ImageViewerCount__Relation(item) {
+        if (Na__ImageViewerCount__IsPoints(item)) return 'points, with ' + Na__ImageViewerCount__Plural(item.n, 'span') + ' between';
+        return (item.n === 1 ? 'span' : 'spans') + ', between ' + (item.n + 1) + ' points';
+    }
+
+    function Na__ImageViewerCount__KindName(kind) {
+        return kind === NA_KIND_POINTS ? 'Count Points' : 'Count Spans';
     }
 
     // endregion ---------------------------------------------------------------
@@ -243,7 +310,7 @@
         var A = na_core.imgToScreen(item.a), B = na_core.imgToScreen(item.b);
         var L = Math.sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));
         var minPx = NA_MIN_PART_PX * na_core.getRatio();
-        for (var n = Math.min(NA_MAX_COUNT, Math.floor(L / minPx)); n > 1; n--) {
+        for (var n = Math.min(Na__ImageViewerCount__MaxSpans(item), Math.floor(L / minPx)); n > 1; n--) {
             var first = na_solver.countPosition(k, 1 / n) * L;
             var last  = (1 - na_solver.countPosition(k, (n - 1) / n)) * L;
             if (Math.min(first, last) >= minPx) return n;
@@ -315,7 +382,7 @@
         if (!len) return '';
         var whole = Na__ImageViewerCount__FormatLength(len.overall, len.unit, false) + ' overall';
         if (item.n < 2) return whole;
-        return Na__ImageViewerCount__FormatLength(len.part, len.unit, true) + ' each \u00b7 ' + whole;
+        return Na__ImageViewerCount__FormatLength(len.part, len.unit, true) + (Na__ImageViewerCount__IsPoints(item) ? ' centres' : ' each') + ' \u00b7 ' + whole;
     }
 
     // endregion ---------------------------------------------------------------
@@ -375,16 +442,16 @@
     }
 
     // A label beside the pointer, as the guide tool shows its direction.
-    function Na__ImageViewerCount__Tag(ctx, ratio, p, text) {
+    function Na__ImageViewerCount__Tag(ctx, ratio, p, text, color) {
         Na__ImageViewerCount__Pill(ctx, ratio, p.x + 16 * ratio, p.y - 24 * ratio, text,
-            { fontPx: NA_TAG_FONT_PX, bold: false, fill: NA_COLOR, color: '#ffffff', border: 'rgba(255, 255, 255, 0.9)', left: true });
+            { fontPx: NA_TAG_FONT_PX, bold: false, fill: color, color: '#ffffff', border: 'rgba(255, 255, 255, 0.9)', left: true });
     }
 
-    function Na__ImageViewerCount__DrawHandle(ctx, ratio, p) {
+    function Na__ImageViewerCount__DrawHandle(ctx, ratio, p, color) {
         ctx.save();
         ctx.beginPath();
         ctx.arc(p.x, p.y, NA_HANDLE_PX * ratio, 0, Math.PI * 2);
-        ctx.fillStyle   = NA_COLOR;
+        ctx.fillStyle   = color;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth   = 1.2 * ratio;
         ctx.fill();
@@ -399,6 +466,47 @@
         ctx.strokeStyle = NA_SELECT_COLOR;
         ctx.lineWidth   = 2 * ratio;
         ctx.stroke();
+        ctx.restore();
+    }
+
+    // Count Spans: a block for each span, alternately strong and faint, so the
+    // spaces are what reads as the counted things, even where numbers are thinned.
+    function Na__ImageViewerCount__DrawBlocks(ctx, ratio, ticks, nrm, color) {
+        var half = NA_TICK_PX * ratio;
+        ctx.save();
+        ctx.fillStyle = color;
+        NA_BLOCK_ALPHA.forEach(function(alpha, odd) {
+            ctx.beginPath();
+            for (var j = 1 + odd; j < ticks.length; j += 2) {
+                var p = ticks[j - 1], q = ticks[j];
+                ctx.moveTo(p.x - nrm.x * half, p.y - nrm.y * half);
+                ctx.lineTo(q.x - nrm.x * half, q.y - nrm.y * half);
+                ctx.lineTo(q.x + nrm.x * half, q.y + nrm.y * half);
+                ctx.lineTo(p.x + nrm.x * half, p.y + nrm.y * half);
+                ctx.closePath();
+            }
+            ctx.globalAlpha = alpha;
+            ctx.fill();
+        });
+        ctx.restore();
+    }
+
+    // Count Points: a bead on each counted thing, ends included, smaller where they crowd.
+    function Na__ImageViewerCount__DrawBeads(ctx, ratio, ticks, color) {
+        ctx.save();
+        ticks.forEach(function(p, j) {
+            var gap = Infinity;
+            if (j > 0) gap = Math.min(gap, Na__ImageViewerCount__Dist(p, ticks[j - 1]));
+            if (j < ticks.length - 1) gap = Math.min(gap, Na__ImageViewerCount__Dist(p, ticks[j + 1]));
+            var r = Math.min(NA_DOT_PX * ratio, gap * 0.32);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.fillStyle   = color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth   = Math.min(1.2 * ratio, r * 0.4);
+            ctx.fill();
+            ctx.stroke();
+        });
         ctx.restore();
     }
 
@@ -450,7 +558,7 @@
         if (!na_active) return;
         if (na_live && na_phase === 'divide') {
             Na__ImageViewerCount__DrawCount(ctx, ratio, na_live, Na__ImageViewerCount__Spacing(na_live, dirs), 'live', scale);
-            if (na_cursor) Na__ImageViewerCount__Tag(ctx, ratio, na_cursor, String(na_live.n));
+            if (na_cursor) Na__ImageViewerCount__Tag(ctx, ratio, na_cursor, Na__ImageViewerCount__Total(na_live), Na__ImageViewerCount__Color(na_live));
         } else if (na_live && na_phase === 'draw') {
             Na__ImageViewerCount__DrawPlacing(ctx, ratio, dirs);
         }
@@ -466,6 +574,10 @@
         var nrm  = { x: -u.y, y: u.x };
         // Numbers go to the right of a vertical line and above a level one.
         var side = nrm.x - nrm.y >= 0 ? nrm : { x: -nrm.x, y: -nrm.y };
+        var color  = Na__ImageViewerCount__Color(item);
+        var points = Na__ImageViewerCount__IsPoints(item);
+
+        if (!points) Na__ImageViewerCount__DrawBlocks(ctx, ratio, ticks, nrm, color);
 
         ctx.save();
         ctx.lineCap = 'round';
@@ -473,51 +585,59 @@
         ctx.moveTo(A.x, A.y);
         ctx.lineTo(B.x, B.y);
         ticks.forEach(function(p, j) {
-            var half = (j === 0 || j === ticks.length - 1 ? NA_END_TICK_PX : NA_TICK_PX) * ratio;
+            var half = (points ? NA_POINT_TICK_PX : (j === 0 || j === ticks.length - 1 ? NA_END_TICK_PX : NA_TICK_PX)) * ratio;
             ctx.moveTo(p.x - nrm.x * half, p.y - nrm.y * half);
             ctx.lineTo(p.x + nrm.x * half, p.y + nrm.y * half);
         });
         ctx.strokeStyle = state === 'selected' ? NA_SELECT_COLOR : NA_HALO_COLOR;
         ctx.lineWidth   = (NA_LINE_PX + (state === 'selected' ? 4 : 2.5)) * ratio;
         ctx.stroke();
-        ctx.strokeStyle = NA_COLOR;
+        ctx.strokeStyle = color;
         ctx.lineWidth   = NA_LINE_PX * ratio;
         ctx.stroke();
         ctx.restore();
 
+        if (points) Na__ImageViewerCount__DrawBeads(ctx, ratio, ticks, color);
         Na__ImageViewerCount__DrawNumbers(ctx, ratio, item, ticks, u, side);
 
-        var total  = String(item.n);
+        var total  = Na__ImageViewerCount__Total(item);
         var tsize  = Na__ImageViewerCount__PillSize(ctx, ratio, total, NA_TOTAL_FONT_PX, true);
         var talong = Math.abs(u.x) * tsize.w + Math.abs(u.y) * tsize.h;
-        var reach  = 7 * ratio + talong / 2;
+        var reach  = (points ? 11 : 7) * ratio + talong / 2;
         Na__ImageViewerCount__Pill(ctx, ratio, B.x + u.x * reach, B.y + u.y * reach, total,
-            { fontPx: NA_TOTAL_FONT_PX, bold: true, fill: NA_COLOR, color: '#ffffff', border: '#ffffff' });
+            { fontPx: NA_TOTAL_FONT_PX, bold: true, fill: color, color: '#ffffff', border: '#ffffff' });
 
         var len = Na__ImageViewerCount__Lengths(item, sp, scale);
         if (len) Na__ImageViewerCount__DrawDims(ctx, ratio, item, ticks, u, side, len, B, reach + talong / 2);
 
         if (state !== 'selected') return;
-        Na__ImageViewerCount__DrawHandle(ctx, ratio, A);
-        Na__ImageViewerCount__DrawHandle(ctx, ratio, B);
+        Na__ImageViewerCount__DrawHandle(ctx, ratio, A, color);
+        Na__ImageViewerCount__DrawHandle(ctx, ratio, B, color);
         var ring = na_drag && na_drag.item === item ? na_drag : (na_hover && na_hover.item === item ? na_hover : null);
         if (ring && ring.part === 'tick' && ticks[ring.index]) Na__ImageViewerCount__DrawTickRing(ctx, ratio, ticks[ring.index]);
     }
 
-    // A numbered bubble beside each part, at the part's middle on the photo.
+    // A numbered bubble where each counted thing is: inside its span, on the
+    // line, while every span has room for one (else beside it); or level with
+    // its point.
     function Na__ImageViewerCount__DrawNumbers(ctx, ratio, item, ticks, u, side) {
-        var n = item.n;
+        var n      = Na__ImageViewerCount__Shown(item);
+        var points = Na__ImageViewerCount__IsPoints(item);
+        var color  = Na__ImageViewerCount__Color(item);
         var size   = Na__ImageViewerCount__PillSize(ctx, ratio, Na__ImageViewerCount__PartLabel(n, n), NA_BUBBLE_FONT_PX, false);
         var along  = Math.abs(u.x) * size.w + Math.abs(u.y) * size.h;
         var across = Math.abs(side.x) * size.w + Math.abs(side.y) * size.h;
-        var off    = (NA_END_TICK_PX + 3) * ratio + across / 2;
+        var off    = ((points ? NA_POINT_TICK_PX : NA_END_TICK_PX) + 3) * ratio + across / 2;
         var centres = [null];
+        var room    = Infinity;
         for (var j = 1; j <= n; j++) {
-            centres.push({ x: (ticks[j - 1].x + ticks[j].x) / 2, y: (ticks[j - 1].y + ticks[j].y) / 2 });
+            centres.push(points ? ticks[j - 1] : { x: (ticks[j - 1].x + ticks[j].x) / 2, y: (ticks[j - 1].y + ticks[j].y) / 2 });
+            if (!points) room = Math.min(room, Na__ImageViewerCount__Dist(ticks[j - 1], ticks[j]));
         }
+        if (!points && room >= along + 8 * ratio) off = 0;
         Na__ImageViewerCount__ShownParts(centres, n, along + 3 * ratio).forEach(function(k) {
             Na__ImageViewerCount__Pill(ctx, ratio, centres[k].x + side.x * off, centres[k].y + side.y * off,
-                Na__ImageViewerCount__PartLabel(k, n), { fontPx: NA_BUBBLE_FONT_PX, bold: false, fill: '#ffffff', color: NA_COLOR, border: NA_COLOR });
+                Na__ImageViewerCount__PartLabel(k, n), { fontPx: NA_BUBBLE_FONT_PX, bold: false, fill: '#ffffff', color: color, border: color });
         });
     }
 
@@ -542,7 +662,7 @@
         }
         var shown = fits ? centres : [centres[Math.floor((n - 1) / 2)]];
         if (!fits) {
-            text = text + ' each';
+            text = text + (Na__ImageViewerCount__IsPoints(item) ? ' centres' : ' each');
             size = Na__ImageViewerCount__PillSize(ctx, ratio, text, NA_DIM_FONT_PX, false);
         }
         var off = (NA_END_TICK_PX + 3) * ratio + (Math.abs(side.x) * size.w + Math.abs(side.y) * size.h) / 2;
@@ -557,6 +677,7 @@
         var A = Na__ImageViewerCount__ToScreen(na_live.a);
         var B = Na__ImageViewerCount__ToScreen(na_live.b);
         var L = Na__ImageViewerCount__Dist(A, B);
+        var color = Na__ImageViewerCount__Color(na_live);
         ctx.save();
         ctx.lineCap = 'round';
         if (L > 1e-6) {
@@ -569,7 +690,7 @@
             ctx.strokeStyle = NA_HALO_COLOR;
             ctx.lineWidth   = (NA_LINE_PX + 2.5) * ratio;
             ctx.stroke();
-            ctx.strokeStyle = NA_COLOR;
+            ctx.strokeStyle = color;
             ctx.lineWidth   = NA_LINE_PX * ratio;
             ctx.stroke();
             ctx.beginPath();
@@ -579,15 +700,15 @@
             ctx.strokeStyle = NA_HALO_COLOR;
             ctx.lineWidth   = (NA_LINE_PX + 2.5) * ratio;
             ctx.stroke();
-            ctx.strokeStyle = NA_COLOR;
+            ctx.strokeStyle = color;
             ctx.lineWidth   = NA_LINE_PX * ratio;
             ctx.stroke();
         }
         ctx.restore();
-        Na__ImageViewerCount__DrawHandle(ctx, ratio, A);
+        Na__ImageViewerCount__DrawHandle(ctx, ratio, A, color);
         if (na_cursor && L >= NA_MIN_LINE_PX * ratio) {
             var sp = Na__ImageViewerCount__Spacing(na_live, dirs);
-            Na__ImageViewerCount__Tag(ctx, ratio, B, sp.kind === 'perspective' ? sp.label : 'Even spacing');
+            Na__ImageViewerCount__Tag(ctx, ratio, B, sp.kind === 'perspective' ? sp.label : 'Even spacing', color);
         }
     }
 
@@ -644,12 +765,12 @@
         if (na_live) items.push(na_live);
         ctx.lineCap     = 'round';
         ctx.lineWidth   = 1.4 * ratio / gain;
-        ctx.strokeStyle = NA_COLOR;
         items.forEach(function(item) {
             var dx = item.b.x - item.a.x, dy = item.b.y - item.a.y;
             var L  = Math.sqrt(dx * dx + dy * dy);
             if (L < 1e-9) return;
             var nx = -dy / L, ny = dx / L, half = NA_TICK_PX * ratio / gain;
+            ctx.strokeStyle = Na__ImageViewerCount__Color(item);
             ctx.beginPath();
             ctx.moveTo(item.a.x, item.a.y);
             ctx.lineTo(item.b.x, item.b.y);
@@ -746,7 +867,8 @@
                 if (d > bestD) return;
                 var end = j === 0 || j === item.n;
                 bestD = d;
-                best  = { img: { x: q.x, y: q.y }, screen: s, kind: end ? 'endpoint' : 'division', label: end ? 'Count end' : 'Tick ' + j };
+                var label = Na__ImageViewerCount__IsPoints(item) ? 'Point ' + (j + 1) : (end ? 'Count end' : 'Tick ' + j);
+                best  = { img: { x: q.x, y: q.y }, screen: s, kind: end ? 'endpoint' : 'division', label: label };
             });
         });
         return best;
@@ -783,7 +905,7 @@
 
     function Na__ImageViewerCount__StartLine(img) {
         na_selectedId = null;
-        na_live  = { a: { x: img.x, y: img.y }, b: { x: img.x, y: img.y }, n: 1, follow: true };
+        na_live  = { kind: na_mode, a: { x: img.x, y: img.y }, b: { x: img.x, y: img.y }, n: 1, follow: true };
         na_phase = 'draw';
     }
 
@@ -811,7 +933,7 @@
         var key = Na__ImageViewerCount__Key();
         if (!key || !na_live || na_phase !== 'divide') return;
         na_core.pushHistory();
-        var item = { id: na_nextId++, a: { x: na_live.a.x, y: na_live.a.y }, b: { x: na_live.b.x, y: na_live.b.y }, n: na_live.n, vp: null };
+        var item = { id: na_nextId++, kind: na_live.kind, a: { x: na_live.a.x, y: na_live.a.y }, b: { x: na_live.b.x, y: na_live.b.y }, n: na_live.n, vp: null };
         Na__ImageViewerCount__List(key).push(item);
         Na__ImageViewerCount__CancelLive();
         na_selectedId = item.id;
@@ -820,6 +942,7 @@
         na_core.requestDraw();
     }
 
+    // n is in spans, whichever way the count reads.
     function Na__ImageViewerCount__SetCount(n) {
         var target = Na__ImageViewerCount__Target();
         if (!target) return;
@@ -839,13 +962,14 @@
         var target = Na__ImageViewerCount__Target();
         if (!target) return;
         var n = target.n + delta;
+        var max = Na__ImageViewerCount__MaxSpans(target);
         if (n < 1 && target.n > 1) n = 1;
-        if (n > NA_MAX_COUNT && target.n < NA_MAX_COUNT) n = NA_MAX_COUNT;
+        if (n > max && target.n < max) n = max;
         if (n < 1) {
-            Na__ImageViewerCount__Notice('1 is the fewest a count can have.');
+            Na__ImageViewerCount__Notice(Na__ImageViewerCount__IsPoints(target) ? '2 is the fewest points a line can have: its two ends.' : '1 is the fewest a count can have.');
             return;
         }
-        if (n > NA_MAX_COUNT) {
+        if (n > max) {
             Na__ImageViewerCount__Notice(NA_MAX_COUNT + ' is the most one count can hold. Count the rest with a second line.');
             return;
         }
@@ -869,6 +993,25 @@
         var snap = Na__ImageViewerCount__SnapAt(p);
         item[na_drag.part] = snap.img;
         Na__ImageViewerCount__SetMarker(snap.hit);
+    }
+
+    // The same line and ticks, counted the other way. The lit button follows:
+    // the next line counts what this one now does.
+    function Na__ImageViewerCount__SwitchTarget() {
+        var target = Na__ImageViewerCount__Target();
+        if (!target) return;
+        var kind = Na__ImageViewerCount__IsPoints(target) ? NA_KIND_SPANS : NA_KIND_POINTS;
+        if (kind === NA_KIND_POINTS && target.n >= NA_MAX_COUNT) {
+            Na__ImageViewerCount__Notice((target.n + 1) + ' points is more than one count can hold. Count the rest with a second line.');
+            return;
+        }
+        if (target !== na_live) na_core.pushHistory();
+        target.kind   = kind;
+        na_mode       = kind;
+        na_inputError = '';
+        na_notice     = '';
+        Na__ImageViewerCount__RefreshBar(true);
+        na_core.requestDraw();
     }
 
     function Na__ImageViewerCount__ResetSpacing() {
@@ -909,13 +1052,14 @@
     // REGION | Typed Count
     // -------------------------------------------------------------------------
 
-    // A bare number is how many things the line covers. Anything that cannot
-    // be a count is refused with the fix named, never rounded.
-    function Na__ImageViewerCount__ParseCount(raw) {
+    // A bare number is how many spans or points the line covers. Anything that
+    // cannot be a count is refused with the fix named, never rounded.
+    function Na__ImageViewerCount__ParseCount(raw, points) {
         var s = String(raw === undefined || raw === null ? '' : raw).trim().toLowerCase().replace(/\s+/g, '').replace(/^[x\u00d7]/, '').replace(/[x\u00d7]$/, '');
         if (!s) return { ok: false, empty: true };
         if (!/^[0-9]*\.?[0-9]+$/.test(s)) return { ok: false, message: 'Type how many there are, e.g. 14.' };
         var v = parseFloat(s);
+        if (points && v < 2) return { ok: false, message: s + ' is too few: a line has two ends. Type 2 or more.' };
         if (v < 1) return { ok: false, message: s + ' is not a count. Type 1 or more.' };
         if (v !== Math.floor(v)) return { ok: false, message: s + ' is not a whole number. Type ' + Math.floor(v) + ' or ' + Math.ceil(v) + '.' };
         if (v > NA_MAX_COUNT) return { ok: false, message: s + ' is more than one count can hold. Type up to ' + NA_MAX_COUNT + ', or count in two lines.' };
@@ -938,7 +1082,9 @@
     // Returns true when the box can hand the keys back.
     function Na__ImageViewerCount__OnInputCommit() {
         if (!na_input) return true;
-        var parsed = Na__ImageViewerCount__ParseCount(na_input.value);
+        var counted = Na__ImageViewerCount__Target();
+        var points  = !!counted && Na__ImageViewerCount__IsPoints(counted);
+        var parsed  = Na__ImageViewerCount__ParseCount(na_input.value, points);
         if (parsed.empty) {
             na_inputError = '';
             Na__ImageViewerCount__RefreshBar(true);
@@ -950,7 +1096,7 @@
             return false;
         }
         var finishing = Na__ImageViewerCount__Target() === na_live && !!na_live;
-        Na__ImageViewerCount__SetCount(parsed.n);
+        Na__ImageViewerCount__SetCount(parsed.n - (points ? 1 : 0));
         if (finishing) Na__ImageViewerCount__Commit();   // a typed number ends the count, as in SketchUp
         return true;
     }
@@ -998,6 +1144,28 @@
         na_core.requestDraw();
     }
 
+    // The two buttons and their keys. The lit one stops the tool. The other
+    // takes over: a line being drawn turns with it, and a finished count is let
+    // go, so the press never changes what that count reads.
+    function Na__ImageViewerCount__Choose(kind) {
+        if (!na_active) {
+            na_mode = kind;
+            Na__ImageViewerCount__SetActive(true);
+            return;
+        }
+        if (na_mode === kind) {
+            Na__ImageViewerCount__SetActive(false);
+            return;
+        }
+        na_mode       = kind;
+        na_notice     = '';
+        na_inputError = '';
+        if (na_live) na_live.kind = kind;
+        else         na_selectedId = null;
+        Na__ImageViewerCount__RefreshBar(true);
+        na_core.requestDraw();
+    }
+
     function Na__ImageViewerCount__Notice(text) {
         na_notice = text || '';
         Na__ImageViewerCount__RefreshBar();
@@ -1005,26 +1173,31 @@
 
     function Na__ImageViewerCount__HintText(target, sp, len) {
         if (!Na__ImageViewerCount__Key()) return 'Choose a folder of photos first.';
-        if (na_phase === 'draw') return 'Release, or click, where the last one ends.';
+        var points = (target || na_live ? (target || na_live).kind : na_mode) === NA_KIND_POINTS;
+        var onto   = points ? 'a point onto its item' : 'a tick onto its joint';
+        if (na_phase === 'draw') return points ? 'Release, or click, on the last item.' : 'Release, or click, where the last span ends.';
         if (na_phase === 'divide') {
             if (!na_live.follow) return 'Click, or press Enter, to set the count. Scroll, or Up and Down, for one more or one fewer.';
-            return 'Move back along the line toward its start: the first part follows the pointer. Scroll, or Up and Down, for one more or one fewer, until every tick sits on a joint. Click to set, or type the number.';
+            if (points) return 'Move back along the line toward its start: the second point follows the pointer. Scroll, or Up and Down, for one more or one fewer, until every point sits on an item. Click to set, or type the number of items.';
+            return 'Move back along the line toward its start: the first span follows the pointer. Scroll, or Up and Down, for one more or one fewer, until every tick sits on a joint. Click to set, or type the number of spans.';
         }
         if (target) {
             if (len && len.read === 'flat' && sp && sp.kind !== 'even') {
                 return 'Sizes are read flat from the reference, as Measure reads them. For sizes in perspective, Set Reference on this count: click two of its ticks.';
             }
             if (sp && sp.kind === 'even') {
-                return 'Even spacing. If the parts shrink with distance, calibrate the photo in Angle (two blue verticals are enough for a vertical count), or drag a tick onto its joint.';
+                return 'Even spacing. If they shrink with distance, calibrate the photo in Angle (two blue verticals are enough for a vertical count), or drag ' + onto + '.';
             }
-            return 'Up and Down add or remove one, or type the number. Drag an end to move it, or a tick onto its joint to match the perspective by hand. Delete removes.';
+            return 'Up and Down add or remove one, or type the number. Drag an end to move it, or ' + onto + ' to match the perspective by hand. Delete removes.';
         }
-        return 'Drag from where the first one starts to where the last one ends: brick courses, bricks, tiles. Right-drag pans, the wheel zooms.';
+        if (points) return 'Drag from the first item to the last, with each end on an item. This counts the items themselves, both ends included: transoms, mullions, glazing bars, brick joints. Right-drag pans, the wheel zooms.';
+        return 'Drag from where the first span starts to where the last one ends. This counts the spaces between the points: panels, panes, bricks, courses. Right-drag pans, the wheel zooms.';
     }
 
     // forceValue rewrites the count box even while it has the focus.
     function Na__ImageViewerCount__RefreshBar(forceValue) {
-        if (na_btnTool) na_btnTool.classList.toggle('naImageViewer__Btn--active', na_active);
+        if (na_btnTool)   na_btnTool.classList.toggle('naImageViewer__Btn--active', na_active && na_mode === NA_KIND_SPANS);
+        if (na_btnPoints) na_btnPoints.classList.toggle('naImageViewer__Btn--active', na_active && na_mode === NA_KIND_POINTS);
         if (!na_bar) return;
         na_bar.classList.toggle('naImageViewer__CountBar--open', na_active);
         if (!na_active) return;
@@ -1034,13 +1207,25 @@
         var typing = na_input && document.activeElement === na_input;
         var sp     = target ? Na__ImageViewerCount__Spacing(target) : (na_live ? Na__ImageViewerCount__Spacing(na_live) : null);
 
+        // The bar speaks for the line it acts on; with none, for the lit button.
+        var kind = target || na_live ? (target || na_live).kind : na_mode;
+        na_bar.classList.toggle('naImageViewer__CountBar--points', kind === NA_KIND_POINTS);
+        if (na_titleEl) na_titleEl.textContent = Na__ImageViewerCount__KindName(kind);
+        if (na_unitEl)  na_unitEl.textContent  = target ? Na__ImageViewerCount__Relation(target) : '';
+        if (na_btnSwitch) {
+            var other = kind === NA_KIND_POINTS ? 'spans' : 'points';
+            na_btnSwitch.style.display = target ? '' : 'none';
+            na_btnSwitch.textContent   = 'Count its ' + other + ' instead';
+            na_btnSwitch.title         = 'Keep this line and its ticks, and count its ' + other + ' instead';
+        }
+
         if (na_input) {
             if (!typing) na_input.disabled = !target;
-            if (!typing || forceValue) na_input.value = target ? String(target.n) : '';
+            if (!typing || forceValue) na_input.value = target ? String(Na__ImageViewerCount__Shown(target)) : '';
             na_input.classList.toggle('naImageViewer__CountInput--error', !!na_inputError);
         }
         if (na_btnMinus)  na_btnMinus.disabled = !target || target.n <= 1;
-        if (na_btnPlus)   na_btnPlus.disabled  = !target || target.n >= NA_MAX_COUNT;
+        if (na_btnPlus)   na_btnPlus.disabled  = !target || target.n >= Na__ImageViewerCount__MaxSpans(target);
         if (na_spacingEl) na_spacingEl.textContent = sp ? Na__ImageViewerCount__SpacingText(sp) : '';
         var len = target && sp ? Na__ImageViewerCount__Lengths(target, sp, Na__ImageViewerCount__Scale()) : null;
         if (na_dimsEl) {
@@ -1276,13 +1461,13 @@
         na_core.requestDraw();
     }
 
-    // C, for Count, toggles the tool.
+    // C for Count Spans, Shift+C for Count Points, as R and Shift+R rotate.
     function Na__ImageViewerCount__OnKeyDown(e) {
         var tag = e.target && e.target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
         if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            Na__ImageViewerCount__SetActive(!na_active);
+            Na__ImageViewerCount__Choose(e.shiftKey ? NA_KIND_POINTS : NA_KIND_SPANS);
         }
     }
 
@@ -1297,6 +1482,10 @@
         na_canvas    = na_core.getCanvas();
         na_wrap      = na_canvas ? na_canvas.parentElement : null;
         na_btnTool   = Na__ImageViewerCount__El('naImageViewer_btnCount');
+        na_btnPoints = Na__ImageViewerCount__El('naImageViewer_btnCountPoints');
+        na_titleEl   = Na__ImageViewerCount__El('naImageViewer_countTitle');
+        na_unitEl    = Na__ImageViewerCount__El('naImageViewer_countUnit');
+        na_btnSwitch = Na__ImageViewerCount__El('naImageViewer_countSwitch');
         na_bar       = Na__ImageViewerCount__El('naImageViewer_countBar');
         na_input     = Na__ImageViewerCount__El('naImageViewer_countInput');
         na_btnMinus  = Na__ImageViewerCount__El('naImageViewer_countMinus');
@@ -1336,7 +1525,9 @@
         na_canvas.addEventListener('mouseleave', Na__ImageViewerCount__OnMouseLeave);
         na_canvas.addEventListener('contextmenu', function(e) { if (na_active) e.preventDefault(); });
 
-        if (na_btnTool)  na_btnTool.addEventListener('click', function() { Na__ImageViewerCount__SetActive(!na_active); });
+        if (na_btnTool)   na_btnTool.addEventListener('click', function() { Na__ImageViewerCount__Choose(NA_KIND_SPANS); });
+        if (na_btnPoints) na_btnPoints.addEventListener('click', function() { Na__ImageViewerCount__Choose(NA_KIND_POINTS); });
+        if (na_btnSwitch) na_btnSwitch.addEventListener('click', function() { Na__ImageViewerCount__SwitchTarget(); na_btnSwitch.blur(); });
         if (na_btnMinus) na_btnMinus.addEventListener('click', function() { na_notice = ''; Na__ImageViewerCount__Step(-1); na_btnMinus.blur(); });
         if (na_btnPlus)  na_btnPlus.addEventListener('click', function() { na_notice = ''; Na__ImageViewerCount__Step(1); na_btnPlus.blur(); });
         if (na_btnReset) na_btnReset.addEventListener('click', function() { Na__ImageViewerCount__ResetSpacing(); na_btnReset.blur(); });
@@ -1380,7 +1571,10 @@
                 return {
                     dims    : len ? { overall: len.overall, part: len.part, unit: len.unit, read: len.read } : null,
                     id      : item.id,
+                    kind    : item.kind,
                     n       : item.n,
+                    shown   : Na__ImageViewerCount__Shown(item),
+                    total   : Na__ImageViewerCount__Total(item),
                     a       : { x: item.a.x, y: item.a.y },
                     b       : { x: item.b.x, y: item.b.y },
                     spacing : sp.kind,
@@ -1392,12 +1586,16 @@
             }
             return {
                 active   : na_active,
+                mode     : na_mode,
                 phase    : na_phase,
                 selected : na_selectedId,
                 live     : na_live ? describe(na_live) : null,
                 counts   : (na_countsByKey[key] || []).map(describe),
                 bar      : {
                     open    : !!(na_bar && na_bar.classList.contains('naImageViewer__CountBar--open')),
+                    title   : na_titleEl ? na_titleEl.textContent : '',
+                    unit    : na_unitEl ? na_unitEl.textContent : '',
+                    swap    : na_btnSwitch && na_btnSwitch.style.display !== 'none' ? na_btnSwitch.textContent : '',
                     value   : na_input ? na_input.value : '',
                     spacing : na_spacingEl ? na_spacingEl.textContent : '',
                     dims    : na_dimsEl ? na_dimsEl.textContent : '',

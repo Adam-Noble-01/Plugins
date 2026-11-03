@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     NA PAINTERLYNPR ASSETS - NPR EXPORT - UI LAYOUT
+     =============================================================================
+     FILE       : Na__PainterlyAssets__NprExport__UiLayout__.html
+     PURPOSE    : The NPR Export window: what to export (the SketchUp view or
+                  its scenes), the format and resolution, where and under what
+                  name, what happens after, the look as a .json file and the
+                  engine's pen calibration sheet; Export, Cancel and the
+                  report.
+     DATA       : None in the markup. Ruby pushes the state as JSON through
+                  window.Na__PainterlyAssets__Receive; the page's script
+                  renders it and sends every change back, and Ruby keeps it in
+                  the model.
+     CREATED    : 01-Nov-2026 (v0.3.0)
+     ============================================================================= -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPR Export by Noble Architecture</title>
+    <link rel="stylesheet" href="03__Style__AppStylesheets/Na__PainterlyAssets__CoreUi__Styles__Index__.css">
+</head>
+
+<body class="na-export-page">
+
+<div class="na-app-shell">
+
+    <!-- ==========================================================================
+         REGION | Brand Header
+         ========================================================================== -->
+    <header class="na-brand-header">
+        <div class="na-brand-header__left">
+            <img src="../Na__Common__PluginDependencies/IMG01__PNG__NaCompanyLogo.png"
+                 class="na-brand-header__logo" alt="Noble Architecture" onerror="this.style.display='none'">
+        </div>
+        <div class="na-brand-header__right">
+            <span class="na-brand-header__title">NPR Export</span>
+            <span class="na-brand-header__subtitle" id="na-export-model">PainterlyNPR Assets</span>
+        </div>
+    </header>
+    <!-- endregion ============================================================== -->
+
+    <div class="na-export-body">
+    <div class="na-panel-body">
+
+        <!-- ======================================================================
+             REGION | What to Export
+             ====================================================================== -->
+        <section class="na-card">
+            <div class="na-card__header"><h3 class="na-card__title">What to Export</h3></div>
+            <div class="na-export-choices" role="radiogroup" aria-label="What to export">
+                <label class="na-check"><input type="radio" name="na-export-views" value="current"> The current SketchUp view</label>
+                <label class="na-check"><input type="radio" name="na-export-views" value="scenes"> SketchUp scenes</label>
+            </div>
+            <div id="na-export-scenes" class="na-export-scenes" hidden>
+                <div class="na-export-scenes__tools">
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-export-scenes-all">All</button>
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-export-scenes-none">None</button>
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-export-scenes-refresh" title="Read the model's scenes again">Refresh</button>
+                    <span class="na-export-scenes__count" id="na-export-scenes-count"></span>
+                </div>
+                <div class="na-export-scenes__list" id="na-export-scenes-list"></div>
+            </div>
+            <p class="na-hint">Drawn in the NPR Viewport with the look of NPR Parameters (the viewport opens when Export is pressed). A scene gives its own camera; the model is drawn whole, as in the NPR Viewport, so a scene's hidden tags are not applied. SketchUp's view never moves.</p>
+        </section>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Format and Resolution
+             ====================================================================== -->
+        <section class="na-card">
+            <div class="na-card__header"><h3 class="na-card__title">Format and Resolution</h3></div>
+            <div class="na-export-segments" role="radiogroup" aria-label="Format">
+                <label class="na-export-segment"><input type="radio" name="na-export-format" value="png"><span>PNG</span></label>
+                <label class="na-export-segment"><input type="radio" name="na-export-format" value="jpeg"><span>JPEG</span></label>
+                <label class="na-export-segment"><input type="radio" name="na-export-format" value="pdf"><span>PDF</span></label>
+            </div>
+            <p class="na-hint" id="na-export-format-hint"></p>
+            <div class="naFormRow" id="na-export-quality-row" hidden>
+                <label for="na-export-quality">JPEG quality</label>
+                <div class="na-export-range">
+                    <input type="range" id="na-export-quality" min="50" max="100" step="1">
+                    <span class="na-export-range__value" id="na-export-quality-value"></span>
+                </div>
+            </div>
+            <div class="naFormRow naFormRow--top">
+                <label>Resolution</label>
+                <div>
+                    <div class="na-export-chips" id="na-export-dpi-chips"></div>
+                    <div class="na-export-custom">
+                        <label class="na-check" for="na-export-dpi">Custom</label>
+                        <input type="number" class="naInput naInput--short" id="na-export-dpi" step="1">
+                        <span>dpi</span>
+                    </div>
+                </div>
+            </div>
+            <p class="na-export-size" id="na-export-size"></p>
+            <p class="na-hint" id="na-export-dpi-hint"></p>
+        </section>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Where and What It Is Called
+             ====================================================================== -->
+        <section class="na-card">
+            <div class="na-card__header"><h3 class="na-card__title">Where</h3></div>
+            <div class="na-export-choices" role="radiogroup" aria-label="Folder">
+                <label class="na-check"><input type="radio" name="na-export-folder-mode" value="besideModel"> Beside the model, in the folder</label>
+                <input type="text" class="naInput na-export-subfolder" id="na-export-subfolder" spellcheck="false" autocomplete="off" placeholder="the model's own folder" aria-label="The folder beside the model">
+                <label class="na-check"><input type="radio" name="na-export-folder-mode" value="chosen"> A folder I choose</label>
+                <div class="na-export-chosen">
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-export-choose">Choose Folder</button>
+                    <span class="na-export-chosen__path" id="na-export-chosen-path"></span>
+                </div>
+            </div>
+            <div class="na-export-folder" id="na-export-folder"></div>
+            <div class="na-button-row">
+                <button type="button" class="naButtonSecondary na-button--small" id="na-export-open-folder">Open Folder</button>
+            </div>
+
+            <div class="naFormRow">
+                <label for="na-export-name">File name</label>
+                <input type="text" class="naInput" id="na-export-name" spellcheck="false" autocomplete="off">
+            </div>
+            <div class="na-export-tokens" id="na-export-tokens">
+                <span class="na-export-tokens__label">Add:</span>
+                <button type="button" class="na-export-token" data-token="{model}" title="The model's name">{model}</button>
+                <button type="button" class="na-export-token" data-token="{view}" title="The scene's name (CurrentView for the SketchUp view)">{view}</button>
+                <button type="button" class="na-export-token" data-token="{dpi}" title="The resolution, in dots per inch">{dpi}</button>
+                <button type="button" class="na-export-token" data-token="{date}" title="Today, as 2026-11-01">{date}</button>
+                <button type="button" class="na-export-token" data-token="{time}" title="The time, as 1930">{time}</button>
+                <button type="button" class="na-export-token" data-token="{seed}" title="The drawing's seed">{seed}</button>
+            </div>
+            <p class="na-export-preview" id="na-export-preview"></p>
+            <div class="naFormRow">
+                <label>If a file is there</label>
+                <div class="na-export-choices na-export-choices--row" role="radiogroup" aria-label="If a file is there">
+                    <label class="na-check"><input type="radio" name="na-export-exists" value="number"> Add a number</label>
+                    <label class="na-check"><input type="radio" name="na-export-exists" value="replace"> Replace it</label>
+                </div>
+            </div>
+        </section>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | When It Is Done
+             ====================================================================== -->
+        <section class="na-card">
+            <div class="na-card__header"><h3 class="na-card__title">When It Is Done</h3></div>
+            <div class="na-export-choices">
+                <label class="na-check"><input type="checkbox" id="na-export-open-after"> Open the folder</label>
+                <label class="na-check"><input type="checkbox" id="na-export-open-files"> Open each picture</label>
+            </div>
+        </section>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | The Look as a File, the Pen Calibration Sheet
+             ====================================================================== -->
+        <section class="na-card">
+            <div class="na-card__header"><h3 class="na-card__title">The Look as a File</h3></div>
+            <div class="na-button-row">
+                <button type="button" class="naButtonSecondary" id="na-export-save-look">Save the Look As .json</button>
+                <button type="button" class="naButtonSecondary" id="na-export-load-look">Load a Look From .json</button>
+            </div>
+            <p class="na-hint">The engine's own settings file (seed, sun, pen, wash, sky, paper and composition): the PainterlyNPR app opens it too. A loaded look becomes this model's, as one step that Undo in SketchUp takes back.</p>
+        </section>
+
+        <section class="na-card">
+            <div class="na-card__header"><h3 class="na-card__title">Pen Calibration Sheet</h3></div>
+            <div class="na-button-row">
+                <button type="button" class="naButtonSecondary na-button--small" data-calibration="calibration:pdf:300">PDF, 300 dpi</button>
+                <button type="button" class="naButtonSecondary na-button--small" data-calibration="calibration:pdf:600">PDF, 600 dpi</button>
+                <button type="button" class="naButtonSecondary na-button--small" data-calibration="calibration:png:300">PNG, 300 dpi</button>
+            </div>
+            <p class="na-hint">PainterlyNPR's technical pens drawn by its own pen, with a 100 mm scale ticked every millimetre. Print the PDF at 100% (actual size) and check the scale with a ruler. Saved in the folder above, under the engine's own name.</p>
+        </section>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | The Model's Record
+             ====================================================================== -->
+        <section class="na-card na-export-record">
+            <p class="na-export-record__line" id="na-export-record"></p>
+            <div class="na-export-backup" id="na-export-backup" hidden>
+                <span id="na-export-backup-text"></span>
+                <div class="na-button-row">
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-export-restore">Restore</button>
+                    <button type="button" class="naButtonSecondary na-button--small" id="na-export-not-now">Not Now</button>
+                </div>
+            </div>
+        </section>
+        <!-- endregion ========================================================== -->
+
+    </div>
+    </div>
+
+    <!-- ==========================================================================
+         REGION | Export, Progress and the Report
+         ========================================================================== -->
+    <footer class="na-export-footer">
+        <div class="na-export-progress" id="na-export-progress" hidden></div>
+        <div class="na-export-report" id="na-export-report" hidden></div>
+        <div class="na-button-row na-export-actions">
+            <button type="button" class="naButtonSecondary na-button--small" id="na-export-reset" title="Every export setting back to the plugin's defaults (one step: Undo in SketchUp puts them back)">Reset Export Settings</button>
+            <span class="na-export-actions__space"></span>
+            <button type="button" class="naButtonSecondary" id="na-export-cancel" hidden>Cancel</button>
+            <button type="button" class="naButton" id="na-export-go">Export</button>
+        </div>
+    </footer>
+    <!-- endregion ============================================================== -->
+
+    <div id="na-status-bar" class="na-status-bar na-hidden">
+        <span id="na-status-message"></span>
+    </div>
+
+</div>
+
+<!-- ==========================================================================
+     REGION | JavaScript Includes (load order matters)
+       1. BridgeBase  - window.sketchup wrapper
+       2. NPR Export  - receive, render, every change back to Ruby
+     ========================================================================== -->
+<script src="02__Src__AppModules/01__AppCore/Na__PainterlyAssets__AppCore__UiSystem__BridgeBase__.js"></script>
+<script src="02__Src__AppModules/88__System__NprExport/Na__PainterlyAssets__NprExport__UiSystem__MainUiLogic__.js"></script>
+<!-- endregion ============================================================== -->
+
+</body>
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

@@ -770,7 +770,8 @@ module Na__WindowSystem
         # @param frame_depth [Float] Frame depth
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame (cill extends through this)
-        def self.na_create_cill_geometry(entities, width, cill_projection, cill_height, frame_depth, material, wall_inset = 0)
+        # @param horns [Hash, nil] Cill horns from na_cill_horns (V2.4.0); nil builds the plain slab
+        def self.na_create_cill_geometry(entities, width, cill_projection, cill_height, frame_depth, material, wall_inset = 0, horns = nil)
             DebugTools.na_debug_geometry("Creating cill: #{width.to_mm.round}mm wide, #{cill_projection.to_mm.round}mm projection, wall_inset: #{wall_inset.to_mm.round}mm")
             
             # Cill sits below window (negative Z) and projects forward (negative Y)
@@ -781,7 +782,68 @@ module Na__WindowSystem
             cill_depth = cill_projection + wall_inset + frame_depth  # Projects front and extends through inset to back of frame
             return if cill_depth <= 0                                # Degenerate slab - nothing to build
 
+            outline = na_cill_horn_outline(width, cill_projection, cill_depth, horns)
+            return GeometryHelpers.na_create_horned_cill(entities, outline, cill_z, cill_height, material) if outline
+
             GeometryHelpers.na_create_cill(entities, cill_x, cill_y, cill_z, width, cill_depth, cill_height, material)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Cill Horn Length Past Each Reveal, in mm (V2.4.0)
+        # ------------------------------------------------------------
+        # The horns run past the reveal in front of the wall face, plus
+        # however far they are let into the wall. A cill set back behind the
+        # wall face with nothing let in has no timber there to run past, so
+        # it has no horns. An absent switch reads as off, so every element
+        # saved before V2.4.0 rebuilds as it was.
+        #
+        # Used by both DXF exporters. The previews mirror it in
+        # Na__Viewport__SvgGenerator.na_cillHornLengthMm.
+        def self.na_cill_horn_length_mm(config)
+            return 0 unless config["cill_horns_enabled"] == true
+
+            let_in = [(config["cill_horn_let_in_mm"] || 0).to_f, 0.0].max
+            return 0 if (config["cill_depth_mm"] || NA_DEFAULT_CILL_DEPTH).to_f + let_in <= 0.0
+
+            length = (config["cill_horn_length_mm"] || NA_DEFAULT_CILL_HORN_LENGTH).to_f
+            length > 0.0 ? length : 0
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Read the Cill Horns From a Config (V2.4.0)
+        # ------------------------------------------------------------
+        # @return [Hash, nil] { length:, let_in: } in inches for na_create_cill_geometry, nil for no horns
+        def self.na_cill_horns(config)
+            length_mm = na_cill_horn_length_mm(config)
+            return nil unless length_mm > 0
+
+            { length: length_mm / 25.4, let_in: [(config["cill_horn_let_in_mm"] || 0).to_f, 0.0].max / 25.4 }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Plan Outline of a Horned Cill (V2.4.0)
+        # ------------------------------------------------------------
+        # A T in plan: reveal width from the back of the slab to the shoulder,
+        # full width with its horns from the shoulder to the nose. The shoulder
+        # is the wall face (Y = 0), or further back when the horns are let into
+        # the wall. Let in as far as the back of the slab, the slab is one plain
+        # rectangle at full width.
+        #
+        # @return [Array, nil] [x, y] pairs anticlockwise from above, front left first; nil when there is nothing to horn
+        def self.na_cill_horn_outline(width, cill_projection, cill_depth, horns)
+            return nil unless horns && horns[:length] > 0
+
+            front    = -cill_projection
+            back     = front + cill_depth
+            shoulder = [horns[:let_in], back].min
+            return nil if shoulder <= front
+
+            left  = -horns[:length]
+            right = width + horns[:length]
+            return [[left, front], [right, front], [right, back], [left, back]] if shoulder >= back
+
+            [[left, front], [right, front], [right, shoulder], [width, shoulder],
+             [width, back], [0.0, back], [0.0, shoulder], [left, shoulder]]
         end
         # ---------------------------------------------------------------
 

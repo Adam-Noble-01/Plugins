@@ -71,6 +71,15 @@ module Na__FuseParts__Panel
             na_accumulate(result, na_fuse_glaze_bars(mod_group, ctx))
             na_accumulate(result, na_fuse_leaded_glass(mod_group, ctx))
             na_accumulate(result, na_trim_glass(mod_group, ctx))
+
+            # V2.3.0 The lower pane of a Glazed Over Glazed leaf goes through the
+            # same steps under its own names, so its bars trim its own glass.
+            lower_ctx = na_build_lower_pane_context(ctx)
+            next unless na_find_group(mod_group.entities, lower_ctx[:glass_name])
+
+            na_accumulate(result, na_fuse_glaze_bars(mod_group, lower_ctx))
+            na_accumulate(result, na_fuse_leaded_glass(mod_group, lower_ctx))
+            na_accumulate(result, na_trim_glass(mod_group, lower_ctx))
         end
         na_accumulate(result, na_fuse_outer_frame(entities))
 
@@ -109,6 +118,22 @@ module Na__FuseParts__Panel
         }
     end
     private_class_method :na_build_context
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Naming Context of a Glazed Over Glazed Lower Pane (V2.3.0)
+    # ------------------------------------------------------------
+    def self.na_build_lower_pane_context(ctx)
+        container = ctx[:container]
+        ctx.merge(
+            :glaze_bar_prefix => "#{container}__LowerGlazeBar",
+            :leaded_glass_prefix => "#{container}__Lower__LeadedGlass",
+            :glass_name => "#{container}__LowerGlass",
+            :glaze_bars_fused => "#{container}__LowerGlazeBars__Fused",
+            :leaded_glass_fused => "#{container}__Lower__LeadedGlass__Fused",
+            :glass_trimmed => "#{container}__LowerGlass__Trimmed"
+        )
+    end
+    private_class_method :na_build_lower_pane_context
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Fuse Structural Leaf Joinery Inside One MOD

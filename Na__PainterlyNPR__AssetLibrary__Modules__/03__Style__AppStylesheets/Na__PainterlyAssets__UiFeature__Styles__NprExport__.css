@@ -1,0 +1,380 @@
+/* =============================================================================
+   NA PAINTERLYNPR ASSETS - UI FEATURE STYLES - NPR EXPORT
+   =============================================================================
+   FILE       : Na__PainterlyAssets__UiFeature__Styles__NprExport__.css
+   PURPOSE    : The NPR Export window: its cards (what, format and resolution,
+                where, when it is done, the look as a file, the pen calibration
+                sheet, the model's record), the scene list, the format
+                segments and resolution chips, and the footer with Export, the
+                progress and the report.
+   CREATED    : 01-Nov-2026 (v0.3.0)
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Layout: the cards scroll, the footer stays */
+/* ----------------------------------------------------------------- */
+
+.na-export-body {
+    flex                : 1;
+    min-height          : 0;
+    overflow-y          : auto;
+}
+
+.na-export-footer {
+    flex-shrink         : 0;
+    padding             : 10px 16px 12px;
+    border-top          : 1px solid var(--na-border);
+    background          : var(--na-panel);
+}
+
+.na-export-actions {
+    margin-top          : 0;
+}
+
+.na-export-actions__space {
+    flex                : 1;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Choices: radios and checkboxes in a column (or a row) */
+/* ----------------------------------------------------------------- */
+
+.na-export-choices {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 7px;
+}
+
+.na-export-choices--row {
+    flex-direction      : row;
+    flex-wrap           : wrap;
+    gap                 : 14px;
+}
+
+/* Doubled class: beats .naInput's width:100% (the index's rules come after its imports). */
+.naInput.na-export-subfolder,
+.na-export-chosen {
+    margin-left         : 22px;
+    width               : calc(100% - 22px);
+}
+
+.na-export-chosen {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+}
+
+.na-export-chosen__path {
+    min-width           : 0;
+    overflow            : hidden;
+    color               : var(--na-subtle);
+    font-size           : 12px;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Scenes */
+/* ----------------------------------------------------------------- */
+
+.na-export-scenes {
+    margin-top          : 10px;
+}
+
+.na-export-scenes__tools {
+    display             : flex;
+    align-items         : center;
+    gap                 : 6px;
+    margin-bottom       : 6px;
+}
+
+.na-export-scenes__count {
+    margin-left         : auto;
+    color               : var(--na-subtle);
+    font-size           : 12px;
+}
+
+.na-export-scenes__list {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 5px;
+    max-height          : 220px;
+    overflow-y          : auto;
+    padding             : 8px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : var(--na-bg);
+}
+
+.na-export-scene__note {
+    margin-left         : 6px;
+    color               : var(--na-subtle);
+    font-size           : 11px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Format Segments, the JPEG Quality, Resolution Chips */
+/* ----------------------------------------------------------------- */
+
+.na-export-segments {
+    display             : inline-flex;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    overflow            : hidden;
+}
+
+.na-export-segment {
+    position            : relative;
+    cursor              : pointer;
+}
+
+.na-export-segment input {
+    position            : absolute;
+    opacity             : 0;
+    pointer-events      : none;
+}
+
+.na-export-segment span {
+    display             : block;
+    padding             : 6px 18px;
+    font-weight         : 500;
+    background          : var(--na-panel);
+    border-right        : 1px solid var(--na-border);
+}
+
+.na-export-segment:last-child span {
+    border-right        : none;
+}
+
+.na-export-segment input:checked + span {
+    background          : var(--na-accent);
+    color               : #ffffff;
+}
+
+.na-export-segment input:focus-visible + span {
+    outline             : 2px solid var(--na-accent-hover);
+    outline-offset      : -2px;
+}
+
+.na-export-range {
+    display             : flex;
+    align-items         : center;
+    gap                 : 10px;
+}
+
+.na-export-range input {
+    flex                : 1;
+}
+
+.na-export-range__value {
+    width               : 40px;
+    text-align          : right;
+    font-variant-numeric: tabular-nums;
+}
+
+.na-export-chips {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 6px;
+}
+
+.na-export-chip {
+    padding             : 4px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 999px;
+    background          : var(--na-panel);
+    color               : var(--na-text);
+    font-family         : inherit;
+    font-size           : 12px;
+    cursor              : pointer;
+}
+
+.na-export-chip:hover {
+    border-color        : var(--na-subtle);
+}
+
+.na-export-chip--on {
+    border-color        : var(--na-accent);
+    background          : var(--na-accent);
+    color               : #ffffff;
+    font-weight         : 600;
+}
+
+.na-export-custom {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    margin-top          : 8px;
+}
+
+.na-export-size {
+    margin              : 10px 0 0;
+    font-size           : 12.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Folder, the File Name and Its Tokens */
+/* ----------------------------------------------------------------- */
+
+.na-export-folder {
+    margin-top          : 10px;
+    padding             : 7px 10px;
+    border-radius       : 6px;
+    background          : var(--na-bg);
+    font-size           : 12px;
+    word-break          : break-all;
+}
+
+.na-export-folder:empty {
+    display             : none;
+}
+
+.na-export-folder__problem {
+    color               : var(--na-warn);
+}
+
+.na-export-folder__note {
+    color               : var(--na-subtle);
+}
+
+.na-export-tokens {
+    display             : flex;
+    flex-wrap           : wrap;
+    align-items         : center;
+    gap                 : 5px;
+    margin              : -2px 0 0 140px;
+}
+
+.na-export-tokens__label {
+    color               : var(--na-subtle);
+    font-size           : 11.5px;
+}
+
+.na-export-token {
+    padding             : 2px 7px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : var(--na-bg);
+    color               : var(--na-text);
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11.5px;
+    cursor              : pointer;
+}
+
+.na-export-token:hover {
+    border-color        : var(--na-accent);
+}
+
+.na-export-preview {
+    margin              : 8px 0 0 140px;
+    color               : var(--na-subtle);
+    font-family         : Consolas, "Courier New", monospace;
+    font-size           : 11.5px;
+    word-break          : break-all;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Model's Record and Restore */
+/* ----------------------------------------------------------------- */
+
+.na-export-record__line {
+    margin              : 0;
+    color               : var(--na-subtle);
+    font-size           : 12px;
+    line-height         : 1.45;
+}
+
+.na-export-record__line[data-level="warn"] {
+    color               : var(--na-warn);
+}
+
+.na-export-backup {
+    margin-top          : 8px;
+    padding             : 8px 10px;
+    border              : 1px solid #e3c98f;
+    border-radius       : 6px;
+    background          : #fff8e8;
+    font-size           : 12px;
+    line-height         : 1.45;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Progress and the Report */
+/* ----------------------------------------------------------------- */
+
+.na-export-progress {
+    margin-bottom       : 8px;
+    font-size           : 12.5px;
+    line-height         : 1.45;
+}
+
+.na-export-progress[data-level="busy"]::before {
+    content             : '';
+    display             : inline-block;
+    width               : 10px;
+    height              : 10px;
+    margin-right        : 8px;
+    border              : 2px solid var(--na-border);
+    border-top-color    : var(--na-accent);
+    border-radius       : 50%;
+    vertical-align      : -1px;
+    animation           : na-export-spin 0.8s linear infinite;
+}
+
+.na-export-progress[data-level="success"] { color: var(--na-success); }
+.na-export-progress[data-level="warn"]    { color: var(--na-warn); }
+.na-export-progress[data-level="error"]   { color: var(--na-danger); }
+
+@keyframes na-export-spin {
+    to { transform: rotate(360deg); }
+}
+
+.na-export-report {
+    max-height          : 160px;
+    overflow-y          : auto;
+    margin-bottom       : 8px;
+    padding             : 6px 10px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    background          : var(--na-bg);
+}
+
+.na-export-report__row {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 2px 10px;
+    padding             : 3px 0;
+    font-size           : 12px;
+}
+
+.na-export-report__name {
+    font-weight         : 600;
+    word-break          : break-all;
+}
+
+.na-export-report__meta {
+    color               : var(--na-subtle);
+}
+
+.na-export-report__row--failed .na-export-report__name {
+    color               : var(--na-danger);
+}
+
+.na-export-report .na-button-row {
+    margin-top          : 6px;
+}
+
+/* endregion ----------------------------------------------------------------- */

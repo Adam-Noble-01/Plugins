@@ -20,6 +20,10 @@
 #   view fitted so the whole SketchUp view shows on the engine's sheet).
 # - The camera is read, never written. Its eye and target do not change when a
 #   group is opened, so the camera follows whatever context is open.
+# - A SNAPSHOT (v0.3.0) is a camera as plain numbers: NPR Export takes one of
+#   the view when Export is pressed, and one of each scene's camera, before
+#   anything moves, and turns them into the engine's cameras once the scene's
+#   placement is known.
 #
 # =============================================================================
 
@@ -43,22 +47,50 @@ module Na__PainterlyAssets
         # @param placement [Hash] the scene's NprScene__ModelPlacement ({} before a scene exists)
         # @return [Hash] { 'Mode', 'EyeM', 'TargetM', 'UpM', 'FovYDeg', 'HalfHeightM', 'Aspect' }
         def self.Na__Camera__Payload(view, placement)
-            camera = view.camera
-            aspect = camera.aspect_ratio.to_f > 0 ? camera.aspect_ratio.to_f : view.vpwidth.to_f / [view.vpheight.to_f, 1.0].max
-            eye    = self.na_world(camera.eye, placement)
-            target = self.na_world(camera.target, placement)
-            up     = self.na_direction(camera.up, placement)
-            if camera.perspective?
-                fov  = camera.fov.to_f
-                fovy = camera.fov_is_height? ? fov : 2.0 * Math.atan(Math.tan(fov * Math::PI / 360.0) / aspect) * 180.0 / Math::PI
+            self.Na__Camera__FromSnapshot(self.Na__Camera__Snapshot(view.camera, self.Na__Camera__ViewAspect(view)), placement)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A Camera as Plain Numbers (SketchUp's inches), Taken Now
+        # ------------------------------------------------------------
+        # @param view_aspect [Float] the shape it is seen in, unless the camera has its own
+        def self.Na__Camera__Snapshot(camera, view_aspect)
+            aspect = camera.aspect_ratio.to_f > 0 ? camera.aspect_ratio.to_f : view_aspect.to_f
+            {
+                'eye'         => camera.eye.to_a.map(&:to_f),
+                'target'      => camera.target.to_a.map(&:to_f),
+                'up'          => camera.up.to_a.map(&:to_f),
+                'perspective' => camera.perspective? ? true : false,
+                'fov'         => camera.fov.to_f,
+                'fovIsHeight' => camera.fov_is_height? ? true : false,
+                'height'      => camera.perspective? ? 0.0 : camera.height.to_f,
+                'aspect'      => aspect > 0 ? aspect : 1.0
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A Snapshot in the Engine's World (what the host page's camera reads)
+        # ------------------------------------------------------------
+        def self.Na__Camera__FromSnapshot(snapshot, placement)
+            aspect = snapshot['aspect'].to_f
+            eye    = self.na_world(snapshot['eye'], placement)
+            target = self.na_world(snapshot['target'], placement)
+            up     = self.na_direction(snapshot['up'], placement)
+            if snapshot['perspective']
+                fov  = snapshot['fov'].to_f
+                fovy = snapshot['fovIsHeight'] ? fov : 2.0 * Math.atan(Math.tan(fov * Math::PI / 360.0) / aspect) * 180.0 / Math::PI
                 { 'Mode' => 'Perspective', 'EyeM' => eye, 'TargetM' => target, 'UpM' => up, 'FovYDeg' => fovy.round(4), 'HalfHeightM' => nil, 'Aspect' => aspect.round(5) }
             else
-                height = camera.height.to_f
-                height /= aspect unless camera.fov_is_height?                            # <-- A width-based camera keeps the width
+                height = snapshot['height'].to_f
+                height /= aspect unless snapshot['fovIsHeight']                         # <-- A width-based camera keeps the width
                 { 'Mode' => 'Ortho', 'EyeM' => eye, 'TargetM' => target, 'UpM' => up, 'FovYDeg' => nil, 'HalfHeightM' => (height * NA_INCH_M / 2.0).round(5), 'Aspect' => aspect.round(5) }
             end
         end
         # ---------------------------------------------------------------
+
+        def self.Na__Camera__ViewAspect(view)
+            view.vpwidth.to_f / [view.vpheight.to_f, 1.0].max
+        end
 
     # endregion ----------------------------------------------------------------
 
@@ -66,15 +98,15 @@ module Na__PainterlyAssets
     # REGION | Internals
     # -------------------------------------------------------------------------
 
-        # A SketchUp point to the engine's world: inches to glTF metres, then the placement
+        # A SketchUp point ([x, y, z] inches) to the engine's world: glTF metres, then the placement
         def self.na_world(point, placement)
-            gltf = [point.x.to_f * NA_INCH_M, point.z.to_f * NA_INCH_M, -point.y.to_f * NA_INCH_M]
+            gltf = [point[0].to_f * NA_INCH_M, point[2].to_f * NA_INCH_M, -point[1].to_f * NA_INCH_M]
             Na__AssetProxies.Na__Proxies__Place(gltf, placement || {}).map { |v| v.round(5) }
         end
 
         # A direction turns with the placement but never moves
         def self.na_direction(vector, placement)
-            gltf  = [vector.x.to_f, vector.z.to_f, -vector.y.to_f]
+            gltf  = [vector[0].to_f, vector[2].to_f, -vector[1].to_f]
             angle = (placement && placement['RotationDeg']).to_f * Math::PI / 180.0
             c     = Math.cos(angle)
             s     = Math.sin(angle)

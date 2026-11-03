@@ -219,6 +219,31 @@ const Na__Viewport__SvgGenerator = (function() {
 
 
 // -----------------------------------------------------------------------------
+// REGION | Cill Horns (V2.4.0)
+// -----------------------------------------------------------------------------
+
+    // FUNCTION | Cill Horn Length Past Each Reveal, in mm
+    // ------------------------------------------------------------
+    // The horns run past the reveal in front of the wall face, plus however
+    // far they are let into the wall. A cill set back behind the wall face
+    // with nothing let in has no timber there to run past, so it has no horns.
+    //
+    // Shared with the door previews and the door DXF. Mirrors
+    // Na__GeometryBuilders.na_cill_horn_length_mm on the Ruby side.
+    function na_cillHornLengthMm(config) {
+        if (!config || config.cill_horns_enabled !== true) return 0;
+        const letIn = Math.max(0, Number(config.cill_horn_let_in_mm) || 0);
+        const projection = config.cill_depth_mm != null ? Number(config.cill_depth_mm) : 50;
+        if (projection + letIn <= 0) return 0;
+        const length = config.cill_horn_length_mm != null ? Number(config.cill_horn_length_mm) : 40;
+        return length > 0 ? length : 0;
+    }
+    // ---------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
 // REGION | Main Window Composition (Frame → Openings → Cill → Dimensions)
 // -----------------------------------------------------------------------------
 
@@ -409,7 +434,8 @@ const Na__Viewport__SvgGenerator = (function() {
 
         if (hasCill && bottomFrameThickness > 0) {
             const cillHeight = config.cill_height_mm || 50;
-            svg += na_svgRect(0, -cillHeight, width, cillHeight, '#A0908A', '#000', 1);
+            const cillHorn = na_cillHornLengthMm(config);                // <-- V2.4.0 Zero unless Cill Horns is on
+            svg += na_svgRect(0 - cillHorn, -cillHeight, width + 2 * cillHorn, cillHeight, '#A0908A', '#000', 1);
         }
 
         if (na_isWindowBoardShown(config)) {
@@ -2210,6 +2236,7 @@ const Na__Viewport__SvgGenerator = (function() {
         na_getSashHornElevationData: na_getSashHornElevationData,
         na_buildSashHornLogicalPoints: na_buildSashHornLogicalPoints,
         na_generateWindowBoardSvg: na_generateWindowBoardSvg,             // <-- Exposed for the window board spec
+        na_cillHornLengthMm: na_cillHornLengthMm,                         // <-- V2.4.0 Shared with the door previews and door DXF
         na_getWindowBoardThickness: na_getWindowBoardThickness,
         na_generateGlazeBarsSvg: na_generateGlazeBarsSvg,
         na_generateLeadedGlassSvg: na_generateLeadedGlassSvg,

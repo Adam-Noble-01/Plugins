@@ -19,7 +19,6 @@
 'use strict';
 var path = require('path');
 var fs = require('fs');
-var zlib = require('zlib');
 var harness = require('./perspective_ui_harness.js');
 var playwright = require(process.argv[2] || 'playwright');
 var CHROME = process.argv[3];
@@ -32,32 +31,7 @@ function check(name, cond, detail) {
 function slash(p) { return p.split(path.sep).join('/'); }
 function near(a, b, tol) { return Math.abs(a - b) <= tol; }
 
-// A screenshot's pixels (8-bit, not interlaced: what Chromium writes).
-function decodePng(buf) {
-    var pos = 8, w = 0, h = 0, depth = 0, type = 0, idat = [];
-    while (pos < buf.length) {
-        var len = buf.readUInt32BE(pos), name = buf.toString('ascii', pos + 4, pos + 8), data = buf.slice(pos + 8, pos + 8 + len);
-        if (name === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); depth = data[8]; type = data[9]; }
-        else if (name === 'IDAT') idat.push(data);
-        else if (name === 'IEND') break;
-        pos += 12 + len;
-    }
-    var ch = type === 6 ? 4 : type === 2 ? 3 : 0;
-    if (depth !== 8 || !ch) throw new Error('unsupported png ' + depth + '/' + type);
-    var raw = zlib.inflateSync(Buffer.concat(idat)), stride = w * ch;
-    var out = Buffer.alloc(h * stride), prev = Buffer.alloc(stride);
-    for (var y = 0; y < h; y++) {
-        var ft = raw[y * (stride + 1)], line = raw.slice(y * (stride + 1) + 1, (y + 1) * (stride + 1)), cur = out.slice(y * stride, (y + 1) * stride);
-        for (var x = 0; x < stride; x++) {
-            var a = x >= ch ? cur[x - ch] : 0, b = prev[x], c = x >= ch ? prev[x - ch] : 0, v = line[x];
-            if (ft === 1) v += a; else if (ft === 2) v += b; else if (ft === 3) v += (a + b) >> 1;
-            else if (ft === 4) { var p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c); v += (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c); }
-            cur[x] = v & 255;
-        }
-        prev = cur;
-    }
-    return { w: w, h: h, px: function(x, y) { var i = (Math.round(y) * w + Math.round(x)) * ch; return [out[i], out[i + 1], out[i + 2]]; } };
-}
+var decodePng = harness.decodePng;
 
 (async function main() {
     var t = await harness.open(playwright, CHROME, 'markup');

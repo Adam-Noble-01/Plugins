@@ -634,6 +634,7 @@ module Na__WindowSystem
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
             cill_height = (config["cill_height_mm"] || constants[:default_cill_height]).to_f * mm_to_inch
+            cill_horns = GeometryBuilders.na_cill_horns(config)                 # <-- V2.4.0 Nil unless Cill Horns is on
 
             # Window board. Off unless switched on, so every window saved
             # before V1.9.0 rebuilds without one. The nosing returns default
@@ -784,6 +785,7 @@ module Na__WindowSystem
                 has_cill: has_cill,
                 cill_depth: cill_depth,
                 cill_height: cill_height,
+                cill_horns: cill_horns,
                 window_board_enabled: window_board_enabled,
                 window_board_reveal_depth: window_board_reveal_depth,
                 window_board_nosing_overhang: window_board_nosing_overhang,
@@ -837,7 +839,7 @@ module Na__WindowSystem
             if params[:has_cill] && params[:frame_bottom_thickness] > 0
                 GeometryBuilders.na_create_cill_geometry(
                     entities, params[:width], params[:cill_depth], params[:cill_height],
-                    params[:frame_depth], cill_material, params[:frame_wall_inset]
+                    params[:frame_depth], cill_material, params[:frame_wall_inset], params[:cill_horns]
                 )
             end
 

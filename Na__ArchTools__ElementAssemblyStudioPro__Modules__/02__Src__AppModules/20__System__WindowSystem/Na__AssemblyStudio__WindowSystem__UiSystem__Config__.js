@@ -860,6 +860,39 @@ const NA_CILL_FRAME_CONFIG = [
         default :  50
     },
     {
+        // V2.4.0. The cill runs on past each reveal in front of the wall face
+        // and is cut back to the reveal width behind it, a T in plan. Off by
+        // default, so an element saved before V2.4.0 rebuilds as it was.
+        id      :  'cill_horns_enabled',
+        label   :  'Cill Horns',
+        type    :  'toggle',
+        default :  false
+    },
+    {
+        // Past each side of the reveal. The door and window previews pad
+        // 180mm or more around the frame, so the horn stays in the fit box.
+        id      :  'cill_horn_length_mm',
+        label   :  'Horn Length Past Reveal',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  5,
+        max     :  150,
+        step    :  5,
+        default :  40
+    },
+    {
+        // Zero stops the horns at the wall face. More carries them back
+        // into the wall, as they are built in on site.
+        id      :  'cill_horn_let_in_mm',
+        label   :  'Horn Let Into Wall',
+        unit    :  'mm',
+        type    :  'slider',
+        min     :  0,
+        max     :  100,
+        step    :  5,
+        default :  0
+    },
+    {
         id      :  'frame_depth_mm',
         label   :  'Frame Depth',
         unit    :  'mm',

@@ -107,8 +107,8 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
 
 - The user's SketchUp is live and may hold paid work. Only read, or use **zero-trace batches**. Never save, open or close their models.
 - **Zero-trace batch.**
-  - Send an atomic `batch_execute` whose last step always fails, e.g. `{"tool": "entity_get", "arguments": {"ids": [987654321]}}`.
-  - Every step runs and its result comes back in `error.details.steps`, then the whole batch is rolled back.
+  - Send `batch_execute` with `rollback: true` (bridge 1.0.5+). Every step runs and its result comes back in `result.steps`, then the whole batch is rolled back. The activity log records it as `ok - Trial: ...`, so the user does not read it as an error.
+  - Bridges before 1.0.5 ignore `rollback`, and the batch would be kept. Check `bridge_version` with `ping` first. For an older bridge, end the atomic batch with a step that always fails, e.g. `{"tool": "entity_get", "arguments": {"ids": [987654321]}}`; the results then come back in `error.details.steps`, and the log shows FAILED.
   - Camera changes and scene activation are **not** undone: note the view first and restore it.
 - **Coordinate test matrix.** A box inside a group that is moved **and** rotated, nested three deep, plus one non-uniformly scaled group. Compare the reported world positions and volumes against hand calculations.
 - **Hand it over.** Final in-app checks go to the user as a short checklist in the devlog entry. Don't spend long verifying inside SketchUp yourself.

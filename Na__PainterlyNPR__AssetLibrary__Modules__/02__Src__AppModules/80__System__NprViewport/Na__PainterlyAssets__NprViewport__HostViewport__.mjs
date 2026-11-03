@@ -31,6 +31,10 @@
 //   SketchUp's view shows. Up is always +Y in the engine (no roll).
 // - Nothing in the window takes the mouse or the keyboard: the drawing follows
 //   SketchUp, never the other way round.
+// - NPR EXPORT (v0.3.0) draws its pictures here, in this window's engine with
+//   its scene and its look (HostExport): each picture's camera is set as
+//   SketchUp's is, and while a job runs a newer scene waits and SketchUp's
+//   camera is not followed (Ruby holds both too).
 //
 // =============================================================================
 
@@ -54,6 +58,11 @@
         Na__NprHost__SheetAspect,
         Na__NprHost__StatusLine,
     } from './Na__PainterlyAssets__NprViewport__HostShared__.mjs';
+    import {
+        Na__NprExport__Busy,
+        Na__NprExport__Cancel,
+        Na__NprExport__Run,
+    } from './Na__PainterlyAssets__NprViewport__HostExport__.mjs';
 
 // endregion -------------------------------------------------------------------
 
@@ -66,6 +75,7 @@
     // ------------------------------------------------------------
     const Na__NprViewport__PITCH_LIMIT   =  89.9;                                // <-- The engine looks at its target with +Y up: never straight down
     const Na__NprViewport__ORTHO_BACK_M  =  300;                                 // <-- An ortho eye stands this far back, so nothing is behind the near clip
+    const Na__NprViewport__SETTLE_MS     =  180000;                              // <-- An export waits this long for a scene still loading
     // ------------------------------------------------------------
 
     // MODULE VARIABLES | The Scene Loaded and the Load in Flight
@@ -137,14 +147,16 @@
 // REGION | Messages From SketchUp
 // -----------------------------------------------------------------------------
 
-    // FUNCTION | One Message: scene | camera | settings | live | status
+    // FUNCTION | One Message: scene | camera | settings | live | status | export | exportCancel
     // ------------------------------------------------------------
     function Na__NprViewport__Receive(kind, payload) {
         const S  =  Na__NprViewport__State;
         if (kind === 'scene') return Na__NprViewport__QueueScene(payload);
-        if (kind === 'camera') return Na__NprViewport__Camera(payload);
+        if (kind === 'camera') return Na__NprExport__Busy() ? null : Na__NprViewport__Camera(payload);   // <-- An export sets each picture's own
         if (kind === 'settings') return Na__NprViewport__Settings(payload);
         if (kind === 'status') return S.status.Say(payload.Text, payload.Level);
+        if (kind === 'export') return Na__NprViewport__Export(payload);
+        if (kind === 'exportCancel') return Na__NprExport__Cancel(payload.Job);
         if (kind === 'live') {
             S.live  =  payload.On !== false;
             S.pause.hidden  =  S.live;
@@ -164,7 +176,7 @@
     // ------------------------------------------------------------
     async function Na__NprViewport__QueueScene(message) {
         const S  =  Na__NprViewport__State;
-        if (S.loading) { S.queued = message; return; }
+        if (S.loading || Na__NprExport__Busy()) { S.queued = message; return; }  // <-- An export's pictures are all of one scene
         S.loading  =  true;
         try {
             await Na__NprViewport__LoadScene(message);
@@ -327,6 +339,44 @@
         S.state.CameraPreset  =  'Custom';
         RenderGraph.PainterlyNPR__RenderGraph__Bump('Camera');
         RenderGraph.PainterlyNPR__RenderGraph__Request('Navigate');                // <-- The preview at once, the pen and wash once SketchUp's view rests
+    }
+    // ------------------------------------------------------------
+
+// endregion -------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// REGION | NPR Export: Its Pictures Drawn Here
+// -----------------------------------------------------------------------------
+
+    // FUNCTION | A Job From NPR Export: Drawn by HostExport, Then the Scene That Waited
+    // ------------------------------------------------------------
+    async function Na__NprViewport__Export(message) {
+        const S  =  Na__NprViewport__State;
+        await Na__NprExport__Run(message, {
+            Camera       :  Na__NprViewport__Camera,
+            SceneSettled :  Na__NprViewport__SceneSettled,
+            Say          :  (text, level) => S.status.Say(text, level),
+            Action       :  Na__NprHost__Action,
+        });
+        S.status.Say('', 'info');
+        if (S.queued && !S.loading) {
+            const next  =  S.queued;
+            S.queued  =  null;
+            Na__NprViewport__QueueScene(next);
+        }
+    }
+    // ------------------------------------------------------------
+
+
+    // HELPER FUNCTION | Wait for a Scene Still Loading; an Export Never Draws the Demo Cottage
+    // ------------------------------------------------------------
+    async function Na__NprViewport__SceneSettled() {
+        const S      =  Na__NprViewport__State;
+        const until  =  performance.now() + Na__NprViewport__SETTLE_MS;
+        while (S.loading && performance.now() < until) await new Promise((resolve) => setTimeout(resolve, 100));
+        if (S.loading) throw new Error('the model is still loading into the NPR Viewport');
+        if (!S.loaded) throw new Error('the model has not reached the NPR Viewport yet');
     }
     // ------------------------------------------------------------
 

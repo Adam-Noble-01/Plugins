@@ -125,7 +125,8 @@ module Na__DxfExporter
 
         return unless GeometryHelpers.na_boolean(config, 'has_cill', true)
         cill_height = GeometryHelpers.na_number(config, 'cill_height_mm', 50)
-        na_rect(output, na_layer(config, :cill), 0, -cill_height, width, cill_height)
+        horn = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders.na_cill_horn_length_mm(config)   # <-- V2.4.0 Zero unless Cill Horns is on
+        na_rect(output, na_layer(config, :cill), -horn, -cill_height, width + (2 * horn), cill_height)
     end
     private_class_method :na_add_frame
 
@@ -145,12 +146,12 @@ module Na__DxfExporter
                 leaf[:origin_z_mm] + leaf[:height_mm] - members[:top_rail_width_mm],
                 inner_width, members[:top_rail_width_mm])
 
-        if panel[:composition] == 'GlazedOverFielded' && panel[:field_region]
-            mid_z = panel[:field_region][:z_mm] + panel[:field_region][:height_mm]
+        if panel[:mid_rail_z_mm]
             na_rect(output, member_layer, leaf[:origin_x_mm] + members[:stile_width_mm],
-                    mid_z, inner_width, members[:mid_rail_width_mm])
+                    panel[:mid_rail_z_mm], inner_width, members[:mid_rail_width_mm])
         end
         na_add_glazing(output, config, panel, leaf)
+        na_add_glazing(output, config, panel[:lower_pane], leaf) if panel[:lower_pane]   # <-- V2.3.0 Glazed Over Glazed
         panel[:field_cells].each do |cell|
             na_rect(output, na_layer(config, :panel), cell[:x_mm], cell[:z_mm],
                     cell[:width_mm], cell[:height_mm])
@@ -185,11 +186,11 @@ module Na__DxfExporter
             bars[:margin_enabled], bars[:margin_offset_mm]
         )
         vertical_positions.each_with_index do |x, index|
-            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1))
+            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1, panel[:pane_cell].to_i))
             na_line(output, na_layer(config, :glaze_bar), x, region[:z_mm], x, region[:z_mm] + region[:height_mm])
         end
         horizontal_positions.each_with_index do |position, index|
-            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1))
+            next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1, panel[:pane_cell].to_i))
             z = position + bars[:horizontal_offset_mm]
             na_line(output, na_layer(config, :glaze_bar), region[:x_mm], z,
                     region[:x_mm] + region[:width_mm], z)
@@ -197,8 +198,8 @@ module Na__DxfExporter
     end
     private_class_method :na_add_glazing
 
-    def self.na_glazebar_key(leaf, orientation, bar_index)
-        "0:0:#{leaf[:index] - 1}:0:#{orientation}:#{bar_index}"
+    def self.na_glazebar_key(leaf, orientation, bar_index, cell = 0)
+        "0:#{cell}:#{leaf[:index] - 1}:0:#{orientation}:#{bar_index}"
     end
     private_class_method :na_glazebar_key
 

@@ -3,10 +3,187 @@
 The SketchUp side of PainterlyNPR's asset library (`Na__PainterlyNPR\12__Data__AssetLibrary`): a catalogue of every
 asset with its pictures, placing an asset in the model, authoring a selected component as a new asset, and
 PainterlyNPR's own validator in the dialog. Since 0.2.0 also PainterlyNPR's drawing of the model inside SketchUp (the
-NPR Viewport and NPR Parameters windows). Newest entry first.
+NPR Viewport and NPR Parameters windows); since 0.3.0 its look and export settings kept in the model, and NPR Export.
+Newest entry first.
 
 Module `Na__PainterlyAssets`, files `Na__PainterlyAssets__*`, loader `Na__PainterlyNPR__AssetLibrary__Loader__.rb`,
 menu Extensions > Na PainterlyNPR Assets.
+
+---
+
+## Version 0.3.0 - 01-Nov-2026 - NPR Export, NPR Settings Kept in the Model and Reset to Defaults
+
+### Asked For
+
+Adam, 01-Nov-2026: *"In the SketchUp plugin, create a new button for exporting that opens up a new menu that's got all
+of the export options you would expect. With the SketchUp plugin, make sure parameters and options for everything we've
+got are correctly serialised to a model dictionary ... A good plugin to look at is my Point Cloud plugin for how this is
+done, because that has a really robust system for this kind of thing. This is so we can have model-persistent styles,
+but then we also will need a button to reset parameters back to the default from the GitHub library. This should also
+serialise and cover things like the export settings, etc., though, because it would be really annoying having to keep
+reconfiguring those, as well as all the various menu parameters"*.
+
+### What It Does
+
+| Where | What |
+|---|---|
+| Toolbar and menu: **NPR Export** | A window with every export setting: the current SketchUp view or ticked SketchUp scenes; PNG (prints true to size), JPEG (quality) or a true-size PDF; the resolution (127, 150, 200, 254, 300, 400, 600 dpi or any from 50 to 1200, with the pixel size on the engine's A3 sheet); the folder (beside the model, or one chosen); the file name from tokens (`{model}` `{view}` `{dpi}` `{date}` `{time}` `{seed}`); Add a Number or Replace; open the folder or each picture after; Export, Cancel and a report. Also the look saved as, and loaded from, the engine's settings `.json`, and PainterlyNPR's pen calibration sheet |
+| NPR Parameters | **Reset to Defaults** (click twice): every parameter back to the GitHub engine's own starting values. A line saying whether the look is kept in this model (and its revision); **Restore** when this PC kept later settings than the model; an **Export** button |
+| The model | Its NPR look (every parameter of NPR Parameters, its sliders and its menus) and NPR Export's settings, kept in the `.skp`: a model opened later, or on the other PC, looks and exports as it was left |
+
+### How It Works, and Why
+
+- **The record** (`87__System__ModelPersistence`), the Point Cloud Viewer's way: one JSON string in the model's own
+  attribute dictionary `Na__PainterlyAssets__NprSettings` (key `json`; past 16,000 characters in parts `json__000`...
+  with `chunks`), schema `Na__PainterlyAssets__NprSettings` 1, its own `storeId` (`npst_` and 16 hex: `Model#guid`
+  changes on every save), `revision`, `updatedAt`, `updatedEpoch`, `pluginVersion`, and two blocks: `look` (the engine's
+  settings object, the drawing's part: Seed, Sun, Style, Paper, Composition, as the engine serialises it, with the
+  engine version and commit that made it) and `export`. Every control of NPR Parameters lands in those five keys (its 89
+  sliders and its menus: pen widths, ink family, outline hand, leaf marks, cloud type, sheet), so a parameter added to
+  PainterlyNPR is kept with nothing changed here. The camera stays SketchUp's; the art direction points and placed
+  assets stay the viewport's and the model's.
+- **Never clobbered:** nothing is read or written as a model opens (only when an NPR window opens or asks); unchanged
+  data writes nothing; keys this version does not know, at the top or inside a block, are carried through every write; a
+  record from a newer version is used but never rewritten, an unreadable one left exactly as it is, and the windows say
+  why. The new keys are written before the old ones are removed, so the record reads whole at every moment.
+- **Undo:** every write is one named step (`PainterlyNPR Assets: NPR Look`, `... NPR Export Settings`, `... Reset NPR
+  Look`, `... Load NPR Look`, `... Reset NPR Export Settings`, `... Restore NPR Settings`). A change right after our own
+  change of the same block, with nothing else done to the model in between, joins that step (a transparent operation),
+  so a minute at the sliders is one Ctrl+Z; any other step ends the run. While an NPR window is open the model is
+  watched: an Undo or Redo that moved the record is read back and handed to both NPR windows (the look returns in the
+  drawing), and the live sync is told it need not check the geometry. Inside NPR Parameters the engine's own undo still
+  steps through single changes.
+- **The second copy:** after every write this PC keeps the record in
+  `91__UserConfig__LocalOnly/Na__PainterlyAssets__ModelBackups/<storeId>.json` (a copy holding later changes than the
+  one written over it is kept as `__superseded__`). When the model holds no record but this PC kept one from a model at
+  the same path, or this PC's copy is later than the model's (closed without saving), NPR Parameters and NPR Export offer
+  **Restore** (never automatic, one undo step).
+- **From 0.2.0:** a model with no record still gets the look 0.2.0 kept for its project on this PC (read only); its
+  first change puts the look in the model.
+- **Reset to Defaults** asks the engine itself: its `DefaultState` (a fresh starting state from its own
+  `Na__AppState__Config.json`, the GitHub commit in the cache) is put in its State for one synchronous moment so its own
+  `SettingsObject` serialises it, every value is put back, then the defaults are applied with its `ApplySettingsJson`
+  like any look. No default is copied into the plugin; Reload Remote Plugin Files brings the latest.
+- **NPR Export** (`88__System__NprExport`, its own window, the Asset Library's look): every change is kept in the model.
+  The pictures are drawn by **the engine's own still export** (`PainterlyNPR__Export__Png`: `dpi:300`, `pdf:300`,
+  `calibration:pdf:300`) in the NPR Viewport's engine, with its scene and its look, so the viewport opens when it is not
+  open and the job waits until it has the model. Each picture's camera is taken when Export is pressed (a snapshot of
+  SketchUp's view, or each scene's own camera; a scene that keeps no camera uses the view's) and never by selecting a
+  scene: SketchUp's view never moves. While a job runs the viewport holds still (no camera, no new scene), then follows
+  SketchUp again.
+- **The engine ends in a browser download, which SketchUp's browser cannot make:** for the one call the page catches
+  the engine's `<a download>` click and keeps its blob and the engine's own file name
+  (`...NprViewport__HostExport__.mjs`). A JPEG is made from the engine's PNG by the browser, its resolution written in the
+  JFIF header. Each file goes to the plugin's server (`POST /__na/export` with the session's token, written whole into
+  `90__AppCache__TempFilesCache/Na__PainterlyAssets__NprExport__Outbox`), and Ruby moves it to its name: Adam's
+  `{model}__{view}__PainterlyNPR__{dpi}dpi__` by default, `__02` added when a name is taken (Replace writes over it), a
+  name past SketchUp's 259 characters refused at Export with the reason. A chosen folder is kept relative to the model's
+  folder when it is on the same drive, so it resolves on either PC; one not on this PC is said, never made.
+- **The server is 1.1.0:** the export route; a refused request's body is read before the answer, so the page hears why;
+  the port is its own (see below). A 1.0.0 server still running from before is restarted onto 1.1.0 the next time a
+  window needs it.
+
+### Verified Offline (01-Nov-2026)
+
+- 43 Ruby files compile under SketchUp 2026's Ruby 3.2.2; `su_lint.py` 0 errors, 0 warnings, 0 info; `node --check` on the
+  four host modules and the window's script; the server parses; the AppConfig parses; no CRLF, no dash punctuation in UI
+  text, no stray non-ASCII.
+- **The record** (58 checks): nothing written by a read; a look written whole as one named step; only the look's keys
+  kept; a run of changes joined, ended by another step; Undo and Redo of a look step read back and handed on (the
+  geometry not checked), of another step checked; Reset, Load and Restore steps of their own; unknown keys carried; a
+  newer record used and never rewritten; unreadable, foreign and non-UTF-8 records left alone; a record in parts written
+  and read back, shrunk back to one key, a missing part refused; a failed write aborted whole, a failed joined write
+  committed and the record still whole; the export settings coerced over the defaults; the backup, its offer, Restore
+  (and from a model at the same path), the superseded copy; the watch following a model change and letting go.
+- **NPR Export** (66 checks): the folder (beside the model, relative, absent, unsaved), names and tokens, numbering and
+  Replace, the sheet from the cached engine's own config (A3) and its pixels; a whole job (the viewport opened, the
+  scene asked for once, the job sent with each camera in the engine's world, the viewport held, the picture moved from
+  the outbox, the hold let go, the folder opened); scenes by persistent id or by name in the model's order, an
+  orthographic plan, a scene without a camera; a file arriving at its name meanwhile; a foreign file refused; the pen
+  calibration sheet under the engine's name; Cancel before and during; the viewport closing; both timeouts; an old
+  server restarted; the window (its state, a change kept in the model, Choose Folder kept relative, Reset Export
+  Settings, Save and Load a Look, a file that is not a look, the report).
+- **The wiring** (42 checks, 28 before): as 0.2.0, with the look now in the model, two look changes one step, the same
+  look writing nothing, our own writes starting no sync, Undo bringing the look back to both windows without a geometry
+  check, an undone edit checked, Reset a step of its own, the export hold. **The processes** 18 checks (on a test port),
+  **the server** 45 checks (the export route: the token, the name, the length, a 5 MB picture written whole, a PDF,
+  replace, no outbox) and a 1.0.0 server holding a port: the 1.1.0 server takes another.
+- 41 of 41 deliberate faults caught (29 new: a failed joined write aborted, a newer record written over, unknown keys
+  dropped, parts never counted, old keys removed first, no run joined, a run never ended, an undone look unnoticed, the
+  same look written again, every key kept, Reset joined, Restore never offered, the watch never letting go, names never
+  numbered, a chosen folder kept whole, underscores not collapsed, the hold never let go, any outbox file taken, a scene
+  without a camera, scenes in tick order, a late file written over, the length unchecked, Cancel never sent, a page
+  change not kept, a loaded look keeping every key, the camera sent while held, our own writes syncing, an undone look
+  checking the geometry, the look not kept in the model; and 0.2.0's 12).
+- **In a browser, the real engine** (the desktop app's Chromium, PainterlyNPR 0.8.17 at 306332a from the GitHub cache,
+  the staged server on a test port, NP03 as a project cache): the viewport drew NP03 (62 objects, 15 model files) and
+  exported, through the new route, a 127 dpi PNG (2100 x 1485, the engine's pHYs of 127 dpi and its print-size comment),
+  a 150 dpi JPEG of an orthographic front elevation from its own camera (2480 x 1754, JFIF 150 dpi) and a true-size PDF
+  (an A3 page, 1190.55 x 841.89 pt), 6.6 s for the three; looked at, both pictures are the drawing, from the right
+  cameras. Cancel stopped after the picture being drawn; a scene sent mid-export waited and loaded after; a wrong token
+  was refused with the reason. NPR Parameters: Reset to Defaults armed on the first click, and on the second sent the
+  engine's DefaultState (seed 20261029, Cartridge, painted area 70% and edge irregularity 10%, every pen, wash and sky
+  value), its State objects kept, its 89 controls showing the defaults; the record line, Restore and Not Now. NPR
+  Export: the page at its window's size, every control sending one settings message with an unknown key carried back.
+
+### Found and Fixed on the Way
+
+- **Two SketchUps shared port 8147.** On this PC both open SketchUp 2026s (SK02 AssetOptimisation and SK02 AscottGardens)
+  each ran a 1.0.0 NPR server on 127.0.0.1:8147: Python's HTTP server sets `SO_REUSEADDR`, which on Windows lets a second
+  socket bind a port already listened on, and then either server answers either SketchUp's windows. Harmless while both
+  served the same files; fatal for exports (each server has its own token). 1.1.0 binds with `SO_EXCLUSIVEADDRUSE`, so
+  a second SketchUp's server takes another port. While finding it, the 0.2.0 process suite started a third server on
+  8147 for a few seconds; every test now uses its own port.
+- A refused upload was answered before its body was read, and Windows reset the connection: the page saw a failed fetch,
+  not the reason. Refused bodies (up to 64 MB) are now read first.
+- The record's write removed the old keys before writing the new: a failure in between, inside a joined step (which is
+  committed), could have left no record. New keys first now.
+- The undo read-back called `model.valid?` unguarded.
+
+### What Offline Cannot Prove
+
+- **In SketchUp:** that a joined (transparent) operation merges into our previous step as documented, and how the Edit
+  menu names the steps; the export window's native panels (Choose Folder, Save and Load a Look); the engine's export at
+  300 and 600 dpi on this PC's graphics card inside SketchUp's browser (127 and 150 dpi were drawn in the desktop app's
+  Chromium); the download caught inside SketchUp's browser (the same Chromium family).
+- Whether one undo step a run of look changes is the right size for Adam.
+
+### Provisional (for Adam to correct)
+
+- The export defaults: a 300 dpi PNG in `PainterlyNPR__Exports` beside the model, `{model}__{view}__PainterlyNPR__{dpi}dpi__`,
+  Add a Number, the folder opened after; JPEG quality 92; the resolution buttons; 300 s to get the viewport ready and 600 s
+  a picture.
+- A scene gives its camera only: its hidden tags and objects are not applied (the GLB cache is the whole model).
+- Live on or off is not kept in the model (it is how you work, not how the model looks): the viewport's user config
+  still decides whether it starts live.
+
+### Files
+
+- New: `02__Src__AppModules/87__System__ModelPersistence/` (Store, LocalBackup, Settings);
+  `02__Src__AppModules/88__System__NprExport/` (Naming, Jobs, Window, and the window's `UiSystem__MainUiLogic__.js`);
+  `Na__PainterlyAssets__NprExport__UiLayout__.html`; `80__System__NprViewport/Na__PainterlyAssets__NprViewport__HostExport__.mjs`;
+  `03__Style__AppStylesheets/Na__PainterlyAssets__UiFeature__Styles__NprExport__.css`;
+  `01__AppAssets__PainterlyAssets/Na__PainterlyAssets__Toolbar__NprExport__.svg` (PainterlyNPR's own Export section symbol
+  from the vector library, in the toolbar's colour).
+- Changed: the loader (NPR Export: command, menu, toolbar); AppCore Main (requires, `Na__PublicApi__OpenNprExport`); the
+  AppConfig (`nprExport`, version 0.3.0); LiveSync, Windows, CameraSync (snapshots), LocalServer `.rb` and `.py`,
+  HostParameters, HostViewport; the NprParameters and CoreUi Index stylesheets.
+
+### Testing
+
+- [ ] **Restart SketchUp** (the NPR Export button registers at start-up). With both SketchUps open, the second's NPR
+      windows still open (its server takes another port).
+- [ ] NPR Parameters: move a few sliders, save the model, close and reopen it (or open it on the other PC): the NPR
+      Viewport shows the same look, and the line under the buttons says it is kept in this model.
+- [ ] After a run of slider changes, Ctrl+Z in SketchUp: the look steps back (one step for the run) in both NPR windows.
+- [ ] Reset to Defaults (two clicks): GitHub PainterlyNPR's starting look; Ctrl+Z puts yours back.
+- [ ] NPR Export with its defaults: a 300 dpi PNG beside the model in `PainterlyNPR__Exports`, and the folder opens.
+- [ ] Tick two scenes, JPEG, 150 dpi: two pictures, each from its scene's camera; SketchUp's view does not move.
+- [ ] A PDF prints at A3 true size at 100%.
+- [ ] Close and reopen the model: NPR Export's settings are as you left them.
+- [ ] Save the Look As .json, change the look, Load a Look From .json: it comes back.
+
+**Status:** IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP
 
 ---
 

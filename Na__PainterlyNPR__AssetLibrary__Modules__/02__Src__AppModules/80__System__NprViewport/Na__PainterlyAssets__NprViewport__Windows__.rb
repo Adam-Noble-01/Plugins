@@ -11,11 +11,14 @@
 #              JS -> Ruby:
 #                na_npr_window_ready(json)          - the engine booted, the host is listening
 #                na_npr_window_action(action, json) - toggleLive | refresh | reloadRemote |
-#                                                     parameters | openViewport | openParameters | status
+#                                                     parameters | openViewport | openParameters |
+#                                                     openExport | restoreBackup | status |
+#                                                     exportItem | exportDone (the viewport, for NPR Export)
 #                na_npr_waiting_ready()             - the waiting page can be told what is happening
 #              Ruby -> JS:
-#                window.Na__NprHost__Receive(kind, payload)   kinds: scene | camera | settings | live | status
-# CREATED    : 01-Nov-2026
+#                window.Na__NprHost__Receive(kind, payload)   kinds: scene | camera | settings | live |
+#                                                              status | record | export | exportCancel
+# CREATED    : 01-Nov-2026 (v0.3.0: the model's NPR settings record, NPR Export)
 #
 # DESCRIPTION:
 # - A WINDOW OPENS AT ONCE on a small waiting page of this plugin's (set_file),
@@ -42,6 +45,7 @@ module Na__PainterlyAssets
         @na_dialogs = {} unless defined?(@na_dialogs)                                       # <-- role => UI::HtmlDialog
         @na_ready   = {} unless defined?(@na_ready)                                         # <-- role => the engine page's host has said ready
         @na_said    = {} unless defined?(@na_said)                                          # <-- role => the waiting page's last line
+        @na_info    = {} unless defined?(@na_info)                                          # <-- role => what the page said when it was ready
 
     # endregion ----------------------------------------------------------------
 
@@ -65,6 +69,7 @@ module Na__PainterlyAssets
             end
             @na_dialogs[role] = dialog
             dialog.show
+            Na__NprSettings.Na__Settings__WindowsChanged                                   # <-- The model is watched for undo while an NPR window is open
             UI.start_timer(0.05, false) { Na__PainterlyAssets::Na__NprWindows.na_prepare(role, 0) }   # <-- Out of the command: the download and the server do not hold it up
         end
         # ---------------------------------------------------------------
@@ -98,6 +103,16 @@ module Na__PainterlyAssets
                     Na__PainterlyAssets::Na__NprWindows.Na__Windows__SendAll('status', { 'Text' => "Reload Remote Plugin Files failed: #{result['message']}", 'Level' => 'error' })
                     Na__PainterlyAssets::Na__NprWindows.na_tell_closed("Reload Remote Plugin Files failed: #{result['message']}") if open.empty?
                 end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Every Open Window Onto the Server Again (NPR Export found one from before 0.3.0)
+        # ------------------------------------------------------------
+        def self.Na__Windows__Restart
+            NA_ROLES.select { |role| self.Na__Windows__Visible?(role) }.each do |role|
+                @na_ready[role] = false
+                self.na_prepare(role, 0)
             end
         end
         # ---------------------------------------------------------------
@@ -221,8 +236,16 @@ module Na__PainterlyAssets
 
         def self.na_on_ready(role, info)
             @na_ready[role] = true
+            @na_info[role] = info
             Na__DebugTools.Na__Debug__Info("NPR #{role} window ready: PainterlyNPR #{info['EngineVersion']}#{info['Booted'] ? '' : " (not booted: #{info['Error']})"}.")
+            Na__NprSettings.Na__Settings__WindowsChanged
             Na__LiveSync.Na__Live__WindowReady(role, info)
+            Na__NprExport.Na__Export__ViewportReady(info) if role == 'viewport'
+        end
+
+        # What a window's page said when it was ready ({ 'Booted', 'EngineVersion', 'SheetMm', ... })
+        def self.Na__Windows__Info(role)
+            self.Na__Windows__Ready?(role) ? (@na_info[role.to_s] || {}) : {}
         end
 
         def self.na_action(role, action, payload)
@@ -234,10 +257,21 @@ module Na__PainterlyAssets
             when 'parameters'      then Na__LiveSync.Na__Live__ParametersChanged(payload)
             when 'openViewport'    then self.na_defer { self.Na__Windows__Open('viewport') }
             when 'openParameters'  then self.na_defer { self.Na__Windows__Open('parameters') }
+            when 'openExport'      then self.na_defer { Na__NprExport.Na__Export__OpenWindow }
+            when 'restoreBackup'   then self.na_restore(role)
+            when 'exportItem'      then Na__NprExport.Na__Export__ItemDone(payload)
+            when 'exportDone'      then Na__NprExport.Na__Export__JobDone(payload)
             when 'status'          then self.Na__Windows__Send(role == 'viewport' ? 'parameters' : 'viewport', 'status', payload)
             else
                 Na__DebugTools.Na__Debug__Warn("The NPR #{role} window asked for an unknown action: #{action}")
             end
+        end
+
+        # Restore pressed: this PC's backup back into the model (one undo step)
+        def self.na_restore(role)
+            problem = Na__NprSettings.Na__Settings__Restore(Sketchup.active_model)
+            text = problem || 'The NPR settings this PC kept for this model are back in it. Undo in SketchUp takes them out again.'
+            self.Na__Windows__Send(role, 'status', { 'Text' => text, 'Level' => problem ? 'warn' : 'info' })
         end
 
         def self.na_defer(&block)
@@ -253,7 +287,11 @@ module Na__PainterlyAssets
             return unless @na_dialogs[role].equal?(dialog)
             @na_dialogs.delete(role)
             @na_ready[role] = false
-            Na__LiveSync.Na__Live__ViewportClosed if role == 'viewport'
+            if role == 'viewport'
+                Na__LiveSync.Na__Live__ViewportClosed
+                Na__NprExport.Na__Export__ViewportClosed
+            end
+            Na__NprSettings.Na__Settings__WindowsChanged
         end
 
         def self.na_said_for(role)

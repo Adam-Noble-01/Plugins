@@ -5,8 +5,9 @@
    FILE       : Na__PainterlyAssets__UiFeature__Styles__NprParameters__.css
    PURPOSE    : PainterlyNPR's own app page as the NPR Parameters window: the
                 engine's panel filling the window under a header of the plugin's
-                (Live, Refresh, the viewport, Reload Remote Plugin Files)
-   CREATED    : 01-Nov-2026
+                (Live, Refresh, the viewport, NPR Export, Reload Remote Plugin
+                Files; the model's record, Reset to Defaults and Restore)
+   CREATED    : 01-Nov-2026 (v0.3.0: the record row)
 
    DESCRIPTION:
    - Linked by the plugin's local server into the engine's page, for
@@ -187,6 +188,64 @@
         margin-top                         :  6px;
         color                              :  var(--PainterlyNPR_InkSoft);
         font-size                          :  10.5px;
+    }
+
+/* #endregion ------------------------------------------------------------------- */
+
+
+/* #region ----------------------------------------------------------------------
+ * HEADER | The Model's Record, Reset to Defaults and Restore (v0.3.0)
+ * ----------------------------------------------------------------------------- */
+
+    .Na__NprParams__RecordRow {
+        display                            :  flex;
+        align-items                        :  center;
+        gap                                :  8px;
+        margin-top                         :  8px;
+    }
+
+    .Na__NprParams__Record {
+        flex                               :  1 1 auto;
+        min-width                          :  0;
+        color                              :  var(--PainterlyNPR_InkSoft);
+        font-size                          :  var(--PainterlyNPR_FontSizeSmall);
+        line-height                        :  1.35;
+    }
+
+    .Na__NprParams__Record[data-level="warn"] {
+        color                              :  #805818;
+    }
+
+    .Na__NprParams__Reset {
+        flex                               :  0 0 auto;
+    }
+
+    .Na__NprParams__Reset--Armed {
+        border-color                       :  #8c2828;
+        color                              :  #8c2828;
+        font-weight                        :  600;
+    }
+
+    .Na__NprParams__Backup {
+        display                            :  flex;
+        flex-direction                     :  column;
+        gap                                :  6px;
+        margin-top                         :  8px;
+        padding                            :  8px 10px;
+        border                             :  1px solid #c9a86a;
+        border-radius                      :  6px;
+        background                         :  rgba(201, 168, 106, 0.12);
+        font-size                          :  var(--PainterlyNPR_FontSizeSmall);
+        line-height                        :  1.4;
+    }
+
+    .Na__NprParams__Backup[hidden] {
+        display                            :  none;
+    }
+
+    .Na__NprParams__BackupButtons {
+        display                            :  flex;
+        gap                                :  6px;
     }
 
 /* #endregion ------------------------------------------------------------------- */

@@ -307,6 +307,11 @@ class NaMcpServerTests(unittest.TestCase):
         good = self.session.call('batch_execute', {'steps': [{'tool': 'geometry_create_solid', 'arguments': {'shape': 'box', 'size': [1, 1, 1]}},
                                                              {'tool': 'entity_transform', 'arguments': {'ids': ['$0.id'], 'operations': [{'type': 'translate', 'vector': [1, 0, 0]}]}}]})
         self.assertFalse(good['result']['isError'])
+        trial = self.session.call('batch_execute', {'rollback': True,
+                                                    'steps': [{'tool': 'geometry_create_solid', 'arguments': {'shape': 'box', 'size': [1, 1, 1]}}]})
+        self.assertFalse(trial['result']['isError'])
+        typo = self.session.call('batch_execute', {'rollback': 'yes', 'steps': [{'tool': 'model_info', 'arguments': {}}]})
+        self.assertTrue(typo['result']['isError'])
 
     def test_ruby_eval_lint(self):
         payload = json.loads(self.text(self.session.call('ruby_eval', {'code': 'model.entities.add_cube(3)'})))

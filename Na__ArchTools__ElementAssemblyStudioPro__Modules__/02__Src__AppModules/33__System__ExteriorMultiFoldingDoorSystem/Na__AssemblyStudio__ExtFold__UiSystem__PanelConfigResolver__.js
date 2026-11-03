@@ -42,6 +42,7 @@ const Na__ExtFold__PanelConfigResolver = (function () {
     const NA_COMPOSITIONS = {
         FullyGlazed       : true,
         GlazedOverFielded : true,
+        GlazedOverGlazed  : true,
         FullyFielded      : true
     };
 
@@ -276,6 +277,8 @@ const Na__ExtFold__PanelConfigResolver = (function () {
 
         let field = null;
         let glazed = null;
+        let lowerGlazed = null;
+        let midRailZ = null;
         if (settings.composition === 'FullyGlazed') {
             glazed = full;
         } else if (settings.composition === 'FullyFielded') {
@@ -286,7 +289,10 @@ const Na__ExtFold__PanelConfigResolver = (function () {
                 100,
                 Math.max(100, full.heightMm - midRail - 100)
             );
-            field = Object.assign({}, full, { heightMm: fieldHeight });
+            const lowerSection = Object.assign({}, full, { heightMm: fieldHeight });
+            if (settings.composition === 'GlazedOverGlazed') lowerGlazed = lowerSection;
+            else field = lowerSection;
+            midRailZ = full.zMm + fieldHeight;
             glazed = {
                 xMm      : full.xMm,
                 zMm      : full.zMm + fieldHeight + midRail,
@@ -303,6 +309,8 @@ const Na__ExtFold__PanelConfigResolver = (function () {
             midRailMm     : midRail,
             fieldRegion   : field,
             glazedRegion  : glazed,
+            lowerGlazedRegion : lowerGlazed,                                // <-- V2.3.0 Glazed Over Glazed: the pane under the mid rail
+            midRailZMm    : midRailZ,                                       // <-- Null when the leaf has no mid rail
             fieldCells    : fieldCells,
             fieldDividers : na_field_dividers(field, fieldCells)
         };
@@ -362,7 +370,7 @@ const Na__ExtFold__PanelConfigResolver = (function () {
         }
         if (resolved.settings.composition !== 'FullyGlazed') {
             resolved.panels.forEach(function (panel) {
-                if (!panel.panelLayout.fieldCells.length) {
+                if (!panel.panelLayout.fieldCells.length && panel.panelLayout.fieldRegion) {
                     errors.push('Panel ' + (panel.index + 1) + ' field layout is too small for the selected settings.');
                 }
             });

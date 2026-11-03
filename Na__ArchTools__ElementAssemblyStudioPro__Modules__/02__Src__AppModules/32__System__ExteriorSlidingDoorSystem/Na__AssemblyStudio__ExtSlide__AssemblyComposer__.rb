@@ -343,7 +343,8 @@ module Na__AssemblyComposer
             GeometryHelpers.na_mm_to_inch(cill_height_mm),
             GeometryHelpers.na_mm_to_inch(dims[:frame_depth_mm]),
             cill_material,
-            GeometryHelpers.na_mm_to_inch(dims[:frame_wall_inset_mm])
+            GeometryHelpers.na_mm_to_inch(dims[:frame_wall_inset_mm]),
+            builders.na_cill_horns(config_hash)
         )
     rescue StandardError => e
         DebugTools.na_debug_error("ExtSlide::AssemblyComposer.na_build_opening_cill failed", e)
@@ -498,6 +499,10 @@ module Na__AssemblyComposer
             na_build_fielded_leaf_members(mod_entities, leaf, panel_layout, part_names, frame_material)
             na_build_fielded_field_dividers(mod_entities, leaf, panel_layout, frame_material, panel_id)
             na_build_fielded_glazed_region(mod_entities, leaf, panel_layout, part_names, materials, config_hash)
+            if panel_layout[:lower_pane]                                  # <-- V2.3.0 Glazed Over Glazed: its own names, fused and trimmed on its own
+                lower_names = part_names.merge(:glazing => "Na_Glass_Lower_#{panel_id}")
+                na_build_fielded_glazed_region(mod_entities, leaf, panel_layout[:lower_pane], lower_names, materials, config_hash)
+            end
             if panel_layout[:output_mode] == 'Linework'
                 SharedPanelLinework.na_build(
                     mod_entities, leaf, panel_layout, frame_material, NA_PANEL_NAMING,
@@ -534,8 +539,8 @@ module Na__AssemblyComposer
                          leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
                          inner_width, leaf[:thickness_mm], top_rail, material)
 
-        return unless layout[:composition] == 'GlazedOverFielded' && layout[:field_region]
-        mid_z = layout[:field_region][:z_mm] + layout[:field_region][:height_mm]
+        mid_z = layout[:mid_rail_z_mm]
+        return unless mid_z
         na_create_box_mm(entities, "Na_DoorPanel_#{part_names[:glazing].sub(/^Na_Glass_/, '')}_Rail_Mid",
                          leaf[:origin_x_mm] + stile, leaf[:origin_y_mm], mid_z,
                          inner_width, leaf[:thickness_mm], members[:mid_rail_width_mm], material)
@@ -575,13 +580,13 @@ module Na__AssemblyComposer
 
             panel_token = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
             vertical_positions.each_with_index do |x, index|
-                next if removed_keys.include?(na_glazebar_key(leaf, 'vertical', index + 1))
+                next if removed_keys.include?(na_glazebar_key(leaf, 'vertical', index + 1, layout[:pane_cell].to_i))
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_V#{index + 1}",
                                  x - bars[:width_mm] / 2.0, y, region[:z_mm],
                                  bars[:width_mm], depth, region[:height_mm], materials[:frame])
             end
             horizontal_positions.each_with_index do |z, index|
-                next if removed_keys.include?(na_glazebar_key(leaf, 'horizontal', index + 1))
+                next if removed_keys.include?(na_glazebar_key(leaf, 'horizontal', index + 1, layout[:pane_cell].to_i))
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_H#{index + 1}",
                                  region[:x_mm], y, z - bars[:width_mm] / 2.0,
                                  region[:width_mm], depth, bars[:width_mm], materials[:frame])
@@ -590,7 +595,8 @@ module Na__AssemblyComposer
 
         panel_id = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
         na_create_leaded_from_region_mm(
-            entities, config_hash, panel_id, region, glass_y, leaf[:index].to_i - 1
+            entities, config_hash, panel_id, region, glass_y, leaf[:index].to_i - 1,
+            pane: layout[:pane_cell] ? layout : nil
         )
     end
     private_class_method :na_build_fielded_glazed_region
@@ -598,8 +604,8 @@ module Na__AssemblyComposer
 
     # HELPER FUNCTION | Glaze-Bar Removal Key (Matches Preview / Window Scheme)
     # ------------------------------------------------------------
-    def self.na_glazebar_key(leaf, orientation, bar_index)
-        "0:0:#{leaf[:index].to_i - 1}:0:#{orientation}:#{bar_index}"
+    def self.na_glazebar_key(leaf, orientation, bar_index, cell = 0)
+        "0:#{cell}:#{leaf[:index].to_i - 1}:0:#{orientation}:#{bar_index}"
     end
     private_class_method :na_glazebar_key
     # ---------------------------------------------------------------
@@ -925,11 +931,15 @@ module Na__AssemblyComposer
     # ------------------------------------------------------------
     # Lead lines are laid out per glazing cell between the FINAL glaze
     # bar centerlines. panel_index_0 is 0-based so disabled-cell keys match
-    # the 2D preview / WindowSystem toggle scheme.
-    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm, panel_index_0 = 0)
+    # the 2D preview / WindowSystem toggle scheme. pane (V2.3.0, optional) is
+    # the lower pane of a Glazed Over Glazed leaf: its own cell number and
+    # scaled line counts, no arch, no horizontal nudges.
+    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm, panel_index_0 = 0, pane: nil)
         leaded = LeadedGlassBuilder.na_resolve_leaded_params(config_hash)
         return unless leaded[:enabled]
         return if leaded[:h_bars] <= 0 && leaded[:v_bars] <= 0
+
+        leaded = leaded.merge(h_bars: pane[:lead_rows].call(leaded[:h_bars])) if pane
 
         width_mm = region[:width] || region[:width_mm]
         height_mm = region[:height] || region[:height_mm]
@@ -945,17 +955,17 @@ module Na__AssemblyComposer
             builders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
             bar_layout = builders.na_compute_final_bar_positions(
                 x_mm * mm, z_mm * mm, width_mm * mm, height_mm * mm,
-                (config_hash["horizontal_glaze_bars"] || 0).to_i,
+                pane ? pane[:glaze_bars][:horizontal_count] : (config_hash["horizontal_glaze_bars"] || 0).to_i,
                 (config_hash["vertical_glaze_bars"] || 0).to_i,
                 (config_hash["glaze_bar_width_mm"] || 25).to_f * mm,
-                na_slide_advanced_glazebar_hash(config_hash)
+                pane ? na_slide_advanced_glazebar_hash(config_hash).merge(arch_enabled: false, h_offset: 0.0, h_offset_mm: 0.0, h_bar_offsets: []) : na_slide_advanced_glazebar_hash(config_hash)
             )
             grid = {
                 h_positions: bar_layout[:h_positions],
                 v_positions: bar_layout[:v_positions],
                 bar_width: (config_hash["glaze_bar_width_mm"] || 25).to_f * mm,
                 effective_glass_height: bar_layout[:effective_glass_height],
-                panel_context: { opening: 0, cell: 0, panel: panel_index_0.to_i, sash: 0 },
+                panel_context: { opening: 0, cell: pane ? pane[:pane_cell] : 0, panel: panel_index_0.to_i, sash: 0 },
                 disabled_cells: disabled_cells.map(&:to_s)
             }
         end
