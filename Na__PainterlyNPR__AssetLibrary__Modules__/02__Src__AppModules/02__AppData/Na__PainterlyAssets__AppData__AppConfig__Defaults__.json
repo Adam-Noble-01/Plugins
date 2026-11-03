@@ -5,7 +5,7 @@
 
     "plugin" : {
         "name"    : "Na PainterlyNPR Assets",
-        "version" : "0.3.0"
+        "version" : "0.3.1"
     },
 
     "dialog" : {

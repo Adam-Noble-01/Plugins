@@ -11,6 +11,44 @@ menu Extensions > Na PainterlyNPR Assets.
 
 ---
 
+## Version 0.3.1 - 03-Nov-2026 - A Painted Part Keeps Its Id
+
+### Asked For
+
+Adam, 03-Nov-2026: *"When I paint materials in sketchUp the viewer isnt loading / reloading them, even if they are
+materials from the library"*.
+
+### What It Does
+
+- **The fix for what was reported is the engine's**, not this plugin's: PainterlyNPR v0.8.27 (built as v0.8.19) reads a painted swatch's class
+  from the node's name and draws that. The paint was already reaching the viewport: each paint exported, the GLB gained
+  a `<tag>::MAT000E__Npr__<Class>` node, and the scene gave it an object of the file's rule class, which is why a cube
+  painted Lavender stayed Brick. `Object__Material` stays the file's rule, a part's starting class. Nothing of the engine's
+  rule is copied here, and ValeVision AURA gets the same reading.
+- **A part painted away and back keeps its Id** (`Na__SceneFile`, `na_objects`). A bucket that empties goes Missing; before
+  this its return took a new Id, so each repaint added another object and the same part came back with a different wash.
+  Now the same file and node take their old Id again. An Id is still never given to another node.
+- **A Stonework swatch in the Materials tab** (Adam: *"Add the swatch"*): `MAT228__Npr__Stonework` in the Materials SSOT's
+  series (`Na__Common__DataLib__CoreSuEntityStandards`, 1.9.1), for PainterlyNPR v0.8.25's new class (built as v0.8.20). SketchUpName
+  `MAT000E__Npr__Stonework`, BaseColor the class's Albedo, group Walls. The tab reads the SSOT from disk, so no code changed.
+
+### Measured
+
+- The palette in the running plugin: 28 swatches, 28 pictures, Stonework last under Walls.
+- See PainterlyNPR's DEVLOG, v0.8.27 and v0.8.25.
+
+### Not Yet
+
+- **A closed group or component painted with SketchUp's Paint Bucket** paints the instance, not its faces. The GLB builder
+  reads faces only, on purpose (its `Na__GlbEngine__ResolveEffectiveFaceMaterial`), so that paint exports as Default and
+  the drawing does not change. Use the Materials tab with the group selected, or paint inside the open group. Adam to say
+  whether a swatch on a whole group should count.
+- **Inside an open group** a paint reaches the drawing when the group closes, as every edit does (`Na__GlbBridge`).
+- **A material outside the library** keeps its node, but the engine has only its own classes, so the part keeps its
+  file's class.
+
+---
+
 ## Version 0.3.0 - 01-Nov-2026 - NPR Export, NPR Settings Kept in the Model and Reset to Defaults
 
 ### Asked For

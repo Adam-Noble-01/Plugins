@@ -23,7 +23,12 @@
 #   nothing already drawn reshuffles its strokes): a node keeps its Id while
 #   its file and name, or its SketchUp persistent id, are found again; a new
 #   node takes the next free Id; a node that has gone stays as Missing, so its
-#   Id is never reused. The engine needs them 1, 2, 3 ... in order.
+#   Id is never given to another (the same node coming back takes it again: a
+#   material painted away and back). The engine needs them 1, 2, 3 ... in order.
+# - A NODE'S PAINT IS THE ENGINE'S TO READ: Object__Material is the file's rule,
+#   its starting class. PainterlyNPR's GLB import reads a painted swatch from
+#   the node (<tag>::MAT000E__Npr__<Class>) and draws that (v0.8.19), as it does
+#   for ValeVision AURA, so nothing of it is copied here.
 # - THE PLACEMENT centres the focal buildings' footprint on the engine's origin
 #   (its lawn and its sun's square look there), the ground level unchanged and
 #   no turn: SketchUp's front (-green) is already the engine's +Z. It is set
@@ -255,11 +260,13 @@ module Na__PainterlyAssets
 
             by_node = self.na_occurrences(old.reject { |o| o['Object__Missing'] }).each_with_object({}) { |(o, key), h| h[key] ||= o }
             by_pid  = old.each_with_object({}) { |o, h| h[o['Object__PersistentId']] ||= o if o['Object__PersistentId'] }
+            gone    = old.select { |o| o['Object__Missing'] }.group_by { |o| [o['Object__ModelFile'], o['Object__Node']] }   # <-- A bucket painted away and back is the same part: its Id, so its wash and strokes, come back with it
             kept    = {}
             next_id = old.map { |o| o['Object__Id'].to_i }.max.to_i + 1
             objects = self.na_occurrences(fresh).map do |made, key|
                 match = by_node[key]
                 match = by_pid[made['Object__PersistentId']] if (match.nil? || kept[match['Object__Id']]) && made['Object__PersistentId']
+                match = Array(gone[key.first(2)]).find { |o| !kept[o['Object__Id']] } if match.nil? || kept[match['Object__Id']]
                 if match && !kept[match['Object__Id']]
                     kept[match['Object__Id']] = true
                     { 'Object__Id' => match['Object__Id'] }.merge(made)
