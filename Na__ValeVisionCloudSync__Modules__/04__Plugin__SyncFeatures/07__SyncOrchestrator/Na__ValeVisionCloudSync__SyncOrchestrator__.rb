@@ -24,6 +24,10 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 04-Nov-2026 - Version 2.2.0
+# - The Sync Vegetation tab's scope (veg_sync) goes to Na__VegetationSync, which runs
+#   its own checks and its own Python (10__VegetationSync).
+#
 # 30-Oct-2026 - Version 2.1.0
 # - The Sync Aura tab's two scopes (aura_sync, aura_assets) go to Na__AuraSync,
 #   which runs its own checks and its own Python (09__AuraSync); the ValeVision
@@ -70,6 +74,15 @@ module Na__ValeVisionCloudSync
             if defined?(Na__AuraSync) && Na__AuraSync::SCOPES.include?(scope_id)
                 dialog_manager.na_push_status('running', "Starting: #{na_scope_label(scope_id)}...")
                 report = Na__AuraSync.Na__AuraSync__Run(scope_id, dialog_manager)
+                dialog_manager.na_push_status(report[:success] ? 'success' : 'error', report[:message])
+                dialog_manager.na_push_report(report)
+                return report
+            end
+
+            # SYNC VEGETATION TAB | Its own checks and its own Python, as above
+            if defined?(Na__VegetationSync) && Na__VegetationSync::SCOPES.include?(scope_id)
+                dialog_manager.na_push_status('running', "Starting: #{na_scope_label(scope_id)}...")
+                report = Na__VegetationSync.Na__VegSync__Run(scope_id, dialog_manager)
                 dialog_manager.na_push_status(report[:success] ? 'success' : 'error', report[:message])
                 dialog_manager.na_push_report(report)
                 return report
@@ -688,7 +701,8 @@ module Na__ValeVisionCloudSync
                 SYNC_SCOPE_GLB     => 'Update GLB Models For ValeVision 3D',
                 SYNC_SCOPE_CAMERAS => 'Update Camera Data For ValeVision 3D',
                 'aura_sync'        => 'Sync Model And Assets With AURA',
-                'aura_assets'      => 'Sync NPR Assets With AURA'
+                'aura_assets'      => 'Sync NPR Assets With AURA',
+                'veg_sync'         => 'Sync Planting With ValeVision 3D'
             }
             labels[scope_id] || scope_id
         end

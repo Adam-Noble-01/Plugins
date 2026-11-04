@@ -1,5 +1,92 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.6.1 — 04-Nov-2026 — Sync Vegetation Follows ValeVision 3D v2.86.0: a Plant's Scale, Clipped Hedges, a Box Proxy
+
+### Overview
+**Adam, of the plants in ValeVision 3D:** "I would set a scale of 0.5", and "a more managed hedge-looking plant". The app's v2.86.0 gives a plant a scale on top of its saved size, and a clipped hedge. This keeps SketchUp the same.
+
+### What It Does
+- **A proxy shows and compares at what a plant really measures:** its saved size times its scale.
+- **Scaled evenly in SketchUp, a plant's scale changes,** the same bush at another size, and its saved size stays. **Scaled on one axis, its saved size changes,** fitted to a space with its clumps keeping their size, as a stretched run's do. Axes within half a percent of each other are one even scale, and anything that rounds away is not written at all.
+- **A new proxy scaled evenly** becomes its asset's own size and a scale.
+- **The path sums** follow the app's: Plant Scale, each palette item's scale, Height, clipped plants that take no variation, a run stopping at each corner and meeting square, what its ends meet, and the longest run.
+- **A hedge's proxy is a box,** where its asset says so, built closed in the definition.
+
+### Files Changed
+- `10__VegetationSync/Na__ValeVisionCloudSync__VegetationSync__.py` (1.1.0) and `.rb` (1.1.0)
+
+### Verified (04-Nov-2026)
+**From Python, by numbers:** 299 checks. The port against the app's own JavaScript in Node: 225 plants of 21 paths identical to the last key, plant scale, palette scale, Height, hedges, corners and the longest run among them. The even and one-axis cases of the scale, a size that only rounds, a plant with no saved size. **Live against a sandbox of the real API:** the 26 checks of 0.6.0, all passing.
+
+### Not Verified: Please Try
+- [ ] **`na_build_box` has not run at all.** SketchUp was not open, an agent never launches it, and this PC has no other Ruby, so the file has not even been parsed by Ruby. It has been read, and its calls linted against the API index. If the plugin fails to load after this, look there first.
+- [ ] Draw a hedge in the app and Sync Planting: boxes along the path, locked. Scale a placed plant evenly, sync, reload the app: the same bush at that size. Scale one on one axis: stretched, with its clumps the same size.
+- [ ] Everything under 0.6.0's list.
+
+## Version 0.6.0 — 04-Nov-2026 — Sync Vegetation: a Project's Plants as Proxies, Both Ways
+
+### Overview
+**Asked for by Adam** when ValeVision 3D's vegetation was planned (04-Nov-2026): "Both ways, like Sync Aura". The plan is
+`ValeVision__PLAN__VegetationSystem__.md`, section 5, in the app. A new tab, **Sync Vegetation**, beside Sync Aura and built the same
+way: Ruby reads and writes raw poses, the Python holds every conversion and the merge, and the base goes in the model's
+`ValeVision__CloudExport` dictionary inside the one operation, so an Undo puts both back together.
+
+### What It Does
+- **A proxy** is a component instance at the model root whose definition this plugin built: the app's dome, from the asset's
+  `Asset__Proxy` and `Asset__Size`, standing on its origin, width along x, depth along y. One definition serves every plant of an
+  asset: an instance is that scaled on each axis, read back by the lengths of its axes.
+- **Its tag** is `05__ValeVision__VegetationProxies` (AppConfig `vegetation.proxy_tag`), in the GLB builder's skip range (`[0, 2, 3, 4, 5, 6]`,
+  read from the DataLib's `meta.skipRanges`), so a proxy never goes into the model's GLBs. A new instance goes on the tag as it lands, through a
+  definition observer and a transparent operation. Provisional, as Sync Aura's is: not yet a DataLib standard tag.
+- **The sync** reads the project record's one key, `Vegetation__SceneData`, through ValeVision 3D's API with the Sync Aura tab's kept
+  session (one Vale sign-in for every Vale app), merges three ways against the base, writes only that key's `Plops` and any `Assets` a
+  new proxy needs, and applies the answer in one undo step. Changed on one side goes to the other; changed on both, **ValeVision wins** and
+  the report names it. A project not switched on in the app's Dev Tools is refused: this tab never makes the key.
+- **A path's plants are read-only proxies,** stamped with the path's Uid and locked. A path saves rules and a seed, never its plants, so
+  they are worked out with a Python port of the app's `Na__Vegetation__PathModel__.js` and its generator. One moved anyway goes back where the path says,
+  and the report names it. A copy of one is a plant of its own.
+- **A new proxy** (Place A Plant in the tab, through SketchUp's own component tool, or a copy of a placed one) becomes a plop with a new Uid and
+  a seed of its own, and its asset is pinned into the project from the library on this PC. Moved, turned or scaled in SketchUp, a plop keeps
+  its seed.
+- **IMG## scenes:** the tag is hidden in them, or the whitecard pictures would show the domes (Sync Aura's known trap). A scene that does
+  not save tags is reported, not changed.
+- **Who may:** reading needs a sign-in; writing is an App Admin, decided again by the server. A Manager is refused in words, and SketchUp is not changed.
+
+### A Safe Write, and What It Is Not
+The record is read again just before the PATCH, and a change in between starts the merge again, once. The plan asked for a per-key guard
+in the API; that file holds other sessions' open work, so this is a comparison instead, and ValeVision 3D's Save makes the same one from its
+side (a stale window is refused and told to reload). A save landing in the moment between the read and the PATCH could still be overwritten; its
+revision is kept on the server.
+
+### Files Changed
+- New: `04__Plugin__SyncFeatures/10__VegetationSync/Na__ValeVisionCloudSync__VegetationSync__.rb` (1.0.0) and `.py` (1.0.0)
+- `09__AuraSync/...AuraSync__.py` (1.1.1): `na_api` takes which app's API it calls. AURA's calls are unchanged
+- `07__SyncOrchestrator` (2.2.0): the scope and its label. `...DialogManager__.rb` (1.4.0): the Place callback, the status block. `...ConfigLoader__.rb`:
+  `Na__ValeVisionCloudSync__VegetationPaths`. `...ModuleLoaders__Main__.rb`. AppConfig: the `vegetation` block
+- `05__Plugin__UserInterface`: the tab in `UiLayout`, `UiBridge` (1.4.0), `Styles`
+
+### Verified (04-Nov-2026)
+**From Python, by numbers:** 176 checks. The port against the app's own JavaScript in Node: 1,000 random numbers bit for bit, and 121 plants of 9 paths
+(straight, curved, doubled and vertical points, runs, zero and huge seeds) identical to the last key. The frames off the origin, every branch of the merge.
+**Live against a sandbox of the real API** (ValeVision 3D's testing server, port 8040, fake users, no real data), 26 checks: not switched on and
+switched off refused; a new proxy reaches the record at the right place, with its asset pinned and every other key kept; the second sync finds nothing to do; a
+plant and a path made in the app come back; moved plants go back and a moved path plant is put back and named; a save landing between the read and the
+write survives; an Employee is refused in words; signed out says where to sign in.
+**In SketchUp 2027's own Ruby, with its real `Geom` maths, against stand-in entities,** in a process holding someone's open model, which it did not read or change (entity,
+definition and tag counts compared, nothing defined outside an anonymous module, no undo step): 49 of 50 checks, the fiftieth a wrong expectation of
+mine (a 10-sided dome's corners reach 95% of its depth, which is right). Six syncs through the real Python against the sandbox: placing, poses through real transformations
+changing nothing on the second sync, moved and resized, placed by hand, a path plant moved and another deleted, a plant deleted. The dome's panels flat,
+normals out, 5 rings of lines. A failed op and a failed operation. What the sandbox then held matched by hand: `[15240, 305, 10160]`, -90 degrees, `[1620, 920, 1188]`.
+**Measured in 2027.0:** scale sits on a transformation's axes with the last number 1, uniform or not (the API note says so from 2018), so reading axis lengths is right. It is divided out anyway for what older SketchUps saved.
+**The dialog's page in a browser with a stand-in bridge,** 24 checks: four tabs fit, the lock, Place and Sync reach Ruby, its own report, Aura's cards and the Update cards unchanged.
+
+### Not Verified: Please Try
+- [ ] **Nothing here has touched a real SketchUp entity.** `add_face`, tags, locks, `set_visibility`, the component tool, the observer and Undo are the API as documented, not run. There
+  was no empty window to run them in: the listing shows pid 97292 with no title, but it holds `MCP__FancyFascia__`, unsaved, and pid 80400 does not answer. SketchUp is never launched by an agent.
+- [ ] **In a throwaway copy of a project's model,** in ValeVision 3D switch vegetation on and draw a path; here, Sync Planting: domes along it, locked. Move a placed plant, sync, reload the app: it has moved. Undo in SketchUp: the proxy and the base both go back.
+- [ ] Place A Plant: click, click in the model; the tag is set as it lands; sync; the app draws it after a reload.
+- [ ] A GLB export leaves the domes out; an `IMG##` scene picture does not show them.
+
 ## Version 0.5.5 — 03-Nov-2026 — Plops Sent to AURA Keep Their Proxy's Shape
 
 ### Overview

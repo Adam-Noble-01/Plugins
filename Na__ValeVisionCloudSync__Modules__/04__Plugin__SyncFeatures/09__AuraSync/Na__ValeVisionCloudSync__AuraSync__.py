@@ -57,6 +57,10 @@ USAGE:
 -----------------------------------------------------------------------------
 
 DEVELOPMENT LOG:
+04-Nov-2026 - Version 1.1.1
+- na_api takes which app's API it calls, so Sync Vegetation uses this sign-in. AURA's
+  calls are unchanged.
+
 03-Nov-2026 - Version 1.1.0
 - Plops carry Rigid, made here or turned in SketchUp, so AURA's drawing keeps its
   proxy's shape at any turn.
@@ -91,7 +95,7 @@ import Na__ValeVisionCloudSync__LibraryPublisher__ as pub                    # n
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-NA__AURA__VERSION               = "1.1.0"
+NA__AURA__VERSION               = "1.1.1"
 NA__AURA__ACTIONS               = ("signin", "signout", "sync", "assets")
 NA__AURA__API                   = "/aura/api"
 NA__AURA__COOKIE                = "vale_session"                            # <-- ValeShared__Auth__'s cookie: one sign-in for every Vale app
@@ -168,11 +172,12 @@ def na_write_session(path: Path, session: dict) -> None:
 
 # FUNCTION | One Call to AURA's API
 # ------------------------------------------------------------
-def na_api(site: str, method: str, route: str, session: dict | None = None, body=None) -> dict:
+def na_api(site: str, method: str, route: str, session: dict | None = None, body=None, api: str = NA__AURA__API) -> dict:
     """JSON in, JSON out. A renewed cookie (the server renews it on /me) is written back into session.
-    Raises Na__AuraApiError with the server's own words on any refusal."""
+    Raises Na__AuraApiError with the server's own words on any refusal. api: the Sync Vegetation tab calls ValeVision 3D's
+    with the same sign-in."""
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(f"{site}{NA__AURA__API}/{route}", data=data, method=method)
+    req = urllib.request.Request(f"{site}{api}/{route}", data=data, method=method)
     req.add_header("Accept", "application/json")
     req.add_header("User-Agent", NA__AURA__USER_AGENT)
     if data is not None:

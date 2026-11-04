@@ -59,6 +59,8 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
             <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('aura', this)">Sync Aura</button>
             <button class="naVvcs__TabButton"
+                    onclick="Na__Vvcs__ShowTab('vegetation', this)">Sync Vegetation</button>
+            <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('settings', this)">Settings</button>
         </nav>
 
@@ -242,6 +244,68 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
                     <h3 class="naVvcs__Report__Title">Last AURA Sync Report</h3>
                     <div class="naVvcs__Report__Steps" id="naVvcsAuraReportSteps"></div>
                     <div class="naVvcs__Report__Summary" id="naVvcsAuraReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Sync Vegetation Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-vegetation" class="naVvcs__TabPanel">
+
+                <!-- Vegetation status summary -->
+                <div class="naVvcs__ProjectStatus">
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Signed In As</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsVegUser">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Library Project</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsVegLibraryProject">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Proxies</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsVegProxies">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Last Sync</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsVegLastSync">-</span>
+                    </div>
+                </div>
+
+                <!-- Vegetation sync action -->
+                <div class="naVvcs__ActionGroup">
+                    <h3 class="naVvcs__ActionGroup__Title">Sync Actions</h3>
+
+                    <button type="button" class="naVvcs__ActionCard naVvcs__ActionCard--primary" data-na-requires-veg="true"
+                            onclick="Na__Vvcs__RunSyncAction('veg_sync')">
+                        <span class="naVvcs__ActionCard__Icon">&#9654;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Sync Planting With ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">No export: plants placed in ValeVision come in as proxies, and proxies moved, scaled, added or deleted here go back. ValeVision wins a clash. Plants from a path come in locked: edit the path in the app.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Placing a new proxy -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">Place A Plant</h3>
+                    <p class="naVvcs__SettingsGroup__Desc">
+                        Click a plant, then click in the model. It stays a proxy here until the next sync makes it a
+                        plant in ValeVision 3D. Close any open group first: proxies live at the model root.
+                    </p>
+                    <div class="naVvcs__VegAssets" id="naVvcsVegAssets"></div>
+                </div>
+
+                <!-- Last vegetation sync report (hidden until one runs) -->
+                <div class="naVvcs__Report" id="naVvcsVegReport" style="display:none;">
+                    <h3 class="naVvcs__Report__Title">Last Vegetation Sync Report</h3>
+                    <div class="naVvcs__Report__Steps" id="naVvcsVegReportSteps"></div>
+                    <div class="naVvcs__Report__Summary" id="naVvcsVegReportSummary"></div>
                 </div>
 
             </section>

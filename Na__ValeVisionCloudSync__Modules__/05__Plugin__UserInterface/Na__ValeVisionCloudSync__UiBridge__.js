@@ -27,6 +27,10 @@
     //   handed to Ruby), the AURA status rows, its two cards (locked until signed in, never
     //   by the ValeVision 3D first-sync lock) and its own report block.
     //
+    // 04-Nov-2026 - Version 1.4.0
+    // - The Sync Vegetation tab: its status rows, its card (locked until signed in, the
+    //   same Vale sign-in as Sync Aura's), its list of plants to place, its own report.
+    //
     // =============================================================================
 
 
@@ -43,6 +47,7 @@
 
     var NA_VVCS_REQUIRES_SYNC_SELECTOR = '.naVvcs__ActionCard[data-na-requires-sync="true"]'; // <-- The three Update cards
     var NA_VVCS_REQUIRES_AURA_SELECTOR = '.naVvcs__ActionCard[data-na-requires-aura="true"]'; // <-- The two Sync Aura cards
+    var NA_VVCS_REQUIRES_VEG_SELECTOR  = '.naVvcs__ActionCard[data-na-requires-veg="true"]';  // <-- The Sync Vegetation card
 
     // endregion -------------------------------------------------------------------
 
@@ -116,13 +121,14 @@
             return;
         }
         var isAura = actionId.indexOf('aura_') === 0;
+        var isVeg  = actionId.indexOf('veg_') === 0;
         // <-- Update actions are locked until a full Sync Project has succeeded once
-        if (!isAura && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
+        if (!isAura && !isVeg && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
             na__vvcs__setStatus('Run a full Sync Project To ValeVision 3D first.', 'warning');
             return;
         }
-        if (isAura && !naVvcsState.auraSignedIn) {
-            na__vvcs__setStatus('Sign in to AURA first (top of the Sync Aura tab).', 'warning');
+        if ((isAura || isVeg) && !naVvcsState.auraSignedIn) {
+            na__vvcs__setStatus('Sign in first (top of the Sync Aura tab).', 'warning');
             return;
         }
         if (!window.sketchup || !window.sketchup.na_vvcs_run_sync_action) {
@@ -233,6 +239,21 @@
 
 
     // -----------------------------------------------------------------------------
+    // REGION | SketchUp Bridge — Placing a Vegetation Proxy
+    // -----------------------------------------------------------------------------
+
+    function Na__Vvcs__VegPlace(assetId) {
+        if (!window.sketchup || !window.sketchup.na_vvcs_veg_place) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        window.sketchup.na_vvcs_veg_place(String(assetId));
+    }
+
+    // endregion -------------------------------------------------------------------
+
+
+    // -----------------------------------------------------------------------------
     // REGION | Ruby Push Receivers — Report, Path Status
     // -----------------------------------------------------------------------------
 
@@ -255,6 +276,7 @@
         naVvcsState.auraSignedIn      = !!(pathData.aura && pathData.aura.signed_in);
         na__vvcs__applyButtonLockState();
         na__vvcs__renderAuraStatus(pathData.aura || null, pathData.library || null);
+        na__vvcs__renderVegetationStatus(pathData.vegetation || null, pathData.library || null);
 
         var modelNameEl  = document.getElementById('naVvcsModelName');
         var projectRootEl = document.getElementById('naVvcsProjectRoot');
@@ -368,6 +390,58 @@
         }
     }
 
+    // FUNCTION | The Sync Vegetation Tab: Status Rows and the Plants to Place
+    // ------------------------------------------------------------
+    function na__vvcs__renderVegetationStatus(veg, library) {
+        var userEl    = document.getElementById('naVvcsVegUser');
+        var libraryEl = document.getElementById('naVvcsVegLibraryProject');
+        var proxiesEl = document.getElementById('naVvcsVegProxies');
+        var lastEl    = document.getElementById('naVvcsVegLastSync');
+        var assetsEl  = document.getElementById('naVvcsVegAssets');
+        var base      = 'naVvcs__ProjectStatus__Value';
+        var signedIn  = !!(veg && veg.signed_in);
+
+        if (userEl) {
+            userEl.textContent = signedIn
+                ? (veg.user_name || 'Signed in') + (veg.user_level ? ' (' + veg.user_level + ')' : '')
+                : 'Not signed in: sign in at the top of the Sync Aura tab (the same Vale sign-in)';
+            userEl.className = base + (signedIn ? '' : ' ' + base + '--error');
+        }
+        if (libraryEl) {
+            if (!library)              { libraryEl.textContent = '-'; libraryEl.className = base; }
+            else if (library.error)    { libraryEl.textContent = library.error; libraryEl.className = base + ' ' + base + '--error'; }
+            else if (!library.exists)  { libraryEl.textContent = library.rel + ': not in the Project Library yet (sync it to ValeVision 3D first)'; libraryEl.className = base + ' ' + base + '--error'; }
+            else                       { libraryEl.textContent = library.rel + ' (switch vegetation on in ValeVision 3D\'s Dev Tools)'; libraryEl.className = base; }
+        }
+        if (proxiesEl) {
+            proxiesEl.textContent = veg
+                ? String(veg.proxies || 0) + ' in the model: ' + String(veg.linked || 0) + ' linked to ValeVision, ' + String(veg.from_paths || 0) + ' from paths (locked)' + (veg.proxy_tag ? ', on ' + veg.proxy_tag : '')
+                : '-';
+        }
+        if (lastEl) {
+            lastEl.textContent = veg && veg.last_sync
+                ? veg.last_sync + (veg.base_project ? ' (' + veg.base_project + ')' : '')
+                : 'Never';
+        }
+        if (assetsEl) {
+            var assets = veg && Array.isArray(veg.assets) ? veg.assets : [];
+            assetsEl.innerHTML = assets.length === 0
+                ? '<p class="naVvcs__SettingsGroup__Desc">The vegetation library was not found on this PC.</p>'
+                : assets.map(function(asset) {
+                    return '<button type="button" class="naVvcs__Btn naVvcs__VegAssets__Item" data-na-asset="' + na__vvcs__escHtml(asset.id) + '">'
+                        + '<span class="naVvcs__VegAssets__Name">' + na__vvcs__escHtml(asset.name) + '</span>'
+                        + '<span class="naVvcs__VegAssets__Size">' + na__vvcs__escHtml(String(asset.width_mm) + ' x ' + String(asset.height_mm) + ' mm') + '</span>'
+                        + '</button>';
+                }).join('');
+            var items = assetsEl.querySelectorAll('.naVvcs__VegAssets__Item');
+            for (var i = 0; i < items.length; i += 1) {
+                items[i].addEventListener('click', function(event) {
+                    Na__Vvcs__VegPlace(event.currentTarget.getAttribute('data-na-asset'));
+                });
+            }
+        }
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -377,7 +451,7 @@
 
     function na__vvcs__renderReport(report) {
         var scope     = String(report.scope || report.action_id || '');
-        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : 'naVvcsReport';   // <-- Each tab shows its own last report
+        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : (scope.indexOf('veg_') === 0 ? 'naVvcsVegReport' : 'naVvcsReport');   // <-- Each tab shows its own last report
         var reportEl  = document.getElementById(prefix);
         var stepsEl   = document.getElementById(prefix + 'Steps');
         var summaryEl = document.getElementById(prefix + 'Summary');
@@ -481,6 +555,12 @@
         for (var ai = 0; ai < auraCards.length; ai += 1) {
             auraCards[ai].disabled = lockAura;
             auraCards[ai].title    = lockAura ? 'Sign in to AURA first.' : '';
+        }
+
+        var vegCards = document.querySelectorAll(NA_VVCS_REQUIRES_VEG_SELECTOR);
+        for (var vi = 0; vi < vegCards.length; vi += 1) {
+            vegCards[vi].disabled = lockAura;                                   // <-- One Vale sign-in for both tabs
+            vegCards[vi].title    = lockAura ? 'Sign in first (top of the Sync Aura tab).' : '';
         }
     }
 

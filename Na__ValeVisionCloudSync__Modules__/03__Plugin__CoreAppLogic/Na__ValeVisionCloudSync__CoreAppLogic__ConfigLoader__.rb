@@ -11,8 +11,8 @@
 # - Reads Na__ValeVisionCloudSync__CoreAppData__UiCommandRegistry__.json for
 #   dialog and command settings, and AppConfig__.json for sync operation
 #   settings (paths, image export params, Python, the Project Library, the
-#   Vale Virtual Server Manager files the sync uses, and the Sync Aura tab's
-#   script, session file and proxy tag).
+#   Vale Virtual Server Manager files the sync uses, and the Sync Aura and Sync
+#   Vegetation tabs' scripts, session file and proxy tags).
 # - Merges against hardcoded defaults so the plugin is safe even if JSON
 #   files are missing.
 #
@@ -81,6 +81,11 @@ module Na__ValeVisionCloudSync
                 'sync_script'      => '04__Plugin__SyncFeatures/09__AuraSync/Na__ValeVisionCloudSync__AuraSync__.py',
                 'session_file'     => '91__UserConfig__LocalOnly/Na__ValeVisionCloudSync__AuraSession__.json',
                 'proxy_tag'        => '04__AuraRender__NprAssetProxies'
+            },
+            'vegetation'           => {
+                'sync_script'      => '04__Plugin__SyncFeatures/10__VegetationSync/Na__ValeVisionCloudSync__VegetationSync__.py',
+                'asset_library'    => 'Vale__ValeVision3D/53__Vegetation__AssetLibrary',
+                'proxy_tag'        => '05__ValeVision__VegetationProxies'
             }
         }.freeze
 
@@ -234,6 +239,23 @@ module Na__ValeVisionCloudSync
                 script:       in_modules.call(cfg['sync_script'], NA_DEFAULT_APP_CONFIG['aura']['sync_script']),
                 session_file: in_modules.call(cfg['session_file'], NA_DEFAULT_APP_CONFIG['aura']['session_file']),
                 proxy_tag:    cfg['proxy_tag'].to_s
+            }
+        end
+
+        # FUNCTION | The Sync Vegetation Tab's Script, Asset Library and Proxy Tag
+        # ------------------------------------------------------------
+        # sync_script is relative to the plugin modules, asset_library to the Server
+        # Manager's mirror root. The session is the Sync Aura tab's.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__VegetationPaths
+            defaults = NA_DEFAULT_APP_CONFIG['vegetation']
+            cfg      = self.Na__ValeVisionCloudSync__AppConfig.fetch('vegetation', defaults)
+            modules  = Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot.to_s.tr('\\', '/')
+            script   = (cfg['sync_script'].to_s.empty? ? defaults['sync_script'] : cfg['sync_script']).to_s.tr('\\', '/')
+            {
+                script:        script =~ %r{\A([A-Za-z]:)?/} ? script : File.join(modules, script),
+                asset_library: (cfg['asset_library'].to_s.empty? ? defaults['asset_library'] : cfg['asset_library']).to_s,
+                proxy_tag:     cfg['proxy_tag'].to_s
             }
         end
 

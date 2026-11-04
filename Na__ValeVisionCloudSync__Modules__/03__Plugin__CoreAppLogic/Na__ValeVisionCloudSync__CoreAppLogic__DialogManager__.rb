@@ -38,6 +38,11 @@
 #   "\'" in two of 1.3.0's script strings as "the text after the match", pasted the
 #   rest of the page into the script, and no tab, button or status row worked.
 #
+# 04-Nov-2026 - Version 1.4.0
+# - The Sync Vegetation tab: a Place callback, and the path status carries its block
+#   (proxies in the model, the last sync, the assets to place). Its sync never unlocks
+#   the ValeVision 3D Update cards.
+#
 # =============================================================================
 
 require 'json'
@@ -141,6 +146,7 @@ module Na__ValeVisionCloudSync
             na_setup_clear_path_override_callback(dialog)
             na_setup_library_override_callbacks(dialog)
             na_setup_aura_signin_callbacks(dialog)
+            na_setup_vegetation_callbacks(dialog)
             na_setup_dialog_ready_callback(dialog)
         end
 
@@ -164,6 +170,15 @@ module Na__ValeVisionCloudSync
             dialog.add_action_callback('na_vvcs_aura_signout') do |_ctx|
                 result = defined?(Na__AuraSync) ? Na__AuraSync.Na__AuraSync__SignOut : { success: false, message: 'The AURA sync did not load.' }
                 na_push_project_path_status(dialog)
+                na_update_status_element(dialog, result[:message], result[:success] ? 'info' : 'error')
+            end
+        end
+
+        # HELPER FUNCTION | na_vvcs_veg_place: start placing a vegetation proxy
+        # ---------------------------------------------------------------
+        def self.na_setup_vegetation_callbacks(dialog)
+            dialog.add_action_callback('na_vvcs_veg_place') do |_ctx, asset_id|
+                result = defined?(Na__VegetationSync) ? Na__VegetationSync.Na__VegSync__Place(asset_id.to_s) : { success: false, message: 'The vegetation sync did not load. Reload the plugin.' }
                 na_update_status_element(dialog, result[:message], result[:success] ? 'info' : 'error')
             end
         end
@@ -248,7 +263,7 @@ module Na__ValeVisionCloudSync
 
             # FIRST SYNC STATE | Record success so the Update cards unlock + stay unlocked
             if result.fetch(:success, false) &&
-               !action_id.start_with?('aura_') &&                                # <-- The Sync Aura tab's own; never ValeVision 3D's first sync
+               !action_id.start_with?('aura_', 'veg_') &&                        # <-- The Sync Aura and Sync Vegetation tabs' own; never ValeVision 3D's first sync
                defined?(Na__ProjectPathMapper) &&
                Na__ProjectPathMapper.respond_to?(:Na__ValeVisionCloudSync__MarkFirstSyncComplete)
                 Na__ProjectPathMapper.Na__ValeVisionCloudSync__MarkFirstSyncComplete(Sketchup.active_model)
@@ -422,7 +437,8 @@ module Na__ValeVisionCloudSync
                 img_scene_count:     img_count,
                 first_sync_complete: first_sync_complete,
                 library:             na_build_library_display_data(model),
-                aura:                defined?(Na__AuraSync) ? Na__AuraSync.Na__AuraSync__Status(model) : nil
+                aura:                defined?(Na__AuraSync) ? Na__AuraSync.Na__AuraSync__Status(model) : nil,
+                vegetation:          defined?(Na__VegetationSync) ? Na__VegetationSync.Na__VegSync__Status(model) : nil
             }
         end
 

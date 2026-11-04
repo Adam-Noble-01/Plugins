@@ -492,6 +492,28 @@ body {
     gap                     : 8px;
 }
 
+.naVvcs__VegAssets {
+    display                 : flex;
+    flex-wrap               : wrap;
+    gap                     : 8px;
+}
+
+.naVvcs__VegAssets__Item {
+    display                 : flex;
+    flex-direction          : column;
+    gap                     : 2px;
+    text-align              : left;
+}
+
+.naVvcs__VegAssets__Name {
+    font-weight             : 600;
+}
+
+.naVvcs__VegAssets__Size {
+    font-size               : 10px;
+    color                   : var(--naVvcs_MutedText);
+}
+
 .naVvcs__Btn {
     padding                 : 7px 14px;
     font-size               : 12px;
