@@ -1,0 +1,668 @@
+# Unit tests for library placement (Insert At Cursor, Insert At Axis), run with
+# SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# A small fake model records every call in order, because the undo contract is the
+# point: what runs inside an operation, what runs after it, and that no Ruby tool
+# is left to write to the model while the pointer moves.
+# Tool names, ids and the order of tool events are as measured in SketchUp 27.0.267:
+# ComponentTool is 21013, SelectionTool is 21022, and place_component fires the
+# ComponentTool event before it returns. The native click itself is simulated.
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+require 'fileutils'
+require 'tmpdir'
+
+NA_TEST_MODULE_ROOT = File.expand_path('..', __dir__)
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+# --- Fake SketchUp --------------------------------------------------------------
+
+class NaFakeDefinition
+    attr_reader :name, :path
+    attr_accessor :valid
+
+    def initialize(name, path)
+        @name = name
+        @path = path
+        @valid = true
+        @instances = []
+    end
+
+    def group?; false; end
+    def image?; false; end
+    def valid?; @valid; end
+
+    def instances                                                                                   # <-- A new array each call, and a deleted definition raises, as SketchUp's does
+        raise TypeError, 'reference to deleted ComponentDefinition' unless @valid
+
+        @instances.dup
+    end
+
+    def add_copy
+        instance = NaFakeInstance.new(self)
+        @instances << instance
+        instance
+    end
+end
+
+NaFakePlacement = Struct.new(:origin, :zaxis)
+
+class NaFakeParent
+    attr_reader :entities
+
+    def initialize
+        @entities = NaFakeEntities.new($na_model)
+    end
+end
+
+class NaFakeInstance
+    attr_reader :definition, :parent
+    attr_accessor :valid
+
+    def initialize(definition)
+        @definition = definition
+        @parent = NaFakeParent.new
+        @valid = true
+    end
+
+    def valid?; @valid; end
+    def transformation; NaFakePlacement.new(:placed_origin, :placed_blue); end                      # <-- Whatever the context, this is what it reads as
+end
+
+class NaFakeSelection
+    attr_reader :items
+
+    def initialize
+        @items = []
+    end
+
+    def clear
+        @items = []
+    end
+
+    def add(item)
+        @items << item
+    end
+end
+
+class NaFakeView
+    attr_reader :picked_at
+
+    def initialize(best = nil)
+        @best = best
+    end
+
+    def pick_helper; self; end
+    def best_picked; @best; end
+
+    def do_pick(x, y)
+        @picked_at = [x, y]
+    end
+end
+
+class NaFakeTools
+    attr_reader :observers
+
+    def initialize
+        @observers = []
+    end
+
+    def add_observer(observer)
+        @observers << observer
+        true
+    end
+
+    def remove_observer(observer)
+        @observers.delete(observer)
+        true
+    end
+
+    def fire(name, id)
+        @observers.dup.each { |observer| observer.onActiveToolChanged(self, name, id) }
+    end
+end
+
+class NaFakeDefinitions
+    include Enumerable
+    attr_accessor :list, :load_answer, :load_error
+
+    def initialize(model)
+        @model = model
+        @list = []
+        @load_answer = :load
+    end
+
+    def each(&block)
+        @list.each(&block)
+    end
+
+    def load(path)
+        @model.log << [:load, @model.op_open]
+        raise @load_error if @load_error
+        return nil if @load_answer.nil?
+
+        definition = NaFakeDefinition.new(File.basename(path, '.*'), path)
+        @list << definition
+        definition
+    end
+end
+
+class NaFakeEntities
+    attr_accessor :add_error, :transform_error
+
+    def initialize(model)
+        @model = model
+    end
+
+    def add_instance(definition, transform)
+        @model.log << [:add_instance, @model.op_open, definition, transform]
+        raise @add_error if @add_error
+
+        Object.new
+    end
+
+    def transform_entities(transform, entities)
+        @model.log << [:transform, @model.op_open, self, transform, entities]
+        raise @transform_error if @transform_error
+
+        true
+    end
+end
+
+class NaFakeAxes
+    def origin; :world_origin; end
+    def xaxis; :world_x; end
+    def yaxis; :world_y; end
+    def zaxis; :world_z; end
+end
+
+class NaFakeModel
+    attr_accessor :log, :op_open, :place_answer, :place_error, :select_error, :valid
+    attr_reader :definitions, :active_entities, :axes, :selection, :active_tool
+
+    def initialize
+        @log = []
+        @op_open = false
+        @place_answer = self
+        @valid = true
+        @definitions = NaFakeDefinitions.new(self)
+        @active_entities = NaFakeEntities.new(self)
+        @axes = NaFakeAxes.new
+        @tools = NaFakeTools.new
+        @selection = NaFakeSelection.new
+    end
+
+    def valid?; @valid; end
+
+    def tools
+        raise TypeError, 'reference to a closed model' unless @valid
+
+        @tools
+    end
+
+    def edit_transform
+        @log << [:edit_transform]
+        :the_whole_nesting_stack
+    end
+
+    def start_operation(name, disable_ui = false, _next_transparent = false, transparent = false)
+        @log << [:start, name, disable_ui, transparent]
+        @op_open = true
+    end
+
+    def commit_operation
+        @log << [:commit]
+        @op_open = false
+        true
+    end
+
+    def abort_operation
+        @log << [:abort]
+        @op_open = false
+        true
+    end
+
+    def place_component(definition, repeat = false)
+        @log << [:place, @op_open, definition, repeat]
+        raise @place_error if @place_error
+        return nil unless @place_answer
+
+        @active_tool.deactivate(:view) if @active_tool
+        @active_tool = nil
+        @tools.fire('ComponentTool', 21013)                                                         # <-- Before it returns, as measured
+        @place_answer
+    end
+
+    def select_tool(tool)
+        @log << [:select_tool, tool]
+        raise @select_error if @select_error
+
+        @active_tool.deactivate(:view) if @active_tool
+        @active_tool = tool
+        tool.activate if tool
+        nil
+    end
+
+    def kinds
+        @log.map(&:first)
+    end
+
+    def entry(kind)
+        @log.find { |item| item.first == kind }
+    end
+end
+
+module Sketchup
+    class ToolsObserver; end
+
+    def self.active_model
+        $na_model
+    end
+
+    def self.focus
+        $na_model.log << [:focus]
+        true
+    end
+
+    def self.status_text=(text)
+        $na_status_bar = text
+    end
+end
+
+module UI
+    def self.start_timer(_seconds, _repeat, &block)
+        $na_timers << block
+        1
+    end
+end
+
+class Numeric
+    def degrees
+        self * Math::PI / 180.0
+    end
+end
+
+module Geom
+    class Transformation
+        attr_reader :axes_given, :rotation_given
+
+        def initialize(axes_given = nil, rotation_given = nil)
+            @axes_given = axes_given
+            @rotation_given = rotation_given
+        end
+
+        def self.axes(*axes_given)
+            new(axes_given)
+        end
+
+        def self.rotation(*rotation_given)
+            new(nil, rotation_given)
+        end
+    end
+end
+
+module Na__ComponentEditorTools
+    module Na__DialogManager
+        def self.Na__ComponentEditorTools__PushStatus(message, variant = 'info')
+            $na_statuses << [message, variant]
+        end
+    end
+end
+
+require File.join(NA_TEST_MODULE_ROOT, '08__LibraryManager', 'Na__ComponentEditorTools__LibraryManager__SafeLoad__.rb')
+require File.join(NA_TEST_MODULE_ROOT, '08__LibraryManager', 'Na__ComponentEditorTools__LibraryManager__PlacementTool__.rb')
+
+NA_PLACE = Na__ComponentEditorTools::Na__LibraryPlacementTool
+$na_library = File.realpath(Dir.mktmpdir('na_placement_'))
+$na_file = File.join($na_library, 'Na__Chair__01.skp').tr('\\', '/')
+File.write($na_file, 'skp')
+$na_other_file = File.join($na_library, 'Na__Table__01.skp').tr('\\', '/')
+File.write($na_other_file, 'skp')
+
+def fresh_model
+    $na_timers = []
+    $na_statuses = []
+    $na_status_bar = nil
+    $na_model = NaFakeModel.new
+end
+
+def run_timers
+    $na_timers.shift.call until $na_timers.empty?
+end
+
+# SketchUp's placing click: a new instance, and the tool hands back to Select.
+def click_in_model(definition)
+    instance = definition.add_copy
+    $na_model.tools.fire('SelectionTool', 21022)
+    instance
+end
+
+# A model with one copy already in it, placed again and now on the Tab step.
+def placed_and_on_the_step
+    model = fresh_model
+    definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+    model.definitions.list << definition
+    definition.add_copy
+    start_placement
+    instance = click_in_model(definition)
+    run_timers
+    model.log.clear
+    $na_statuses.clear
+    [model, instance, model.active_tool]
+end
+
+def start_placement(path = $na_file)
+    NA_PLACE.Na__ComponentEditorTools__StartPlacement(path, :dialog)
+end
+
+def insert_at_axis(path = $na_file)
+    NA_PLACE.Na__ComponentEditorTools__InsertAtAxis(path, :dialog)
+end
+
+# --- Insert At Cursor: a file not yet in this model ---------------------------
+
+model = fresh_model
+result = start_placement
+check('first placement: load in one operation, committed, then the tool, then focus') { model.kinds == [:start, :load, :commit, :place, :focus] }
+check('first placement: the load runs inside the operation') { model.entry(:load)[1] == true }
+check('first placement: the operation is named after the file, with the UI held') { model.entry(:start)[1] == 'Na Library - Load Na__Chair__01' && model.entry(:start)[2] == true }
+check('first placement: the tool starts with no operation open (they do not nest)') { model.entry(:place)[1] == false }
+check('first placement: places the definition it loaded, once only (repeat false)') { model.entry(:place)[2] == model.definitions.list.first && model.entry(:place)[3] == false }
+check('first placement: the result is ok and names the component') { result[:ok] == true && result[:message].include?('Na__Chair__01') }
+check('first placement: Esc is mentioned, because Esc works') { result[:message].include?('Esc') }
+check('no Ruby tool is selected: nothing can write to the model while the pointer moves') { !model.kinds.include?(:select_tool) }
+check('no instance is added: SketchUp previews it until the click') { !model.kinds.include?(:add_instance) }
+
+# --- Insert At Cursor: a file already in this model ---------------------------
+
+model = fresh_model
+placed = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << placed
+result = start_placement
+check('already loaded: no load and no operation, so no extra undo step') { model.kinds == [:place, :focus] }
+check('already loaded: places that same definition') { model.entry(:place)[2].equal?(placed) }
+check('already loaded: the result is ok') { result[:ok] == true }
+
+model = fresh_model
+model.definitions.list << placed
+start_placement($na_file.tr('/', '\\').upcase)
+check('already loaded: found with backslashes and another case') { model.kinds == [:place, :focus] && model.entry(:place)[2].equal?(placed) }
+
+model = fresh_model
+model.definitions.list << NaFakeDefinition.new('Other', File.join($na_library, 'Other.skp'))
+start_placement
+check('another file in the model is not mistaken for this one') { model.kinds == [:start, :load, :commit, :place, :focus] }
+
+model = fresh_model
+start_placement
+start_placement
+check('clicking the card twice restarts the tool and writes nothing more') { model.kinds == [:start, :load, :commit, :place, :focus, :place, :focus] }
+
+# --- Insert At Cursor: what goes wrong ----------------------------------------
+
+model = fresh_model
+model.definitions.load_answer = nil
+result = start_placement
+check('a file that will not load: operation aborted, no tool, no focus') { model.kinds == [:start, :load, :abort] }
+check('a file that will not load: reported') { result[:ok] == false && result[:message] == 'Could not load component definition.' }
+
+model = fresh_model
+model.definitions.load_error = ArgumentError.new('bad file')
+result = start_placement
+check('a load that raises: operation aborted, no tool, no focus') { model.kinds == [:start, :load, :abort] }
+check('a load that raises: reported') { result[:ok] == false && result[:message].include?('bad file') }
+
+model = fresh_model
+model.place_answer = nil
+result = start_placement
+check('place_component answering nil: no focus, reported') { model.kinds == [:start, :load, :commit, :place] && result[:ok] == false && result[:message].include?('Na__Chair__01') }
+
+model = fresh_model
+model.place_error = ArgumentError.new('empty component')
+result = start_placement
+check('place_component raising (an empty definition, SketchUp 2026+): reported') { result[:ok] == false && result[:message].include?('empty component') && !model.kinds.include?(:focus) }
+
+model = fresh_model
+result = start_placement('')
+check('no path: refused before touching the model') { result[:ok] == false && model.log.empty? }
+
+model = fresh_model
+result = start_placement(File.join($na_library, 'Missing.skp'))
+check('a missing file: refused before touching the model') { result[:ok] == false && result[:message] == 'File not found.' && model.log.empty? }
+
+# --- Insert At Axis -----------------------------------------------------------
+
+model = fresh_model
+result = insert_at_axis
+check('axis, first time: load and instance in ONE operation, so one undo') { model.kinds == [:start, :load, :add_instance, :commit] }
+check('axis, first time: both run inside the operation') { model.entry(:load)[1] == true && model.entry(:add_instance)[1] == true }
+check('axis: the result is ok') { result[:ok] == true && result[:message].include?('Na__Chair__01') }
+check('axis: model.axes goes in as it is, with no conversion') { model.entry(:add_instance)[3].axes_given == [:world_origin, :world_x, :world_y, :world_z] }
+check('axis: no placement tool and no focus change') { !model.kinds.include?(:place) && !model.kinds.include?(:focus) && !model.kinds.include?(:select_tool) }
+
+model = fresh_model
+model.definitions.list << placed
+insert_at_axis
+check('axis, already loaded: no load, one operation') { model.kinds == [:start, :add_instance, :commit] && model.entry(:add_instance)[2].equal?(placed) }
+
+model = fresh_model
+model.definitions.load_answer = nil
+result = insert_at_axis
+check('axis, a file that will not load: aborted and reported') { model.kinds == [:start, :load, :abort] && result[:ok] == false }
+
+model = fresh_model
+model.active_entities.add_error = ArgumentError.new('recursive')
+result = insert_at_axis
+check('axis, add_instance raising: aborted and reported') { model.kinds.last == :abort && !model.kinds.include?(:commit) && result[:message].include?('recursive') }
+
+model = fresh_model
+result = insert_at_axis(File.join($na_library, 'Missing.skp'))
+check('axis, a missing file: refused before touching the model') { result[:ok] == false && model.log.empty? }
+
+# --- Tab turns it: from the tool starting to the step coming up -------------------
+
+NA_STEP_CLASS = Na__ComponentEditorTools::Na__ComponentEditorTools__PlacedTurnStep
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+copy_already_there = definition.add_copy
+result = start_placement
+check('the tool is watched from when it starts') { model.tools.observers.length == 1 }
+check('the first message says Tab turns it') { result[:message].include?('Tab') }
+
+model.tools.fire('ComponentTool', 21013)
+check('the placing tool coming round again is not its end') { $na_timers.empty? && model.tools.observers.length == 1 }
+
+new_copy = click_in_model(definition)
+check('nothing runs inside the observer callback: SketchUp is still switching tools') { model.active_tool.nil? && !model.kinds.include?(:select_tool) && $na_timers.length == 1 && model.selection.items.empty? }
+
+run_timers
+step = model.active_tool
+check('after the click: the Tab step is up') { step.is_a?(NA_STEP_CLASS) }
+check('after the click: the watch has gone') { model.tools.observers.empty? }
+check('after the click: the new copy is selected, not the one already there') { model.selection.items == [new_copy] && !new_copy.equal?(copy_already_there) }
+check('after the click: Ruby has written nothing to the model') { !model.kinds.include?(:start) && !model.kinds.include?(:transform) }
+check('after the click: the status bar says Tab') { $na_status_bar.include?('Tab') }
+check('after the click: the dialog names it and says Tab') { $na_statuses.last[0].include?('Na__Chair__01') && $na_statuses.last[0].include?('Tab') }
+check('the step has no mouse move handler: nothing can write as the pointer moves') { !step.respond_to?(:onMouseMove) }
+
+$na_status_bar = nil
+step.resume(NaFakeView.new)
+check('back from an orbit: the status bar says Tab again') { $na_status_bar.to_s.include?('Tab') }
+
+# --- Tab turns it: the turn itself ------------------------------------------------
+
+model, instance, step = placed_and_on_the_step
+answer = step.onKeyDown(9, 1, 0, NaFakeView.new)
+turn = model.entry(:transform)
+check('Tab: taken, so SketchUp does nothing else with it') { answer == true }
+check('Tab: one operation around one transform') { model.kinds == [:start, :transform, :commit] }
+check('Tab: the transform runs inside the operation') { turn[1] == true }
+check('Tab: transparent, so one undo takes the placement and its turns') { model.entry(:start)[3] == true }
+check('Tab: about the instance\'s own origin and blue axis, exactly as they read') { turn[3].rotation_given[0, 2] == [:placed_origin, :placed_blue] }
+check('Tab: a quarter turn') { (turn[3].rotation_given[2] - (Math::PI / 2)).abs < 1e-9 }
+check('Tab: given to the entities of the instance\'s own parent, for that instance only') { turn[2].equal?(instance.parent.entities) && turn[4] == [instance] }
+check('Tab: no conversion, the nesting stack is never read') { !model.kinds.include?(:edit_transform) }
+check('Tab: the step stays up for another') { model.active_tool.equal?(step) }
+
+step.onKeyDown(9, 1, 0, NaFakeView.new)
+check('Tab twice: two turns, each in its own appended operation') { model.kinds.count(:transform) == 2 && model.log.select { |item| item.first == :start }.all? { |item| item[3] == true } }
+
+model, _instance, step = placed_and_on_the_step
+answer = step.onKeyDown(9, 2, 0, NaFakeView.new)
+check('Tab held down: no spinning, and still taken') { answer == true && model.log.empty? }
+
+model, _instance, step = placed_and_on_the_step
+answer = step.onKeyDown(77, 1, 0, NaFakeView.new)
+check('any other key: left to SketchUp, so M or Q carry on, and nothing written') { answer == false && model.log.empty? && model.active_tool.equal?(step) }
+
+model, instance, step = placed_and_on_the_step
+instance.parent.entities.transform_error = ArgumentError.new('locked')
+step.onKeyDown(9, 1, 0, NaFakeView.new)
+check('a turn that raises: aborted, nothing left open, the step still up') { model.kinds == [:start, :transform, :abort] && model.op_open == false && model.active_tool.equal?(step) }
+
+model, instance, step = placed_and_on_the_step
+instance.valid = false
+step.onKeyDown(9, 1, 0, NaFakeView.new)
+check('Tab after the component was deleted: nothing written, the step ends') { !model.kinds.include?(:start) && model.active_tool.nil? }
+
+# --- Tab turns it: how the step ends ----------------------------------------------
+
+model, instance, step = placed_and_on_the_step
+step.onCancel(0, NaFakeView.new)
+check('Esc: the step ends and the component stays') { model.active_tool.nil? && instance.valid? && model.kinds == [:select_tool] }
+check('Esc: the dialog line is cleared') { $na_statuses.last == ['', 'info'] }
+
+model, _instance, step = placed_and_on_the_step
+step.onCancel(2, NaFakeView.new)
+check('an undo: the step ends and writes nothing, so the undo has it all') { model.active_tool.nil? && model.kinds == [:select_tool] }
+
+model, _instance, step = placed_and_on_the_step
+step.onReturn(NaFakeView.new)
+check('Enter: the step ends') { model.active_tool.nil? }
+
+model, _instance, step = placed_and_on_the_step
+view = NaFakeView.new(:the_wall)
+step.onLButtonDown(0, 11, 22, view)
+check('a click: ends the step and selects what is under it, as Select would') { model.active_tool.nil? && model.selection.items == [:the_wall] && view.picked_at == [11, 22] }
+
+model, _instance, step = placed_and_on_the_step
+step.onLButtonDown(0, 11, 22, NaFakeView.new(nil))
+check('a click on nothing: ends the step and clears the selection') { model.active_tool.nil? && model.selection.items.empty? }
+
+# --- Tab turns it: when nothing was placed ----------------------------------------
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+definition.add_copy
+start_placement
+model.tools.fire('SelectionTool', 21022)
+run_timers
+check('Esc or a tool change while placing: no step, nothing selected') { model.active_tool.nil? && !model.kinds.include?(:select_tool) && model.selection.items.empty? }
+check('Esc or a tool change while placing: the watch has gone and the dialog says so') { model.tools.observers.empty? && $na_statuses.last[0] == 'Placement cancelled.' }
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+definition.valid = false
+model.tools.fire('SelectionTool', 21022)
+run_timers
+check('the definition gone by then (an undo): treated as cancelled') { model.active_tool.nil? && $na_statuses.last[0] == 'Placement cancelled.' }
+
+# --- Tab turns it: overlaps ----------------------------------------------------------
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+click_in_model(definition)
+model.tools.fire('RubyTool', 50000)
+check('two tool events before the timer: both queue') { $na_timers.length == 2 }
+run_timers
+check('two tool events before the timer: one step only') { model.log.count { |item| item.first == :select_tool } == 1 && model.active_tool.is_a?(NA_STEP_CLASS) }
+
+model = fresh_model
+chair = NaFakeDefinition.new('Na__Chair__01', $na_file)
+table = NaFakeDefinition.new('Na__Table__01', $na_other_file)
+model.definitions.list.push(chair, table)
+start_placement($na_file)
+model.tools.fire('SelectionTool', 21022)                                                            # <-- The first placement ending as the second card is clicked
+start_placement($na_other_file)
+check('another card clicked while placing: one watch, on the new one') { model.tools.observers.length == 1 }
+run_timers
+check('another card clicked while placing: the late timer does nothing') { model.active_tool.nil? && $na_statuses.empty? && model.tools.observers.length == 1 }
+table_copy = click_in_model(table)
+run_timers
+check('another card clicked while placing: the step is on the new component') { model.selection.items == [table_copy] }
+
+model, _instance, step = placed_and_on_the_step
+start_placement($na_file)
+check('a card clicked during the step: the step ends and the dialog line is cleared for the new message') { model.active_tool.nil? && $na_statuses.last == ['', 'info'] }
+check('a card clicked during the step: the new placement is watched') { model.tools.observers.length == 1 }
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+model.place_answer = nil
+start_placement
+check('place_component answering nil: nothing is left watching') { model.tools.observers.empty? }
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+model.place_error = ArgumentError.new('empty component')
+start_placement
+check('place_component raising: nothing is left watching') { model.tools.observers.empty? }
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+insert_at_axis
+definition.add_copy                                                                                 # <-- What Insert At Axis adds; the fake's add_instance keeps no list
+model.tools.fire('SelectionTool', 21022)
+run_timers
+check('Insert At Axis while placing: that copy is not taken for the placed one') { model.tools.observers.empty? && $na_timers.empty? && model.active_tool.nil? && model.selection.items.empty? }
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+click_in_model(definition)
+model.select_error = RuntimeError.new('no tool today')
+check('the step failing to start: the timer does not raise, the placement stands') { run_timers; true }
+
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+start_placement
+model.valid = false                                                                                 # <-- Closed with its placement still up
+model = fresh_model
+definition = NaFakeDefinition.new('Na__Chair__01', $na_file)
+model.definitions.list << definition
+result = start_placement
+check('the watched model closed: the next card still places, in the new model') { result[:ok] == true && model.tools.observers.length == 1 }
+
+FileUtils.rm_rf($na_library)
+puts "Placement unit: #{$na_checks - $na_failures.length}/#{$na_checks} checks passed under Ruby #{RUBY_VERSION}."
+unless $na_failures.empty?
+    $na_failures.each { |failure| warn "FAILED: #{failure}" }
+    raise "#{$na_failures.length} placement check(s) failed"
+end

@@ -11,7 +11,8 @@ instance/definition (Overview, Attributes, Thumbnail tabs), plus a disk-backed
 **Component Library Manager** (Gallery + Index tabs) that scans a configured
 `.skp` library folder, caches extracted metadata and thumbnails, supports
 inline classification and metadata edits written back to each component file,
-and places library components into the active model via a drawing-axis tool.
+and places library components into the active model with SketchUp's own
+component placement tool, or at the drawing axes origin.
 
 Per-component library metadata lives in the `Na__ComponentLibrary` attribute
 dictionary on each definition (code, gallery_name, notes, category, type, and
@@ -23,6 +24,92 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 # =============================================================================
 # VERSION HISTORY
 # =============================================================================
+
+# Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.7 - 03-Nov-2026 - Insert At Cursor: Tab Turns the Component, Just After the Click
+
+- **What Adam asked for.** Tab rotation back. 0.6.6 lost it by moving to SketchUp's own placement tool.
+- **Why it comes after the click.** SketchUp's tool passes no keys to Ruby, and Ruby cannot turn its preview. A preview drawn in Ruby could turn, but would give up the native feel 0.6.6 was for.
+- **How it works.**
+  - A `ToolsObserver` sees the placement tool end. A new instance of the definition means it was placed; none means it was cancelled.
+  - A small Ruby tool then holds the keyboard until the next click, Enter, Esc or tool change. Each Tab turns the component 90 degrees, and holding Tab turns it once.
+  - It has no mouse move handler, so it cannot bring back what 0.6.6 removed: it writes only when Tab is pressed.
+  - The new component is selected, so M or Q carry straight on with it. Any other key goes to SketchUp as usual.
+- **The turn.** About the component's own origin (where you clicked) and its own blue axis. The old tool turned about the drawing axes' blue. They are the same on a normal placement, and a component glued to a wall stays on the wall.
+- **Coordinates.** It reads the instance's own `transformation` and gives the rotation to its parent's `transform_entities`. Both are world in an open context and local otherwise, so they always agree and nothing is converted.
+- **Undo.** Each Tab is a transparent operation appended to the placement, so one Ctrl+Z takes the placement and its turns together. There is no undo for a single turn: four Tabs bring it back round.
+- **What is different to use.**
+  - The click that ends the step does what the Select tool's click would: it selects what is under it, or clears the selection. A double-click or a box drag started with that click does not register, so the next one is the first that works.
+  - Esc in the step finishes and keeps the component. Esc while placing still cancels.
+  - The dialog line now follows the placement, replacing the 0.6.6 note that it stays on "click in the model": it says when it is placed or cancelled, and clears when the step ends.
+- **Files.** `08__LibraryManager/...__PlacementTool__.rb` (two new classes: `...__PlacementWatch` and `...__PlacedTurnStep`), `tests/placement_unit.rb.test`. Signatures are unchanged and the dialog's JS did not change.
+- **Validation.**
+  - `tests/placement_unit.rb.test`: 79 of 79 under Ruby 3.2.2, 47 of them new. 40 deliberate breakages were each caught; the first run let one through (a closed model), so that check was strengthened. The committed code cannot finish the suite, because the step does not exist there.
+  - `tests/placement_bridge.test.js` 7 of 7; `tests/mcp_operations_unit.rb.test` 76 of 76; `tests/syntax.rb.test` 28 files.
+  - Live in 27.0.267, with nothing placed: the file compiles under Ruby 3.4.9. `place_component` then `select_tool(nil)` showed the tool is `ComponentTool` 21013, its event fires before `place_component` returns, and `SelectionTool` 21022 follows. That started and ended a tool in the open model, from and back to Select.
+  - Not run: the suites under Ruby 3.4. Nothing has been clicked in SketchUp, so the tool change after a real placing click is simulated in the tests, along with Tab reaching the step and the undo chaining. Those lead the checklist.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then place something. After the click, the status bar says Tab turns it, and the component is selected.
+- [ ] Press Tab with no extra click. It turns 90 degrees about the point you clicked. Four Tabs bring it back.
+- [ ] Hold Tab. It turns once.
+- [ ] Place, Tab twice, Ctrl+Z once. The placement and the turns all go, and earlier work stays.
+- [ ] Place, then press Esc or Enter, then click empty space. Each ends the step, and the component stays.
+- [ ] Place, then click another object. It is selected, as with the Select tool.
+- [ ] Place, then press M. The Move tool picks up the new component straight away.
+- [ ] Place, then click another card. The new preview starts as normal, and Tab works after that placement.
+- [ ] Click a card, then Esc, or pick another tool. No step comes up, and the dialog says the placement was cancelled.
+- [ ] Orbit with the middle button during the step. Tab still works afterwards.
+- [ ] Place and Tab inside a box in a group that is moved AND rotated, nested three deep, and in a scaled group. It turns on the spot, about that group's blue axis.
+- [ ] A window with Glue To set: place it on a wall and press Tab. It turns in the plane of the wall and stays glued.
+
+# Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.6 - 03-Nov-2026 - Insert At Cursor: SketchUp's Own Placement Tool
+
+- **What Adam asked for.** Placing an asset from the PainterlyNPR Asset Library feels far nicer than from this Gallery. Insert At Cursor felt broken, sometimes got stuck, and took several undos to clear. Insert At Axis works well and stays.
+- **Why it felt broken.** Insert At Cursor was a Ruby tool that added a real instance at the origin and moved it, instead of previewing it. From the code unless marked:
+  - Every mouse move changed the model outside any operation, so each one was its own undo step.
+  - The `InputPoint` could pick the instance under the cursor, so the component chased its own geometry.
+  - Every pick was rounded to a 1 inch grid, so snaps to endpoints and edges missed.
+  - `deactivate` did not remove the instance: changing tool, or clicking another card, left it stranded in the model.
+  - `getExtents` called `Entities#each` with no block. Checked live in 27.0.267: that raises `LocalJumpError`, so it failed every time SketchUp asked for the extents.
+- **The fix.** Insert At Cursor now does what the NPR library does, `Model#place_component(definition, false)`:
+  - The preview is SketchUp's and the model is untouched until the click. Esc or a tool change leaves nothing behind.
+  - Inference, Glue To and Cut Opening behave as they do from the Components panel, and it places into whatever group is open.
+  - This file computes no transformation, so there is nothing to convert twice (the coordinate rule).
+- **One addition the NPR library does not have.** `Sketchup.focus` hands the keyboard to the model window straight after, so Esc and the arrow locks should work without a click in the model first.
+- **Also taken from the NPR library.**
+  - A file already in the model is reused, with no disk read and no undo step. This plugin finds it by file path (`LoadedDefinitionFor`); the NPR library finds it by name.
+  - A new file loads as one named step (`Na Library - Load <file>`).
+  - The dialog paints "Getting <file> ready..." before it calls Ruby, because a big file blocks SketchUp while it loads.
+- **Insert At Axis.** It places as before, but the load and the instance are now one operation: one undo the first time a file comes in, where it was two.
+- **What is different to use.**
+  - Tab no longer rotates during placement. SketchUp's tool does not pass keys to Ruby, so rotate after placing.
+  - The 1 inch grid is gone; SketchUp's inference decides where it lands.
+  - The first placement of a new file is two undo steps: the placement, then the load. Later placements are one. The NPR library is the same.
+  - The status line stays on "click in the model" after the click, because nothing tells Ruby the native tool has finished.
+- **Files.** `08__LibraryManager/...__PlacementTool__.rb` (rewritten; the Ruby tool class is gone), `05__UserInterface/...__UiBridge__.js`, new `tests/placement_unit.rb.test` and `tests/placement_bridge.test.js`. The two public signatures are unchanged, so `DialogManager` did not change. After Reload Plugin Data the old class stays in memory until SketchUp restarts, but nothing uses it.
+- **Validation.**
+  - `tests/placement_unit.rb.test`: 32 of 32 under Ruby 3.2.2. The old code fails 20 of them, and 11 deliberate breakages of the new code were each caught.
+  - `tests/placement_bridge.test.js`: 7 of 7. The old bridge fails it.
+  - `tests/mcp_operations_unit.rb.test`: 76 of 76.
+  - Live and read-only in 27.0.267: the file compiles under Ruby 3.4.9; 14 of 14 library definitions in an open model were found by their own path; a full scan took 0.1 ms.
+  - Not run: the suites under Ruby 3.4, because the offline runner cannot boot SketchUp 2027's DLL. Nothing has been clicked in SketchUp: the feel, `Sketchup.focus` and the undo counts are in the checklist for Adam.
+
+### Validation Checklist
+- [ ] Reload Plugin Data, then close and reopen the dialog (its JS is built in when it opens).
+- [ ] Gallery: click a card and move into the model. The preview follows smoothly and snaps to endpoints and faces exactly.
+- [ ] Press Esc without clicking in the model first. It cancels and nothing is left behind.
+- [ ] Click a card, then press an arrow key while moving. The axis lock works straight away.
+- [ ] Click a card, then pick another tool. Nothing is left at the origin. Click a card, then click a different card. The new asset replaces the preview.
+- [ ] Place an asset already in the model, then Ctrl+Z once. It is gone. Your earlier work is still there, and earlier undo steps still work.
+- [ ] Place an asset new to the model. Ctrl+Z removes the placement, and a second Ctrl+Z (`Na Library - Load...`) removes the load.
+- [ ] Place into a box inside a group that is moved AND rotated, nested three deep, and into a scaled group. It lands where you click, square to that group.
+- [ ] Change the drawing axes with the Axes tool and place an asset. Check it lines up with the new axes, as the old tool did.
+- [ ] Index tab: the Insert button, double-clicking a thumbnail and the right-click Insert At Cursor all behave the same.
+- [ ] Insert At Axis, first time for a file: one Ctrl+Z removes it. It still lands on the drawing axes origin, including in an open group.
+- [ ] A component with Glue To set (a window): it glues to a wall and cuts its opening.
+- [ ] A large library file: the status line says "Getting ... ready..." before SketchUp pauses.
 
 # Na Noble3d Modelling Tools — Component Editor Tools
 ## Version 0.6.5 - 26-Oct-2026 - Multi-Machine Studio Library Root Fallback
@@ -634,7 +721,7 @@ Non-manifold         =  0
 | `...__Serializer__.rb` | Read/write `Na__ComponentLibrary` attribute dictionary |
 | `...__Editor__.rb` | On-disk edits: rename, metadata, library data, single-field updates |
 | `...__SafeLoad__.rb` | Loads a library file inside an always-aborted operation; in-use detection; name that holds |
-| `...__PlacementTool__.rb` | Interactive library component insertion |
+| `...__PlacementTool__.rb` | Insert At Cursor (SketchUp's own placement tool, then Tab turns it) and Insert At Axis |
 
 #### MCP Operations (`12__McpOperations/`)
 

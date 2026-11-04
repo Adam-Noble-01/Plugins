@@ -375,7 +375,14 @@
     }
 
     function Na__ComponentEditorTools__InsertLibraryComponent(component_path) {
-        na_call_ruby('na_componenteditortools_insert_library_component', { path: component_path || '' });
+        // A big library file blocks SketchUp while it loads: say so, let that paint, then call
+        var file_stem = String(component_path || '').replace(/^.*[\\\/]/, '').replace(/\.skp$/i, '');
+        na_set_status('Getting ' + file_stem + ' ready...', 'info');
+        window.requestAnimationFrame(function () {
+            window.setTimeout(function () {
+                na_call_ruby('na_componenteditortools_insert_library_component', { path: component_path || '' });
+            }, 40);
+        });
     }
 
     function Na__ComponentEditorTools__InsertAtAxis(component_path) {

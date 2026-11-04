@@ -1,18 +1,45 @@
 # =============================================================================
-# NA COMPONENT EDITOR TOOLS - LIBRARY MANAGER | PLACEMENT TOOL
+# NA COMPONENT EDITOR TOOLS - LIBRARY MANAGER | PLACEMENT
 # =============================================================================
 #
 # FILE       : Na__ComponentEditorTools__LibraryManager__PlacementTool__.rb
 # NAMESPACE  : Na__ComponentEditorTools::Na__LibraryPlacementTool
-# PURPOSE    : Interactive Tool that loads a .skp component definition and
-#              allows the user to click-to-place it in the model. The instance
-#              is oriented to the model drawing axes. Tab rotates 90 degrees
-#              around the drawing Z axis. Escape cancels and removes the ghost.
+# PURPOSE    : Puts a library .skp into the model. Insert At Cursor hands it to
+#              SketchUp's own component placement tool, then lets Tab turn what it
+#              placed; Insert At Axis adds it at the drawing axes origin.
 # CREATED    : 2026
 #
-# Placement axis logic follows the InsertionFrame pattern from:
-# Na__ArchTools__ElementAssemblyStudioPro__Modules__/02__Src__AppModules/
-# 04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__InsertionFrame__.rb
+# WHY SKETCHUP'S OWN TOOL (0.6.6, as the PainterlyNPR Asset Library places):
+#   This was a Ruby tool that added a real instance and moved it on every mouse
+#   move, outside any operation. Each move was its own undo step, the InputPoint
+#   picked the instance under the cursor, and a tool change left it stranded.
+#   Model#place_component previews without touching the model, infers and glues
+#   as SketchUp does everywhere else, and Esc or a tool change leaves nothing.
+#
+# TAB TURNS IT, JUST AFTER THE CLICK (0.6.7):
+#   SketchUp's tool passes no keys to Ruby, so Tab cannot work while it previews.
+#   A ToolsObserver sees the tool end: a new instance of the definition means it
+#   was placed, none means it was cancelled. A small Ruby tool then takes Tab until
+#   the next click, Enter, Esc or tool change. It writes only when Tab is pressed,
+#   never on a mouse move.
+#
+# COORDINATES (the coordinate rule, Adam's global CLAUDE.md):
+#   Insert At Cursor computes no transformation, so there is nothing to convert
+#   twice: SketchUp places into the active context where the person clicks.
+#   Insert At Axis gives add_instance model.axes, which is world, and points given
+#   to add_instance are world in the active context. No conversion either.
+#   The Tab turn reads the instance's own transformation and gives the rotation to
+#   its parent's transform_entities: both are world in an open context and local
+#   otherwise, so they always agree. It turns about the instance's own blue axis,
+#   so a component glued to a wall stays on the wall.
+#
+# UNDO CONTRACT:
+#   Insert At Cursor: "Na Library - Load <file>" the first time a file enters this
+#   model, then SketchUp's own step for the placement. A file already in the model
+#   adds only the placement. Operations do not nest, so the load is committed
+#   before the tool starts. Each Tab appends to the placement's step, so one Ctrl+Z
+#   takes the placement and its turns together.
+#   Insert At Axis: one step, whether or not it had to load the file.
 #
 # =============================================================================
 
@@ -27,12 +54,16 @@ module Na__ComponentEditorTools
             return { ok: false, message: 'No library component path provided.' } if component_path.to_s.empty?
             return { ok: false, message: 'File not found.' } unless File.exist?(component_path.to_s)
 
-            model = Sketchup.active_model
-            definition = model.definitions.load(component_path.to_s)
+            model      = Sketchup.active_model
+            definition = self.na_definition_for_placement(model, component_path.to_s)
             return { ok: false, message: 'Could not load component definition.' } unless definition
 
-            model.select_tool(Na__ComponentEditorTools__LibraryPlacementToolImpl.new(definition, component_path.to_s, dialog_handle))
-            { ok: true, message: "Click in the model to place \"#{definition.name}\"." }
+            self.na_stop_watching_placement                                                             # <-- A card clicked while another places: that placement is over, whatever comes next
+            return { ok: false, message: "SketchUp would not start placing \"#{definition.name}\"." } unless model.place_component(definition, false)
+
+            Sketchup.focus                                                                              # <-- The card was clicked in the dialog: Esc and the arrow locks belong to the tool now
+            self.na_watch_placement(model, definition)
+            { ok: true, message: "\"#{definition.name}\": click in the model to place it, then Tab turns it. Esc cancels." }
         rescue => error
             { ok: false, message: "#{error.class}: #{error.message}" }
         end
@@ -41,14 +72,19 @@ module Na__ComponentEditorTools
             return { ok: false, message: 'No library component path provided.' } if component_path.to_s.empty?
             return { ok: false, message: 'File not found.' } unless File.exist?(component_path.to_s)
 
-            model      = Sketchup.active_model
-            definition = model.definitions.load(component_path.to_s)
-            return { ok: false, message: 'Could not load component definition.' } unless definition
-
+            self.na_stop_watching_placement                                                             # <-- This copy must not be mistaken for one placed with the tool
+            model     = Sketchup.active_model
             axes      = model.axes
             transform = Geom::Transformation.axes(axes.origin, axes.xaxis, axes.yaxis, axes.zaxis)
 
-            model.start_operation("Insert At Axis: #{definition.name}", true)
+            model.start_operation("Insert At Axis: #{File.basename(component_path.to_s, '.*')}", true)
+            definition = Na__LibrarySafeLoad.Na__ComponentEditorTools__LoadedDefinitionFor(model, component_path.to_s) ||
+                         model.definitions.load(component_path.to_s)
+            unless definition
+                model.abort_operation
+                return { ok: false, message: 'Could not load component definition.' }
+            end
+
             model.active_entities.add_instance(definition, transform)
             model.commit_operation
 
@@ -60,140 +96,170 @@ module Na__ComponentEditorTools
 
 # endregion -------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# REGION | Internals
+# -----------------------------------------------------------------------------
+
+        # The definition already loaded from this file, else the file loaded as one
+        # named undo step. A file already in the model adds no step and reads no disk.
+        def self.na_definition_for_placement(model, component_path)
+            existing = Na__LibrarySafeLoad.Na__ComponentEditorTools__LoadedDefinitionFor(model, component_path)
+            return existing if existing
+
+            model.start_operation("Na Library - Load #{File.basename(component_path, '.*')}", true)
+            begin
+                definition = model.definitions.load(component_path)
+            rescue Exception                                                                            # <-- Anything at all: abort, then raise it on
+                model.abort_operation
+                raise
+            end
+            definition ? model.commit_operation : model.abort_operation
+            definition
+        end
+
+        def self.na_watch_placement(model, definition)
+            @na_placement_watch = Na__ComponentEditorTools__PlacementWatch.new(model, definition)
+            model.tools.add_observer(@na_placement_watch)
+        end
+
+        def self.na_stop_watching_placement
+            watch = @na_placement_watch
+            return unless watch
+
+            @na_placement_watch = nil
+            watch.model.tools.remove_observer(watch) if watch.model.valid?
+        end
+
+        # Runs from a timer, never from the observer callback: SketchUp is still
+        # switching tools during the callback.
+        def self.na_placement_ended(watch)
+            return unless watch.equal?(@na_placement_watch)                                             # <-- Another card was clicked since, or a second event got here first
+
+            self.na_stop_watching_placement
+            instance = watch.placed_instance
+            if instance
+                watch.model.select_tool(Na__ComponentEditorTools__PlacedTurnStep.new(instance))
+                Na__DialogManager.Na__ComponentEditorTools__PushStatus("\"#{instance.definition.name}\" placed. Tab turns it 90 degrees; click or Esc finishes.", 'info')
+            else
+                Na__DialogManager.Na__ComponentEditorTools__PushStatus('Placement cancelled.', 'info')
+            end
+        rescue => error
+            puts "Na Library placement: #{error.class}: #{error.message}"                               # <-- The component is already placed: losing the Tab step must not trouble anyone
+        end
+
+# endregion -------------------------------------------------------------------
+
     end
 
 # =============================================================================
-# REGION | Tool Implementation
+# REGION | Placement Watch
 # =============================================================================
 
-    class Na__ComponentEditorTools__LibraryPlacementToolImpl
+    # Says when SketchUp's placement tool has ended, and what it left behind.
+    class Na__ComponentEditorTools__PlacementWatch < Sketchup::ToolsObserver
 
-        NA_GRID_SIZE       = 1.inch
-        NA_CURSOR_ICON_STR = 'default'
+        NA_PLACING_TOOL_ID = 21013                                                                      # <-- ComponentTool, measured in SketchUp 27.0: Tools#active_tool_id during place_component
 
-        def initialize(definition, source_path, dialog_handle)
-            @definition      = definition
-            @source_path     = source_path
-            @dialog_handle   = dialog_handle
-            @instance        = nil
-            @input_point     = Sketchup::InputPoint.new
-            @rotation_deg    = 0
-            @current_origin  = ORIGIN
-            @axes_transform         = nil
-            @axes_inverse_transform = nil
-            @axes_zaxis             = nil
+        attr_reader :model
+
+        def initialize(model, definition)
+            super()
+            @model            = model
+            @definition       = definition
+            @instances_before = definition.instances
+        end
+
+        def onActiveToolChanged(_tools, _tool_name, tool_id)
+            return if tool_id == NA_PLACING_TOOL_ID
+
+            UI.start_timer(0, false) { Na__LibraryPlacementTool.na_placement_ended(self) }
+        end
+
+        def placed_instance
+            return nil unless @definition.valid?
+
+            (@definition.instances - @instances_before).last
+        end
+
+    end
+
+# endregion ===================================================================
+
+# =============================================================================
+# REGION | Tab Turn Step
+# =============================================================================
+
+    # Active from the placing click until the next click, Enter, Esc or tool change.
+    # There is no onMouseMove on purpose: nothing here may write as the pointer moves.
+    class Na__ComponentEditorTools__PlacedTurnStep
+
+        NA_TAB_KEY      = 9
+        NA_TURN_DEGREES = 90
+        NA_STATUS_TEXT  = 'Tab turns it 90 degrees. Click, Enter or Esc finishes. Ctrl+Z removes it.'
+
+        def initialize(instance)
+            @instance = instance
         end
 
         def activate
-            model = Sketchup.active_model
-            return unless model
-
-            axes = model.axes
-            @axes_zaxis             = axes.zaxis
-            @axes_transform         = Geom::Transformation.axes(ORIGIN, axes.xaxis, axes.yaxis, axes.zaxis)
-            @axes_inverse_transform = @axes_transform.inverse
-
-            initial_origin = ORIGIN
-            transform = self.na_build_transform(initial_origin)
-            @instance = model.active_entities.add_instance(@definition, transform)
-
-            Sketchup.status_text = "Click to place \"#{@definition.name}\". Tab = rotate 90°. Esc = cancel."
+            selection = Sketchup.active_model.selection
+            selection.clear
+            selection.add(@instance)                                                                    # <-- Shows what Tab will turn, and M or Q carry straight on with it
+            Sketchup.status_text = NA_STATUS_TEXT
         end
 
-        def deactivate(view)
-            view.invalidate
+        def resume(_view)
+            Sketchup.status_text = NA_STATUS_TEXT                                                       # <-- Back from an orbit or a pan
         end
 
-        def onMouseMove(_flags, x, y, view)
-            @input_point.pick(view, x, y)
-            @current_origin = na_snap_to_grid(@input_point.position)
-            transform = na_build_transform(@current_origin)
-            @instance.transformation = transform if @instance && @instance.valid?
-            view.invalidate
+        def deactivate(_view)
+            Na__DialogManager.Na__ComponentEditorTools__PushStatus('', 'info')
         end
 
-        def onLButtonDown(_flags, _x, _y, _view)
-            return unless @instance && @instance.valid?
+        def onKeyDown(key, repeat, _flags, _view)
+            return false unless key == NA_TAB_KEY
 
-            Sketchup.active_model.select_tool(nil)
-            @instance = nil
-            na_notify_dialog('Component placed.')
+            na_turn if repeat == 1                                                                      # <-- Holding Tab turns it once, not until the key comes up
+            true
         end
 
-        def onKeyDown(key, _repeat, _flags, _view)
-            case key
-            when 9
-                na_advance_rotation
-                return true
-            when 27
-                na_cancel
-                return true
-            end
-            false
+        def onReturn(_view)
+            na_finish
         end
 
         def onCancel(_reason, _view)
-            na_cancel
+            na_finish                                                                                   # <-- Esc keeps the component; an undo removes it right after this
         end
 
-        def draw(view)
-            @input_point.draw(view)
-        end
-
-        def getExtents
-            model = Sketchup.active_model
-            return Geom::BoundingBox.new unless model
-
-            model.active_entities.each.inject(Geom::BoundingBox.new) do |bb, e|
-                bb.add(e.bounds) rescue bb
-            end
+        # This click ends the step and does what the Select tool's click would have.
+        def onLButtonDown(_flags, x, y, view)
+            pick = view.pick_helper
+            pick.do_pick(x, y)
+            selection = Sketchup.active_model.selection
+            selection.clear
+            selection.add(pick.best_picked) if pick.best_picked
+            na_finish
         end
 
     private
 
-        def na_build_transform(origin)
-            model = Sketchup.active_model
-            axes  = model.axes
-            rotation_transform = Geom::Transformation.rotation(ORIGIN, axes.zaxis, @rotation_deg.degrees)
-            axes_at_origin     = Geom::Transformation.axes(ORIGIN, axes.xaxis, axes.yaxis, axes.zaxis)
-            translation        = Geom::Transformation.new(origin)
-            translation * axes_at_origin * rotation_transform
+        def na_turn
+            return na_finish unless @instance.valid?                                                    # <-- Deleted from a menu while this step was up
+
+            model     = Sketchup.active_model
+            placement = @instance.transformation
+            turn      = Geom::Transformation.rotation(placement.origin, placement.zaxis, NA_TURN_DEGREES.degrees)
+
+            model.start_operation('Turn Placed Component', true, false, true)                           # <-- Transparent: appends to the placement, so one undo takes both
+            @instance.parent.entities.transform_entities(turn, [@instance])
+            model.commit_operation
+        rescue => error
+            model.abort_operation rescue nil
+            puts "Na Library placement: #{error.class}: #{error.message}"
         end
 
-        def na_advance_rotation
-            @rotation_deg = (@rotation_deg + 90) % 360
-            transform = na_build_transform(@current_origin)
-            @instance.transformation = transform if @instance && @instance.valid?
-        end
-
-        def na_snap_to_grid(world_point)
-            return world_point unless @axes_inverse_transform && @axes_transform
-
-            local_pt = world_point.transform(@axes_inverse_transform)
-            snapped  = Geom::Point3d.new(
-                (local_pt.x / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                (local_pt.y / NA_GRID_SIZE).round * NA_GRID_SIZE,
-                local_pt.z
-            )
-            snapped.transform(@axes_transform)
-        end
-
-        def na_cancel
-            if @instance && @instance.valid?
-                @instance.erase! rescue nil
-            end
-            @instance = nil
+        def na_finish
             Sketchup.active_model.select_tool(nil)
-        end
-
-        def na_notify_dialog(message_text)
-            return unless @dialog_handle && @dialog_handle.respond_to?(:visible?) && @dialog_handle.visible?
-
-            Na__UiBridge.Na__ComponentEditorTools__ExecuteJsonFunction(
-                @dialog_handle,
-                'Na__ComponentEditorTools__ReceiveStatus',
-                { message: message_text, variant: 'success' }
-            )
         end
 
     end

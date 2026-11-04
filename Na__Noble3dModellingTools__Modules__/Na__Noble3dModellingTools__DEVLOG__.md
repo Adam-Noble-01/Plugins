@@ -3,6 +3,23 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.23 - 03-Nov-2026 - Component Editor Tools: Tab Turns the Component, Just After the Click
+
+- Component Editor Tools 0.6.7. The full entry and checklist are in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.
+- **Why.** 0.9.22 moved Insert At Cursor to SketchUp's own placement tool, which passes no keys to Ruby, so Tab rotation was lost.
+- **The fix.** A short step straight after the placing click: Tab turns the component 90 degrees about its own origin and blue axis. The next click, Enter, Esc or tool change ends it.
+- **Undo.** Each turn appends to the placement, so one Ctrl+Z takes them together.
+- **Validation.** 79 checks pass, with 40 deliberate breakages caught. Nothing has been clicked in SketchUp yet: the tool change after a real click, Tab reaching the step and the undo chaining are with the user.
+
+## Na Noble3d Modelling Tools | Version 0.9.22 - 03-Nov-2026 - Component Editor Tools: Insert At Cursor Uses SketchUp's Own Placement Tool
+
+- Component Editor Tools 0.6.6. The full entry and checklist are in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.
+- **The problem.** Placing from the Gallery felt broken next to the PainterlyNPR Asset Library, got stuck, and took several undos to clear. It was a Ruby tool moving a real instance on every mouse move, outside any operation.
+- **The fix.** It now uses `Model#place_component`, as the NPR library does: SketchUp's own preview, inference and gluing, and nothing in the model until the click.
+- **Different to use.** Tab no longer rotates during placement, and the 1 inch grid is gone.
+- **Insert At Axis** places as before, now as one undo step the first time a file comes in.
+- **Validation.** 32 and 7 new checks pass, and the old code fails them. Nothing has been clicked in SketchUp yet: that is with the user.
+
 ## Na Noble3d Modelling Tools | Version 0.9.21 - 02-Nov-2026 - Image Viewer: Count Spans and Count Points
 
 - **The problem.** One Count tool read a line of 5 glazing bars as "4", because it counts the spaces between them. Nothing on the photo said so, and the number looked like a miscount.
