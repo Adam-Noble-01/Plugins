@@ -28,6 +28,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Fuse__Shared__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__ExteriorDoorCommon
@@ -39,6 +40,7 @@ module Na__FuseParts__Panel
 
     DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
     FuseShared = Na__AssemblyStudio::Na__GeometryHelpers::Na__Fuse
+    ArchedHeader = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -147,10 +149,12 @@ module Na__FuseParts__Panel
         return na_skipped(result) if groups.length < 2
 
         na_normalize_materials(groups)
+        has_arched_rail = groups.any? { |group| ArchedHeader.na_arched_solid?(group) }     # <-- V2.5.2 Asked before the boolean consumes the groups
         fused = FuseShared.na_sequential_outer_shell(
             groups.dup,
             ctx[:leaf_joinery_fused]
         )
+        ArchedHeader.na_soften_arc_edges(fused) if fused && has_arched_rail
         fused ? result.merge(:fused => 1) : result.merge(:failed => 1)
     rescue StandardError => e
         DebugTools.na_debug_error("ExtDoorCommon leaf joinery fuse failed for #{mod_group.name}", e)

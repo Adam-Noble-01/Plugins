@@ -32,6 +32,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
+require_relative 'Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -359,6 +360,7 @@ module Na__WindowSystem
             end
             sash_horns_enabled = config["sash_horns_enabled"] != false
             sash_horn_type = config["sash_horn_type"] || "1"
+            arched_header = Na__ArchedHeaderBuilder.na_settings(config)                              # <-- V2.5.2 Nil unless Arched Header Rail is on
             # Signed nudge for the meeting rail away from the 50/50 split
             # (mm here - the DXF exporter works in millimetres throughout).
             meeting_rail_offset = if config["meeting_rail_position_override"] == true
@@ -425,6 +427,7 @@ module Na__WindowSystem
 
                 opening_layout[:cells].each_with_index do |cell, cell_index|
                     panel_width = cell[:width] / casements_per_opening.to_f
+                    cell_arch = cell_index == opening_layout[:cells].length - 1 ? arched_header : nil   # <-- V2.5.2 The top casement of each light takes the arched header
 
                     (0...casements_per_opening).each do |p|
                         panel_x = cell[:x] + (p * panel_width)
@@ -445,7 +448,8 @@ module Na__WindowSystem
                                     removed_glazebars: removed_glazebars,
                                     sash_horns_enabled: sash_horns_enabled,
                                     sash_horn_type: sash_horn_type,
-                                    advanced_glazebar: advanced_glazebar
+                                    advanced_glazebar: advanced_glazebar,
+                                    arched_header: cell_arch
                                 )
                             else
                                 sizes = na_resolve_casement_sizes_dxf(                                              # <-- V1.8.0 Per Casement Settings
@@ -458,7 +462,8 @@ module Na__WindowSystem
                                     h_bars, v_bars, bar_width,
                                     opening_index: i, cell_index: cell_index, panel_index: p, sash_index: 0,
                                     removed_glazebars: removed_glazebars,
-                                    advanced_glazebar: advanced_glazebar
+                                    advanced_glazebar: advanced_glazebar,
+                                    arched_header: cell_arch
                                 )
                             end
                         else
@@ -523,26 +528,36 @@ module Na__WindowSystem
 
         # FUNCTION | Generate DXF for a Single Casement
         # ------------------------------------------------------------
-        def self.na_generate_casement_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:, advanced_glazebar: nil)
+        #
+        # arched_header (V2.5.2): settings from Na__ArchedHeaderBuilder.na_settings
+        # when this casement takes the arched header, nil for a flat head.
+        def self.na_generate_casement_dxf(x, y, width, height, top_rail, bottom_rail, left_stile, right_stile, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:, advanced_glazebar: nil, arched_header: nil)
             dxf = ""
-
-            # Casement frame (4 pieces) - JOINERY CONVENTION: Stiles full height, rails inset
-            dxf += na_dxf_rect(x, y, left_stile, height, NA_LAYER_CASEMENT)
-            dxf += na_dxf_rect(x + width - right_stile, y, right_stile, height, NA_LAYER_CASEMENT)
-            dxf += na_dxf_rect(x + left_stile, y, width - left_stile - right_stile, bottom_rail, NA_LAYER_CASEMENT)
-            dxf += na_dxf_rect(x + left_stile, y + height - top_rail, width - left_stile - right_stile, top_rail, NA_LAYER_CASEMENT)
 
             # Glass area inside casement
             glass_x = x + left_stile
             glass_y = y + bottom_rail
             glass_width = width - left_stile - right_stile
             glass_height = height - top_rail - bottom_rail
+            arch = Na__ArchedHeaderBuilder.na_resolve(arched_header, glass_x, glass_y, glass_width, glass_height)
+            stile_height = Na__ArchedHeaderBuilder.na_stile_height(arch, y, height)
 
-            dxf += na_dxf_rect(glass_x, glass_y, glass_width, glass_height, NA_LAYER_GLASS)
+            # Casement frame (4 pieces) - JOINERY CONVENTION: Stiles full height, rails inset
+            dxf += na_dxf_rect(x, y, left_stile, stile_height, NA_LAYER_CASEMENT)
+            dxf += na_dxf_rect(x + width - right_stile, y, right_stile, stile_height, NA_LAYER_CASEMENT)
+            dxf += na_dxf_rect(x + left_stile, y, width - left_stile - right_stile, bottom_rail, NA_LAYER_CASEMENT)
+            if arch
+                dxf += na_dxf_outline(Na__ArchedHeaderBuilder.na_head_outline(arch, x, x + width, y + height), NA_LAYER_CASEMENT)
+                dxf += na_dxf_outline(Na__ArchedHeaderBuilder.na_glass_outline(arch, glass_y), NA_LAYER_GLASS)
+            else
+                dxf += na_dxf_rect(x + left_stile, y + height - top_rail, width - left_stile - right_stile, top_rail, NA_LAYER_CASEMENT)
+                dxf += na_dxf_rect(glass_x, glass_y, glass_width, glass_height, NA_LAYER_GLASS)
+            end
+
             dxf += na_generate_glaze_bar_dxf(
                 glass_x, glass_y, glass_width, glass_height, h_bars, v_bars, bar_width,
                 opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: sash_index,
-                removed_glazebars: removed_glazebars, advanced_glazebar: advanced_glazebar
+                removed_glazebars: removed_glazebars, advanced_glazebar: advanced_glazebar, header_arch: arch
             )
 
             dxf
@@ -571,7 +586,8 @@ module Na__WindowSystem
         #   - Gothic Arch: regular bar grid shrinks vertically; arch tracery
         #     emits as filled rectangles tessellated along each two-centred
         #     arc (same segment count rule as the Ruby 3D builder).
-        def self.na_generate_glaze_bar_dxf(glass_x, glass_y, glass_width, glass_height, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:, advanced_glazebar: nil)
+        #   - Arched Header (V2.5.2): bars stop at the arch, as they do in 3D.
+        def self.na_generate_glaze_bar_dxf(glass_x, glass_y, glass_width, glass_height, h_bars, v_bars, bar_width, opening_index:, cell_index:, panel_index:, sash_index:, removed_glazebars:, advanced_glazebar: nil, header_arch: nil)
             dxf = ""
 
             adv = advanced_glazebar.is_a?(Hash) ? advanced_glazebar : {}
@@ -599,7 +615,10 @@ module Na__WindowSystem
                     next if na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, "horizontal", b)
 
                     bar_y = bar_center_y - (bar_width / 2.0)
-                    dxf += na_dxf_rect(glass_x, bar_y, glass_width, bar_width, NA_LAYER_GLAZE_BAR)
+                    run = Na__ArchedHeaderBuilder.na_trim_run(header_arch, glass_x, glass_width, bar_y)
+                    next unless run
+
+                    dxf += na_dxf_rect(run[0], bar_y, run[1], bar_width, NA_LAYER_GLAZE_BAR)
                 end
             end
 
@@ -616,7 +635,10 @@ module Na__WindowSystem
                     next if na_glazebar_removed?(removed_glazebars, opening_index, cell_index, panel_index, sash_index, "vertical", b)
 
                     bar_x = bar_center_x - (bar_width / 2.0)
-                    dxf += na_dxf_rect(bar_x, glass_y, bar_width, effective_glass_height, NA_LAYER_GLAZE_BAR)
+                    bar_height = Na__ArchedHeaderBuilder.na_trim_height(header_arch, bar_x, bar_x + bar_width, glass_y, effective_glass_height)
+                    next unless bar_height
+
+                    dxf += na_dxf_rect(bar_x, glass_y, bar_width, bar_height, NA_LAYER_GLAZE_BAR)
                 end
             end
 
@@ -985,7 +1007,7 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # Draws two stacked casements in one panel.
         # Bottom sash is extended by overlap amount to represent weathering tuck-under.
-        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, meeting_rail_offset_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:, advanced_glazebar: nil)
+        def self.na_generate_sliding_sash_panel_dxf(x, y, width, height, top_rail, bottom_rail, top_sash_bottom_rail, bottom_sash_top_rail, left_stile, right_stile, h_bars, v_bars, bar_width, overlap_mm, meeting_rail_offset_mm, opening_index:, cell_index:, panel_index:, removed_glazebars:, sash_horns_enabled:, sash_horn_type:, advanced_glazebar: nil, arched_header: nil)
             dxf = ""
 
             meeting_rail_y = na_resolve_meeting_rail_height(height, meeting_rail_offset_mm)
@@ -1017,7 +1039,8 @@ module Na__WindowSystem
                 h_bars, v_bars, bar_width,
                 opening_index: opening_index, cell_index: cell_index, panel_index: panel_index, sash_index: 0,
                 removed_glazebars: removed_glazebars,
-                advanced_glazebar: advanced_glazebar
+                advanced_glazebar: advanced_glazebar,
+                arched_header: arched_header                                                       # <-- The bottom sash's head is the flat meeting rail
             )
 
             if sash_horns_enabled
@@ -1173,6 +1196,13 @@ module Na__WindowSystem
         end
         # ---------------------------------------------------------------
         
+        # FUNCTION | Generate a Closed DXF Outline From [x, z] Pairs (V2.5.2)
+        # ------------------------------------------------------------
+        def self.na_dxf_outline(points, layer)
+            na_dxf_polygon(points.map { |x, z| { x: x, z: z } }, layer)
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Generate Single DXF LINE Entity
         # ------------------------------------------------------------
         # @param x1 [Float] Start X

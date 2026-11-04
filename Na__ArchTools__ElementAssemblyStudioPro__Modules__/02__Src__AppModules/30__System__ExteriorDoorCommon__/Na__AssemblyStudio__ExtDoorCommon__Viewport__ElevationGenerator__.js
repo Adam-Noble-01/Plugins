@@ -98,6 +98,15 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Build an SVG Points List From [x, z] Pairs
+    // ------------------------------------------------------------
+    function na_points(layout, pairs) {
+        return pairs.map(function (pair) {
+            return (layout.openingX + pair[0]) + ',' + na_y(layout, pair[1]);
+        }).join(' ');
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | Convert Model Z (mm Up) to SVG Y (mm Down)
     // ------------------------------------------------------------
     function na_y(layout, zMm) {
@@ -639,6 +648,25 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
         }
         // ---------------------------------------------------------------
 
+        // HELPER FUNCTION | Cover the Spandrels With the Arched Header Rail (V2.5.2)
+        // ------------------------------------------------------------
+        // This preview draws a leaf as one block with the glass on it, so the
+        // rail goes on in the leaf's own colour, over the ends of the bars and
+        // lead, with only the arc itself outlined.
+        function na_draw_arched_rail(svg, layout, leaf, arch, palette) {
+            const outline = window.Na__ArchMath.na_headOutline(
+                arch, leaf.originXMm, leaf.originXMm + leaf.widthMm, leaf.originZMm + leaf.heightMm
+            );
+            svg.appendChild(na_svg('polygon', { points: na_points(layout, outline), fill: palette.leaf, stroke: 'none' }));
+            svg.appendChild(na_svg('polyline', {
+                points          : na_points(layout, arch.points),
+                fill            : 'none',
+                stroke          : NA_STROKE,
+                'stroke-width'  : 1
+            }));
+        }
+        // ---------------------------------------------------------------
+
         // FUNCTION | Draw One Leaf Body, Field Cells, Glazing, and Handle
         // ------------------------------------------------------------
         function na_draw_leaf(svg, layout, leaf, palette) {
@@ -649,16 +677,26 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
 
             if (panel.glazedRegion) {
                 const glazed = panel.glazedRegion;
-                na_rect(
-                    svg,
-                    layout.openingX + glazed.xMm,
-                    na_y(layout, glazed.zMm + glazed.heightMm),
-                    glazed.widthMm,
-                    glazed.heightMm,
-                    NA_GLASS_FILL
-                );
+                if (panel.arch) {                                           // <-- V2.5.2 Arched head, its rail drawn after the bars and lead
+                    svg.appendChild(na_svg('polygon', {
+                        points          : na_points(layout, window.Na__ArchMath.na_glassOutline(panel.arch, glazed.zMm)),
+                        fill            : NA_GLASS_FILL,
+                        stroke          : NA_STROKE,
+                        'stroke-width'  : 1
+                    }));
+                } else {
+                    na_rect(
+                        svg,
+                        layout.openingX + glazed.xMm,
+                        na_y(layout, glazed.zMm + glazed.heightMm),
+                        glazed.widthMm,
+                        glazed.heightMm,
+                        NA_GLASS_FILL
+                    );
+                }
                 na_draw_leaded_glass(svg, layout, leaf, glazed);
                 na_draw_glaze_bars(svg, layout, leaf, glazed, palette);
+                if (panel.arch) na_draw_arched_rail(svg, layout, leaf, panel.arch, palette);
 
                 if (panel.lowerGlazedRegion) {                              // <-- V2.3.0 Glazed Over Glazed
                     const lower = panel.lowerGlazedRegion;

@@ -25,6 +25,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -36,6 +37,7 @@ module Na__WindowSystem
 
         DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
         GeometryHelpers = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
+        ArchedHeaderBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -230,25 +232,32 @@ module Na__WindowSystem
         # @param material [Sketchup::Material] Material to apply
         # @param wall_inset [Float] Y offset for frame
         # @param casement_inset [Float] Casement inset from frame face
-        def self.na_create_casement_geometry_individual(entities, opening_index, cas_width, cas_height, top_rail, bottom_rail, left_stile, right_stile, depth, offset_x, offset_z, material, wall_inset = 0, casement_inset = 10.mm)
+        # @param arch [Hash, nil] Arched header over this casement's glass (V2.5.2), from Na__ArchedHeaderBuilder.na_resolve
+        def self.na_create_casement_geometry_individual(entities, opening_index, cas_width, cas_height, top_rail, bottom_rail, left_stile, right_stile, depth, offset_x, offset_z, material, wall_inset = 0, casement_inset = 10.mm, arch = nil)
             DebugTools.na_debug_geometry("Creating casement #{opening_index} with individual sizes at offset (#{offset_x.to_mm.round}, #{offset_z.to_mm.round})")
             DebugTools.na_debug_geometry("  - Top Rail: #{top_rail.to_mm.round}mm, Bottom Rail: #{bottom_rail.to_mm.round}mm")
             DebugTools.na_debug_geometry("  - Left Stile: #{left_stile.to_mm.round}mm, Right Stile: #{right_stile.to_mm.round}mm")
-            
+
             y_offset = wall_inset + casement_inset
-            
+            stile_height = ArchedHeaderBuilder.na_stile_height(arch, offset_z, cas_height)  # <-- Full height, unless a true arch's head sits on them
+
             # Left stile - FULL HEIGHT of casement
-            GeometryHelpers.na_create_casement_stile(entities, opening_index, "Left", offset_x, y_offset, offset_z, left_stile, depth, cas_height, material)
-            
+            GeometryHelpers.na_create_casement_stile(entities, opening_index, "Left", offset_x, y_offset, offset_z, left_stile, depth, stile_height, material)
+
             # Right stile - FULL HEIGHT of casement
-            GeometryHelpers.na_create_casement_stile(entities, opening_index, "Right", offset_x + cas_width - right_stile, y_offset, offset_z, right_stile, depth, cas_height, material)
-            
+            GeometryHelpers.na_create_casement_stile(entities, opening_index, "Right", offset_x + cas_width - right_stile, y_offset, offset_z, right_stile, depth, stile_height, material)
+
             # Bottom rail - INSET between stiles (width excludes both stiles)
             rail_width = cas_width - left_stile - right_stile
             GeometryHelpers.na_create_casement_rail(entities, opening_index, "Bottom", offset_x + left_stile, y_offset, offset_z, rail_width, depth, bottom_rail, material)
-            
-            # Top rail - INSET between stiles (positioned at top minus rail height)
-            GeometryHelpers.na_create_casement_rail(entities, opening_index, "Top", offset_x + left_stile, y_offset, offset_z + cas_height - top_rail, rail_width, depth, top_rail, material)
+
+            if arch
+                # Arched header (V2.5.2) - flat top, arched soffit, same part name
+                ArchedHeaderBuilder.na_create_head(entities, "Na_Casement_#{opening_index}_Top_Rail", arch, offset_x, offset_x + cas_width, offset_z + cas_height, y_offset, depth, material)
+            else
+                # Top rail - INSET between stiles (positioned at top minus rail height)
+                GeometryHelpers.na_create_casement_rail(entities, opening_index, "Top", offset_x + left_stile, y_offset, offset_z + cas_height - top_rail, rail_width, depth, top_rail, material)
+            end
         end
         # ---------------------------------------------------------------
 
@@ -287,9 +296,10 @@ module Na__WindowSystem
         # @param wall_inset [Float] Y offset for frame
         # @param casement_depth [Float, nil] Casement depth (when glass inside casement, centers on casement)
         # @param casement_inset [Float, nil] Casement inset from frame face
-        def self.na_create_glass_geometry(entities, opening_index, glass_width, glass_height, thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil)
+        # @param arch [Hash, nil] Arched header over this glass (V2.5.2); the pane takes its arched head
+        def self.na_create_glass_geometry(entities, opening_index, glass_width, glass_height, thickness, offset_x, offset_z, frame_depth, material, wall_inset = 0, casement_depth = nil, casement_inset = nil, arch = nil)
             DebugTools.na_debug_geometry("Creating glass pane #{opening_index}: #{glass_width.to_mm.round}x#{glass_height.to_mm.round}mm")
-            
+
             if casement_depth && casement_inset
                 # Glass centered on casement midpoint
                 y_offset = wall_inset + casement_inset + (casement_depth - thickness) / 2.0
@@ -297,7 +307,9 @@ module Na__WindowSystem
                 # Direct-glazed: center glass in frame depth
                 y_offset = wall_inset + (frame_depth - thickness) / 2.0
             end
-            
+
+            return ArchedHeaderBuilder.na_create_glass(entities, "Na_Glass_#{opening_index}", arch, offset_z, y_offset, thickness, material) if arch
+
             GeometryHelpers.na_create_glass_pane(entities, opening_index, offset_x, y_offset, offset_z, glass_width, thickness, glass_height, material)
         end
         # ---------------------------------------------------------------
@@ -342,6 +354,7 @@ module Na__WindowSystem
             arch_amount      = [[(adv[:arch_amount]    || 2).to_i, 1].max, 8].min                  # <-- V1.9.4 Allow single lancet arch (was clamped to 2 minimum)
             arch_height      = (adv[:arch_height]      || 0).to_f
             arch_height_mm   = (adv[:arch_height_mm]   || 0).to_f
+            header_arch      = adv[:header_arch]                                       # <-- V2.5.2 Arched header rail: bars stop just inside it
 
             # Final bar centerlines (spacing -> margin / arch alignment ->
             # uniform h_offset -> per-bar offsets), shared with the leaded
@@ -357,7 +370,10 @@ module Na__WindowSystem
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "horizontal", i)
 
                     bar_z = bar_center_z - (bar_width / 2)
-                    GeometryHelpers.na_create_glaze_bar_horizontal(entities, opening_index, i, offset_x, y_offset, bar_z, glass_width, bar_depth, bar_width, material)
+                    run = ArchedHeaderBuilder.na_trim_run(header_arch, offset_x, glass_width, bar_z)
+                    next unless run
+
+                    GeometryHelpers.na_create_glaze_bar_horizontal(entities, opening_index, i, run[0], y_offset, bar_z, run[1], bar_depth, bar_width, material)
                 end
             end
 
@@ -368,7 +384,10 @@ module Na__WindowSystem
                     next if na_glazebar_removed?(removed_glazebars, opening_layout_index, cell_index, panel_index, sash_index, "vertical", i)
 
                     bar_x = bar_center_x - (bar_width / 2)
-                    GeometryHelpers.na_create_glaze_bar_vertical(entities, opening_index, i, bar_x, y_offset, offset_z, bar_width, bar_depth, effective_glass_height, material)
+                    bar_height = ArchedHeaderBuilder.na_trim_height(header_arch, bar_x, bar_x + bar_width, offset_z, effective_glass_height)
+                    next unless bar_height
+
+                    GeometryHelpers.na_create_glaze_bar_vertical(entities, opening_index, i, bar_x, y_offset, offset_z, bar_width, bar_depth, bar_height, material)
                 end
             end
 

@@ -64,6 +64,18 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Emit a Closed Outline From [x, z] Pairs, Lifted Over the Cill
+    // ------------------------------------------------------------
+    function na_outline(layer, points, lift) {
+        let dxf = '';
+        points.forEach(function (point, index) {
+            const next = points[(index + 1) % points.length];
+            dxf += na_line(layer, point[0], point[1] + lift, next[0], next[1] + lift);
+        });
+        return dxf;
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | Emit a DXF CIRCLE Entity
     // ------------------------------------------------------------
     function na_circle(layer, x, y, radius) {
@@ -235,6 +247,8 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
         // ------------------------------------------------------------
         function na_add_leaf_glazebars(config, leaf, glass, lift, pane) {
             const cellIndex = pane ? pane.cellIndex : 0;                    // <-- V2.3.0 Lower pane of a Glazed Over Glazed leaf
+            const arch      = pane ? null : leaf.panelLayout.arch;          // <-- V2.5.2 Bars stop at the arched header
+            const archMath  = window.Na__ArchMath;
             let dxf = '';
             const verticalPositions = na_apply_offsets(
                 na_bar_positions(
@@ -259,22 +273,26 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
 
             verticalPositions.forEach(function (vx, index) {
                 if (removedBars.has(na_glazebar_key(leaf, 'vertical', index + 1, cellIndex))) return;
+                const barHeight = arch ? archMath.na_trimHeight(arch, vx, vx, glass.zMm, glass.heightMm) : glass.heightMm;
+                if (!barHeight) return;
                 dxf += na_line(
                     'NA_GLAZEBAR',
                     vx,
                     glass.zMm + lift,
                     vx,
-                    glass.zMm + glass.heightMm + lift
+                    glass.zMm + barHeight + lift
                 );
             });
             horizontalPositions.forEach(function (position, index) {
                 if (removedBars.has(na_glazebar_key(leaf, 'horizontal', index + 1, cellIndex))) return;
                 const hz = position + (pane ? 0 : leaf.settings.horizontalOffsetMm);
+                const run = arch ? archMath.na_trimRun(arch, glass.xMm, glass.widthMm, hz) : [glass.xMm, glass.widthMm];
+                if (!run) return;
                 dxf += na_line(
                     'NA_GLAZEBAR',
-                    glass.xMm,
+                    run[0],
                     hz + lift,
-                    glass.xMm + glass.widthMm,
+                    run[0] + run[1],
                     hz + lift
                 );
             });
@@ -286,6 +304,9 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
         // ------------------------------------------------------------
         function na_add_leaf_elevation(config, leaf, lift) {
             const layout = leaf.panelLayout;
+            const arch = layout.arch;                                       // <-- V2.5.2 Arched header over the top glass, null when off
+            const archMath = window.Na__ArchMath;
+            const stileHeight = arch ? archMath.na_stileHeight(arch, leaf.originZMm, leaf.heightMm) : leaf.heightMm;
             let dxf = na_rect(
                 'NA_DOOR_LEAF',
                 leaf.originXMm,
@@ -293,13 +314,13 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
                 leaf.widthMm,
                 leaf.heightMm
             );
-            dxf += na_rect('NA_RAIL_STILE', leaf.originXMm, leaf.originZMm + lift, layout.stileMm, leaf.heightMm);
+            dxf += na_rect('NA_RAIL_STILE', leaf.originXMm, leaf.originZMm + lift, layout.stileMm, stileHeight);
             dxf += na_rect(
                 'NA_RAIL_STILE',
                 leaf.originXMm + leaf.widthMm - layout.stileMm,
                 leaf.originZMm + lift,
                 layout.stileMm,
-                leaf.heightMm
+                stileHeight
             );
             dxf += na_rect(
                 'NA_RAIL_STILE',
@@ -308,13 +329,19 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
                 leaf.widthMm - 2 * layout.stileMm,
                 layout.bottomRailMm
             );
-            dxf += na_rect(
-                'NA_RAIL_STILE',
-                leaf.originXMm + layout.stileMm,
-                leaf.originZMm + leaf.heightMm - layout.topRailMm + lift,
-                leaf.widthMm - 2 * layout.stileMm,
-                layout.topRailMm
-            );
+            if (arch) {
+                dxf += na_outline('NA_RAIL_STILE', archMath.na_headOutline(
+                    arch, leaf.originXMm, leaf.originXMm + leaf.widthMm, leaf.originZMm + leaf.heightMm
+                ), lift);
+            } else {
+                dxf += na_rect(
+                    'NA_RAIL_STILE',
+                    leaf.originXMm + layout.stileMm,
+                    leaf.originZMm + leaf.heightMm - layout.topRailMm + lift,
+                    leaf.widthMm - 2 * layout.stileMm,
+                    layout.topRailMm
+                );
+            }
 
             if (layout.midRailZMm !== null && layout.glazedRegion) {
                 dxf += na_rect(
@@ -340,7 +367,9 @@ const Na__ExtDoorCommon__DxfExporter = (function () {
 
             if (layout.glazedRegion) {
                 const glass = layout.glazedRegion;
-                dxf += na_rect('NA_GLASS', glass.xMm, glass.zMm + lift, glass.widthMm, glass.heightMm);
+                dxf += arch
+                    ? na_outline('NA_GLASS', archMath.na_glassOutline(arch, glass.zMm), lift)
+                    : na_rect('NA_GLASS', glass.xMm, glass.zMm + lift, glass.widthMm, glass.heightMm);
                 dxf += na_add_leaf_glazebars(config, leaf, glass, lift);
             }
             if (layout.lowerGlazedRegion && layout.glazedRegion) {          // <-- V2.3.0 Glazed Over Glazed

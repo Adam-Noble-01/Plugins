@@ -183,6 +183,7 @@ const Na__Export__Dxf = (function() {
             vOffsetsMm    : window.Na__GlazebarMath ? window.Na__GlazebarMath.na_collectBarOffsets(config, 'glazebar_v_offset_', vBars) : []    // <-- Per-bar horizontal nudges
         };
         const removedCasementSet = na_getRemovedCasementSetForDxf(config.removed_casements); // <-- Per-panel removal lookup with legacy support
+        const archedHeader = window.Na__ArchMath ? window.Na__ArchMath.na_settings(config, '') : null;   // <-- V2.5.2 Null unless Arched Header Rail is on
 
         const useIndividualSizes = config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (config.casement_top_rail_mm || casementWidth) : casementWidth;
@@ -254,6 +255,7 @@ const Na__Export__Dxf = (function() {
 
             openingLayout.cells.forEach((cell, cellIndex) => {
                 const panelWidth = cell.width / casementsPerOpening;
+                const cellArch = cellIndex === openingLayout.cells.length - 1 ? archedHeader : null;   // <-- The top casement of each light takes it
 
                 for (let p = 0; p < casementsPerOpening; p++) {
                     const panelX = cell.x + (p * panelWidth);
@@ -273,7 +275,8 @@ const Na__Export__Dxf = (function() {
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p },
                                 removedGlazebars,
                                 sashHornOptions,
-                                advancedGlazebar
+                                advancedGlazebar,
+                                cellArch
                             );
                         } else {
                             // Per Casement Settings (V1.8.0) - this casement's own
@@ -288,7 +291,8 @@ const Na__Export__Dxf = (function() {
                                 hBars, vBars, barWidth,
                                 { openingIndex: i, cellIndex: cellIndex, panelIndex: p, sashIndex: 0 },
                                 removedGlazebars,
-                                advancedGlazebar
+                                advancedGlazebar,
+                                cellArch
                             );
                         }
                     } else {
@@ -332,21 +336,31 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Casement DXF
     // ------------------------------------------------------------
-    function na_generateCasementDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
+    // archedHeader (V2.5.2, optional): settings from Na__ArchMath.na_settings
+    // when this casement takes the arched header.
+    function na_generateCasementDxf(x, y, width, height, topRail, bottomRail, leftStile, rightStile, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, archedHeader) {
         let dxf = '';
-
-        dxf += na_dxfRect(x, y, leftStile, height);
-        dxf += na_dxfRect(x + width - rightStile, y, rightStile, height);
-        dxf += na_dxfRect(x + leftStile, y, width - leftStile - rightStile, bottomRail);
-        dxf += na_dxfRect(x + leftStile, y + height - topRail, width - leftStile - rightStile, topRail);
 
         const glassX = x + leftStile;
         const glassY = y + bottomRail;
         const glassWidth = width - leftStile - rightStile;
         const glassHeight = height - topRail - bottomRail;
+        const archMath = window.Na__ArchMath;
+        const arch = (archMath && archedHeader) ? archMath.na_resolve(archedHeader, glassX, glassY, glassWidth, glassHeight) : null;
+        const stileHeight = arch ? archMath.na_stileHeight(arch, y, height) : height;
 
-        dxf += na_dxfRect(glassX, glassY, glassWidth, glassHeight);
-        dxf += na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar);
+        dxf += na_dxfRect(x, y, leftStile, stileHeight);
+        dxf += na_dxfRect(x + width - rightStile, y, rightStile, stileHeight);
+        dxf += na_dxfRect(x + leftStile, y, width - leftStile - rightStile, bottomRail);
+        if (arch) {
+            dxf += na_dxfOutline(archMath.na_headOutline(arch, x, x + width, y + height));
+            dxf += na_dxfOutline(archMath.na_glassOutline(arch, glassY));
+        } else {
+            dxf += na_dxfRect(x + leftStile, y + height - topRail, width - leftStile - rightStile, topRail);
+            dxf += na_dxfRect(glassX, glassY, glassWidth, glassHeight);
+        }
+
+        dxf += na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, arch);
 
         return dxf;
     }
@@ -367,9 +381,11 @@ const Na__Export__Dxf = (function() {
     // Honours Advanced Glazebar Controls so the DXF stream matches the
     // live SVG preview and Ruby 3D model exactly. Margin glazing shifts
     // the outer pair of bars; Gothic Arch shrinks the effective bar zone
-    // and emits a tessellated chain of rectangles per arc.
-    function na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar) {
+    // and emits a tessellated chain of rectangles per arc. headerArch
+    // (V2.5.2, optional) is the arched header over this glass: bars stop at it.
+    function na_generateGlazeBarDxf(glassX, glassY, glassWidth, glassHeight, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, headerArch) {
         let dxf = '';
+        const archMath = window.Na__ArchMath;
         const math = window.Na__GlazebarMath;
         const adv  = advancedGlazebar || {};
         const archEnabled   = adv.archEnabled === true;
@@ -404,7 +420,8 @@ const Na__Export__Dxf = (function() {
                 );
                 if (removedGlazebars.has(barKey)) continue;
                 const barY = hPositions[b - 1] - (barWidth / 2);
-                dxf += na_dxfRect(glassX, barY, glassWidth, barWidth);
+                const run = (archMath && headerArch) ? archMath.na_trimRun(headerArch, glassX, glassWidth, barY) : [glassX, glassWidth];
+                if (run) dxf += na_dxfRect(run[0], barY, run[1], barWidth);
             }
         }
 
@@ -433,7 +450,10 @@ const Na__Export__Dxf = (function() {
                 );
                 if (removedGlazebars.has(barKey)) continue;
                 const barX = vPositions[b - 1] - (barWidth / 2);
-                dxf += na_dxfRect(barX, glassY, barWidth, effectiveGlassHeight);
+                const barHeight = (archMath && headerArch)
+                    ? archMath.na_trimHeight(headerArch, barX, barX + barWidth, glassY, effectiveGlassHeight)
+                    : effectiveGlassHeight;
+                if (barHeight) dxf += na_dxfRect(barX, glassY, barWidth, barHeight);
             }
         }
 
@@ -599,7 +619,7 @@ const Na__Export__Dxf = (function() {
 
     // FUNCTION | Generate Sliding Sash Panel DXF
     // ------------------------------------------------------------
-    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, meetingRailOffsetMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar) {
+    function na_generateSlidingSashPanelDxf(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, hBars, vBars, barWidth, overlapMm, meetingRailOffsetMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar, archedHeader) {
         const meetingRailY = na_resolveMeetingRailHeight(height, meetingRailOffsetMm);
         const bottomSashHeight = meetingRailY;                                              // <-- Cell floor up to the meeting rail
         const topSashHeight = height - meetingRailY;                                        // <-- Meeting rail up to the cell head
@@ -640,7 +660,8 @@ const Na__Export__Dxf = (function() {
                 sashIndex: 0
             },
             removedGlazebars,
-            advancedGlazebar
+            advancedGlazebar,
+            archedHeader                                                    // <-- The bottom sash's head is the flat meeting rail
         );
 
         dxf += na_generateSlidingSashHornDxf(
@@ -776,7 +797,14 @@ const Na__Export__Dxf = (function() {
         return dxf;
     }
     // ---------------------------------------------------------------
-    
+
+    // FUNCTION | Generate a Closed DXF Outline From [x, z] Pairs (V2.5.2)
+    // ------------------------------------------------------------
+    function na_dxfOutline(pairs) {
+        return na_dxfPolygon(pairs.map(pair => ({ x: pair[0], y: pair[1] })));
+    }
+    // ---------------------------------------------------------------
+
     // Public API
     // ------------------------------------------------------------
     return {

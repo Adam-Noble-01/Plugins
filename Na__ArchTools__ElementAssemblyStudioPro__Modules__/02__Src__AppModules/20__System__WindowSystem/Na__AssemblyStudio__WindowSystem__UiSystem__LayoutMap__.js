@@ -46,6 +46,11 @@
 
     const NA_DOOR_PREFIX = { single: 'single_door', double: 'double_door', bifold: 'bifold_door', sliding: 'sliding_door' };
 
+    const NA_ARCH_KEYWORDS         = 'arched arch head header rail curved segmental segmented round top semicircular';   // <-- V2.5.2 Search words for the Arched Header Rail
+    const NA_ARCH_HEIGHT_KEYWORDS  = 'arch height rise segmental';
+    const NA_ARCH_TRUE_KEYWORDS    = 'true arch semicircle semicircular full round head';
+    const NA_ARCH_SEGMENT_KEYWORDS = 'arc segments facets smooth 12 24 48';
+
     const NA_PRODUCTS = [
         { key: 'casement', group: 'Window',        label: 'Casement',     title: 'Casement Window',     category: 'Window',        type: 'Casement',
           icon: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3v18"/><path d="M13.5 5.5 18 12l-4.5 6.5" opacity=".55"/>' },
@@ -141,6 +146,43 @@
             text: 'a Leaf Composition with fielded panels',
             fix : [[composition, cfg => ((cfg[composition] === 'FullyGlazed' || cfg[composition] === 'GlazedOverGlazed') ? 'GlazedOverFielded' : cfg[composition])]]
         };
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Does a Door Type Have Glass to Arch Over (V2.5.2)
+    // ------------------------------------------------------------
+    // A fully fielded leaf has none. A pair can still glaze one leaf through
+    // its per-leaf overrides.
+    function na_door_has_glass(cfg, prefix) {
+        if (cfg[prefix + '_leaf_composition'] !== 'FullyFielded') return true;
+        if (prefix !== 'double_door' || cfg.double_door_leaf_settings_linked !== false) return false;
+        return ['left', 'right'].some(side => {
+            const base = 'double_door_' + side + '_';
+            return cfg[base + 'leaf_override_enabled'] === true && cfg[base + 'leaf_composition'] !== 'FullyFielded';
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | One Item per Door Type for the Arched Header Rail (V2.5.2)
+    // ------------------------------------------------------------
+    // The switch, then the options it opens, which travel with it.
+    function na_door_arched_header_items() {
+        const inside = (suffix, kw) => na_door_items(NA_D, suffix, 2, (product, prefix) => ({
+            inside: prefix + '_arched_header_enabled',
+            need  : { text: 'Arched Header Rail on', fix: [[prefix + '_arched_header_enabled', true]] },
+            kw    : kw
+        }));
+        return [].concat(
+            na_door_items(NA_D, 'arched_header_enabled', 2, (product, prefix) => ({
+                kind  : 'switchgroup',
+                showIf: cfg => na_door_has_glass(cfg, prefix),
+                need  : { text: 'a Leaf Composition with glass', fix: [[prefix + '_leaf_composition', 'FullyGlazed']] },
+                kw    : NA_ARCH_KEYWORDS
+            })),
+            inside('arched_header_height_mm', NA_ARCH_HEIGHT_KEYWORDS),
+            inside('arched_header_true_arch', NA_ARCH_TRUE_KEYWORDS),
+            inside('arched_header_segments', NA_ARCH_SEGMENT_KEYWORDS)
+        );
     }
     // ---------------------------------------------------------------
 
@@ -241,6 +283,17 @@
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | The Arched Header Rail, in a Section Summary (V2.5.2)
+    // ------------------------------------------------------------
+    // @param {string} keyPrefix - '' for windows, 'single_door_' and so on for doors
+    function na_arch_summary(cfg, keyPrefix) {
+        if (cfg[keyPrefix + 'arched_header_enabled'] !== true) return '';
+        return cfg[keyPrefix + 'arched_header_true_arch'] === true
+            ? 'true arch'
+            : 'arched ' + na_num(cfg[keyPrefix + 'arched_header_height_mm']);
+    }
+    // ---------------------------------------------------------------
+
     // HELPER FUNCTION | The Active Door Type's Leaf Composition
     // ------------------------------------------------------------
     function na_door_composition(cfg, product) {
@@ -291,6 +344,7 @@
             const composition = na_door_composition(cfg, product);
             const parts = [na_option_label(prefix + '_leaf_composition', composition)];
             if (composition === 'GlazedOverFielded' || composition === 'GlazedOverGlazed') parts.push('midrail ' + na_num(cfg[prefix + '_mid_rail_width_mm']));
+            if (composition !== 'FullyFielded' && na_arch_summary(cfg, prefix + '_')) parts.push(na_arch_summary(cfg, prefix + '_'));
             if (product === 'double' && cfg.double_door_leaf_settings_linked === false) parts.push('leaves differ');
             return parts.join(' · ');
         },
@@ -326,11 +380,12 @@
         sashes: (cfg, product) => {
             if (cfg.show_casements === false) return 'Glass only';
             const size = cfg.casement_sizes_individual === true ? 'Individual sizes' : na_num(cfg.casement_width_mm) + ' rails & stiles';
+            const arch = na_arch_summary(cfg, '') ? ' · ' + na_arch_summary(cfg, '') : '';
             if (product === 'sash') {
                 const horns = cfg.sash_horns_enabled === false ? 'no horns' : 'horns ' + na_option_label('sash_horn_type', cfg.sash_horn_type);
-                return size + ' · ' + horns + (cfg.meeting_rail_position_override === true ? ' · rail moved' : '');
+                return size + arch + ' · ' + horns + (cfg.meeting_rail_position_override === true ? ' · rail moved' : '');
             }
-            return size + ' · set back ' + na_num(cfg.casement_inset_mm);
+            return size + arch + ' · set back ' + na_num(cfg.casement_inset_mm);
         },
 
         hardware: (cfg, product) => {
@@ -415,6 +470,7 @@
     const NA_NEED_LEAD_MARGIN_Y = { text: 'Leaded Glass, Lead Line Margins and Y Margin on',
                                     fix: [['leaded_glass_enabled', true], ['leaded_margins_enabled', true], ['leaded_margin_y_enabled', true]] };
     const NA_NEED_GOTHIC       = { text: 'Glaze Bar Gothic Arch Decoration on', fix: [['glazebar_gothic_arch_enabled', true]] };
+    const NA_NEED_ARCH         = { text: 'Arched Header Rail on', fix: [['show_casements', true], ['arched_header_enabled', true]] };
 
     const NA_SECTIONS = [
         {
@@ -491,6 +547,7 @@
                 na_door_items(NA_D, { hinged: 'panel_stile_width_mm', set: 'stile_width_mm' }, 2, () => ({ kw: 'perimeter stile width' })),
                 na_door_items(NA_D, { hinged: 'panel_top_rail_width_mm', set: 'head_rail_mm' }, 2, () => ({ kw: 'top rail head rail' })),
                 na_door_items(NA_D, { hinged: 'panel_bottom_rail_width_mm', set: 'base_rail_mm' }, 2, () => ({ kw: 'bottom rail base rail kick' })),
+                na_door_arched_header_items(),
                 [
                     { id: 'double_door_leaf_settings_linked', tier: 3, group: 'Per-Leaf Overrides', products: ['double'], kw: 'link leaf settings override per leaf' },
                     { id: 'na_leaf_picker', kind: 'picker', tier: 3, group: 'Per-Leaf Overrides', products: ['double'], label: 'Editing', nosearch: true,
@@ -611,6 +668,12 @@
                   need: { text: 'Individual Casement Sizes on', fix: [['casement_sizes_individual', true]] } },
                 { id: 'casement_right_stile_mm', inside: 'casement_sizes_individual', kw: 'casement sash right stile',
                   need: { text: 'Individual Casement Sizes on', fix: [['casement_sizes_individual', true]] } },
+                { id: 'arched_header_enabled', tier: 2, kind: 'switchgroup', products: NA_W, kw: NA_ARCH_KEYWORDS,
+                  showIf: cfg => cfg.show_casements !== false,
+                  need: { text: 'Show Casements on', fix: [['show_casements', true]] } },
+                { id: 'arched_header_height_mm', inside: 'arched_header_enabled', kw: NA_ARCH_HEIGHT_KEYWORDS, need: NA_NEED_ARCH },
+                { id: 'arched_header_true_arch', inside: 'arched_header_enabled', kw: NA_ARCH_TRUE_KEYWORDS, need: NA_NEED_ARCH },
+                { id: 'arched_header_segments', inside: 'arched_header_enabled', kw: NA_ARCH_SEGMENT_KEYWORDS, need: NA_NEED_ARCH },
                 { id: 'casement_depth_mm', tier: 2, products: NA_W, kw: 'casement sash depth thickness' },
                 { id: 'casement_inset_mm', tier: 2, products: NA_W, kw: 'casement frame inset set back proud flush' },
                 { id: 'sliding_sash_overlap_mm', tier: 2, products: ['sash'], kw: 'sliding sash overlap meeting' },
@@ -682,7 +745,11 @@
 
     // Expandables whose open state is itself a setting. Every other expandable
     // is only a box and has no default worth comparing against.
-    const NA_SETTING_EXPANDABLES = ['advanced_frame_controls', 'casement_sizes_individual'];
+    const NA_SETTING_EXPANDABLES = [
+        'advanced_frame_controls', 'casement_sizes_individual',
+        'arched_header_enabled', 'single_door_arched_header_enabled', 'double_door_arched_header_enabled',
+        'bifold_door_arched_header_enabled', 'sliding_door_arched_header_enabled'
+    ];
 
     // A door type starts at its own opening (na_applyDoorModeDefaultDimensions)
     // and a sliding sash with its own rails (na_applySlidingSashCasementDefaults),

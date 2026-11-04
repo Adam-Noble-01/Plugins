@@ -106,6 +106,59 @@ function na_buildCasementOverrideDescriptors(keyToken, title, values) {
 }
 // ------------------------------------------------------------
 
+// FUNCTION | Build the Arched Header Rail Control (V2.5.2)
+// ------------------------------------------------------------
+// A switch that opens its own options, the shape of Individual Casement Sizes.
+// Windows hold the keys bare; each exterior door type holds its own under its
+// prefix, because a control has one slot and the door types keep theirs in
+// Leaves. Na__ArchMath and Na__ArchedHeaderBuilder read them.
+//
+// Arch Height starts as a slight segmental arc. Its slider tops out at a true
+// arch over the widest glass (MainUiLogic na_updateArchedHeaderControls), so
+// the max here only bounds the descriptor: half the widest door set. True Arch
+// holds each casement at its own semicircle whatever its width, and so hides
+// the height.
+// @param {string} keyPrefix - '' for windows, 'single_door_' and so on for doors
+// @return {Object}            Expandable descriptor
+function na_buildArchedHeaderDescriptor(keyPrefix) {
+    return {
+        id      :  keyPrefix + 'arched_header_enabled',
+        label   :  'Arched Header Rail',
+        type    :  'expandable',
+        default :  false,
+        children: [
+            {
+                id      :  keyPrefix + 'arched_header_height_mm',
+                label   :  'Arch Height',
+                unit    :  'mm',
+                type    :  'slider',
+                min     :  20,
+                max     :  4000,
+                step    :  5,
+                default :  60
+            },
+            {
+                id      :  keyPrefix + 'arched_header_true_arch',
+                label   :  'True Arch',
+                type    :  'toggle',
+                default :  false
+            },
+            {
+                id      :  keyPrefix + 'arched_header_segments',
+                label   :  'Arc Segments',
+                type    :  'select',
+                default :  '12',
+                options :  [
+                    { value: '12', label: '12 Segments' },
+                    { value: '24', label: '24 Segments' },
+                    { value: '48', label: '48 Segments' }
+                ]
+            }
+        ]
+    };
+}
+// ------------------------------------------------------------
+
 // CONSTANTS | Primary UI Control Configuration
 // ------------------------------------------------------------
 const NA_UI_CONFIG = [
@@ -247,6 +300,7 @@ const NA_UI_CONFIG = [
             }
         ]
     },
+    na_buildArchedHeaderDescriptor(''),
     {
         id      :  'advanced_casement_controls',
         label   :  'Advanced Casement Controls',
@@ -1142,6 +1196,7 @@ const NA_WINDOW_BOARD_CONFIG = [
 window.NA_UI_CONFIG = NA_UI_CONFIG;
 window.NA_CASEMENT_OVERRIDE_FIELDS = NA_CASEMENT_OVERRIDE_FIELDS;
 window.na_buildCasementOverrideDescriptors = na_buildCasementOverrideDescriptors;
+window.na_buildArchedHeaderDescriptor = na_buildArchedHeaderDescriptor;
 window.NA_GLAZEBAR_CONFIG = NA_GLAZEBAR_CONFIG;
 window.NA_CILL_FRAME_CONFIG = NA_CILL_FRAME_CONFIG;
 window.NA_OPTIONS_CONFIG = NA_OPTIONS_CONFIG;

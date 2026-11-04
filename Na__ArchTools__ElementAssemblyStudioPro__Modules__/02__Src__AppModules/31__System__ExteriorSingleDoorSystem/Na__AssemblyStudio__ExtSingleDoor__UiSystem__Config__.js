@@ -73,6 +73,7 @@
         na_slider('single_door_panel_top_rail_width_mm', 'Top Rail Width', 40, 300, 5, 95, 'Leaf Construction'),
         na_slider('single_door_panel_bottom_rail_width_mm', 'Bottom Rail Width', 40, 400, 5, 150, 'Leaf Construction'),
         na_slider('single_door_mid_rail_width_mm', 'Separating Midrail Width', 40, 300, 5, 120, 'Leaf Construction'),
+        window.na_buildArchedHeaderDescriptor('single_door_'),              // <-- V2.5.2 @delegate: WindowSystem UiSystem Config
 
         na_select('single_door_panel_output_mode', 'Panel Output', 'ThreeDimensional', [
             { value: 'Linework', label: 'Linework' },

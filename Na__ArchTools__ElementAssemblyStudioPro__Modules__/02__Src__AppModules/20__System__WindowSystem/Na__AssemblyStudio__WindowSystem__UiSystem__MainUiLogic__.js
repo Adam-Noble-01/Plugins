@@ -101,6 +101,10 @@ const Na_DynamicUI = (function() {
         ['panel_top_rail_width_mm',     'head_rail_mm'],
         ['panel_bottom_rail_width_mm',  'base_rail_mm'],
         ['mid_rail_width_mm',           'mid_rail_width_mm'],
+        ['arched_header_enabled',       'arched_header_enabled'],
+        ['arched_header_height_mm',     'arched_header_height_mm'],
+        ['arched_header_true_arch',     'arched_header_true_arch'],
+        ['arched_header_segments',      'arched_header_segments'],
         ['panel_output_mode',           'panel_output_mode'],
         ['panel_profile',               'panel_profile'],
         ['panel_preset',                'panel_preset'],
@@ -693,6 +697,7 @@ const Na_DynamicUI = (function() {
         na_updateGlazebarOffsetVisibility();
         na_updateLeadedGlassVisibility();
         na_clampGlazebarMarginOffset();
+        na_updateArchedHeaderControls();
         na_updateMullionOffsetVisibility();
         na_updateTransomControlVisibility();
         na_updateWindowOnlyControlsVisibility();                                // <-- Phase 9: Hide casement/mullion/transom/sliding-sash controls in bifold/sliding mode
@@ -1502,6 +1507,68 @@ const Na_DynamicUI = (function() {
     }
     // ---------------------------------------------------------------
 
+    // FUNCTION | Keep the Arched Header Rail Options True to the Element (V2.5.2)
+    // ------------------------------------------------------------
+    // True Arch sets each casement's rise from its own glass, so it hides the
+    // Arch Height. The slider tops out at a true arch over the widest glass in
+    // the element. The stored height is left alone when that shrinks: a narrow
+    // casement holds its own true arch, and widening the window again brings
+    // the set height back.
+    function na_updateArchedHeaderControls() {
+        const keyPrefix = na_activeArchKeyPrefix();
+        const heightId = `${keyPrefix}arched_header_height_mm`;
+        const heightControl = document.querySelector(`[data-control-id="${heightId}"]`);
+        if (heightControl) heightControl.style.display = _config[`${keyPrefix}arched_header_true_arch`] === true ? 'none' : '';
+
+        const archMath = window.Na__ArchMath;
+        if (!archMath || _config[`${keyPrefix}arched_header_enabled`] !== true) return;
+
+        const maxHeight = archMath.na_sliderMaxMm(na_getWidestArchSpanMm());
+        const slider = document.getElementById(`${heightId}-slider`);
+        const input  = document.getElementById(`${heightId}-input`);
+        if (input)  input.max  = String(maxHeight);
+        if (slider) {
+            slider.max = String(maxHeight);
+            slider.value = Number(_config[heightId]) || 60;                     // <-- The browser pulled it in under the last max
+        }
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Key Prefix of the Active Product's Arched Header Rail
+    // ------------------------------------------------------------
+    function na_activeArchKeyPrefix() {
+        const modeId = na_resolveActiveProductModeId();
+        return NA_EXT_DOOR_TYPE_PREFIXES[modeId] ? `${NA_EXT_DOOR_TYPE_PREFIXES[modeId]}_` : '';
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | Widest Glass the Active Element Could Arch Over (mm)
+    // ------------------------------------------------------------
+    function na_getWidestArchSpanMm() {
+        function na_widest(spans) {
+            return spans.reduce((widest, span) => Math.max(widest, Number(span) || 0), 0);
+        }
+
+        const resolver = na_getActiveExtDoorResolver();
+        if (resolver) {
+            return na_widest(resolver.na_resolve(_config).leaves.map(leaf =>
+                leaf.panelLayout.glazedRegion ? leaf.panelLayout.glazedRegion.widthMm : 0));
+        }
+        if (_config.multifold_mode === true && window.Na__ExtFold__PanelConfigResolver) {
+            return na_widest(window.Na__ExtFold__PanelConfigResolver.na_resolve(_config).panels.map(panel =>
+                panel.panelLayout.glazedRegion ? panel.panelLayout.glazedRegion.widthMm : 0));
+        }
+        if (_config.sliding_mode === true) {
+            const count = Math.max(2, Number(_config.sliding_door_panel_count) || 2);
+            return (na_getInnerFrameWidthMm() / count) - (2 * (Number(_config.sliding_door_stile_width_mm) || 95));
+        }
+        return na_widest(window.Na__CasementMath
+            ? window.Na__CasementMath.na_enumerateCasements(_config).map(casement =>
+                casement.width - casement.sizes.left_stile_mm - casement.sizes.right_stile_mm)
+            : []);
+    }
+    // ---------------------------------------------------------------
+
     // FUNCTION | Toggle Per-Mullion Offset Slider Visibility
     // ------------------------------------------------------------
     // Static pool of six sliders (mullion_offset_N_mm, N = 1..6) matching
@@ -1689,6 +1756,9 @@ const Na_DynamicUI = (function() {
     // Windows and doors saved before V2.4.0 have plain cills:
     //   * cill_horns_enabled - Off, or another element's horns would ride
     //     into this one on the next rebuild.
+    // Windows and doors saved before V2.5.2 have flat heads:
+    //   * arched_header_enabled, and each door type's own - Off, or another
+    //     element's arch would ride into this one on the next rebuild.
     // Only called for whole configurations; the measurement path sends a
     // partial one that must not wipe anything.
     function na_hydrateFullWindowConfig(cfg) {
@@ -1709,6 +1779,10 @@ const Na_DynamicUI = (function() {
         if (typeof cfg.cill_horns_enabled === 'undefined') {
             cfg.cill_horns_enabled = false;
         }
+        ['', ...Object.values(NA_EXT_DOOR_TYPE_PREFIXES).map(prefix => `${prefix}_`)].forEach(keyPrefix => {
+            const key = `${keyPrefix}arched_header_enabled`;
+            if (typeof cfg[key] === 'undefined') cfg[key] = false;
+        });
         if (typeof cfg.leaded_margins_enabled === 'undefined') {
             cfg.leaded_margins_enabled = false;
         }
@@ -1758,6 +1832,7 @@ const Na_DynamicUI = (function() {
         const alwaysWindowOnlyIds = [
             'casement_width_mm',                                                // <-- Casement controls (single + advanced)
             'casement_sizes_individual',                                        // <-- Casement individual rail/stile expandable
+            'arched_header_enabled',                                            // <-- V2.5.2 Each door type holds its own
             'advanced_casement_controls',                                       // <-- Casement depth/inset/glazing thickness expandable
             'mullions',                                                         // <-- Window-only (split openings)
             'mullion_width_mm',                                                 // <-- Window-only mullion thickness

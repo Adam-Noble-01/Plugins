@@ -86,6 +86,7 @@ module Na__AssemblyComposer
     MovementPivotBuilder = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__MovementPivotBuilder
     WindowBuilders       = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
     LeadedGlassBuilder   = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
+    ArchedHeader         = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
     NA_PANEL_NAMING      = { :container => 'Na__ExteriorMultiFoldDoor' }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -410,26 +411,29 @@ module Na__AssemblyComposer
             head_rail_mm   = config_hash["bifold_door_head_rail_mm"].to_f
             base_rail_mm   = config_hash["bifold_door_base_rail_mm"].to_f
             stile_width_mm = config_hash["bifold_door_stile_width_mm"].to_f
+            arch = na_resolve_clear_box_arch(config_hash, origin_x_mm, origin_z_mm,
+                                             panel_w_mm, panel_h_mm,
+                                             head_rail_mm, base_rail_mm, stile_width_mm)   # <-- V2.5.2 Arched header, nil when off
             na_build_panel_stiles(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                   panel_w_mm, panel_h_mm, panel_t_mm,
-                                  stile_width_mm, part_names, frame_material)
+                                  stile_width_mm, part_names, frame_material, arch)
             na_build_panel_rails(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                  panel_w_mm, panel_h_mm, panel_t_mm,
-                                 head_rail_mm, base_rail_mm, stile_width_mm, part_names, frame_material)
+                                 head_rail_mm, base_rail_mm, stile_width_mm, part_names, frame_material, arch)
             na_build_panel_glazing(mod_entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                    panel_w_mm, panel_h_mm, panel_t_mm,
-                                   head_rail_mm, base_rail_mm, stile_width_mm, part_names, glass_material)
+                                   head_rail_mm, base_rail_mm, stile_width_mm, part_names, glass_material, arch)
             na_build_panel_glaze_bars(mod_entities, config_hash, dims,
                                       origin_x_mm, origin_y_mm, origin_z_mm,
                                       panel_w_mm, panel_h_mm, panel_t_mm,
                                       head_rail_mm, base_rail_mm, stile_width_mm,
                                       panel_id, descriptor[:index].to_i - 1,
-                                      frame_material)
+                                      frame_material, arch)
             na_build_panel_leaded_glass(mod_entities, config_hash,
                                         origin_x_mm, origin_y_mm, origin_z_mm,
                                         panel_w_mm, panel_h_mm, panel_t_mm,
                                         head_rail_mm, base_rail_mm, stile_width_mm,
-                                        panel_id, descriptor[:index].to_i - 1)
+                                        panel_id, descriptor[:index].to_i - 1, arch)
         else
             na_build_fielded_leaf_members(mod_entities, leaf, panel_layout, part_names, frame_material)
             na_build_fielded_field_dividers(mod_entities, leaf, panel_layout, frame_material, panel_id)
@@ -461,16 +465,22 @@ module Na__AssemblyComposer
         stile = members[:stile_width_mm]
         top_rail = members[:top_rail_width_mm]
         bottom_rail = members[:bottom_rail_width_mm]
+        arch = layout[:arch]                                              # <-- V2.5.2 Arched header over the top glass, nil when off
+        stile_height = ArchedHeader.na_stile_height(arch, leaf[:origin_z_mm], leaf[:height_mm])
         na_create_box_mm(entities, part_names[:stile_left], leaf[:origin_x_mm], leaf[:origin_y_mm], leaf[:origin_z_mm],
-                         stile, leaf[:thickness_mm], leaf[:height_mm], material)
+                         stile, leaf[:thickness_mm], stile_height, material)
         na_create_box_mm(entities, part_names[:stile_right], leaf[:origin_x_mm] + leaf[:width_mm] - stile,
-                         leaf[:origin_y_mm], leaf[:origin_z_mm], stile, leaf[:thickness_mm], leaf[:height_mm], material)
+                         leaf[:origin_y_mm], leaf[:origin_z_mm], stile, leaf[:thickness_mm], stile_height, material)
         inner_width = leaf[:width_mm] - 2.0 * stile
         na_create_box_mm(entities, part_names[:rail_bottom], leaf[:origin_x_mm] + stile, leaf[:origin_y_mm], leaf[:origin_z_mm],
                          inner_width, leaf[:thickness_mm], bottom_rail, material)
-        na_create_box_mm(entities, part_names[:rail_top], leaf[:origin_x_mm] + stile, leaf[:origin_y_mm],
-                         leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
-                         inner_width, leaf[:thickness_mm], top_rail, material)
+        if arch
+            ArchedHeader.na_create_leaf_head(entities, part_names[:rail_top], arch, leaf, material)
+        else
+            na_create_box_mm(entities, part_names[:rail_top], leaf[:origin_x_mm] + stile, leaf[:origin_y_mm],
+                             leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
+                             inner_width, leaf[:thickness_mm], top_rail, material)
+        end
 
         mid_z = layout[:mid_rail_z_mm]
         return unless mid_z
@@ -499,9 +509,13 @@ module Na__AssemblyComposer
 
         glass_depth = [leaf[:thickness_mm] * 0.35, 2.0].max
         glass_y = leaf[:origin_y_mm] + (leaf[:thickness_mm] - glass_depth) / 2.0
-        na_create_box_mm(entities, part_names[:glazing],
-                         region[:x_mm], glass_y, region[:z_mm],
-                         region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
+        if layout[:arch]
+            ArchedHeader.na_create_leaf_glass(entities, part_names[:glazing], layout[:arch], region[:z_mm], glass_y, glass_depth, materials[:glass])
+        else
+            na_create_box_mm(entities, part_names[:glazing],
+                             region[:x_mm], glass_y, region[:z_mm],
+                             region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
+        end
 
         bars = layout[:glaze_bars]
         if bars && (bars[:vertical_count].to_i > 0 || bars[:horizontal_count].to_i > 0)
@@ -515,22 +529,27 @@ module Na__AssemblyComposer
 
             vertical_positions.each_with_index do |x, index|
                 next if removed_keys.include?(na_glazebar_key(leaf, 'vertical', index + 1, layout[:pane_cell].to_i))
+                height = ArchedHeader.na_trim_height(layout[:arch], x - bars[:width_mm] / 2.0, x + bars[:width_mm] / 2.0, region[:z_mm], region[:height_mm])
+                next unless height
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_V#{index + 1}",
                                  x - bars[:width_mm] / 2.0, y, region[:z_mm],
-                                 bars[:width_mm], depth, region[:height_mm], materials[:frame])
+                                 bars[:width_mm], depth, height, materials[:frame])
             end
             horizontal_positions.each_with_index do |z, index|
                 next if removed_keys.include?(na_glazebar_key(leaf, 'horizontal', index + 1, layout[:pane_cell].to_i))
+                run = ArchedHeader.na_trim_run(layout[:arch], region[:x_mm], region[:width_mm], z - bars[:width_mm] / 2.0)
+                next unless run
                 na_create_box_mm(entities, "Na_GlazeBar_#{panel_token}_H#{index + 1}",
-                                 region[:x_mm], y, z - bars[:width_mm] / 2.0,
-                                 region[:width_mm], depth, bars[:width_mm], materials[:frame])
+                                 run[0], y, z - bars[:width_mm] / 2.0,
+                                 run[1], depth, bars[:width_mm], materials[:frame])
             end
         end
 
         panel_id = part_names[:glazing].to_s.sub(/^Na_Glass_/, '')
         na_create_leaded_from_region_mm(
             entities, config_hash, panel_id, region, glass_y, leaf[:index].to_i - 1,
-            pane: layout[:pane_cell] ? layout : nil
+            pane: layout[:pane_cell] ? layout : nil,
+            header_arch: layout[:arch]
         )
     end
     private_class_method :na_build_fielded_glazed_region
@@ -656,15 +675,24 @@ module Na__AssemblyComposer
     def self.na_build_panel_rails(entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                   panel_w_mm, panel_h_mm, panel_t_mm,
                                   head_rail_mm, base_rail_mm, stile_width_mm,
-                                  part_names, material = nil)
+                                  part_names, material = nil, arch = nil)
         rail_x_mm = origin_x_mm + stile_width_mm
         rail_w_mm = panel_w_mm  - 2.0 * stile_width_mm
         return if rail_w_mm <= 0.0
 
         head_z_mm = origin_z_mm + (panel_h_mm - head_rail_mm)
-        na_create_box_mm(entities, part_names[:rail_top],
-                         rail_x_mm, origin_y_mm, head_z_mm,
-                         rail_w_mm, panel_t_mm, head_rail_mm, material)
+        if arch
+            ArchedHeader.na_create_leaf_head(
+                entities, part_names[:rail_top], arch,
+                { :origin_x_mm => origin_x_mm, :origin_y_mm => origin_y_mm, :origin_z_mm => origin_z_mm,
+                  :width_mm => panel_w_mm, :height_mm => panel_h_mm, :thickness_mm => panel_t_mm },
+                material
+            )
+        else
+            na_create_box_mm(entities, part_names[:rail_top],
+                             rail_x_mm, origin_y_mm, head_z_mm,
+                             rail_w_mm, panel_t_mm, head_rail_mm, material)
+        end
 
         na_create_box_mm(entities, part_names[:rail_bottom],
                          rail_x_mm, origin_y_mm, origin_z_mm,
@@ -680,19 +708,20 @@ module Na__AssemblyComposer
     # are constructed and matches the WindowSystem's casement frame.
     def self.na_build_panel_stiles(entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                    panel_w_mm, panel_h_mm, panel_t_mm,
-                                   stile_width_mm, part_names, material = nil)
+                                   stile_width_mm, part_names, material = nil, arch = nil)
         return if panel_h_mm <= 0.0
         return if stile_width_mm <= 0.0
         return if panel_w_mm <= 2.0 * stile_width_mm
 
+        stile_height = ArchedHeader.na_stile_height(arch, origin_z_mm, panel_h_mm)
         na_create_box_mm(entities, part_names[:stile_left],
                          origin_x_mm, origin_y_mm, origin_z_mm,
-                         stile_width_mm, panel_t_mm, panel_h_mm, material)
+                         stile_width_mm, panel_t_mm, stile_height, material)
 
         right_stile_x = origin_x_mm + (panel_w_mm - stile_width_mm)
         na_create_box_mm(entities, part_names[:stile_right],
                          right_stile_x, origin_y_mm, origin_z_mm,
-                         stile_width_mm, panel_t_mm, panel_h_mm, material)
+                         stile_width_mm, panel_t_mm, stile_height, material)
     end
     private_class_method :na_build_panel_stiles
     # ---------------------------------------------------------------
@@ -705,7 +734,7 @@ module Na__AssemblyComposer
     def self.na_build_panel_glazing(entities, origin_x_mm, origin_y_mm, origin_z_mm,
                                     panel_w_mm, panel_h_mm, panel_t_mm,
                                     head_rail_mm, base_rail_mm, stile_width_mm,
-                                    part_names, material = nil)
+                                    part_names, material = nil, arch = nil)
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
                                                  panel_w_mm, panel_h_mm,
                                                  head_rail_mm, base_rail_mm,
@@ -715,9 +744,13 @@ module Na__AssemblyComposer
         glaze_d_mm  = GeometryHelpers.na_compute_glazing_depth_mm(panel_t_mm)
         glaze_y_mm  = origin_y_mm + GeometryHelpers.na_compute_glazing_y_origin_mm(panel_t_mm)
 
-        na_create_box_mm(entities, part_names[:glazing],
-                         clear_box[:x], glaze_y_mm, clear_box[:z],
-                         clear_box[:width], glaze_d_mm, clear_box[:height], material)
+        if arch
+            ArchedHeader.na_create_leaf_glass(entities, part_names[:glazing], arch, clear_box[:z], glaze_y_mm, glaze_d_mm, material)
+        else
+            na_create_box_mm(entities, part_names[:glazing],
+                             clear_box[:x], glaze_y_mm, clear_box[:z],
+                             clear_box[:width], glaze_d_mm, clear_box[:height], material)
+        end
     end
     private_class_method :na_build_panel_glazing
     # ---------------------------------------------------------------
@@ -740,6 +773,27 @@ module Na__AssemblyComposer
     private_class_method :na_compute_clear_glazing_box
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | The Arched Header Over a Fully Glazed Panel (V2.5.2)
+    # ------------------------------------------------------------
+    # In millimetres. This path reads its rails straight from the config, so
+    # the arch comes from its own clear box.
+    def self.na_resolve_clear_box_arch(config_hash, origin_x_mm, origin_z_mm,
+                                       panel_w_mm, panel_h_mm,
+                                       head_rail_mm, base_rail_mm, stile_width_mm)
+        settings = ArchedHeader.na_settings(config_hash, 'bifold_door_')
+        return nil unless settings
+
+        clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
+                                                 panel_w_mm, panel_h_mm,
+                                                 head_rail_mm, base_rail_mm,
+                                                 stile_width_mm)
+        return nil unless clear_box
+
+        ArchedHeader.na_resolve(settings, clear_box[:x], clear_box[:z], clear_box[:width], clear_box[:height])
+    end
+    private_class_method :na_resolve_clear_box_arch
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Build the Glaze-Bar Grille for a Single Panel (Phase-9)
     # ------------------------------------------------------------
     # Mirrors the window casement grille: horizontal + vertical bars
@@ -752,7 +806,7 @@ module Na__AssemblyComposer
                                        origin_x_mm, origin_y_mm, origin_z_mm,
                                        panel_w_mm, panel_h_mm, panel_t_mm,
                                        head_rail_mm, base_rail_mm, stile_width_mm,
-                                       panel_id, panel_index, frame_material = nil)
+                                       panel_id, panel_index, frame_material = nil, arch = nil)
         h_bars = (config_hash["horizontal_glaze_bars"] || 0).to_i
         v_bars = (config_hash["vertical_glaze_bars"]   || 0).to_i
         gothic_arch_enabled = config_hash["glazebar_gothic_arch_enabled"] == true
@@ -762,7 +816,7 @@ module Na__AssemblyComposer
         bar_inset_mm    = (config_hash["glazebar_inset_mm"]  || 10).to_f
         glass_thick_mm  = (config_hash["glass_thickness_mm"] || 20).to_f
 
-        advanced_glazebar = na_fold_advanced_glazebar_hash(config_hash)
+        advanced_glazebar = na_fold_advanced_glazebar_hash(config_hash).merge(header_arch: ArchedHeader.na_scale(arch, ArchedHeader::NA_MM_TO_INCH))
 
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
                                                  panel_w_mm, panel_h_mm,
@@ -834,7 +888,7 @@ module Na__AssemblyComposer
                                          origin_x_mm, origin_y_mm, origin_z_mm,
                                          panel_w_mm, panel_h_mm, panel_t_mm,
                                          head_rail_mm, base_rail_mm, stile_width_mm,
-                                         panel_id, panel_index_0 = 0)
+                                         panel_id, panel_index_0 = 0, arch = nil)
         clear_box = na_compute_clear_glazing_box(origin_x_mm, origin_z_mm,
                                                  panel_w_mm, panel_h_mm,
                                                  head_rail_mm, base_rail_mm,
@@ -843,7 +897,8 @@ module Na__AssemblyComposer
 
         glass_y_mm = origin_y_mm + GeometryHelpers.na_compute_glazing_y_origin_mm(panel_t_mm)
         na_create_leaded_from_region_mm(
-            entities, config_hash, panel_id, clear_box, glass_y_mm, panel_index_0
+            entities, config_hash, panel_id, clear_box, glass_y_mm, panel_index_0,
+            header_arch: arch
         )
     rescue StandardError => e
         DebugTools.na_debug_error("ExtFold::AssemblyComposer.na_build_panel_leaded_glass failed", e)
@@ -885,7 +940,7 @@ module Na__AssemblyComposer
     # the 2D preview / WindowSystem toggle scheme. pane (V2.3.0, optional) is
     # the lower pane of a Glazed Over Glazed leaf: its own cell number and
     # scaled line counts, no arch, no horizontal nudges.
-    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm, panel_index_0 = 0, pane: nil)
+    def self.na_create_leaded_from_region_mm(entities, config_hash, panel_id, region, glass_y_mm, panel_index_0 = 0, pane: nil, header_arch: nil)
         leaded = LeadedGlassBuilder.na_resolve_leaded_params(config_hash)
         return unless leaded[:enabled]
         return if leaded[:h_bars] <= 0 && leaded[:v_bars] <= 0
@@ -917,7 +972,8 @@ module Na__AssemblyComposer
                 bar_width: (config_hash["glaze_bar_width_mm"] || 25).to_f * mm,
                 effective_glass_height: bar_layout[:effective_glass_height],
                 panel_context: { opening: 0, cell: pane ? pane[:pane_cell] : 0, panel: panel_index_0.to_i, sash: 0 },
-                disabled_cells: disabled_cells.map(&:to_s)
+                disabled_cells: disabled_cells.map(&:to_s),
+                header_arch: ArchedHeader.na_scale(header_arch, mm)
             }
         end
         LeadedGlassBuilder.na_create_leaded_glass_geometry(

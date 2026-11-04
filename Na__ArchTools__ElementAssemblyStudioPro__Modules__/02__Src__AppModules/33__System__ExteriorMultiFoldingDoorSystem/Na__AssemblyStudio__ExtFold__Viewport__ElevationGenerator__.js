@@ -453,7 +453,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
 
         if (pl.glazedRegion && pl.glazedRegion.widthMm > 0 && pl.glazedRegion.heightMm > 0) {
             const g = pl.glazedRegion;
-            svg += sg.na_svgRect(g.xMm, g.zMm, g.widthMm, g.heightMm, FILL_GLAZING, STROKE_BLACK, 1);
+            svg += pl.arch
+                ? sg.na_svgPolygon(window.Na__ArchMath.na_glassOutline(pl.arch, g.zMm), FILL_GLAZING, STROKE_BLACK, 1)   // <-- V2.5.2 Arched head
+                : sg.na_svgRect(g.xMm, g.zMm, g.widthMm, g.heightMm, FILL_GLAZING, STROKE_BLACK, 1);
             if (layout.glazeBars.enabled) {
                 svg += na_build_panel_glazebars(g.xMm, g.zMm, g.widthMm, g.heightMm, layout, panelIndex, clickBucket);
             }
@@ -471,8 +473,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
         }
 
         if (panelHeight > 0) {
-            svg += sg.na_svgRect(panelX, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
-            svg += sg.na_svgRect(panelX + panelWidth - stile, panelY, stile, panelHeight, colour, STROKE_BLACK, 1);
+            const stileHeight = pl.arch ? window.Na__ArchMath.na_stileHeight(pl.arch, panelY, panelHeight) : panelHeight;
+            svg += sg.na_svgRect(panelX, panelY, stile, stileHeight, colour, STROKE_BLACK, 1);
+            svg += sg.na_svgRect(panelX + panelWidth - stile, panelY, stile, stileHeight, colour, STROKE_BLACK, 1);
         }
 
         const railX = panelX + stile;
@@ -480,7 +483,9 @@ const Na__ExtFold__ElevationGenerator = (function () {
         if (railW > 0 && baseRail > 0) {
             svg += sg.na_svgRect(railX, panelY, railW, baseRail, colour, STROKE_BLACK, 1);
         }
-        if (railW > 0 && headRail > 0) {
+        if (pl.arch) {                                                  // <-- After the bars and lead, so it covers their ends
+            svg += sg.na_svgPolygon(window.Na__ArchMath.na_headOutline(pl.arch, panelX, panelX + panelWidth, panelY + panelHeight), colour, STROKE_BLACK, 1);
+        } else if (railW > 0 && headRail > 0) {
             svg += sg.na_svgRect(railX, panelY + panelHeight - headRail, railW, headRail, colour, STROKE_BLACK, 1);
         }
 

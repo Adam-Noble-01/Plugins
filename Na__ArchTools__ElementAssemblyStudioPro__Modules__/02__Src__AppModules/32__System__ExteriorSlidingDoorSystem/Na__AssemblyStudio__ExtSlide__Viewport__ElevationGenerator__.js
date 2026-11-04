@@ -128,6 +128,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
             isGlazed       : isGlazed,
             glazedOverGlazed : composition === 'GlazedOverGlazed',          // <-- V2.3.0 Two panes and a mid rail
             lowerSectionMm : safeNum(config.sliding_door_fielded_section_height_mm, 300),
+            archedHeader   : (window.Na__ArchMath && composition !== 'FullyFielded')   // <-- V2.5.2 Null unless Arched Header Rail is on
+                ? window.Na__ArchMath.na_settings(config, 'sliding_door_')
+                : null,
             midRailMm      : safeNum(config.sliding_door_mid_rail_width_mm, 120),
             showDimensions : showDims,
             frameEdges     : frameEdges,
@@ -416,10 +419,15 @@ const Na__ExtSlide__ElevationGenerator = (function () {
             ? window.Na__GlazebarMath.na_lowerPaneLayout(layout.glazeBars.hBars, glazedH, lowerH)
             : null;
 
+        const archMath = window.Na__ArchMath;
+        const arch = layout.archedHeader ? archMath.na_resolve(layout.archedHeader, glazedX, glazedY, glazedW, glazedH) : null;   // <-- V2.5.2
+
         let svg = '';
         if (glazedW > 0 && glazedH > 0) {
             const fill = layout.isGlazed ? glazingColour : (panelIndex === 0 ? colour : '#A8B2BE');
-            svg += sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, fill, STROKE_BLACK, 1);
+            svg += arch
+                ? sg.na_svgPolygon(archMath.na_glassOutline(arch, glazedY), fill, STROKE_BLACK, 1)
+                : sg.na_svgRect(glazedX, glazedY, glazedW, glazedH, fill, STROKE_BLACK, 1);
         }
         if (pane && glazedW > 0) {
             svg += sg.na_svgRect(glazedX, lowerY, glazedW, lowerH, glazingColour, STROKE_BLACK, 1);
@@ -427,8 +435,9 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         }
 
         if (leafHeight > 0) {
-            svg += sg.na_svgRect(leafX, leafY, stile, leafHeight, colour, STROKE_BLACK, 1);
-            svg += sg.na_svgRect(leafX + leafWidth - stile, leafY, stile, leafHeight, colour, STROKE_BLACK, 1);
+            const stileHeight = arch ? archMath.na_stileHeight(arch, leafY, leafHeight) : leafHeight;
+            svg += sg.na_svgRect(leafX, leafY, stile, stileHeight, colour, STROKE_BLACK, 1);
+            svg += sg.na_svgRect(leafX + leafWidth - stile, leafY, stile, stileHeight, colour, STROKE_BLACK, 1);
         }
 
         const railX = leafX + stile;
@@ -436,7 +445,7 @@ const Na__ExtSlide__ElevationGenerator = (function () {
         if (railW > 0 && baseRail > 0) {
             svg += sg.na_svgRect(railX, leafY, railW, baseRail, colour, STROKE_BLACK, 1);
         }
-        if (railW > 0 && headRail > 0) {
+        if (railW > 0 && headRail > 0 && !arch) {
             svg += sg.na_svgRect(railX, leafY + leafHeight - headRail, railW, headRail, colour, STROKE_BLACK, 1);
         }
 
@@ -446,6 +455,10 @@ const Na__ExtSlide__ElevationGenerator = (function () {
 
         if (glazedW > 0 && glazedH > 0) {
             svg += na_build_leaf_leaded(glazedX, glazedY, glazedW, glazedH, layout, panelIndex, clickBucket);
+        }
+
+        if (arch) {                                                     // <-- Last, so it covers the ends of the bars and lead that run into it
+            svg += sg.na_svgPolygon(archMath.na_headOutline(arch, leafX, leafX + leafWidth, leafY + leafHeight), colour, STROKE_BLACK, 1);
         }
 
         if (pane && glazedW > 0) {

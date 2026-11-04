@@ -78,7 +78,8 @@ module Na__PanelLayoutResolver
             'glazebar_margin_enabled' => get.call('glazebar_margin_enabled', config['glazebar_margin_enabled'] == true),
             'glazebar_margin_offset_mm' => get.call('glazebar_margin_offset_mm', config['glazebar_margin_offset_mm'] || 120),
             'glazebar_horizontal_offset_mm' => get.call('glazebar_horizontal_offset_mm', config['glazebar_horizontal_offset_mm'] || 0),
-            'removed_glazebars' => (config['single_door_removed_glazebars'].is_a?(Array) ? config['single_door_removed_glazebars'] : config['removed_glazebars'])
+            'removed_glazebars' => (config['single_door_removed_glazebars'].is_a?(Array) ? config['single_door_removed_glazebars'] : config['removed_glazebars']),
+            'arched_header' => SharedResolver::ArchedHeader.na_settings(config, 'single_door_')
         }.merge(na_offset_keys(config, get))
     end
     private_class_method :na_panel_config

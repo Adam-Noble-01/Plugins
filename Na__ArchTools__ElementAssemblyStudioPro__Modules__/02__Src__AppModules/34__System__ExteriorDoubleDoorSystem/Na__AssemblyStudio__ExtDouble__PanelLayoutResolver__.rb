@@ -96,7 +96,8 @@ module Na__PanelLayoutResolver
                 'glazebar_horizontal_offset_mm',
                 config['glazebar_horizontal_offset_mm'] || 0
             ),
-            'removed_glazebars'            => na_removed_glazebar_keys(config)
+            'removed_glazebars'            => na_removed_glazebar_keys(config),
+            'arched_header'                => SharedResolver::ArchedHeader.na_settings(config, 'double_door_')
         }.merge(na_offset_keys(config, value))
     end
     # ---------------------------------------------------------------

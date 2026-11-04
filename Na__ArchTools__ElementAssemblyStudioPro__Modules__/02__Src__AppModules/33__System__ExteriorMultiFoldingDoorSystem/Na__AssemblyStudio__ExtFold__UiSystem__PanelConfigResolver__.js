@@ -118,7 +118,8 @@ const Na__ExtFold__PanelConfigResolver = (function () {
             marginOffsetMm      : Math.max(0, na_number(config.glazebar_margin_offset_mm, 120)),
             horizontalOffsetMm  : na_number(config.glazebar_horizontal_offset_mm, 0),
             horizontalOffsetsMm : na_collect_bar_offsets(config, 'glazebar_h_offset_', horizontalBars),
-            verticalOffsetsMm   : na_collect_bar_offsets(config, 'glazebar_v_offset_', verticalBars)
+            verticalOffsetsMm   : na_collect_bar_offsets(config, 'glazebar_v_offset_', verticalBars),
+            archedHeader        : window.Na__ArchMath ? window.Na__ArchMath.na_settings(config, 'bifold_door_') : null    // <-- V2.5.2 Null unless Arched Header Rail is on
         };
     }
     // ---------------------------------------------------------------
@@ -309,6 +310,9 @@ const Na__ExtFold__PanelConfigResolver = (function () {
             midRailMm     : midRail,
             fieldRegion   : field,
             glazedRegion  : glazed,
+            arch          : (glazed && settings.archedHeader)               // <-- V2.5.2 Over the top glass; a fully fielded panel has none
+                ? window.Na__ArchMath.na_resolve(settings.archedHeader, glazed.xMm, glazed.zMm, glazed.widthMm, glazed.heightMm)
+                : null,
             lowerGlazedRegion : lowerGlazed,                                // <-- V2.3.0 Glazed Over Glazed: the pane under the mid rail
             midRailZMm    : midRailZ,                                       // <-- Null when the leaf has no mid rail
             fieldCells    : fieldCells,

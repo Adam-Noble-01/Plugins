@@ -31,6 +31,9 @@
 #   lines between divide the rest evenly (the margin glazing rule).
 # - SINGLE LINES OFF (V2.2.1): grid[:removed_lines] holds the lines clicked
 #   off in the window preview, keyed by cell, axis and number in the cell.
+# - ARCHED HEADER (V2.5.2): with grid[:header_arch] set, each line is cut to
+#   the arch, its end just inside the rail. Lines keep the positions and
+#   numbers the flat pane gives them.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix
@@ -42,6 +45,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryHelpers__'
+require_relative 'Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -51,10 +55,11 @@ module Na__WindowSystem
 # REGION | Module References & Constants
 # -----------------------------------------------------------------------------
 
-        DebugTools        = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
-        EdgeColourManager = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
-        GeometryBuilders  = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
-        GeometryHelpers   = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
+        DebugTools          = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        EdgeColourManager   = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
+        GeometryBuilders    = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+        GeometryHelpers     = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
+        ArchedHeaderBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
         NA_LEGACY_COLOUR_MTE_MAP = {
             'mid'   => 'MTE104__LineColour__MidGrey__L60',
@@ -186,7 +191,9 @@ module Na__WindowSystem
         #                                "o:c:p:s:col:row:h|v:number" keys,
         #                                single lines clicked off,
         #     reference:                 optional (V1.8.0) { offset_z:,
-        #                                h_positions:, effective_glass_height: } }
+        #                                h_positions:, effective_glass_height: },
+        #     header_arch:               optional (V2.5.2) the arch over this
+        #                                glass, in the caller's units }
         #   When present, lead lines are laid out per glazing cell between
         #   the bars; cells whose key is disabled are skipped entirely.
         #   Without it the legacy whole-pane single-cell layout applies.
@@ -263,7 +270,8 @@ module Na__WindowSystem
                             column_bound[:start], row_bound[:start],
                             y_front, leaded_params, cell_naming,
                             positions: cell_positions,
-                            removed: cell_removed
+                            removed: cell_removed,
+                            header_arch: grid_hash[:header_arch]
                         )
                     )
                 end
@@ -390,6 +398,8 @@ module Na__WindowSystem
         # removed (V2.2.1, optional): ["h:2", "v:1" ...], this cell's lines
         # clicked off in the preview, numbered from 1 as the preview numbers
         # them. They are not built; the rest keep their numbers (H1, H3).
+        # header_arch (V2.5.2, optional): the arch over this glass. Each line
+        # stops at it, and one that lies wholly in the rail is not built.
         def self.na_create_leaded_cell_geometry(
             entities,
             panel_id,
@@ -401,7 +411,8 @@ module Na__WindowSystem
             leaded_params,
             naming,
             positions: nil,
-            removed: nil
+            removed: nil,
+            header_arch: nil
         )
             return [] if glass_width.to_f <= 0 || glass_height.to_f <= 0
 
@@ -415,21 +426,28 @@ module Na__WindowSystem
             lead_width = leaded_params[:width].to_f                                                     # <-- The margin clamp uses the set width, centre lines or not (as the preview does)
             h_positions = positions && positions[:h] ? positions[:h] : na_compute_lead_positions(offset_z, glass_height, h_bars, leaded_params[:margin_y], lead_width)
             v_positions = positions && positions[:v] ? positions[:v] : na_compute_lead_positions(offset_x, glass_width, v_bars, leaded_params[:margin_x], lead_width)
-            h_lines = na_kept_lead_lines(h_positions, 'h', removed)                                     # <-- [[position, number] ...]
-            v_lines = na_kept_lead_lines(v_positions, 'v', removed)
+            half_width = width / 2.0
+            h_lines = na_kept_lead_lines(h_positions, 'h', removed).filter_map do |z_center, number|     # <-- [[position, number, run start, run width] ...]
+                run = ArchedHeaderBuilder.na_trim_run(header_arch, offset_x, glass_width, z_center - half_width)
+                run && [z_center, number, run[0], run[1]]
+            end
+            v_lines = na_kept_lead_lines(v_positions, 'v', removed).filter_map do |x_center, number|     # <-- [[position, number, height] ...]
+                height = ArchedHeaderBuilder.na_trim_height(header_arch, x_center - half_width, x_center + half_width, offset_z, glass_height)
+                height && [x_center, number, height]
+            end
 
             created = []
 
             if centre_lines
-                h_lines.each do |z_center, number|
+                h_lines.each do |z_center, number, run_x, run_width|
                     group = na_create_centre_line_horizontal(
-                        entities, panel_id, offset_x, offset_x + glass_width, z_center, y_front, number, naming
+                        entities, panel_id, run_x, run_x + run_width, z_center, y_front, number, naming
                     )
                     created << group if group
                 end
-                v_lines.each do |x_center, number|
+                v_lines.each do |x_center, number, height|
                     group = na_create_centre_line_vertical(
-                        entities, panel_id, offset_z, offset_z + glass_height, x_center, y_front, number, naming
+                        entities, panel_id, offset_z, offset_z + height, x_center, y_front, number, naming
                     )
                     created << group if group
                 end
@@ -438,34 +456,34 @@ module Na__WindowSystem
             end
 
             if depth <= 0
-                h_lines.each do |z_center, number|
+                h_lines.each do |z_center, number, run_x, run_width|
                     group = na_create_flat_ribbon_horizontal(
-                        entities, panel_id, offset_x, glass_width, z_center, width, y_front, number, material, naming
+                        entities, panel_id, run_x, run_width, z_center, width, y_front, number, material, naming
                     )
                     created << group if group
                 end
-                v_lines.each do |x_center, number|
+                v_lines.each do |x_center, number, height|
                     group = na_create_flat_ribbon_vertical(
-                        entities, panel_id, offset_z, glass_height, x_center, width, y_front, number, material, naming
+                        entities, panel_id, offset_z, height, x_center, width, y_front, number, material, naming
                     )
                     created << group if group
                 end
             else
                 # Extrude forward (exterior): box spans [y_front - depth, y_front]
                 y_origin = y_front - depth
-                h_lines.each do |z_center, number|
+                h_lines.each do |z_center, number, run_x, run_width|
                     bar_z = z_center - (width / 2.0)
                     name = na_group_name(panel_id, 'H', number, naming)
                     group = GeometryHelpers.na_create_grouped_box(
-                        entities, name, offset_x, y_origin, bar_z, glass_width, depth, width, material
+                        entities, name, run_x, y_origin, bar_z, run_width, depth, width, material
                     )
                     created << group if group
                 end
-                v_lines.each do |x_center, number|
+                v_lines.each do |x_center, number, height|
                     bar_x = x_center - (width / 2.0)
                     name = na_group_name(panel_id, 'V', number, naming)
                     group = GeometryHelpers.na_create_grouped_box(
-                        entities, name, bar_x, y_origin, offset_z, width, depth, glass_height, material
+                        entities, name, bar_x, y_origin, offset_z, width, depth, height, material
                     )
                     created << group if group
                 end

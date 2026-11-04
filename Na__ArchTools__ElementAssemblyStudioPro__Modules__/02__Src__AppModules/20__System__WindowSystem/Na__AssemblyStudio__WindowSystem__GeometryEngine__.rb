@@ -30,6 +30,7 @@ require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../02__AppData/Na__AssemblyStudio__AppData__MaterialManager__'
 require_relative 'Na__AssemblyStudio__WindowSystem__DataSerializer__'
 require_relative 'Na__AssemblyStudio__WindowSystem__GeometryBuilders__'
+require_relative 'Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__'
@@ -47,6 +48,7 @@ module Na__WindowSystem
         DataSerializer = Na__AssemblyStudio::Na__WindowSystem::Na__DataSerializer
         GeometryHelpers = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryHelpers
         GeometryBuilders = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
+        ArchedHeaderBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
         LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
         SashHornBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__SashHornBuilder
         WindowBoardBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__WindowBoardBuilder
@@ -631,6 +633,9 @@ module Na__WindowSystem
             # V1.8.0 - Per Casement Settings, switched-on entries only, in inches
             casement_overrides = na_parse_casement_overrides(config["casement_overrides"], mm_to_inch)
 
+            # V2.5.2 - Arched Header Rail. Nil unless switched on.
+            arched_header = ArchedHeaderBuilder.na_settings(config)
+
             # Cill
             cill_depth = (config["cill_depth_mm"] || constants[:default_cill_depth]).to_f * mm_to_inch
             cill_height = (config["cill_height_mm"] || constants[:default_cill_height]).to_f * mm_to_inch
@@ -741,6 +746,7 @@ module Na__WindowSystem
                 sliding_sash_window: sliding_sash_window,
                 casements_per_opening: casements_per_opening,
                 casement_overrides: casement_overrides,
+                arched_header: arched_header,
                 removed_casements: removed_casements,
                 removed_transom_segments: removed_transom_segments,
                 removed_glazebars: removed_glazebars,
@@ -910,6 +916,7 @@ module Na__WindowSystem
             end
 
             opening_layout[:cells].each_with_index do |cell, cell_index|
+                head_cell = cell_index == opening_layout[:cells].length - 1                                         # <-- V2.5.2 The arched header goes on the top casement of each light
                 if show_casements && params[:sliding_sash_window]
                     na_create_sliding_sash_opening(
                         entities,
@@ -921,7 +928,8 @@ module Na__WindowSystem
                         cell[:height],
                         params,
                         frame_material,
-                        glass_material
+                        glass_material,
+                        head_cell: head_cell
                     )
                 else
                     na_create_multi_casement_opening(
@@ -935,7 +943,8 @@ module Na__WindowSystem
                         show_casements,
                         params,
                         frame_material,
-                        glass_material
+                        glass_material,
+                        head_cell: head_cell
                     )
                 end
             end
@@ -1019,7 +1028,7 @@ module Na__WindowSystem
         # Unified method for creating N casement panels within one transom-bounded cell.
         # The fifth-from-right argument is the master `show_casements` flag; per-panel
         # removal (`removed_casements`) is resolved inline for each panel.
-        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_width, opening_height, show_casements, params, frame_material, glass_material)
+        def self.na_create_multi_casement_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_width, opening_height, show_casements, params, frame_material, glass_material, head_cell: false)
             num_panels = params[:casements_per_opening]
             panel_width = opening_width / num_panels.to_f                                                          # <-- This light's own width; lights differ once mullion offsets are on
 
@@ -1048,7 +1057,8 @@ module Na__WindowSystem
                     params[:frame_wall_inset],
                     params,
                     frame_material,
-                    glass_material
+                    glass_material,
+                    head_cell: head_cell
                 )
             end
         end
@@ -1077,7 +1087,7 @@ module Na__WindowSystem
         # ------------------------------------------------------------
         # Creates two vertically stacked casements per horizontal panel.
         # Bottom sash is set back by one casement depth to simulate sliding overlap.
-        def self.na_create_sliding_sash_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_width, opening_height, params, frame_material, glass_material)
+        def self.na_create_sliding_sash_opening(entities, opening_index, cell_index, opening_x, opening_z, opening_width, opening_height, params, frame_material, glass_material, head_cell: false)
             num_panels = params[:casements_per_opening]
             panel_width = opening_width / num_panels.to_f                                                          # <-- This light's own width; lights differ once mullion offsets are on
             meeting_rail_y = na_resolve_meeting_rail_height(opening_height, params[:meeting_rail_offset])
@@ -1113,7 +1123,8 @@ module Na__WindowSystem
                     params[:frame_wall_inset],
                     params,
                     frame_material,
-                    glass_material
+                    glass_material,
+                    head_cell: head_cell                                                                            # <-- The bottom sash's head is the flat meeting rail
                 )
 
                 if panel_has_casement && params[:sash_horns_enabled]
@@ -1156,7 +1167,11 @@ module Na__WindowSystem
         # inside a window casement is gone. Exterior single doors are their own
         # product now and build through
         # 31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__AssemblyComposer__.rb.
-        def self.na_render_opening_panel_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_has_casement, panel_wall_inset, params, frame_material, glass_material)
+        #
+        # head_cell (V2.5.2): this panel is the top casement of its light, so
+        # it takes the Arched Header Rail when that is on. A panel with no
+        # casement has no rail to arch and keeps its flat head.
+        def self.na_render_opening_panel_geometry(entities, panel_id, opening_index, cell_index, panel_index, sash_index, panel_x, panel_z, panel_width, panel_height, panel_has_casement, panel_wall_inset, params, frame_material, glass_material, head_cell: false)
             lead_reference = na_resolve_lead_reference_glass(params, panel_x, panel_z, panel_width, panel_height)  # <-- V1.8.0 aligned lead grid (nil = pane by pane)
 
             if panel_has_casement
@@ -1167,21 +1182,22 @@ module Na__WindowSystem
                 right_stile = sizes[:right_stile]
                 casement_inset = sizes[:casement_inset]
 
-                GeometryBuilders.na_create_casement_geometry_individual(
-                    entities, panel_id, panel_width, panel_height,
-                    top_rail, bottom_rail, left_stile, right_stile,
-                    params[:casement_depth], panel_x, panel_z, frame_material, panel_wall_inset, casement_inset
-                )
-
                 glass_offset_x = panel_x + left_stile
                 glass_offset_z = panel_z + bottom_rail
                 glass_w = panel_width - left_stile - right_stile
                 glass_h = panel_height - top_rail - bottom_rail
+                arch = head_cell ? ArchedHeaderBuilder.na_resolve(params[:arched_header], glass_offset_x, glass_offset_z, glass_w, glass_h, ArchedHeaderBuilder::NA_MM_TO_INCH) : nil  # <-- V2.5.2 Each casement's own arch, from its own glass
+
+                GeometryBuilders.na_create_casement_geometry_individual(
+                    entities, panel_id, panel_width, panel_height,
+                    top_rail, bottom_rail, left_stile, right_stile,
+                    params[:casement_depth], panel_x, panel_z, frame_material, panel_wall_inset, casement_inset, arch
+                )
 
                 GeometryBuilders.na_create_glass_geometry(
                     entities, panel_id, glass_w, glass_h, params[:glass_thickness],
                     glass_offset_x, glass_offset_z, params[:frame_depth], glass_material,
-                    panel_wall_inset, params[:casement_depth], casement_inset
+                    panel_wall_inset, params[:casement_depth], casement_inset, arch
                 )
 
                 if params[:h_bars] > 0 || params[:v_bars] > 0 || params[:glazebar_gothic_arch_enabled]
@@ -1191,7 +1207,7 @@ module Na__WindowSystem
                         params[:frame_depth], frame_material, panel_wall_inset,
                         params[:casement_depth], casement_inset, params[:glazebar_inset],
                         params[:removed_glazebars], opening_index, cell_index, panel_index, sash_index,
-                        na_advanced_glazebar_hash(params)
+                        na_advanced_glazebar_hash(params).merge(header_arch: arch)
                     )
                 end
 
@@ -1200,7 +1216,8 @@ module Na__WindowSystem
                     panel_wall_inset, params[:glass_thickness], params[:frame_depth],
                     params[:casement_depth], casement_inset, params,
                     opening_index, cell_index, panel_index, sash_index,
-                    reference_glass: lead_reference
+                    reference_glass: lead_reference,
+                    header_arch: arch
                 )
             else
                 GeometryBuilders.na_create_glass_geometry(
@@ -1348,7 +1365,8 @@ module Na__WindowSystem
             entities, panel_id, glass_w, glass_h, offset_x, offset_z,
             wall_inset, glass_thickness, frame_depth, casement_depth, casement_inset, params,
             opening_index = 0, cell_index = 0, panel_index = 0, sash_index = 0,
-            reference_glass: nil
+            reference_glass: nil,
+            header_arch: nil
         )
             leaded = LeadedGlassBuilder.na_resolve_leaded_params_from_engine(params)
             return unless leaded[:enabled]
@@ -1370,7 +1388,8 @@ module Na__WindowSystem
                 effective_glass_height: bar_layout[:effective_glass_height],
                 panel_context: { opening: opening_index, cell: cell_index, panel: panel_index, sash: sash_index },
                 disabled_cells: params[:leaded_disabled_cells],
-                removed_lines: params[:leaded_removed_lines]
+                removed_lines: params[:leaded_removed_lines],
+                header_arch: header_arch
             }
             reference_grid = na_build_lead_reference_grid(reference_glass, offset_x, offset_z, glass_w, glass_h, params)
             grid[:reference] = reference_grid if reference_grid

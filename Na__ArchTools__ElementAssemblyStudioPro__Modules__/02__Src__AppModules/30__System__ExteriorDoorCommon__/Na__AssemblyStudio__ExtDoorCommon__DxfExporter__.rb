@@ -34,6 +34,7 @@
 # =============================================================================
 
 require_relative 'Na__AssemblyStudio__ExtDoorCommon__GeometryHelpers__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__ExteriorDoorCommon
@@ -44,6 +45,7 @@ module Na__DxfExporter
 # -----------------------------------------------------------------------------
 
     GeometryHelpers = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__GeometryHelpers
+    ArchedHeader    = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
     NA_LAYER_FALLBACKS = {
         :frame => 'NA_FRAME',
@@ -135,16 +137,24 @@ module Na__DxfExporter
         na_rect(output, leaf_layer, leaf[:origin_x_mm], leaf[:origin_z_mm], leaf[:width_mm], leaf[:height_mm])
         members = panel[:members]
         member_layer = na_layer(config, :rail_stile)
+        arch = panel[:arch]                                               # <-- V2.5.2 Arched header over the top glass, nil when off
+        stile_height = ArchedHeader.na_stile_height(arch, leaf[:origin_z_mm], leaf[:height_mm])
         na_rect(output, member_layer, leaf[:origin_x_mm], leaf[:origin_z_mm],
-                members[:stile_width_mm], leaf[:height_mm])
+                members[:stile_width_mm], stile_height)
         na_rect(output, member_layer, leaf[:origin_x_mm] + leaf[:width_mm] - members[:stile_width_mm],
-                leaf[:origin_z_mm], members[:stile_width_mm], leaf[:height_mm])
+                leaf[:origin_z_mm], members[:stile_width_mm], stile_height)
         inner_width = leaf[:width_mm] - 2.0 * members[:stile_width_mm]
         na_rect(output, member_layer, leaf[:origin_x_mm] + members[:stile_width_mm], leaf[:origin_z_mm],
                 inner_width, members[:bottom_rail_width_mm])
-        na_rect(output, member_layer, leaf[:origin_x_mm] + members[:stile_width_mm],
-                leaf[:origin_z_mm] + leaf[:height_mm] - members[:top_rail_width_mm],
-                inner_width, members[:top_rail_width_mm])
+        if arch
+            na_outline(output, member_layer, ArchedHeader.na_head_outline(
+                arch, leaf[:origin_x_mm], leaf[:origin_x_mm] + leaf[:width_mm], leaf[:origin_z_mm] + leaf[:height_mm]
+            ))
+        else
+            na_rect(output, member_layer, leaf[:origin_x_mm] + members[:stile_width_mm],
+                    leaf[:origin_z_mm] + leaf[:height_mm] - members[:top_rail_width_mm],
+                    inner_width, members[:top_rail_width_mm])
+        end
 
         if panel[:mid_rail_z_mm]
             na_rect(output, member_layer, leaf[:origin_x_mm] + members[:stile_width_mm],
@@ -174,8 +184,13 @@ module Na__DxfExporter
     def self.na_add_glazing(output, config, panel, leaf)
         region = panel[:glazed_region]
         return unless region
-        na_rect(output, na_layer(config, :glass), region[:x_mm], region[:z_mm],
-                region[:width_mm], region[:height_mm])
+        arch = panel[:arch]
+        if arch
+            na_outline(output, na_layer(config, :glass), ArchedHeader.na_glass_outline(arch, region[:z_mm]))
+        else
+            na_rect(output, na_layer(config, :glass), region[:x_mm], region[:z_mm],
+                    region[:width_mm], region[:height_mm])
+        end
         bars = panel[:glaze_bars]
         vertical_positions = na_bar_positions(
             region[:x_mm], region[:width_mm], bars[:vertical_count],
@@ -187,13 +202,16 @@ module Na__DxfExporter
         )
         vertical_positions.each_with_index do |x, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1, panel[:pane_cell].to_i))
-            na_line(output, na_layer(config, :glaze_bar), x, region[:z_mm], x, region[:z_mm] + region[:height_mm])
+            height = ArchedHeader.na_trim_height(arch, x, x, region[:z_mm], region[:height_mm])
+            next unless height
+            na_line(output, na_layer(config, :glaze_bar), x, region[:z_mm], x, region[:z_mm] + height)
         end
         horizontal_positions.each_with_index do |position, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1, panel[:pane_cell].to_i))
             z = position + bars[:horizontal_offset_mm]
-            na_line(output, na_layer(config, :glaze_bar), region[:x_mm], z,
-                    region[:x_mm] + region[:width_mm], z)
+            run = ArchedHeader.na_trim_run(arch, region[:x_mm], region[:width_mm], z)
+            next unless run
+            na_line(output, na_layer(config, :glaze_bar), run[0], z, run[0] + run[1], z)
         end
     end
     private_class_method :na_add_glazing
@@ -332,6 +350,16 @@ module Na__DxfExporter
         na_line(output, layer, x, y + height, x, y)
     end
     private_class_method :na_rect
+
+    # A closed outline drawn line by line, as na_rect draws its four sides.
+    def self.na_outline(output, layer, points)
+        points.each_index do |index|
+            x1, y1 = points[index]
+            x2, y2 = points[(index + 1) % points.length]
+            na_line(output, layer, x1, y1, x2, y2)
+        end
+    end
+    private_class_method :na_outline
 
     def self.na_line(output, layer, x1, y1, x2, y2)
         output << { :type => :line, :layer => layer, :x1 => x1, :y1 => y1, :x2 => x2, :y2 => y2 }

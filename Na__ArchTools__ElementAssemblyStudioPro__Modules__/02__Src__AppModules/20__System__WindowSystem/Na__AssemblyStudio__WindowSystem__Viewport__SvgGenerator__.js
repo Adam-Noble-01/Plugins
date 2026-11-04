@@ -18,6 +18,8 @@
    - Dimension annotations: overall sizes plus mullion and transom set out
      chains (V2.2.0), each value marked up so the preview can edit it
    - Lead Line Margins (V2.2.0): first and last lead lines set in from each pane
+   - Arched Header Rail (V2.5.2): the rail is drawn last in its casement, so it
+     covers the square ends of the bars and lead that run into it
    - Pure rendering functions with no side effects
    - Window-specific markup; door tab uses Door*Generator modules in this folder.
    
@@ -309,6 +311,7 @@ const Na__Viewport__SvgGenerator = (function() {
         const casementOverrides = (casementMath && casementMath.na_supportsCasementOverrides(config))
             ? (config.casement_overrides || {})                          // <-- Per Casement Settings (V1.8.0), casement windows only
             : null;
+        const archedHeader = window.Na__ArchMath ? window.Na__ArchMath.na_settings(config, '') : null;   // <-- V2.5.2 Null unless Arched Header Rail is on
 
         const useIndividualSizes = config.casement_sizes_individual === true;
         const casTopRail = useIndividualSizes ? (config.casement_top_rail_mm || casementWidth) : casementWidth;
@@ -406,6 +409,7 @@ const Na__Viewport__SvgGenerator = (function() {
                         casLeftStile: casLeftStile,
                         casRightStile: casRightStile,
                         casementOverrides: casementOverrides,
+                        archedHeader: cellIndex === openingLayout.cells.length - 1 ? archedHeader : null,   // <-- The top casement of each light takes it
                         sashHornOptions: sashHornOptions,
                         frameColor: frameColor,
                         hBars: hBars,
@@ -651,7 +655,8 @@ const Na__Viewport__SvgGenerator = (function() {
                             options.frameColor, options.hBars, options.vBars, options.barWidth, options.slidingSashOverlap,
                             options.meetingRailOffset,
                             panelContext, options.removedGlazebars, options.sashHornOptions, options.advancedGlazebar,
-                            options.leadedGlass
+                            options.leadedGlass,
+                            options.archedHeader
                         )
                     );
                 } else {
@@ -671,7 +676,8 @@ const Na__Viewport__SvgGenerator = (function() {
                             options.removedGlazebars,
                             options.advancedGlazebar,
                             options.leadedGlass,
-                            leadReference
+                            leadReference,
+                            options.archedHeader
                         )
                     );
                 }
@@ -862,20 +868,29 @@ const Na__Viewport__SvgGenerator = (function() {
     // leadReference (V1.8.0, optional): the glass the horizontal lead lines
     // are laid out on when Align Lead Lines Across Casements is on. Omitted,
     // the lead divides this casement's own glass. Verticals always do.
-    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, leadedGlass, leadReference) {
+    // archedHeader (V2.5.2, optional): settings from Na__ArchMath.na_settings
+    // when this casement takes the arched header. Omitted, a flat head.
+    function na_generateSingleCasementSvg(x, y, width, height, topRail, bottomRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, panelContext, removedGlazebars, advancedGlazebar, leadedGlass, leadReference, archedHeader) {
         const renderBucket = na_createSvgRenderBucket();
-
-        renderBucket.svg += na_svgRect(x, y, leftStile, height, frameColor, '#000', 0.5);
-        renderBucket.svg += na_svgRect(x + width - rightStile, y, rightStile, height, frameColor, '#000', 0.5);
-        renderBucket.svg += na_svgRect(x + leftStile, y, width - leftStile - rightStile, bottomRail, frameColor, '#000', 0.5);
-        renderBucket.svg += na_svgRect(x + leftStile, y + height - topRail, width - leftStile - rightStile, topRail, frameColor, '#000', 0.5);
 
         const glassX = x + leftStile;
         const glassY = y + bottomRail;
         const glassWidth = width - leftStile - rightStile;
         const glassHeight = height - topRail - bottomRail;
+        const archMath = window.Na__ArchMath;
+        const arch = (archMath && archedHeader) ? archMath.na_resolve(archedHeader, glassX, glassY, glassWidth, glassHeight) : null;
+        const stileHeight = arch ? archMath.na_stileHeight(arch, y, height) : height;
 
-        renderBucket.svg += na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
+        renderBucket.svg += na_svgRect(x, y, leftStile, stileHeight, frameColor, '#000', 0.5);
+        renderBucket.svg += na_svgRect(x + width - rightStile, y, rightStile, stileHeight, frameColor, '#000', 0.5);
+        renderBucket.svg += na_svgRect(x + leftStile, y, width - leftStile - rightStile, bottomRail, frameColor, '#000', 0.5);
+        if (!arch) {
+            renderBucket.svg += na_svgRect(x + leftStile, y + height - topRail, width - leftStile - rightStile, topRail, frameColor, '#000', 0.5);
+        }
+
+        renderBucket.svg += arch
+            ? na_svgPolygon(archMath.na_glassOutline(arch, glassY), 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5)
+            : na_svgRect(glassX, glassY, glassWidth, glassHeight, 'rgba(135, 206, 235, 0.3)', '#87CEEB', 0.5);
 
         const archActive = !!(advancedGlazebar && advancedGlazebar.archEnabled);
         if (hBars > 0 || vBars > 0 || archActive) {
@@ -909,6 +924,10 @@ const Na__Viewport__SvgGenerator = (function() {
                 referenceGlass: leadReference || null
             }
         );
+
+        if (arch) {
+            renderBucket.svg += na_svgPolygon(archMath.na_headOutline(arch, x, x + width, y + height), frameColor, '#000', 0.5);
+        }
 
         return renderBucket;
     }
@@ -1018,7 +1037,7 @@ const Na__Viewport__SvgGenerator = (function() {
     // ------------------------------------------------------------
     // Draws top and bottom casements stacked vertically.
     // Bottom sash gets a subtle shading overlay to indicate setback depth.
-    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, meetingRailOffsetMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar, leadedGlass) {
+    function na_generateSlidingSashPanelSvg(x, y, width, height, topRail, bottomRail, topSashBottomRail, bottomSashTopRail, leftStile, rightStile, frameColor, hBars, vBars, barWidth, overlapMm, meetingRailOffsetMm, panelContext, removedGlazebars, sashHornOptions, advancedGlazebar, leadedGlass, archedHeader) {
         const renderBucket = na_createSvgRenderBucket();
 
         const meetingRailY = na_resolveMeetingRailHeight(height, meetingRailOffsetMm);
@@ -1075,7 +1094,9 @@ const Na__Viewport__SvgGenerator = (function() {
                 },
                 removedGlazebars,
                 advancedGlazebar,
-                leadedGlass
+                leadedGlass,
+                null,
+                archedHeader                                             // <-- The bottom sash's head is the flat meeting rail
             )
         );
 
@@ -1955,6 +1976,15 @@ const Na__Viewport__SvgGenerator = (function() {
     }
     // ---------------------------------------------------------------
     
+    // FUNCTION | Generate SVG Polygon From [x, y] Pairs (V2.5.2)
+    // ------------------------------------------------------------
+    // y up, as na_svgRect takes it.
+    function na_svgPolygon(pairs, fill, stroke, strokeWidth) {
+        const points = pairs.map(pair => `${pair[0]},${-pair[1]}`).join(' ');
+        return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+    }
+    // ---------------------------------------------------------------
+
     // CONSTANTS | Dimension Drawing (Millimetres, the Preview's Own Units)
     // ------------------------------------------------------------
     const NA_DIM_OFFSET_MM        = 100;                                   // <-- Dimension line out from the frame
@@ -2255,6 +2285,7 @@ const Na__Viewport__SvgGenerator = (function() {
         na_getRemovedTransomSegmentSet: na_getRemovedTransomSegmentSet,  // <-- Exposed for valid-key collectors in UiLogic
         na_getEffectiveFrameThicknesses: na_getEffectiveFrameThicknesses,// <-- Exposed for valid-key collectors in UiLogic
         na_svgRect: na_svgRect,
+        na_svgPolygon: na_svgPolygon,                                    // <-- V2.5.2 Shared with the sliding and bifold previews
         na_svgDimensions: na_svgDimensions,
         na_computeDimensionChains: na_computeDimensionChains,            // <-- V2.2.0 Set out chains, shared with the dimension editor
         na_solveChainSegmentEdit: na_solveChainSegmentEdit,

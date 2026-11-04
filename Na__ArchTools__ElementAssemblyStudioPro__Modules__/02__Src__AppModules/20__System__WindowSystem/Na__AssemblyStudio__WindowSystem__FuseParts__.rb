@@ -31,6 +31,7 @@
 
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
+require_relative 'Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__WindowSystem
@@ -41,6 +42,7 @@ module Na__WindowSystem
 # -----------------------------------------------------------------------------
 
         DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
+        ArchedHeaderBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -186,9 +188,12 @@ module Na__WindowSystem
 
                 DebugTools.na_debug_geometry("Casement #{panel_id}: found #{groups.length} groups to fuse")
 
+                has_arched_rail = groups.any? { |g| ArchedHeaderBuilder.na_arched_solid?(g) }       # <-- V2.5.2 Asked before the boolean consumes the groups
+
                 fused = na_sequential_outer_shell(groups, "Na_Casement_#{panel_id}_Fused")
 
                 if fused
+                    ArchedHeaderBuilder.na_soften_arc_edges(fused) if has_arched_rail
                     result[:fused] += 1
                     DebugTools.na_debug_success("Casement #{panel_id} fused into: #{fused.name}")
                 else

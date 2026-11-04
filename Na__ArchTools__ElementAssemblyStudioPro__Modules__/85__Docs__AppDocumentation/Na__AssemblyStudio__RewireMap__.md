@@ -124,8 +124,9 @@ This pattern means:
 31__ExtSingleDoor JS        - UiSystem Config (door-panel schema for door_mode)
 32__ExtSlide JS             - UiSystem Config (sliding-door schema)            [Phase-1 scaffold]
 33__ExtFold JS              - UiSystem Config (multi-fold schema)              [Phase-1 scaffold]
-20__WindowSystem JS         - MullionMath, CasementMath (shared light layout +
-                              per-casement sizes; Validation reads both)
+20__WindowSystem JS         - MullionMath, CasementMath, ArchMath (shared light
+                              layout + per-casement sizes + arched header rail;
+                              Validation reads the first two)
 05__Viewport JS             - SvgHelpers, Validation, Controls, Instance
 20__WindowSystem JS         - GlazebarMath, SvgGenerator, Export Dxf
 32__ExtSlide JS             - Viewport Elevation+Plan generators              [Phase-1 scaffold]

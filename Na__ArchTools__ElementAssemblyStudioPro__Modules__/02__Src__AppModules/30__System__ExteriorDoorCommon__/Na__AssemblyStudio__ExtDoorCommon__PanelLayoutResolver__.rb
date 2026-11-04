@@ -43,6 +43,7 @@
 #   'glazebar_margin_offset_mm'
 #   'glazebar_horizontal_offset_mm'
 #   'removed_glazebars'           Array of removed glaze-bar keys
+#   'arched_header'               Na__ArchedHeaderBuilder.na_settings, nil when off
 #
 # INPUT leaf (mm space): :origin_x_mm, :origin_z_mm, :width_mm, :height_mm,
 #                        :thickness_mm, :index
@@ -53,6 +54,7 @@
 # =============================================================================
 
 require_relative 'Na__AssemblyStudio__ExtDoorCommon__GeometryHelpers__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__ExteriorDoorCommon
@@ -63,6 +65,7 @@ module Na__PanelLayoutResolver
 # -----------------------------------------------------------------------------
 
     GeometryHelpers = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__GeometryHelpers
+    ArchedHeader    = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -107,6 +110,7 @@ module Na__PanelLayoutResolver
             :profile => na_enum(effective['profile'], NA_PROFILES, 'RaisedBevelled'),
             :members => members.freeze,
             :glazed_region => regions[:glazed]&.freeze,
+            :arch => na_resolve_arch(effective, regions[:glazed]),                  # <-- V2.5.2 Over the top glass; a fully fielded leaf has none
             :field_region => regions[:field]&.freeze,
             :mid_rail_z_mm => regions[:mid_rail_z_mm],
             :lower_pane => na_resolve_lower_pane(regions, glaze_bars),
@@ -173,6 +177,19 @@ module Na__PanelLayoutResolver
             :mid_rail_z_mm => inner_z + field_height
         }
     end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | The Arched Header Over the Top Glass (V2.5.2)
+    # ------------------------------------------------------------
+    # In millimetres, like the rest of the layout. The lower pane of a Glazed
+    # Over Glazed leaf sits under the flat mid rail, so its view of the layout
+    # carries no arch.
+    def self.na_resolve_arch(effective, glazed)
+        return nil unless glazed
+
+        ArchedHeader.na_resolve(effective['arched_header'], glazed[:x_mm], glazed[:z_mm], glazed[:width_mm], glazed[:height_mm])
+    end
+    private_class_method :na_resolve_arch
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | A Line Count Scaled to a Pane of Another Height (V2.3.0)

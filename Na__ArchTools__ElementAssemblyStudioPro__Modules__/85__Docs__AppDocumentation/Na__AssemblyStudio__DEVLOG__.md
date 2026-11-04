@@ -3,6 +3,62 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.5.2 - 03-Nov-2026 - Arched Header Rails on Windows and Exterior Doors
+
+### Context
+Adam, with two photos of a triple casement with segmental arched glass heads: arched header rails on window and external door casements. Arch height 20 at least, 60 by default for a slight segmental arc, up to a true arch, which makes a special header rail. A segmental arc keeps the rail's depth at the centre, marked RETAIN on the second photo. 12 arc segments, or 24 or 48. A new toggle in the right nested section opens the options.
+
+### Feature Summary
+- **Casements > More > Arched Header Rail** on windows and **Leaves > More > Arched Header Rail** on single, double, sliding and bifold doors. A switch, off by default. Switched on it opens:
+  - **Arch Height** (20 and up, default 60): the rise of the arc. The slider tops out at a true arch over the widest glass in the element.
+  - **True Arch**: a semicircle over each casement's own glass, whatever its width. It hides the Arch Height.
+  - **Arc Segments**: 12, 24 or 48.
+- **The crown stays where the flat glass top was.** The top of the rail stays flat and the rail keeps its set depth at the centre. The arc falls away from there by the Arch Height, and the rail deepens towards the stiles to fill the corners.
+- **A segmental arc** keeps the joinery rule: stiles full height, the rail between them.
+- **A true arch makes the special head.** The arc meets the stile at a tangent, so a rail between the stiles would end in a long feather edge. Instead one piece runs across the full casement or leaf width and sits on stiles that stop at the springing line. Its depth at the crown is still the set rail depth. An Arch Height of half the glass width makes the same head.
+- **Each casement works out its own arch** from its own glass, so unequal lights, Individual Casement Sizes and Per Casement Settings all follow.
+- **A short pane gets the tallest arc that fits**, keeping 20 of glass at each side. With under 1 of room it stays flat.
+- **It goes on the top casement of each light** and the top sash of a sliding sash. A casement under a transom and a bottom sash keep flat heads, as does the lower pane of a Glazed Over Glazed leaf. A casement clicked off, or Show Casements off, has no rail to arch. The switch hides on a fully fielded leaf; a pair with one glazed leaf override still shows it.
+- **Glaze bars and lead stop at the arc.** They keep their flat pane positions and numbers, so click off keys do not change, and each end runs just inside the rail.
+- **Parts keep their names** (`Na_Casement_<id>_Top_Rail`, `...__RailTop`, `Na_DoorPanel_<id>_Rail_Top`, `Na_Glass_<id>`), so Fuse Parts and the edge painter treat them as before. Facet joints are soft and smooth, and softened again after Fuse Parts.
+- **Previews and DXF draw it**: window and all four door previews, the window DXF and the hinged door DXF.
+- **Older elements keep flat heads.** An absent switch reads as off, and loading one switches the live dialog off so the last element's arch cannot ride in. A door type switch carries the settings across, like the other leaf settings.
+
+### Known Limits
+- Fuse Parts on an arched solid has not run in SketchUp. Offline, stand-ins prove which parts pair up, not the booleans themselves.
+- There is no per casement on or off. Per Casement Settings changes a casement's sizes and its arch follows.
+- Gothic tracery stays clipped to the glass rectangle. In 3D and the previews the rail covers what lies in its corners; in DXF those lines run past the arc.
+- The sliding and bifold door DXF still goes through the window exporter, so it does not draw a door's arch.
+- The frame head stays square. The arch is the casement's or leaf's.
+
+### Files Changed
+- `20__System__WindowSystem/...__ArchedHeaderBuilder__.rb` **(new)**: `Na__ArchedHeaderBuilder`. The settings, the arc, the trims, the outlines and the solids.
+- `20__System__WindowSystem/...__Viewport__ArchMath__.js` **(new)**: `window.Na__ArchMath`, the same sums for the previews, DXF fallback and the slider.
+- `20__System__WindowSystem/...__GeometryEngine__.rb`: reads the settings, `head_cell` through the opening path, each panel's arch.
+- `20__System__WindowSystem/...__GeometryBuilders__.rb`, `...__LeadedGlassBuilder__.rb`, `...__FuseParts__.rb`, `...__DxfExporter__.rb`, `...__Defaults__.rb`: the rail, stiles, glass, bars, lead, soften and DXF.
+- `20__System__WindowSystem/...__Viewport__SvgGenerator__.js`, `...__UiSystem__Export__Dxf__.js`: window preview and browser DXF.
+- `20__System__WindowSystem/...__UiSystem__Config__.js`, `...__UiSystem__LayoutMap__.js`, `...__UiSystem__MainUiLogic__.js`: `na_buildArchedHeaderDescriptor`, its place in Casements and Leaves, summaries, search, the slider, loading older elements, door type switch.
+- `30__System__ExteriorDoorCommon__/...__PanelLayoutResolver__.rb`, `...__FuseParts__Panel__.rb`, `...__DxfExporter__.rb`, `...__UiSystem__DxfExporter__.js`, `...__UiSystem__LeafConfigResolver__.js`, `...__Viewport__ElevationGenerator__.js`: `:arch` on the door layout, hinged door DXF and preview.
+- `31__.../`, `34__.../`: `...__AssemblyComposer__.rb`, `...__PanelLayoutResolver__.rb`, `...__Init__.rb`, `...__UiSystem__Config__.js`.
+- `32__.../`, `33__.../`: the same, plus `...__FuseParts__Panel__.rb` and `...__Viewport__ElevationGenerator__.js`, and `33__.../...__UiSystem__PanelConfigResolver__.js`.
+- `Na__AssemblyStudio__UiLayout__.html`: ArchMath script tag.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__ArchedHeader__Spec__.js`: new, 193 assertions.
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__ExteriorDoorParity__Spec__.js`: loads the window Config first, because the door configs now use its descriptor.
+- `85__Docs__AppDocumentation/Na__AssemblyStudio__Architecture__.md`, `...__RewireMap__.md`: notes and load order.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.5.2.
+
+### How to Test
+```
+node "65__Dev__DevTools/Na__AssemblyStudio__DevTools__ArchedHeader__Spec__.js"
+```
+Expect `193 passed, 0 failed`. The other suites are unchanged.
+
+A stand-in Ruby harness runs the real window engine, all four door builders, Fuse Parts and both Ruby DXF exporters, with 337 checks against hand-worked numbers: each arched solid is closed with one winding, its volume is its outline times its depth, and it stays outward with every new face drawn backwards. With the arch off, 294 builds, fuses and DXFs and 132 previews match V2.5.1 to the byte. The Ruby and JS sums agree, and the real 3D outlines match the real previews, over 2,026 checks. 119 deliberate breaks to the new code were each caught. The real dialog ran in headless Chrome with real clicks: 49 checks and no page errors. None of this ran in SketchUp itself.
+
+Then in SketchUp, after Reload Scripts, close and reopen the dialog, because the page has a new script. A window, Casements > More > Arched Header Rail on: the rail is flat on top, 65 deep at the crown, deeper at the stiles. Then True Arch: the head runs the full casement width on shorter stiles. Then Fuse Parts on, and check the rail and stiles read as one solid with a smooth arc. Then the same on a double door, Leaves > More.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.5.1 - 02-Nov-2026 - Interior Door Handle Handing and Scroll Position
 
 ### Context

@@ -43,6 +43,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Fuse__Shared__'
+require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__ArchedHeaderBuilder__'
 
 module Na__AssemblyStudio
 module Na__ExteriorSlidingDoorSystem
@@ -54,6 +55,7 @@ module Na__FuseParts__Panel
 
     DebugTools = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
     FuseShared = Na__AssemblyStudio::Na__GeometryHelpers::Na__Fuse
+    ArchedHeader = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
 
 # endregion -------------------------------------------------------------------
 
@@ -170,8 +172,10 @@ module Na__FuseParts__Panel
         end
 
         DebugTools.na_debug_geometry("ExtSlide fuse timber: #{panel_id} - merging #{groups.length} parts")
+        has_arched_rail = groups.any? { |group| ArchedHeader.na_arched_solid?(group) }     # <-- V2.5.2 Asked before the boolean consumes the groups
         fused = FuseShared.na_sequential_outer_shell(groups, "Na_DoorPanel_#{panel_id}_Fused")
         if fused
+            ArchedHeader.na_soften_arc_edges(fused) if has_arched_rail
             result[:fused] += 1
         else
             result[:failed] += 1

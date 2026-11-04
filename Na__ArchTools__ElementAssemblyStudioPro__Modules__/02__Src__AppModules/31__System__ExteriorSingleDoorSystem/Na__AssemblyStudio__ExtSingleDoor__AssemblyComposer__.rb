@@ -59,6 +59,7 @@ module Na__AssemblyComposer
     NamingContract       = Na__AssemblyStudio::Na__GeometryHelpers::Na__DoorNamingContract
     WindowBuilders       = Na__AssemblyStudio::Na__WindowSystem::Na__GeometryBuilders
     LeadedGlassBuilder   = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
+    ArchedHeader         = Na__AssemblyStudio::Na__WindowSystem::Na__ArchedHeaderBuilder
     MaterialManager      = Na__AssemblyStudio::Na__AppData::Na__MaterialManager
     TagManager           = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
     Box                  = Na__AssemblyStudio::Na__GeometryHelpers::Na__Box
@@ -187,17 +188,23 @@ module Na__AssemblyComposer
         stile = members[:stile_width_mm]
         top_rail = members[:top_rail_width_mm]
         bottom_rail = members[:bottom_rail_width_mm]
+        arch = layout[:arch]                                              # <-- V2.5.2 Arched header over the top glass, nil when off
+        stile_height = ArchedHeader.na_stile_height(arch, leaf[:origin_z_mm], leaf[:height_mm])
         prefix = "Na__ExteriorSingleDoor__#{door_id}__Leaf#{format('%03d', leaf[:index])}"
         na_box(entities, "#{prefix}__StileLeft", leaf[:origin_x_mm], leaf[:origin_y_mm], leaf[:origin_z_mm],
-               stile, leaf[:thickness_mm], leaf[:height_mm], material)
+               stile, leaf[:thickness_mm], stile_height, material)
         na_box(entities, "#{prefix}__StileRight", leaf[:origin_x_mm] + leaf[:width_mm] - stile,
-               leaf[:origin_y_mm], leaf[:origin_z_mm], stile, leaf[:thickness_mm], leaf[:height_mm], material)
+               leaf[:origin_y_mm], leaf[:origin_z_mm], stile, leaf[:thickness_mm], stile_height, material)
         inner_width = leaf[:width_mm] - 2.0 * stile
         na_box(entities, "#{prefix}__RailBottom", leaf[:origin_x_mm] + stile, leaf[:origin_y_mm], leaf[:origin_z_mm],
                inner_width, leaf[:thickness_mm], bottom_rail, material)
-        na_box(entities, "#{prefix}__RailTop", leaf[:origin_x_mm] + stile, leaf[:origin_y_mm],
-               leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
-               inner_width, leaf[:thickness_mm], top_rail, material)
+        if arch
+            ArchedHeader.na_create_leaf_head(entities, "#{prefix}__RailTop", arch, leaf, material)
+        else
+            na_box(entities, "#{prefix}__RailTop", leaf[:origin_x_mm] + stile, leaf[:origin_y_mm],
+                   leaf[:origin_z_mm] + leaf[:height_mm] - top_rail,
+                   inner_width, leaf[:thickness_mm], top_rail, material)
+        end
 
         mid_z = layout[:mid_rail_z_mm]
         return unless mid_z
@@ -232,9 +239,13 @@ module Na__AssemblyComposer
         glass_depth = [leaf[:thickness_mm] * 0.35, 2.0].max
         glass_y = leaf[:origin_y_mm] + (leaf[:thickness_mm] - glass_depth) / 2.0
         pane_name = layout[:pane_cell] ? 'Lower' : ''                     # <-- V2.3.0 The lower pane has its own names, fused and trimmed on its own
-        na_box(entities, "Na__ExteriorSingleDoor__#{pane_name}Glass",
-               region[:x_mm], glass_y, region[:z_mm],
-               region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
+        if layout[:arch]
+            ArchedHeader.na_create_leaf_glass(entities, "Na__ExteriorSingleDoor__#{pane_name}Glass", layout[:arch], region[:z_mm], glass_y, glass_depth, materials[:glass])
+        else
+            na_box(entities, "Na__ExteriorSingleDoor__#{pane_name}Glass",
+                   region[:x_mm], glass_y, region[:z_mm],
+                   region[:width_mm], glass_depth, region[:height_mm], materials[:glass])
+        end
         na_build_glaze_bars(entities, leaf, layout, materials[:leaf])
         na_build_leaded_glass(entities, config, leaf, layout, glass_y, layout[:pane_cell] ? 'Na__ExteriorSingleDoor__Lower' : 'Na__ExteriorSingleDoor')
     end
@@ -278,15 +289,19 @@ module Na__AssemblyComposer
         pane_name = layout[:pane_cell] ? 'Lower' : ''
         vertical_positions.each_with_index do |x, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'vertical', index + 1, layout[:pane_cell].to_i))
+            height = ArchedHeader.na_trim_height(layout[:arch], x - bars[:width_mm] / 2.0, x + bars[:width_mm] / 2.0, region[:z_mm], region[:height_mm])
+            next unless height
             na_box(entities, "Na__ExteriorSingleDoor__#{pane_name}GlazeBarV#{index + 1}",
                    x - bars[:width_mm] / 2.0, y, region[:z_mm],
-                   bars[:width_mm], depth, region[:height_mm], material)
+                   bars[:width_mm], depth, height, material)
         end
         horizontal_positions.each_with_index do |z, index|
             next if bars[:removed_keys].include?(na_glazebar_key(leaf, 'horizontal', index + 1, layout[:pane_cell].to_i))
+            run = ArchedHeader.na_trim_run(layout[:arch], region[:x_mm], region[:width_mm], z - bars[:width_mm] / 2.0)
+            next unless run
             na_box(entities, "Na__ExteriorSingleDoor__#{pane_name}GlazeBarH#{index + 1}",
-                   region[:x_mm], y, z - bars[:width_mm] / 2.0,
-                   region[:width_mm], depth, bars[:width_mm], material)
+                   run[0], y, z - bars[:width_mm] / 2.0,
+                   run[1], depth, bars[:width_mm], material)
         end
     end
     private_class_method :na_build_glaze_bars
@@ -316,7 +331,8 @@ module Na__AssemblyComposer
             v_positions: positions[:vertical].map { |position| position * mm },
             bar_width: layout[:glaze_bars][:width_mm] * mm,
             panel_context: { opening: 0, cell: layout[:pane_cell].to_i, panel: leaf[:index] - 1, sash: 0 },
-            disabled_cells: Array(disabled_source).map(&:to_s)
+            disabled_cells: Array(disabled_source).map(&:to_s),
+            header_arch: ArchedHeader.na_scale(layout[:arch], mm)
         }
         LeadedGlassBuilder.na_create_leaded_glass_geometry(
             entities,
