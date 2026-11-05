@@ -21,8 +21,8 @@
 # - Loose geometry too (5.2.9): select edges and faces, or several objects,
 #   and start the tool, or click loose geometry to take it and everything
 #   connected to it. It is boxed in the axes the user is drawing in — the
-#   open group's own, however deep — and scaled where it lies. Nothing is
-#   saved for it, so it has no stretch planes.
+#   open group's own, however deep — and changed where it lies. Nothing is
+#   saved for it, so it stretches only at the centre planes (5.2.22).
 #
 # CONTROL HANDLES:
 # - The bar at the top left chooses which grips are shown: All, Faces,
@@ -37,17 +37,20 @@
 #   dimension clicked the measurements box takes X,Y,Z in order.
 #
 # STRETCH PLANES:
-# - Switched on (Planes on the bar, SHIFT+TAB, or the right-click menu), each
-#   axis gets a dashed centre line. Click one to drop a cut plane and drag it
-#   into place: it snaps to points, and to edges and faces square across the
-#   axis. Every click adds another; SHIFT drops a mirrored pair. Or hold CTRL
+# - SHIFT+TAB (or Planes on the bar, or the right-click menu) makes every grip
+#   STRETCH the object instead of scaling everything in it, so frames, holes
+#   and details keep their size. Nothing has to be set up first: every axis has
+#   a plane through its centre until it has a plane of its own (5.2.22, Field
+#   file). SHIFT+TAB again goes back to scaling. Live preview while dragging,
+#   one undo step. See the Field file for exactly how, and the Commit file for
+#   how it reaches the model.
+# - To stretch somewhere else, drag a plane's diamond, or click an axis's
+#   dashed centre line to drop your own, which takes over from the centre
+#   plane: it snaps to points, and to edges and faces square across the axis.
+#   Every further click adds another; SHIFT drops a mirrored pair. Or hold CTRL
 #   anywhere over the object — Planes on or off — and click where the plane
-#   should go. The planes are saved with the object. A line of help under
-#   the bar says what to do next (Planes file).
-# - A grip on an axis with planes then STRETCHES the object at the planes
-#   instead of scaling everything in it, so frames, holes and details keep
-#   their size. Live preview while dragging, one undo step. See the Field
-#   file for exactly how, and the Commit file for how it reaches the model.
+#   should go. Planes you place are saved with the object. A line of help under
+#   the strip says what to do next (Planes file).
 #
 # KEYS:
 #   drag a grip   SHIFT uniform / free, CTRL snap to a point, TAB about centre
@@ -62,9 +65,18 @@
 #
 # THE PREVIEW (the established system, DrawnPreviewGraphics):
 # - Nothing in the model changes until the release. The new box is drawn
-#   in the preview amber over the faded blue of the old one, every edge of
-#   the object follows the drag as an amber ghost, the planes ride along to
-#   where the stretch takes them, and the dimensions read the live size.
+#   over the faded blue of the old one, every edge of the object follows the
+#   drag as a ghost, the planes ride along to where the stretch takes them,
+#   and the dimensions read the live size.
+# - All of it says which of three very different things is about to happen
+#   (5.2.21, Mode file): TEAL a uniform scale, ORANGE a non-uniform scale that
+#   distorts what is inside, VIOLET a stretch at planes, RED a stretch and a
+#   scale at once. Every grip wears its colour before it is touched. A strip
+#   under the bar lights the mode in force, and a card by the grip names it,
+#   saying NOT A STRETCH when a scale is what the planes were set up to avoid.
+# - The strip is also a switch (5.2.23): click UNIFORM, NON-UNIFORM or STRETCH
+#   and every grip takes that mode. Click the lit one to go back to grips going
+#   by their kind. Remembered between sessions, and also in the right-click menu.
 #
 # =============================================================================
 
@@ -75,6 +87,7 @@ require_relative 'Na__InsertPrimatives__DrawnScale__Frame__'
 require_relative 'Na__InsertPrimatives__DrawnScale__Field__'
 require_relative 'Na__InsertPrimatives__DrawnScale__Commit__'
 require_relative 'Na__InsertPrimatives__DrawnScale__Preview__'
+require_relative 'Na__InsertPrimatives__DrawnScale__Mode__'
 require_relative 'Na__InsertPrimatives__DrawnScale__Planes__'
 require_relative 'Na__InsertPrimatives__DrawnScale__Overlay__'
 require_relative 'Na__InsertPrimatives__DrawnScale__Keys__'
@@ -85,13 +98,14 @@ module Na__InsertPrimatives
     # REGION | Option Ids (declared in the ToolOptions table)
     # -----------------------------------------------------------------------------
 
-    NA_SCALE_OPTION_HANDLES = 'scale_handles'.freeze
-    NA_SCALE_OPTION_PLANES  = 'scale_planes'.freeze
-    NA_SCALE_OPTION_CENTRE  = 'scale_about_centre'.freeze
-    NA_SCALE_OPTION_DIMS    = 'scale_dimensions'.freeze
-    NA_SCALE_OPTION_SIZE    = 'scale_dim_size'.freeze
-    NA_SCALE_OPTION_OFFSET  = 'scale_dim_offset'.freeze
-    NA_SCALE_OPTION_CLEAR   = 'scale_clear_planes'.freeze
+    NA_SCALE_OPTION_HANDLES   = 'scale_handles'.freeze
+    NA_SCALE_OPTION_GRIP_MODE = 'scale_grip_mode'.freeze
+    NA_SCALE_OPTION_PLANES    = 'scale_planes'.freeze
+    NA_SCALE_OPTION_CENTRE    = 'scale_about_centre'.freeze
+    NA_SCALE_OPTION_DIMS      = 'scale_dimensions'.freeze
+    NA_SCALE_OPTION_SIZE      = 'scale_dim_size'.freeze
+    NA_SCALE_OPTION_OFFSET    = 'scale_dim_offset'.freeze
+    NA_SCALE_OPTION_CLEAR     = 'scale_clear_planes'.freeze
 
     # endregion -------------------------------------------------------------------
 
@@ -107,6 +121,7 @@ module Na__InsertPrimatives
         include Na__InsertPrimatives::DrawnToolShared
         include Na__InsertPrimatives::DrawnScalePlanes
         include Na__InsertPrimatives::DrawnScaleOverlay
+        include Na__InsertPrimatives::DrawnScaleMode
         include Na__InsertPrimatives::DrawnScaleKeys                          # <-- After DrawnToolShared, so its key handlers sit in front of the shared ones
 
         NA_SCALE_GRIP_HIT_PX   = 9.0
@@ -129,7 +144,7 @@ module Na__InsertPrimatives
             @na_sc_planes       = nil                                         # <-- Its saved stretch planes, local inches per axis
             @na_sc_ghost        = nil                                         # <-- Its edges, read when a drag starts
             @na_sc_ghost_key    = nil
-            @na_sc_hover        = nil                                         # <-- What the cursor is over: :bar :dim :grip :handle :line :object
+            @na_sc_hover        = nil                                         # <-- What the cursor is over: :bar :pill :dim :grip :handle :line :object
             @na_sc_hover_object = nil                                         # <-- Another object under the cursor, offered for a click
             @na_sc_plane_hover  = nil                                         # <-- The plane a click on a centre line would drop
             @na_sc_drag         = nil                                         # <-- A grip being dragged
@@ -171,19 +186,22 @@ module Na__InsertPrimatives
         def na_drawn__activation_hints
             [
                 'Select a group or component first, or hover one and click it',
-                'Loose geometry works too: select it first, or click it to take everything connected to it — boxed in the open group\'s own axes, no stretch planes',
+                'Loose geometry works too: select it first, or click it to take everything connected to it — boxed in the open group\'s own axes, stretching only at its centre planes',
                 'Double-click inside it to take the part under the cursor; BKSP comes back out',
                 'Drag a grip to scale, release or click again to place — one undo step',
                 "Sizes snap to the #{Na__InsertPrimatives.Na__DrawnSettings__GridStepLabel} grid; hold CTRL to snap the grip to a point instead",
                 'SHIFT frees a corner grip, or makes a face or edge grip uniform; TAB scales about the centre',
+                'A grip\'s colour says what it does: TEAL uniform, ORANGE non-uniform (distorts), VIOLET stretch at planes, RED both at once',
+                'Click UNIFORM, NON-UNIFORM or STRETCH under the handle bar and every grip takes that mode; click the lit one to let go',
                 'Handle bar (top left): All, Faces, Corners, X, Y, Z — remembered; ARROWS pick one axis for a moment',
-                'TAB About Centre, SHIFT+TAB Stretch Planes — no single letters: SketchUp keeps those for its own tools',
+                'SHIFT+TAB: every grip STRETCHES, at a plane through the centre of each axis until you place your own. Again: back to scaling',
+                'TAB About Centre — no single letters: SketchUp keeps those for its own tools',
                 'Every switch is also a command for Preferences > Shortcuts: Extensions > Na__InsertPrimitives > Deep Scale Options',
                 'Click a dimension and type its size: 1200, +50, -25, 1.5x — it resizes at once',
                 'With nothing clicked the measurements box takes X,Y,Z in order: 1200,,2400 leaves Y alone',
-                'Planes: click a dashed centre line, or hold CTRL over the object, to add a stretch plane — every click adds another',
-                'SHIFT drops a mirrored pair; drag a diamond to move a plane; DEL or a double-click removes it',
-                'A grip on an axis with planes stretches the object AT the planes: frames and details keep their size',
+                'Planes: drag a diamond to move one; click a dashed centre line, or hold CTRL over the object, to place your own, which takes over from the centre plane',
+                'SHIFT drops a mirrored pair; DEL or a double-click removes a plane you placed',
+                'A stretch happens AT the planes: frames and details keep their size',
                 'Right-click for dimension size and offset, and Clear Stretch Planes'
             ]
         end
@@ -205,14 +223,20 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Stretch Planes Switched On — and Something to Keep Them On?
-        # Loose geometry has no definition to save planes with, so for it they
-        # are off whatever the switch says (5.2.9).
+        # FUNCTION | Stretch Planes Switched On?
+        # Loose geometry too (5.2.22): the centre planes need nothing saved.
         # ------------------------------------------------------------
         def na_scale__planes_on?
-            return false if @na_sc_frame && @na_sc_frame[:loose]
-
             Na__InsertPrimatives.Na__ToolOptions__Enabled?(NA_SCALE_OPTION_PLANES)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Can Planes Be Placed and Moved on What Is Held?
+        # Not on loose geometry, which has no definition to save a plane with:
+        # it stretches at its centre planes, and they stay there.
+        # ------------------------------------------------------------
+        def na_scale__planes_editable?
+            na_scale__planes_on? && !(@na_sc_frame && @na_sc_frame[:loose])
         end
         # ---------------------------------------------------------------
 
@@ -256,6 +280,8 @@ module Na__InsertPrimatives
             view  = model ? model.active_view : nil
 
             @na_sc_plane_hover = nil unless na_scale__planes_on?
+            @na_sc_planes      = na_scale__planes_of(@na_sc_frame) if @na_sc_frame # <-- The refresh leaves them alone mid-drag, and the centre planes come and go with the switch
+            @na_sc_drag[:limits] = na_scale__stretch_limits if @na_sc_drag    # <-- A stretch begun mid-drag has a floor the scale it was did not: held there too
             na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y) if view && (@na_sc_drag || @na_sc_frame)
 
             @na_last_status_text = nil
@@ -285,6 +311,7 @@ module Na__InsertPrimatives
 
             result = super
             @na_axis_lock = nil if id == NA_SCALE_OPTION_HANDLES                 # <-- A handle set chosen in the menu is the newer decision
+            na_scale__planes_give_way if id == NA_SCALE_OPTION_GRIP_MODE && Na__InsertPrimatives.Na__ToolOptions__Value(id).to_s != NA_SCALE_GRIP_MODE_BY_GRIP # <-- Otherwise the mode just picked would do nothing
             na_scale__after_option_changed(id)
             result
         end
@@ -400,7 +427,7 @@ module Na__InsertPrimatives
                 model.selection.add(frame[:entities])
             end
 
-            na_scale__say("#{frame[:name]} #{na_scale__sizes_text(frame[:world_lengths])} mm — drag a grip, or click a dimension and type (no stretch planes: those need a group or component)")
+            na_scale__say("#{frame[:name]} #{na_scale__sizes_text(frame[:world_lengths])} mm — drag a grip, or click a dimension and type; SHIFT+TAB stretches it")
             true
         rescue StandardError => error
             Na__InsertPrimatives.Na__Debug__Puts "NA DEEP SCALE: loose geometry not taken — #{error.message}"
@@ -433,12 +460,16 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | The Stretch Planes a Frame Carries — None for Loose Geometry
+        # FUNCTION | The Stretch Planes in Force for a Frame
+        # ------------------------------------------------------------
+        # What is saved on it (loose geometry has nowhere to save any), and
+        # with Stretch Planes on, a centre plane on every axis with none.
         # ------------------------------------------------------------
         def na_scale__planes_of(frame)
-            return Na__InsertPrimatives.Na__ScalePlanes__Empty if frame.nil? || frame[:loose]
+            return Na__InsertPrimatives.Na__ScalePlanes__Empty if frame.nil?
 
-            Na__InsertPrimatives.Na__ScalePlanes__Read(frame[:definition])
+            saved = frame[:loose] ? Na__InsertPrimatives.Na__ScalePlanes__Empty : Na__InsertPrimatives.Na__ScalePlanes__Read(frame[:definition])
+            na_scale__planes_on? ? Na__InsertPrimatives.Na__ScalePlanes__WithCentres(frame, saved) : saved
         end
         # ---------------------------------------------------------------
 
@@ -529,7 +560,7 @@ module Na__InsertPrimatives
                 return false
             end
 
-            @na_sc_planes = Na__InsertPrimatives.Na__ScalePlanes__Read(instance.definition)
+            @na_sc_planes = na_scale__planes_of(@na_sc_frame)
             fingerprint   = Na__InsertPrimatives.Na__ScaleFrame__Fingerprint(instance, path)
             return false if @na_sc_frame && @na_sc_frame[:fingerprint] == fingerprint
 
@@ -728,7 +759,7 @@ module Na__InsertPrimatives
 
         # FUNCTION | Work Out What the Cursor Is Over
         # ------------------------------------------------------------
-        # The bar first (it sits on top of everything), then CTRL's plane
+        # The bar and the mode strip first (they sit on top of everything), then CTRL's plane
         # offer — the key is held to say "a plane, here", so it outranks what
         # is under the cursor — then the grips — a few pixels each, so they
         # win wherever a dimension's label happens to reach — then the
@@ -744,6 +775,9 @@ module Na__InsertPrimatives
                 button = na_scale__bar_at(view, x, y)
                 return @na_sc_hover = { :kind => :bar, :id => button[:id] } if button
 
+                pill = na_scale__pill_at(view, x, y)
+                return @na_sc_hover = { :kind => :pill, :id => pill[:mode] } if pill
+
                 if @na_ctrl_held
                     axis = na_scale__ctrl_axis(view, x, y)
                     return na_scale__offer_plane(view, axis, x, y, true) if axis
@@ -755,7 +789,7 @@ module Na__InsertPrimatives
                 dim = na_scale__dim_at(view, x, y)
                 return @na_sc_hover = { :kind => :dim, :axis => dim[:axis] } if dim
 
-                if na_scale__planes_on?
+                if na_scale__planes_editable?
                     handle = na_scale__handle_at(view, x, y)
                     return @na_sc_hover = handle.merge(:kind => :handle) if handle
 
@@ -832,6 +866,9 @@ module Na__InsertPrimatives
                 button = na_scale__bar_at(view, x, y)
                 return na_scale__bar_click(view, button) if button
 
+                pill = na_scale__pill_at(view, x, y)
+                return na_scale__pill_click(view, pill) if pill
+
                 if @na_ctrl_held
                     axis = na_scale__ctrl_axis(view, x, y)
                     return na_scale__begin_ctrl_plane(view, axis, x, y) if axis
@@ -843,7 +880,7 @@ module Na__InsertPrimatives
                 dim = na_scale__dim_at(view, x, y)
                 return na_scale__dim_click(view, dim) if dim
 
-                if na_scale__planes_on?
+                if na_scale__planes_editable?
                     handle = na_scale__handle_at(view, x, y)
                     return na_scale__begin_move_plane(view, handle, x, y) if handle
 
@@ -942,7 +979,14 @@ module Na__InsertPrimatives
                 na_scale__cancel_drag                                         # <-- A grip double-clicked is not a scale
             end
 
-            if @na_sc_frame && na_scale__planes_on?
+            # The first Down has already pressed it. The bar and the strip stand
+            # over the model, so nothing must reach through them to go inside.
+            if @na_sc_frame && (na_scale__bar_at(view, x, y) || na_scale__pill_at(view, x, y))
+                na_scale__after_mouse(view)
+                return true
+            end
+
+            if @na_sc_frame && na_scale__planes_editable?
                 handle = na_scale__handle_at(view, x, y)
 
                 if handle
@@ -1108,13 +1152,16 @@ module Na__InsertPrimatives
         # the corner of the box, on a flat panel the corner of the panel, in
         # an elevation the corner of the elevation — and is uniform by
         # default, the way SketchUp's corners are. Face and edge grips are
-        # free. SHIFT swaps either way. A uniform scale scales every axis the
-        # object has, seen or not, as SketchUp's does.
+        # free. A mode clicked on the strip overrides that for every grip. SHIFT
+        # swaps either way. A uniform scale scales every axis the object has,
+        # seen or not, as SketchUp's does.
         # ------------------------------------------------------------
         def na_scale__uniform?(grip)
-            seen = @na_sc_seen_axes || @na_sc_frame[:usable]
-            need = (0..2).select { |n| seen[n] }.map { |n| NA_SCALE_AXES[n] }
-            full = grip[:axes].length > 1 && (need - grip[:axes]).empty?
+            seen   = @na_sc_seen_axes || @na_sc_frame[:usable]
+            need   = (0..2).select { |n| seen[n] }.map { |n| NA_SCALE_AXES[n] }
+            full   = grip[:axes].length > 1 && (need - grip[:axes]).empty?
+            choice = na_scale__grip_choice
+            full   = choice == :uniform if choice
 
             full ^ (@na_shift_held ? true : false)
         end
@@ -1415,6 +1462,7 @@ module Na__InsertPrimatives
             model  = Sketchup.active_model
             frame  = @na_sc_frame
             label  = Na__InsertPrimatives.Na__ScaleFrame__Label(frame)
+            mode   = Na__InsertPrimatives.Na__ScaleMode__OfField(field, frame)
             after  = nil
 
             if field[:stretch]
@@ -1422,6 +1470,7 @@ module Na__InsertPrimatives
                 after      = Na__InsertPrimatives.Na__ScalePlanes__Prune(
                     Na__InsertPrimatives.Na__ScaleField__PlanesAfter(field, @na_sc_planes), mins, maxs
                 )
+                after      = Na__InsertPrimatives.Na__ScalePlanes__WithoutCentres(frame, after, mins, maxs) # <-- Still through the middle of the new box: nothing to store
             end
 
             result = Na__InsertPrimatives.Na__ScaleCommit__Run(model, frame, field, after)
@@ -1435,17 +1484,17 @@ module Na__InsertPrimatives
 
             sides.each { |axis, side| @na_sc_sides[axis] = side }
             na_scale__rebuild_frame
-            na_scale__report(result, label)
+            na_scale__report(result, label, mode)
             result
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Say What a Commit Did
+        # FUNCTION | Say What a Commit Did, Naming the Mode It Did It In
         # ------------------------------------------------------------
-        def na_scale__report(result, label)
+        def na_scale__report(result, label, mode = nil)
             frame = @na_sc_frame
             sizes = frame ? na_scale__sizes_text(frame[:world_lengths]) : '?'
-            verb  = result[:mode] == :stretch ? 'Stretched' : 'Scaled'
+            verb  = NA_SCALE_MODE_VERBS[mode] || (result[:mode] == :stretch ? 'Stretched' : 'Scaled')
             notes = []
             notes << 'made unique' if result[:unique].to_i > 0
             notes << "#{result[:opened]} part#{result[:opened].to_i == 1 ? '' : 's'} inside stretched too" if result[:opened].to_i > 0
@@ -1539,8 +1588,8 @@ module Na__InsertPrimatives
             elsif @na_sc_drag
                 na_scale__cancel_drag
             elsif hover && hover[:kind] == :handle
+                @na_sc_hover = nil                                            # <-- First: what the removal says is only kept while the hover it was said over lasts
                 na_scale__remove_plane(hover[:axis], hover[:u])
-                @na_sc_hover = nil
             elsif @na_sc_focus == :plane && @na_sc_active_plane
                 na_scale__remove_plane(@na_sc_active_plane[:axis], @na_sc_active_plane[:u])
             elsif na_scale__step_up
@@ -1640,9 +1689,9 @@ module Na__InsertPrimatives
                 if @na_sc_drag && @na_sc_drag[:moved]
                     na_scale__typed_for_drag(tokens)
                 elsif @na_sc_active_dim
-                    na_scale__typed_for_axis(@na_sc_active_dim, tokens)
+                    na_scale__typed_as_chosen(*na_scale__typed_for_axis(@na_sc_active_dim, tokens))
                 else
-                    na_scale__typed_in_order(tokens)
+                    na_scale__typed_as_chosen(*na_scale__typed_in_order(tokens))
                 end
 
             na_scale__check_limits(factors)
@@ -1866,8 +1915,14 @@ module Na__InsertPrimatives
             na_scale__draw_dims(view)
             na_scale__draw_grips(view)                                        # <-- Over the dimensions: the grips take the click where the two meet
             na_scale__draw_bar(view)
-            na_scale__draw_plane_hint(view)
+
+            below = na_scale__draw_mode_strip(view)
+            na_scale__draw_bar_tip(view, below)
+            na_scale__draw_plane_hint(view, below)
+
+            # The cards last, so no grip is drawn through what they say.
             na_scale__draw_grip_label(view)
+            na_scale__draw_plane_label(view) if na_scale__planes_on? || na_scale__ctrl_offer?
         end
         # ---------------------------------------------------------------
 
@@ -1888,90 +1943,112 @@ module Na__InsertPrimatives
 
         # FUNCTION | The Grips: Far Side, Near Side, Then the Hovered One on Top
         # ------------------------------------------------------------
+        # Each wears the colour of what it would do, so which grip stretches and
+        # which distorts can be seen before the mouse gets to one (Mode file).
+        # Read fresh every frame: SHIFT or SHIFT+TAB recolours them at once.
+        # ------------------------------------------------------------
         def na_scale__draw_grips(view)
-            hover   = @na_sc_hover && @na_sc_hover[:kind] == :grip ? @na_sc_hover[:grip] : nil
-            entries = na_scale__visible_grips(view).sort_by { |entry| entry[:front] ? 1 : 0 }
-            hot     = nil
+            hover      = @na_sc_hover && @na_sc_hover[:kind] == :grip ? @na_sc_hover[:grip] : nil
+            entries    = na_scale__visible_grips(view).sort_by { |entry| entry[:front] ? 1 : 0 }
+            stretching = na_scale__stretching_axes
+            hot        = nil
 
             entries.each do |entry|
+                style = Na__InsertPrimatives.Na__ScalePreview__ModeStyle(na_scale__grip_mode(entry[:grip], stretching))
+
                 if hover && entry[:grip][:codes] == hover[:codes]
-                    hot = entry
+                    hot = [entry[:screen], style]
                 elsif entry[:front]
-                    Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, entry[:screen], NA_SCALE_GRIP_PIXELS, NA_SCALE_GRIP_COLOR)
+                    Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, entry[:screen], NA_SCALE_GRIP_PIXELS, style[:solid])
                 else
-                    Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, entry[:screen], NA_SCALE_GRIP_BACK_PIXELS, NA_SCALE_GRIP_BACK_COLOR, true)
+                    Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, entry[:screen], NA_SCALE_GRIP_BACK_PIXELS, style[:back], true)
                 end
             end
 
-            Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, hot[:screen], NA_SCALE_GRIP_HOT_PIXELS, NA_SCALE_GRIP_HOT_COLOR) if hot
+            Na__InsertPrimatives.Na__ScalePreview__DrawHotGrip(view, hot[0], hot[1]) if hot
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | What the Hovered Grip Will Do
+        # FUNCTION | What the Hovered Grip Will Do, on a Card Beside It
         # ------------------------------------------------------------
         def na_scale__draw_grip_label(view)
             hover = @na_sc_hover
             return unless hover && hover[:kind] == :grip
 
-            Na__InsertPrimatives.Na__ScalePreview__DrawWorldLabel(view, hover[:grip][:world], na_scale__grip_lines(hover[:grip]))
+            grip  = hover[:grip]
+            focus = na_scale__grip_focus(grip, na_scale__uniform?(grip))
+
+            Na__InsertPrimatives.Na__ScalePreview__DrawModeCard(
+                view, Na__InsertPrimatives.Na__ScalePreview__Screen(view, grip[:world]),
+                na_scale__mode_title(focus), na_scale__grip_lines(grip),
+                Na__InsertPrimatives.Na__ScalePreview__ModeStyle(focus[:mode])
+            )
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | A Grip Described in a Line or Two
+        # FUNCTION | A Grip Described: the Lines Under Its Card's Title
         # ------------------------------------------------------------
         def na_scale__grip_lines(grip)
             uniform = na_scale__uniform?(grip)
-            names   = grip[:axes].map { |axis| axis.to_s.upcase }.join(' + ')
-            centre  = na_scale__centre_on? ? ' about centre' : ''
-            lines   = [uniform ? "Scale uniform#{centre}" : "Scale #{names}#{centre}"]
+            lines   = na_scale__focus_notes(na_scale__grip_focus(grip, uniform))
 
-            stretching = grip[:axes].select do |axis|
-                na_scale__planes_on? &&
-                    !Na__InsertPrimatives.Na__ScalePlanes__Inside(@na_sc_frame, axis, (@na_sc_planes || {})[axis]).empty?
-            end
-            lines << "stretches #{stretching.map { |axis| axis.to_s.upcase }.join(' + ')} at the planes" unless stretching.empty?
-            lines << (uniform ? 'SHIFT: one axis at a time' : 'SHIFT: uniform') if grip[:axes].length > 1 || uniform
-            lines
+            lines << 'about centre' if na_scale__centre_on?
+            lines << na_scale__shift_line(grip, uniform)
+            lines.compact
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | A Change on Its Way: Old Box Faded, New Box in Amber, Ghost, Planes, Sizes
+        # FUNCTION | A Change on Its Way: Old Box Faded, New Box, Ghost, Planes, Sizes
         # ------------------------------------------------------------
         # The same picture for a grip being dragged and for a size being
-        # typed. texts carries what is typed, shown in the dimensions it
-        # goes to; drag, when there is one, puts the grip and its label at
-        # the grip's new place, and without one the label sits on the box.
+        # typed, all of it in the colour of the mode doing it. texts carries
+        # what is typed, shown in the dimensions it goes to; drag, when there
+        # is one, puts the grip and its card at the grip's new place, and
+        # without one the card sits on the box.
         # ------------------------------------------------------------
         def na_scale__draw_change(view, field, texts, drag)
             frame      = @na_sc_frame
             mins, maxs = Na__InsertPrimatives.Na__ScaleField__Box(field, frame)
             lengths    = (0..2).map { |n| (maxs[n] - mins[n]) * frame[:scales][n] }
             live       = NA_SCALE_AXES.reject { |axis| field[axis][:mode] == :fixed }
+            focus      = na_scale__mode_focus
+            style      = Na__InsertPrimatives.Na__ScalePreview__ModeStyle(focus ? focus[:mode] : nil)
 
             Na__InsertPrimatives.Na__ScalePreview__DrawBoxOutline(
                 view, Na__InsertPrimatives.Na__ScaleFrame__BoxEdges(frame), NA_SCALE_OLD_BOX_COLOR, 1, '-'
             )
 
             near, far = Na__InsertPrimatives.Na__ScaleFrame__BoxQuads(frame, mins, maxs)
-            drawn     = Na__InsertPrimatives.Na__DrawnPreview__DrawFilledBoxOnTop(view, near, far, NA_SCALE_NEW_FILL_COLOR, NA_SCALE_NEW_BORDER_COLOR)
-            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledBox(view, near, far, NA_SCALE_NEW_FILL_COLOR, NA_SCALE_NEW_BORDER_COLOR) unless drawn
+            drawn     = Na__InsertPrimatives.Na__DrawnPreview__DrawFilledBoxOnTop(view, near, far, style[:fill], style[:border])
+            Na__InsertPrimatives.Na__DrawnPreview__DrawFilledBox(view, near, far, style[:fill], style[:border]) unless drawn
 
             na_scale__ghost
-            na_scale__draw_ghost(view, field)
+            na_scale__draw_ghost(view, field, style[:ghost])
+            na_scale__draw_stretch_bands(view, field, mins, maxs)
             na_scale__draw_planes(view, field) if na_scale__planes_on?
 
             na_scale__layout_dims(view, mins, maxs, lengths, live, texts || {})
-            na_scale__draw_dims(view)
+            na_scale__draw_dims(view, na_scale__live_colours(focus))
+
+            title  = focus ? na_scale__mode_title(focus) : ''
+            notes  = focus ? na_scale__focus_notes(focus) : []
 
             if drag
                 moved  = Na__InsertPrimatives.Na__ScaleField__MapPoint(field, drag[:grip][:local]).transform(frame[:world])
                 screen = Na__InsertPrimatives.Na__ScalePreview__Screen(view, moved)
-                Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, screen, NA_SCALE_GRIP_HOT_PIXELS, NA_SCALE_GRIP_HOT_COLOR) if screen
-                Na__InsertPrimatives.Na__ScalePreview__DrawWorldLabel(view, moved, na_scale__drag_lines)
+                Na__InsertPrimatives.Na__ScalePreview__DrawHotGrip(view, screen, style) if screen
+                Na__InsertPrimatives.Na__ScalePreview__DrawModeCard(
+                    view, screen, title, na_scale__drag_lines + notes + [na_scale__shift_line(drag[:grip], drag[:uniform])], style
+                )
             else
                 corner = Geom::Point3d.new(maxs[0], mins[1], maxs[2]).transform(frame[:world])
-                Na__InsertPrimatives.Na__ScalePreview__DrawWorldLabel(view, corner, na_scale__change_lines(field, lengths) + ['Enter applies it, ESC cancels'])
+                Na__InsertPrimatives.Na__ScalePreview__DrawModeCard(
+                    view, Na__InsertPrimatives.Na__ScalePreview__Screen(view, corner),
+                    title, na_scale__change_lines(field, lengths) + notes + ['Enter applies it, ESC cancels'], style
+                )
             end
+
+            na_scale__draw_mode_strip(view)
         end
         # ---------------------------------------------------------------
 
@@ -1993,7 +2070,7 @@ module Na__InsertPrimatives
                 if spec[:mode] == :stretch
                     count = spec[:planes].length
                     each  = Na__InsertPrimatives.Na__DrawnFormat__Mm((spec[:delta] / count) * frame[:scales][n])
-                    line += " at #{count} plane#{count == 1 ? '' : 's'}, #{each >= 0 ? '+' : ''}#{each} each"
+                    line += " at #{count} plane#{count == 1 ? '' : 's'}, #{each >= 0 ? '+' : ''}#{each}#{count == 1 ? '' : ' each'}"
                 end
 
                 lines << line
@@ -2004,22 +2081,23 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Every Edge of the Object Where the Change Is Taking It
-        # Too many edges to project every frame and the amber box stands in.
+        # Too many edges to project every frame and the new box stands in.
         # ------------------------------------------------------------
-        def na_scale__draw_ghost(view, field)
+        def na_scale__draw_ghost(view, field, color)
             ghost = @na_sc_ghost
             return false unless ghost && ghost[:drawable]
 
             world  = @na_sc_frame[:world]
             points = ghost[:points].map { |point| Na__InsertPrimatives.Na__ScaleField__MapPoint(field, point).transform(world) }
 
-            Na__InsertPrimatives.Na__ScalePreview__DrawGhost(view, points, ghost[:segments])
+            Na__InsertPrimatives.Na__ScalePreview__DrawGhost(view, points, ghost[:segments], color)
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | The Label Beside the Grip While It Is Dragged
+        # FUNCTION | The Sizes Beside the Grip While It Is Dragged
         # Empty until the mouse has really moved: a grip only pressed has no
-        # field yet, and nothing to say about one.
+        # field yet, and nothing to say about one. Which mode it is doing is
+        # the card's title (Mode file), not one of these lines.
         # ------------------------------------------------------------
         def na_scale__drag_lines
             drag  = @na_sc_drag
@@ -2037,15 +2115,18 @@ module Na__InsertPrimatives
                 lines << "#{axis.to_s.upcase} #{after} mm (#{change >= 0 ? '+' : ''}#{change})"
             end
 
-            lines = ["Uniform #{format('%.3f', drag[:factors].values.first.to_f)}x — #{lines.join('  ')}"] if drag[:uniform] && !drag[:factors].empty?
-
             NA_SCALE_AXES.each_with_index do |axis, n|
                 spec = field[axis]
                 next unless spec && spec[:mode] == :stretch
 
                 count = spec[:planes].length
                 each  = Na__InsertPrimatives.Na__DrawnFormat__Mm((spec[:delta] / count) * frame[:scales][n])
-                lines << "#{axis.to_s.upcase} stretches at #{count} plane#{count == 1 ? '' : 's'}, #{each >= 0 ? '+' : ''}#{each} each"
+                lines << "#{axis.to_s.upcase} stretches at #{count} plane#{count == 1 ? '' : 's'}, #{each >= 0 ? '+' : ''}#{each}#{count == 1 ? '' : ' each'}"
+
+                # With a plane through the middle by default this comes up more,
+                # and a grip that stops following the mouse needs a reason.
+                limit = drag[:limits][axis]
+                lines << "#{axis.to_s.upcase} stops here: details either side of a plane would meet" if limit && drag[:lengths][n] <= limit + 1e-6
             end
 
             lines << 'about centre' if na_scale__centre_on?
@@ -2193,15 +2274,17 @@ module Na__InsertPrimatives
 
             if @na_sc_drag
                 lines = na_scale__drag_lines
-                return lines.empty? ? 'Drag the grip — release or click to place' : "#{lines.join(' · ')} — release or click to place"
+                title = na_scale__mode_title(na_scale__mode_focus)
+                return lines.empty? ? "#{title} — drag the grip, release or click to place" : "#{title} — #{lines.join(' · ')} — release or click to place"
             end
 
             label = Na__InsertPrimatives.Na__ScaleFrame__Label(frame)
 
             case hover && hover[:kind]
-            when :grip   then "#{na_scale__grip_lines(hover[:grip]).first} — drag to scale #{label}"
-            when :dim    then "Click to type the #{hover[:axis].to_s.upcase} size of #{label}"
+            when :grip   then "#{na_scale__mode_title(na_scale__grip_focus(hover[:grip], na_scale__uniform?(hover[:grip])))} — drag it to change #{label}"
+            when :dim    then "Click to type the #{hover[:axis].to_s.upcase} size of #{label} — #{na_scale__mode_title(na_scale__axis_focus(hover[:axis]))}"
             when :bar    then (@na_sc_bar.find { |button| button[:id] == hover[:id] } || {})[:tip].to_s
+            when :pill   then na_scale__pill_tip(hover[:id])
             when :line
                 axis = hover[:axis].to_s.upcase
                 one  = "#{axis == 'X' ? 'an' : 'a'} #{axis}"
@@ -2231,10 +2314,11 @@ module Na__InsertPrimatives
                 frame      = @na_sc_frame
                 mins, maxs = Na__InsertPrimatives.Na__ScaleField__Box(typed[:field], frame)
                 lengths    = (0..2).map { |n| (maxs[n] - mins[n]) * frame[:scales][n] }
-                return "Typing #{text} → #{na_scale__change_lines(typed[:field], lengths).join(' · ')} — Enter applies it, ESC cancels"
+                title      = na_scale__mode_title(na_scale__field_focus(typed[:field]))
+                return "Typing #{text} → #{na_scale__change_lines(typed[:field], lengths).join(' · ')} — #{title} — Enter applies it, ESC cancels"
             end
 
-            limit = typed[:note].to_s.include?('room to shrink') ? " — #{typed[:note]}" : ''
+            limit = typed[:note].to_s =~ /room to shrink|UNIFORM takes/ ? " — #{typed[:note]}" : ''
             "Typing #{text}#{limit} — Enter applies it, ESC cancels"
         end
         # ---------------------------------------------------------------
@@ -2261,7 +2345,10 @@ module Na__InsertPrimatives
                     Na__InsertPrimatives.Na__ToolOptions__CaptionFor(NA_SCALE_OPTION_HANDLES)
                 end
 
+            choice = na_scale__grip_choice
+
             parts = [handles]
+            parts << "GRIPS #{NA_SCALE_MODE_WORDS[choice].upcase}" if choice
             parts << 'STRETCH PLANES' if na_scale__planes_on?
             parts << 'ABOUT CENTRE'   if na_scale__centre_on?
             parts <<
@@ -2279,12 +2366,18 @@ module Na__InsertPrimatives
             kind = @na_sc_hover ? @na_sc_hover[:kind] : nil
 
             return 'SHIFT mirror  type a distance  ESC cancel' if @na_sc_plane_drag
-            return 'SHIFT uniform  CTRL point snap  TAB about centre  type a size  ESC cancel' if @na_sc_drag
+
+            if @na_sc_drag
+                shift = na_scale__shift_words(@na_sc_drag[:grip], na_scale__uniform?(@na_sc_drag[:grip]))
+                return "#{shift ? "SHIFT #{shift}  " : ''}CTRL point snap  TAB about centre  SHIFT+TAB planes  type a size  ESC cancel"
+            end
+
             return 'click a group or component  ESC exit' unless @na_sc_frame
             return 'click adds a plane  SHIFT mirrored pair  ARROWS axis  ESC let go' if kind == :line
             return 'drag to move  SHIFT with its mirror  DEL remove  ESC let go' if kind == :handle
 
-            'CTRL add a plane  SHIFT+TAB planes  TAB centre  ARROWS one axis  SHIFT uniform  dbl-click inside  ESC let go'
+            shift = na_scale__grip_choice == :uniform ? 'SHIFT non-uniform' : 'SHIFT uniform'
+            "CTRL add a plane  SHIFT+TAB planes  TAB centre  ARROWS one axis  #{shift}  dbl-click inside  ESC let go"
         end
         # ---------------------------------------------------------------
 
@@ -2306,12 +2399,12 @@ module Na__InsertPrimatives
                 drag = @na_sc_drag
                 axes = drag[:uniform] ? NA_SCALE_AXES.select.with_index { |_axis, n| frame[:usable][n] } : drag[:grip][:axes]
                 text = axes.map { |axis| Na__InsertPrimatives.Na__DrawnFormat__Mm(drag[:lengths][NA_SCALE_AXIS_INDEX[axis]]).to_s }.join(',')
-                return [axes.length == 1 ? "Length #{axes.first.to_s.upcase}" : "Size #{axes.map { |axis| axis.to_s.upcase }.join(',')}", text]
+                return ["#{na_scale__vcb_verb(na_scale__mode_focus)} #{axes.map { |axis| axis.to_s.upcase }.join(',')}", text]
             end
 
             if @na_sc_active_dim
                 n = NA_SCALE_AXIS_INDEX[@na_sc_active_dim]
-                return ["Length #{@na_sc_active_dim.to_s.upcase}", Na__InsertPrimatives.Na__DrawnFormat__Mm(frame[:world_lengths][n]).to_s]
+                return ["#{na_scale__vcb_verb(na_scale__axis_focus(@na_sc_active_dim))} #{@na_sc_active_dim.to_s.upcase}", Na__InsertPrimatives.Na__DrawnFormat__Mm(frame[:world_lengths][n]).to_s]
             end
 
             ['Size X,Y,Z', frame[:world_lengths].map { |length| Na__InsertPrimatives.Na__DrawnFormat__Mm(length).to_s }.join(',')]

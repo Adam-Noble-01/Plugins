@@ -152,9 +152,12 @@ module Na__SketchUpMcp
 
         # The instance path (root -> ... -> instance whose definition holds the entity).
         # Root entities return []. Warnings explain any ambiguity.
+        # Only something inside a definition has a container. A definition, material
+        # or tag has a collection as its parent (SketchUp 2027: DefinitionList,
+        # Materials, Layers), so it returns [] as well.
         def self.Na__Coordinates__ContainerPathForEntity(model, entity, warnings = nil)
             parent = entity.parent
-            return [] if parent.nil? || parent.is_a?(Sketchup::Model)
+            return [] unless parent.is_a?(Sketchup::ComponentDefinition)
 
             na_path_to_definition(model, parent, warnings, 0)
         end

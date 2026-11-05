@@ -567,6 +567,7 @@ module Na__ComponentEditorTools
                     'from' => record['from'] && Na__McpCatalogue.Na__ComponentEditorTools__Relative(root, record['from']),
                     'to' => Na__McpCatalogue.Na__ComponentEditorTools__Relative(root, record['to'] || record['path']),
                     'changes' => record['changes'], 'definition_name' => record['definition_name_after'] || record['definition_name'],
+                    'renamed_in_model' => record['renamed_in_model'] ? true : nil,
                     'note' => record['note']
                 }.reject { |_key, value| value.nil? || value == [] || value == '' }
             end
@@ -686,6 +687,9 @@ module Na__ComponentEditorTools
         # A definition from the open model saved as a library file. The rename and
         # data writes happen inside an aborted operation, so the model is only
         # changed when rename_in_model asks for it (one undo step).
+        # That rename is committed BEFORE the save: a rename abort_operation takes
+        # back leaves the name reserved in this model, so a rename after the save
+        # could never hold it (SketchUp gives "...#1").
         def self.Na__ComponentEditorTools__SaveDefinition(journal, step, index)
             to_path = step['to']
             definition = step['definition']
@@ -700,6 +704,9 @@ module Na__ComponentEditorTools
             model = Sketchup.active_model
             FileUtils.mkdir_p(File.dirname(to_path))
 
+            record = { 'to' => to_path, 'created' => !existed, 'backup' => backup, 'definition_name' => intended, 'renamed_in_model' => false }
+            self.Na__ComponentEditorTools__RenameInModel(model, definition, intended, data, step['description'], record) if step['rename_in_model']
+
             saved = false
             model.start_operation('Na Library - Save component to library', true)
             begin
@@ -710,18 +717,20 @@ module Na__ComponentEditorTools
             ensure
                 model.abort_operation
             end
-            raise "SketchUp could not save to #{to_path}." unless saved && File.file?(to_path)
+            unless saved && File.file?(to_path)
+                undo_hint = record['renamed_in_model'] ? ' The component in the model was already renamed: Ctrl+Z puts it back.' : ''
+                raise "SketchUp could not save to #{to_path}.#{undo_hint}"
+            end
 
-            record = { 'to' => to_path, 'created' => !existed, 'backup' => backup, 'definition_name' => intended, 'renamed_in_model' => false }
-            self.Na__ComponentEditorTools__RenameInModel(model, definition, intended, data, record) if step['rename_in_model']
             record
         end
 
-        def self.Na__ComponentEditorTools__RenameInModel(model, definition, intended, data, record)
+        def self.Na__ComponentEditorTools__RenameInModel(model, definition, intended, data, description, record)
             model.start_operation('MCP: Save to Library', true)
             begin
                 Na__LibrarySafeLoad.Na__ComponentEditorTools__ApplyName(model, definition, intended, move_clash_aside: false)
                 data.each { |field, value| Na__LibrarySerializer.Na__ComponentEditorTools__WriteSingleField(definition, field, value) }
+                definition.description = description.to_s unless description.nil?
                 model.commit_operation
                 record['renamed_in_model'] = true
             rescue StandardError => error

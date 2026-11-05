@@ -12,8 +12,12 @@
 # DESCRIPTION:
 # - Built on the plugin's established preview system (DrawnPreviewGraphics):
 #   the same palette and the same rules. Blue is the object being acted on,
-#   amber is what it is about to become, green is a handle, orange is a value
-#   that is pinned or about to be typed, and the axis colours are SketchUp's.
+#   orange text in brackets is a value about to be typed, and the axis colours
+#   are SketchUp's.
+# - What a grip does, and what the object is about to become, wear the colour of
+#   the mode doing it (5.2.21, Mode file): teal for a uniform scale, orange for
+#   a non-uniform one, violet for a stretch at planes, red for a stretch and a
+#   scale at once. None of them is an axis colour.
 # - Everything here is drawn in SCREEN space with View#draw2d, after the
 #   model, the way the subtract cutter and every label already are. A grip,
 #   a dimension or a plane hidden by the object it belongs to is no use, and
@@ -35,14 +39,31 @@ module Na__InsertPrimatives
 
     NA_SCALE_BOX_COLOR          = NA_DRAWN_TARGET_BORDER_COLOR                # <-- The object you are about to act on
     NA_SCALE_OLD_BOX_COLOR      = Sketchup::Color.new(  0, 110, 235, 120)     # <-- Where it was, faded, while the drag runs
-    NA_SCALE_NEW_FILL_COLOR     = Sketchup::Color.new(255, 150,  30,  24)     # <-- Thin: six faces blend over each other on top
-    NA_SCALE_NEW_BORDER_COLOR   = NA_DRAWN_VOLUME_BORDER_COLOR
-    NA_SCALE_GHOST_COLOR        = Sketchup::Color.new(226, 118,   0, 200)
 
-    NA_SCALE_GRIP_COLOR         = Sketchup::Color.new(  0, 175,  70)
-    NA_SCALE_GRIP_BACK_COLOR    = Sketchup::Color.new(  0, 140,  55, 170)
+    # FUNCTION | One Mode's Colours, All From One Hue
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__ModeColors(red, green, blue)
+        {
+            :solid  => Sketchup::Color.new(red, green, blue),                 # <-- Grips, pills, the card's title, text
+            :border => Sketchup::Color.new(red, green, blue, 235),            # <-- The new box's edges
+            :ghost  => Sketchup::Color.new(red, green, blue, 215),            # <-- The object's edges, following the drag
+            :back   => Sketchup::Color.new(red, green, blue, 175),            # <-- A grip on the far side of the box
+            :fill   => Sketchup::Color.new(red, green, blue, 26)              # <-- Thin: six faces blend over each other on top
+        }.freeze
+    end
+    # ---------------------------------------------------------------
+
+    NA_SCALE_MODE_STYLES        = {
+        :uniform => Na__InsertPrimatives.Na__ScalePreview__ModeColors(  0, 135, 120),
+        :scale   => Na__InsertPrimatives.Na__ScalePreview__ModeColors(222,  96,   0),
+        :stretch => Na__InsertPrimatives.Na__ScalePreview__ModeColors(140,  45, 195),
+        :mixed   => Na__InsertPrimatives.Na__ScalePreview__ModeColors(205,  25,  25)
+    }.freeze
+
+    NA_SCALE_BAND_FILL_COLOR    = Sketchup::Color.new(140,  45, 195,  44)     # <-- Where a stretch opens the object up
+    NA_SCALE_BAND_BORDER_COLOR  = Sketchup::Color.new(140,  45, 195, 190)
+
     NA_SCALE_GRIP_EDGE_COLOR    = Sketchup::Color.new(255, 255, 255)
-    NA_SCALE_GRIP_HOT_COLOR     = NA_DRAWN_TEXT_LOCKED_COLOR
     NA_SCALE_GRIP_PIXELS        = 9.0
     NA_SCALE_GRIP_BACK_PIXELS   = 7.0
     NA_SCALE_GRIP_HOT_PIXELS    = 13.0
@@ -60,6 +81,7 @@ module Na__InsertPrimatives
     NA_SCALE_PLANE_FILL_ALPHA   = 55
     NA_SCALE_PLANE_HOT_ALPHA    = 95
     NA_SCALE_PLANE_EDGE_ALPHA   = 225
+    NA_SCALE_PLANE_IDLE_ALPHA   = 120
     NA_SCALE_HANDLE_PIXELS      = 10.0
     NA_SCALE_HANDLE_HOT_PIXELS  = 14.0
 
@@ -79,6 +101,26 @@ module Na__InsertPrimatives
         :mode  => [Sketchup::Color.new(220, 233, 251), Sketchup::Color.new( 75, 131, 200), Sketchup::Color.new( 20,  60, 120)],
         :on    => [Sketchup::Color.new(227, 242, 229), Sketchup::Color.new(106, 168, 111), Sketchup::Color.new( 29,  94,  38)]
     }.freeze
+
+    # The mode strip stands under the bar's panel, the same way along, and stays
+    # there when the bar is put away for a drag: the place is learned once.
+    NA_SCALE_STRIP_TOP          = 48
+    NA_SCALE_STRIP_HEIGHT       = 26
+    NA_SCALE_STRIP_TEXT_SIZE    = 11
+    NA_SCALE_STRIP_PAD_X        = 12.0
+    NA_SCALE_STRIP_GAP          = 4
+    NA_SCALE_STRIP_TEXT_GAP     = 6                                           # <-- From the strip's panel down to the sentence under it
+    NA_SCALE_STRIP_WHITE        = Sketchup::Color.new(255, 255, 255)
+    NA_SCALE_STRIP_OFF_FILL     = Sketchup::Color.new(238, 238, 238)
+    NA_SCALE_STRIP_OFF_EDGE     = Sketchup::Color.new(205, 205, 205)
+    NA_SCALE_STRIP_OFF_INK      = Sketchup::Color.new(158, 158, 158)
+
+    NA_SCALE_CARD_TITLE_SIZE    = 12
+    NA_SCALE_CARD_PAD_X         = 9.0
+    NA_SCALE_CARD_PAD_Y         = 5.0
+    NA_SCALE_CARD_GAP           = 18.0                                        # <-- Clear of the grip it speaks for
+    NA_SCALE_CARD_MARGIN        = 6.0                                         # <-- The nearest it comes to the edge of the view
+    NA_SCALE_CARD_FILL_COLOR    = Sketchup::Color.new(255, 255, 255, 240)
 
     # endregion -------------------------------------------------------------------
 
@@ -240,6 +282,17 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | The Grip Under the Cursor or in Hand: Its Mode's Colour, Large and Ringed
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__DrawHotGrip(view, centre, style)
+        half = (NA_SCALE_GRIP_HOT_PIXELS * 0.5) + 3.0
+        ring = [centre.x - half, centre.y - half, centre.x + half, centre.y + half]
+
+        Na__InsertPrimatives.Na__ScalePreview__DrawGrip(view, centre, NA_SCALE_GRIP_HOT_PIXELS, style[:solid])
+        Na__InsertPrimatives.Na__ScalePreview__DrawRect(view, ring, nil, style[:solid], 2)
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | A Diamond Centred on a Screen Point — a Plane's Handle
     # ------------------------------------------------------------
     def self.Na__ScalePreview__DrawDiamond(view, centre, pixels, fill)
@@ -293,7 +346,7 @@ module Na__InsertPrimatives
     # world_points are the ghost's points already mapped and placed;
     # segments are index pairs into them. One draw2d call for the lot.
     # ------------------------------------------------------------
-    def self.Na__ScalePreview__DrawGhost(view, world_points, segments, color = NA_SCALE_GHOST_COLOR)
+    def self.Na__ScalePreview__DrawGhost(view, world_points, segments, color)
         return false if world_points.nil? || world_points.empty? || segments.nil? || segments.empty?
 
         projected = Na__InsertPrimatives.Na__DrawnPreview__ScreenPoints(view, world_points)
@@ -324,6 +377,20 @@ module Na__InsertPrimatives
 
         drawn = Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuadOnTop(view, quad, fill, border)
         Na__InsertPrimatives.Na__DrawnPreview__DrawFilledQuad(view, quad, fill, border) unless drawn
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Plane Doing Nothing on This Change: a Faint Dashed Outline
+    # ------------------------------------------------------------
+    # Solid planes across a box say "this is stretching". On a drag along another
+    # axis they would say it while the object is being scaled (5.2.21).
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__DrawIdlePlane(view, quad, axis)
+        pairs = quad.each_with_index.flat_map { |corner, index| [corner, quad[(index + 1) % quad.length]] }
+
+        Na__InsertPrimatives.Na__ScalePreview__DrawSegmentsOnTop(
+            view, pairs, Na__InsertPrimatives.Na__ScalePreview__AxisColor(axis, NA_SCALE_PLANE_IDLE_ALPHA), 1, '-'
+        )
     end
     # ---------------------------------------------------------------
 
@@ -627,10 +694,11 @@ module Na__InsertPrimatives
     # state picks the pill: :plain, :hover (the cursor is on it), :active
     # (clicked — the next typed value goes here), :typing (it is showing
     # what is being typed, brackets and caret already in the text) or :live
-    # (the drag is changing it right now). An active value gains brackets as
-    # well as orange, the two signals the plugin always gives a pinned value.
+    # (the drag is changing it right now, in live_color: the colour of what
+    # is being done to its axis). An active value gains brackets as well as
+    # orange, the two signals the plugin always gives a pinned value.
     # ------------------------------------------------------------
-    def self.Na__ScalePreview__DrawDimension(view, layout, rect, text, size, state = :plain)
+    def self.Na__ScalePreview__DrawDimension(view, layout, rect, text, size, state = :plain, live_color = nil)
         axis   = layout[:axis]
         colour = Na__InsertPrimatives.Na__ScalePreview__AxisColor(axis)
         ux, uy = layout[:dir]
@@ -672,11 +740,13 @@ module Na__InsertPrimatives
         ])
         view.line_width = 1
 
+        live = live_color || NA_SCALE_MODE_STYLES[:scale][:solid]
+
         fill, border, ink, label =
             case state
             when :active then [NA_SCALE_PILL_ACTIVE_COLOR, NA_DRAWN_TEXT_LOCKED_COLOR, NA_DRAWN_TEXT_LOCKED_COLOR, "[#{text}]"]
             when :typing then [NA_SCALE_PILL_ACTIVE_COLOR, NA_DRAWN_TEXT_LOCKED_COLOR, NA_DRAWN_TEXT_LOCKED_COLOR, text]
-            when :live   then [NA_SCALE_PILL_FILL_COLOR,   NA_SCALE_NEW_BORDER_COLOR,  NA_SCALE_NEW_BORDER_COLOR,  text]
+            when :live   then [NA_SCALE_PILL_FILL_COLOR,   live,                       live,                       text]
             when :hover  then [NA_SCALE_PILL_HOVER_COLOR,  colour,                     colour,                     text]
             else              [NA_SCALE_PILL_FILL_COLOR,   colour,                     colour,                     text]
             end
@@ -747,6 +817,146 @@ module Na__InsertPrimatives
         end
     rescue StandardError
         nil
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
+    # REGION | The Mode Strip and the Card
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | A Mode's Colours — One Not Known Yet Reads as the Plain Scale It Would Be
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__ModeStyle(mode)
+        NA_SCALE_MODE_STYLES[mode] || NA_SCALE_MODE_STYLES[:scale]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | How Far Apart Two Lines of Label Text Stand on This Screen
+    # The shared spacing, or more where the text really is taller (a high DPI
+    # display), so a card's lines cannot run through each other or out of it.
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__LineStep(view)
+        [NA_DRAWN_TEXT_LINE_HEIGHT.to_f, Na__InsertPrimatives.Na__ScalePreview__TextSize(view, 'Xg', NA_DRAWN_TEXT_SIZE, true)[1].to_f].max
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Lay the Strip's Pills Out Left to Right
+    # ------------------------------------------------------------
+    # pills are { :mode, :text, :state }. Taller than the bar's buttons and in
+    # bigger text: read at a glance as well as clicked (5.2.23). Its size comes
+    # from the words alone, so a pill's state never moves what the cursor is on.
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__ModeStripLayout(view, pills)
+        x = NA_SCALE_BAR_ORIGIN[0].to_f
+        y = NA_SCALE_STRIP_TOP.to_f
+
+        pills.map do |pill|
+            width, height = Na__InsertPrimatives.Na__ScalePreview__TextSize(view, pill[:text], NA_SCALE_STRIP_TEXT_SIZE, true)
+            span = width + (NA_SCALE_STRIP_PAD_X * 2.0)
+            tall = [height + 8.0, NA_SCALE_STRIP_HEIGHT.to_f].max
+            rect = [x, y, x + span, y + tall]
+            x   += span + NA_SCALE_STRIP_GAP
+
+            pill.merge(:rect => rect)
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw the Mode Strip; Returns the y Just Below Its Panel
+    # ------------------------------------------------------------
+    # A pill's state says how much colour it gets: :lit is the mode in force,
+    # filled; :ready is one a grip here can do, outlined; :off is greyed. The
+    # one under the cursor takes a heavier edge and, if greyed, its own colours,
+    # so a pill that is not in force still reads as something to click.
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__DrawModeStrip(view, pills, hover_mode = nil)
+        laid  = Na__InsertPrimatives.Na__ScalePreview__ModeStripLayout(view, pills)
+        panel = [
+            laid.first[:rect][0] - 4, laid.first[:rect][1] - 4,
+            laid.last[:rect][2] + 4,  laid.last[:rect][3] + 4
+        ]
+        Na__InsertPrimatives.Na__ScalePreview__DrawRect(view, panel, NA_SCALE_BAR_PANEL_COLOR, NA_SCALE_BAR_PANEL_EDGE, 1)
+
+        laid.each do |pill|
+            solid = Na__InsertPrimatives.Na__ScalePreview__ModeStyle(pill[:mode])[:solid]
+            rect  = pill[:rect]
+            hot   = pill[:mode] == hover_mode
+
+            fill, border, ink =
+                if pill[:state] == :lit             then [solid,                   solid,                   NA_SCALE_STRIP_WHITE]
+                elsif pill[:state] == :ready || hot then [NA_SCALE_STRIP_WHITE,    solid,                   solid]
+                else                                     [NA_SCALE_STRIP_OFF_FILL, NA_SCALE_STRIP_OFF_EDGE, NA_SCALE_STRIP_OFF_INK]
+                end
+
+            Na__InsertPrimatives.Na__ScalePreview__DrawRect(view, rect, fill, border, hot ? 2 : 1)
+            Na__InsertPrimatives.Na__ScalePreview__DrawText(
+                view, (rect[0] + rect[2]) * 0.5, (rect[1] + rect[3]) * 0.5, pill[:text], NA_SCALE_STRIP_TEXT_SIZE, ink, true
+            )
+        end
+
+        panel[3]
+    rescue StandardError
+        NA_SCALE_STRIP_TOP + NA_SCALE_STRIP_HEIGHT
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Where a Card Goes: Above and to the Right of Its Grip, Inside the View
+    # ------------------------------------------------------------
+    # It turns to the other side of the grip rather than run off the view, and
+    # is only pushed back over the grip when the view is too small for either.
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__CardCorner(view, anchor, width, height)
+        right  = view.vpwidth.to_f - NA_SCALE_CARD_MARGIN
+        bottom = view.vpheight.to_f - NA_SCALE_CARD_MARGIN
+
+        x = anchor.x + NA_SCALE_CARD_GAP
+        y = anchor.y - NA_SCALE_CARD_GAP - height
+        x = anchor.x - NA_SCALE_CARD_GAP - width if x + width > right
+        y = anchor.y + NA_SCALE_CARD_GAP if y < NA_SCALE_CARD_MARGIN
+
+        [
+            [[x, right - width].min, NA_SCALE_CARD_MARGIN].max,
+            [[y, bottom - height].min, NA_SCALE_CARD_MARGIN].max
+        ]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Card: What Is About to Happen, Where the Eye Already Is
+    # ------------------------------------------------------------
+    # A title in a colour over a white body, so it stays legible over a busy
+    # model where a bare label would not. style only has to carry :solid: a
+    # mode's for a grip, an axis's for a plane. lines hold plain strings, or
+    # [text, colour] for one that has to stand out. anchor is on screen.
+    # ------------------------------------------------------------
+    def self.Na__ScalePreview__DrawModeCard(view, anchor, title, lines, style)
+        return false unless anchor
+
+        rows = lines.compact.map { |line| line.is_a?(Array) ? line : [line, NA_DRAWN_TEXT_COLOR] }.reject { |text, _colour| text.to_s.empty? }
+
+        title_width, title_height = Na__InsertPrimatives.Na__ScalePreview__TextSize(view, title, NA_SCALE_CARD_TITLE_SIZE, true)
+        widest = rows.map { |text, _colour| Na__InsertPrimatives.Na__ScalePreview__TextSize(view, text, NA_DRAWN_TEXT_SIZE, true)[0] }.max.to_f
+        step   = Na__InsertPrimatives.Na__ScalePreview__LineStep(view)
+        width  = [title_width, widest].max + (NA_SCALE_CARD_PAD_X * 2.0)
+        head   = title_height + (NA_SCALE_CARD_PAD_Y * 2.0)
+        body   = rows.empty? ? 0.0 : (rows.length * step) + (NA_SCALE_CARD_PAD_Y * 2.0)
+        x, y   = Na__InsertPrimatives.Na__ScalePreview__CardCorner(view, anchor, width, head + body)
+
+        Na__InsertPrimatives.Na__ScalePreview__DrawRect(view, [x, y, x + width, y + head + body], NA_SCALE_CARD_FILL_COLOR, style[:solid], 2)
+        Na__InsertPrimatives.Na__ScalePreview__DrawRect(view, [x, y, x + width, y + head], style[:solid], style[:solid], 1)
+        Na__InsertPrimatives.Na__ScalePreview__DrawText(view, x + (width * 0.5), y + (head * 0.5), title, NA_SCALE_CARD_TITLE_SIZE, NA_SCALE_STRIP_WHITE, true)
+
+        rows.each_with_index do |(text, colour), index|
+            Na__InsertPrimatives.Na__DrawnPreview__DrawScreenText(
+                view, x + NA_SCALE_CARD_PAD_X, y + head + NA_SCALE_CARD_PAD_Y + (index * step), text, colour
+            )
+        end
+
+        true
+    rescue StandardError
+        false                                                                 # <-- Never let a label kill the whole draw pass
     end
     # ---------------------------------------------------------------
 

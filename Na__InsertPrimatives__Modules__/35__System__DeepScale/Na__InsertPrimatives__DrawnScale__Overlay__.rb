@@ -18,12 +18,13 @@
 #   changing what is remembered, the way they lock an axis in every tool.
 # - The bar also carries Planes (Stretch Planes, SHIFT+TAB), Centre (About
 #   Centre, TAB) and Dims (Show Dimensions), green when on, as in the popup.
-#   Under it, a line of help for the planes (Planes file).
+#   Under it, the mode strip, which is clicked as well as read (Mode file),
+#   then a line of help for the planes (Planes file).
 # - SHOW DIMENSIONS. The object's size is drawn on three of its edges,
 #   outside its outline, in the axis colours. Click one and it turns orange
 #   in brackets: the next value typed is that axis's new size, applied at
 #   once. During a drag the dimensions the drag is changing read the live
-#   size in the preview's amber.
+#   size in the colour of what is being done to that axis.
 #
 # HOST CONTRACT (DrawnScaleTool):
 #   @na_sc_frame, @na_sc_drag, @na_sc_active_dim, @na_axis_lock
@@ -46,7 +47,7 @@ module Na__InsertPrimatives
         NA_SCALE_BAR_HANDLES = [
             ['all',     'All',     'Every grip: corners, edges and faces'],
             ['faces',   'Faces',   'Face grips only, one axis per grip'],
-            ['corners', 'Corners', 'Corner grips only: uniform scale, SHIFT to free it'],
+            ['corners', 'Corners', 'Corner grips only: uniform unless NON-UNIFORM is chosen, SHIFT swaps it'],
             ['x',       'X',       'Only the two grips that pull X (red); RIGHT ARROW for a moment'],
             ['y',       'Y',       'Only the two grips that pull Y (green); LEFT ARROW for a moment'],
             ['z',       'Z',       'Only the two grips that pull Z (blue); UP ARROW for a moment']
@@ -73,9 +74,7 @@ module Na__InsertPrimatives
                 :id    => NA_SCALE_OPTION_PLANES,
                 :text  => 'Planes',
                 :state => na_scale__planes_on? ? :on : :plain,
-                :tip   => @na_sc_frame && @na_sc_frame[:loose] ?
-                          'Stretch Planes need a group or component to be saved with — loose geometry scales whole' :
-                          'SHIFT+TAB — Stretch Planes: grips stretch at the cut planes; click a centre line, or hold CTRL, to add one'
+                :tip   => 'SHIFT+TAB — Stretch Planes: every grip stretches, at a plane through the centre of each axis until you place your own'
             }
             entries << {
                 :id    => NA_SCALE_OPTION_CENTRE,
@@ -133,25 +132,52 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__RightClickPopup__RefreshOption(id)
             na_scale__after_option_changed(id)
 
-            na_scale__say(Na__InsertPrimatives.Na__ToolOptions__CaptionFor(id))
+            na_scale__say(na_scale__switch_caption(id))
             true
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Draw the Bar and the Hovered Button's Tip
+        # FUNCTION | The Bar Button Under the Cursor's Id, or nil
+        # ------------------------------------------------------------
+        def na_scale__hovered_button
+            @na_sc_hover && @na_sc_hover[:kind] == :bar ? @na_sc_hover[:id] : nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw the Bar
         # ------------------------------------------------------------
         def na_scale__draw_bar(view)
             na_scale__layout_bar(view)
-            hover = @na_sc_hover && @na_sc_hover[:kind] == :bar ? @na_sc_hover[:id] : nil
+            Na__InsertPrimatives.Na__ScalePreview__DrawBar(view, @na_sc_bar, na_scale__hovered_button)
+        end
+        # ---------------------------------------------------------------
 
-            Na__InsertPrimatives.Na__ScalePreview__DrawBar(view, @na_sc_bar, hover)
+        # FUNCTION | Is the Cursor on the Bar or the Strip, Whose Tip Has the Place Under Them?
+        # ------------------------------------------------------------
+        def na_scale__over_controls?
+            @na_sc_hover && [:bar, :pill].include?(@na_sc_hover[:kind]) ? true : false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw the Hovered Button's Tip, Below the Mode Strip
+        # top is the first y clear of the strip, which stands between the two.
+        # ------------------------------------------------------------
+        def na_scale__draw_bar_tip(view, top)
+            if @na_sc_hover && @na_sc_hover[:kind] == :pill
+                Na__InsertPrimatives.Na__DrawnPreview__DrawScreenText(
+                    view, NA_SCALE_BAR_ORIGIN[0], top, na_scale__pill_tip(@na_sc_hover[:id]), NA_DRAWN_TEXT_ACCENT_COLOR
+                )
+                return
+            end
+
+            hover = na_scale__hovered_button
             return unless hover
 
             button = @na_sc_bar.find { |entry| entry[:id] == hover }
             return unless button && button[:tip]
 
             Na__InsertPrimatives.Na__DrawnPreview__DrawScreenText(
-                view, button[:rect][0], button[:rect][3] + 8, button[:tip], NA_DRAWN_TEXT_ACCENT_COLOR
+                view, button[:rect][0], top, button[:tip], NA_DRAWN_TEXT_ACCENT_COLOR
             )
         end
         # ---------------------------------------------------------------
@@ -256,8 +282,9 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | Draw the Dimensions Laid Out Last
+        # live_colours, during a change, is what each changing axis wears.
         # ------------------------------------------------------------
-        def na_scale__draw_dims(view)
+        def na_scale__draw_dims(view, live_colours = {})
             size  = na_scale__dim_size
             hover = @na_sc_hover && @na_sc_hover[:kind] == :dim ? @na_sc_hover[:axis] : nil
 
@@ -275,7 +302,7 @@ module Na__InsertPrimatives
                         :plain
                     end
 
-                Na__InsertPrimatives.Na__ScalePreview__DrawDimension(view, dim[:layout], dim[:rect], dim[:text], size, state)
+                Na__InsertPrimatives.Na__ScalePreview__DrawDimension(view, dim[:layout], dim[:rect], dim[:text], size, state, live_colours[dim[:axis]])
             end
         end
         # ---------------------------------------------------------------

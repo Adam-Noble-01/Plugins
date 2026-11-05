@@ -59,6 +59,19 @@
 #   own: carried whole they stay as they are; opened by a stretch they move
 #   with its geometry (Na__ScaleCommit__CarryPartPlanes).
 #
+# CENTRE PLANES (5.2.22):
+# - With Stretch Planes on, every grip stretches. An axis with no plane of its
+#   own has one through its middle, so SHIFT+TAB needs nothing set up first and
+#   an axis cannot scale by surprise.
+# - Centre planes are worked out, never stored. A plane through the middle of an
+#   axis is still through the middle after a stretch at it, so there is nothing
+#   to remember, and neither a key press nor a click on an object writes to the
+#   model. It also leaves loose geometry able to stretch, having nowhere to
+#   save a plane. Move one and it is a plane of its own, saved like any other;
+#   place your own on an axis and it takes over.
+# - So the only plane on an axis, at its exact middle, IS the centre plane,
+#   whoever put it there: the two behave the same, so the two are not told apart.
+#
 # =============================================================================
 
 require 'sketchup.rb'
@@ -496,6 +509,61 @@ module Na__InsertPrimatives
             kept[axis] = ((planes || {})[axis] || []).select do |value|
                 value > mins[n] + NA_SCALE_PLANE_TOL && value < maxs[n] - NA_SCALE_PLANE_TOL
             end
+        end
+
+        kept
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Is This List Just an Axis's Centre Plane: One Plane, at the Middle?
+    # ------------------------------------------------------------
+    # mins / maxs default to the frame's box; a commit asks of the box the
+    # stretch is about to make.
+    # ------------------------------------------------------------
+    def self.Na__ScalePlanes__LoneCentre?(frame, axis, list, mins = nil, maxs = nil)
+        n      = NA_SCALE_AXIS_INDEX[axis]
+        low    = (mins || frame[:min])[n]
+        high   = (maxs || frame[:max])[n]
+        inside = (list || []).select { |value| value > low + NA_SCALE_PLANE_TOL && value < high - NA_SCALE_PLANE_TOL }
+        return false unless inside.length == 1
+
+        merge = (NA_SCALE_PLANE_MERGE_MM / NA_DRAWN_INCH_TO_MM) / frame[:scales][n]
+        (inside.first - ((low + high) * 0.5)).abs < merge
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Plane Set With a Centre Plane on Every Axis That Has None Inside It
+    # ------------------------------------------------------------
+    # An axis too thin to hold a plane gets none, and goes on scaling: its
+    # middle is within NA_SCALE_PLANE_TOL of both ends. Only reachable through
+    # a part scaled up a long way from next to nothing.
+    # ------------------------------------------------------------
+    def self.Na__ScalePlanes__WithCentres(frame, planes)
+        filled = Na__InsertPrimatives.Na__ScalePlanes__Empty
+
+        NA_SCALE_AXES.each_with_index do |axis, n|
+            list   = ((planes || {})[axis] || []).dup
+            centre = [frame[:centre][n]]
+
+            if frame[:usable][n] && Na__InsertPrimatives.Na__ScalePlanes__Inside(frame, axis, list).empty?
+                list.concat(Na__InsertPrimatives.Na__ScalePlanes__Inside(frame, axis, centre))
+            end
+
+            filled[axis] = list
+        end
+
+        filled
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Plane Set With the Centre Planes Taken Out, Ready to Be Written
+    # ------------------------------------------------------------
+    def self.Na__ScalePlanes__WithoutCentres(frame, planes, mins = nil, maxs = nil)
+        kept = Na__InsertPrimatives.Na__ScalePlanes__Empty
+
+        NA_SCALE_AXES.each do |axis|
+            list       = (planes || {})[axis] || []
+            kept[axis] = Na__InsertPrimatives.Na__ScalePlanes__LoneCentre?(frame, axis, list, mins, maxs) ? [] : list.dup
         end
 
         kept

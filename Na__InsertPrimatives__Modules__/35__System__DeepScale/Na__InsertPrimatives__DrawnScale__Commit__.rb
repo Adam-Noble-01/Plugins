@@ -17,6 +17,8 @@
 #            goes where the field sends it, a nested group with no plane
 #            through it is carried whole, and one with a plane through it is
 #            opened and stretched the same way, all the way down.
+# - Loose geometry has no transformation or definition of its own, so its
+#   points move either way, where they lie (5.2.9, 5.2.22).
 #
 # ONE OBJECT CHANGES, NOT EVERY COPY:
 # - A stretch edits a definition, and a definition can be shared. Scaling one
@@ -101,7 +103,11 @@ module Na__InsertPrimatives
     def self.Na__ScaleCommit__Run(model, frame, field, planes_after = nil)
         return { :success => false, :error => 'nothing to change' } if Na__InsertPrimatives.Na__ScaleField__Identity?(field)
         return { :success => false, :error => 'the sizes worked out to nonsense — nothing was changed' } unless Na__InsertPrimatives.Na__ScaleField__Finite?(field)
-        return Na__InsertPrimatives.Na__ScaleCommit__ScaleLoose(model, frame, field) if frame[:loose]
+
+        if frame[:loose]
+            return Na__InsertPrimatives.Na__ScaleCommit__StretchLoose(model, frame, field) if field[:stretch]
+            return Na__InsertPrimatives.Na__ScaleCommit__ScaleLoose(model, frame, field)
+        end
 
         if field[:stretch]
             Na__InsertPrimatives.Na__ScaleCommit__Stretch(model, frame, field, planes_after)
@@ -375,26 +381,7 @@ module Na__InsertPrimatives
             end
         end
 
-        moved   = []
-        vectors = []
-
-        vertices.each_value do |vertex|
-            reported = vertex.position
-            goal     = Na__InsertPrimatives.Na__ScaleField__MapPoint(field, reported.transform(inverse)).transform(world)
-            vector   = goal - reported
-            raise ArgumentError, 'a point would go to an impossible place' unless [vector.x, vector.y, vector.z].all? { |value| value.to_f.finite? }
-            next if vector.length.to_f < NA_SCALE_MOVE_TOL
-
-            moved   << vertex
-            vectors << vector
-        end
-
-        unless moved.empty?
-            chains = Na__InsertPrimatives.Na__CurveUnweld__Explode(moved)        # <-- WELDED CURVES: re-fitted round the move unless exploded
-            entities.transform_by_vectors(moved, vectors)
-            Na__InsertPrimatives.Na__CurveUnweld__Reweld(entities, chains)
-        end
-        tally[:moved] += moved.length
+        tally[:moved] += Na__InsertPrimatives.Na__ScaleCommit__MoveVertices(entities, vertices, frame, field)
 
         if target.length > tally[:base]
             Na__InsertPrimatives.Na__ScaleCommit__CarryPartPlanes(target.last, inverse * model.edit_transform, field)
@@ -430,6 +417,130 @@ module Na__InsertPrimatives
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Move a Context's Vertices Where the Field Sends Them; Returns How Many
+    # ------------------------------------------------------------
+    # The context has to be open, so its vertices report global and
+    # transform_by_vectors takes global: into the frame's axes through its
+    # inverse, through the field, and back.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__MoveVertices(entities, vertices, frame, field)
+        moved   = []
+        vectors = []
+
+        vertices.each_value do |vertex|
+            reported = vertex.position
+            goal     = Na__InsertPrimatives.Na__ScaleField__MapPoint(field, reported.transform(frame[:inverse])).transform(frame[:world])
+            vector   = goal - reported
+            raise ArgumentError, 'a point would go to an impossible place' unless [vector.x, vector.y, vector.z].all? { |value| value.to_f.finite? }
+            next if vector.length.to_f < NA_SCALE_MOVE_TOL
+
+            moved   << vertex
+            vectors << vector
+        end
+
+        unless moved.empty?
+            chains = Na__InsertPrimatives.Na__CurveUnweld__Explode(moved)        # <-- WELDED CURVES: re-fitted round the move unless exploded
+            entities.transform_by_vectors(moved, vectors)
+            Na__InsertPrimatives.Na__CurveUnweld__Reweld(entities, chains)
+        end
+
+        moved.length
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Stretch Loose Geometry Where It Lies, in the Open Context
+    # ------------------------------------------------------------
+    # 5.2.22. Its points go through the field as an object's do, from the
+    # context they already sit in, so no context is entered and it is one
+    # plain operation. Refused if the user has since moved to another context.
+    #
+    # A group or component in the selection keeps its size and moves with its
+    # slice, which is what a stretch promises its details. One a plane runs
+    # through goes with the slice its middle is in: carried, never half
+    # stretched, because opening it would leave the context the loose points
+    # have to be moved from. A guide or a text goes the same way.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__StretchLoose(model, frame, field)
+        result = { :success => false, :error => nil, :mode => :stretch, :unique => 0, :rigid => 0, :opened => 0, :moved => 0 }
+
+        unless Na__InsertPrimatives.Na__DeepPick__SameContext?(model.active_path, frame[:context])
+            return result.merge(:error => 'the open group changed since the geometry was taken — select it again')
+        end
+
+        list = frame[:entities].select(&:valid?)
+        return result.merge(:error => 'the geometry is no longer there') if list.empty?
+
+        failed = Na__InsertPrimatives.Na__ScaleCommit__CheckRoomLoose(frame, field, list)
+        return result.merge(:error => failed) if failed
+
+        vertices = {}
+        whole    = []
+
+        list.each do |entity|
+            if entity.is_a?(Sketchup::Edge) || entity.is_a?(Sketchup::Face)
+                entity.vertices.each { |vertex| vertices[vertex.entityID] ||= vertex }
+            else
+                whole << entity
+            end
+        end
+
+        model.start_operation(NA_SCALE_OP_STRETCH, true)
+
+        begin
+            entities = model.active_entities
+            moved    = Na__InsertPrimatives.Na__ScaleCommit__MoveVertices(entities, vertices, frame, field)
+
+            whole.each do |entity|
+                mins, maxs = Na__InsertPrimatives.Na__ScaleCommit__LooseBox(frame, entity)
+                middle     = (0..2).map { |n| (mins[n] + maxs[n]) * 0.5 }
+                delta      = frame[:world] * Na__InsertPrimatives.Na__ScaleField__Affine(field, middle) * frame[:inverse]
+                entities.transform_entities(delta, [entity])
+            end
+
+            model.commit_operation
+            result.merge(:success => true, :moved => moved, :rigid => whole.length)
+        rescue StandardError => error
+            model.abort_operation
+            result.merge(:error => error.message)
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Box of Something Carried Whole in a Loose Selection, in the Frame's Axes
+    # ------------------------------------------------------------
+    # Read from the open context, where a group's transformation reads as
+    # world. Anything else, a guide or a text, reports its bounds in world.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__LooseBox(frame, entity)
+        if entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+            return Na__InsertPrimatives.Na__ScaleCommit__LocalBox(entity.definition.bounds, frame[:inverse] * entity.transformation)
+        end
+
+        Na__InsertPrimatives.Na__ScaleCommit__LocalBox(entity.bounds, frame[:inverse])
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Is There Room for This Shrink of Loose Geometry? nil If So, Else Why Not
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__CheckRoomLoose(frame, field, list)
+        coords = { :x => [], :y => [], :z => [] }
+
+        list.each do |entity|
+            if entity.is_a?(Sketchup::Edge) || entity.is_a?(Sketchup::Face)
+                entity.vertices.each do |vertex|
+                    point = vertex.position.transform(frame[:inverse])
+                    NA_SCALE_AXES.each_with_index { |axis, n| coords[axis] << point[n].to_f }
+                end
+            else
+                mins, maxs = Na__InsertPrimatives.Na__ScaleCommit__LooseBox(frame, entity)
+                NA_SCALE_AXES.each_with_index { |axis, n| coords[axis].push(mins[n], maxs[n]) }
+            end
+        end
+
+        Na__InsertPrimatives.Na__ScaleCommit__RoomFor(frame, field, coords)
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Is There Room for This Shrink? nil If So, Else Why Not
     # ------------------------------------------------------------
     # Read from the model before anything moves: every point of the object
@@ -438,11 +549,18 @@ module Na__InsertPrimatives
     # drag limit (Na__ScaleField__StretchMinDelta), with the full geometry.
     # ------------------------------------------------------------
     def self.Na__ScaleCommit__CheckRoom(frame, field)
-        shrinking = NA_SCALE_AXES.select { |axis| field[axis][:mode] == :stretch && field[axis][:delta].to_f < 0.0 }
-        return nil if shrinking.empty?
+        return nil unless NA_SCALE_AXES.any? { |axis| field[axis][:mode] == :stretch && field[axis][:delta].to_f < 0.0 }
 
         coords = { :x => [], :y => [], :z => [] }
         Na__InsertPrimatives.Na__ScaleCommit__CollectCoords(frame[:instance].definition, Geom::Transformation.new, field, coords, 0)
+        Na__InsertPrimatives.Na__ScaleCommit__RoomFor(frame, field, coords)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Given the Points, Is There Room? nil If So, Else Why Not
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__RoomFor(frame, field, coords)
+        shrinking = NA_SCALE_AXES.select { |axis| field[axis][:mode] == :stretch && field[axis][:delta].to_f < 0.0 }
 
         shrinking.each do |axis|
             n     = NA_SCALE_AXIS_INDEX[axis]

@@ -3,6 +3,27 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.6 - 05-Nov-2026 - `entity_get` Answers for Definitions, Materials and Tags
+
+- **What Adam asked for.** Filing the Northway columns (10_2601, 10_2602) turned up two plugin faults, and he said "Yes, fix them". This version is the first. The second, `asset_library_edit save` with `rename_in_model`, is in Component Editor Tools 0.6.8 (Na Noble3d Modelling Tools 0.9.24).
+- **The crash.** `entity_get` on a definition id raised `NoMethodError: undefined method 'instances' for an instance of Sketchup::DefinitionList`, and the whole call failed, whichever other ids were in it. Materials and tags had the same fault, through `Sketchup::Materials` and `Sketchup::Layers`, though the tool's description lists all three.
+- **The cause.** `Na__Coordinates__ContainerPathForEntity` treated any parent other than the model as a definition. Measured live on 27.0.267, these three have a collection as their parent. Older SketchUp versions were not checked.
+- **The fix.** Only a parent that is a `ComponentDefinition` has a container. Anything else has an empty path, as a root entity does, so no coordinates change.
+- **A second fault, found by the live test.** With the crash gone, a definition came back with no `name`. The API makes `ComponentDefinition` a `Drawingelement`, and `na_add_names` skips those. It now names a definition.
+- **Versions.** `bridge_version` and `server.version` are `1.0.6`.
+- **Validation.**
+  - `ValidateApiUsage` passes: 45 tools, 182 API dependencies. `RunRubyChecks`: 44 of 44 files compile. `PythonServer`: 24 tests. `--check` and `node --check` pass.
+  - `BridgeCore`: 57 pass, 7 of them new. On the old code 3 of the new ones failed, with the same `NoMethodError` Adam's call raised. The other 4 guard what must not change.
+  - Live, 27 of 27 checks in a throwaway SketchUp 27.0.267 window that booted bridge 1.0.6:
+    - definition, material and tag ids in one call, with the definition's name, size and `parent: model root`;
+    - a face in a group moved and rotated, nested three deep: bounds 900..1000, 2010..2050, z 300 and area 4000 mm2, as worked by hand;
+    - a face in a group scaled 2 x 3: bounds -500..-300, 0..300 and area 60000 mm2, as worked by hand.
+
+### Validation Checklist
+
+- [ ] Run Extensions > Na SketchUp MCP > Reload Plugin Data in each window that was already open. A new window has the fix already. The status dialog should read 1.0.6.
+- [ ] Restart the MCP client if `sketchup_status` still reports server 1.0.5.
+
 ## Na SketchUp MCP | Version 1.0.5 - 01-Nov-2026 - Zero-Trace Trials Without FAILED Rows (`batch_execute` rollback)
 
 - **What Adam asked for.** "Check the MCP plugin in my SketchUp folders itself and make sure any of these errors listed here are corrected." His activity log from the bed range session (`SK02__ModelingHelper__AssetOptimisation__`) had six FAILED rows:

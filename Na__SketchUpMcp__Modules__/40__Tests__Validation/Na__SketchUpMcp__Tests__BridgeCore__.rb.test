@@ -37,6 +37,33 @@ module Sketchup
         def path
             ''
         end
+
+        def active_path
+            nil
+        end
+    end
+
+    # What Entity#parent gives for things outside the drawing (SketchUp 2027).
+    class DefinitionList; end
+    class Materials; end
+
+    # The real API makes a definition a Drawingelement, as it does an instance.
+    class Drawingelement; end
+    class Group < Drawingelement; end
+    class ComponentInstance < Drawingelement; end
+    class Face < Drawingelement; end
+    class SectionPlane < Drawingelement; end
+
+    class ComponentDefinition < Drawingelement
+        attr_accessor :instances
+
+        def initialize
+            @instances = []
+        end
+
+        def name
+            'Test Definition'
+        end
     end
 
     def self.version
@@ -92,6 +119,9 @@ NA_ROOT = $NA_MODULES_ROOT
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__LinearMath__.rb
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Creation__.rb
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__SolidHealth__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Coordinates__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__EntityResolver__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Serializer__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ConnectionFile__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ApiSelfTest__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb
@@ -228,6 +258,45 @@ na_check('name: plan section') { CR.Na__Creation__SectionName([0, 0, 1200], [0, 
 na_check('name: vertical section on x') { CR.Na__Creation__SectionName([3000, 0, 0], [1, 0, 0], 'mm') == 'Section at x = 3000' }
 na_check('name: 2D point means z = 0') { CR.Na__Creation__SectionName([5, 5], [0, 0, 1], 'm') == 'Plan section at 0 m' }
 na_check('name: oblique section') { CR.Na__Creation__SectionName([0, 0, 0], [1, 1, 0], 'mm') == 'Section plane' }
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Container Paths (definitions, materials and tags are in no container)
+# -----------------------------------------------------------------------------
+
+CO = Na__SketchUpMcp::Na__Coordinates
+NaTestEntity = Struct.new(:parent, :definition)
+na_test_model = Sketchup.active_model
+
+na_check('container path: a definition, whose parent is the DefinitionList, has none') do
+    CO.Na__Coordinates__ContainerPathForEntity(na_test_model, NaTestEntity.new(Sketchup::DefinitionList.new)) == []
+end
+na_check('container path: a material, whose parent is the Materials, has none') do
+    CO.Na__Coordinates__ContainerPathForEntity(na_test_model, NaTestEntity.new(Sketchup::Materials.new)) == []
+end
+na_check('container path: a root entity has none') do
+    CO.Na__Coordinates__ContainerPathForEntity(na_test_model, NaTestEntity.new(na_test_model)) == []
+end
+na_check('container path: no parent has none') do
+    CO.Na__Coordinates__ContainerPathForEntity(na_test_model, NaTestEntity.new(nil)) == []
+end
+na_check('container path: an entity inside a definition still finds its instance') do
+    holder = Sketchup::ComponentDefinition.new
+    instance = NaTestEntity.new(na_test_model, holder)
+    holder.instances = [instance]
+    CO.Na__Coordinates__ContainerPathForEntity(na_test_model, NaTestEntity.new(holder)) == [instance]
+end
+na_check('entity summary: a definition reports its name, though it is a Drawingelement') do
+    summary = {}
+    Na__SketchUpMcp::Na__Serializer.na_add_names(summary, Sketchup::ComponentDefinition.new)
+    summary['name'] == 'Test Definition'
+end
+na_check('entity summary: a face still reports no name') do
+    summary = {}
+    Na__SketchUpMcp::Na__Serializer.na_add_names(summary, Sketchup::Face.new)
+    summary.empty?
+end
 
 # endregion -------------------------------------------------------------------
 

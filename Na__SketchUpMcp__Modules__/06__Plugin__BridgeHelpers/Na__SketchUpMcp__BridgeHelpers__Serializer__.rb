@@ -94,6 +94,8 @@ module Na__SketchUpMcp
             if Na__EntityResolver.Na__EntityResolver__IsInstance(entity)
                 summary['name'] = entity.name.to_s unless entity.name.to_s.empty?
                 summary['definition'] = entity.definition.name if entity.is_a?(Sketchup::ComponentInstance)
+            elsif entity.is_a?(Sketchup::ComponentDefinition)
+                summary['name'] = entity.name.to_s          # The API makes a definition a Drawingelement.
             elsif entity.respond_to?(:name) && !entity.is_a?(Sketchup::Drawingelement)
                 summary['name'] = entity.name.to_s
             elsif entity.is_a?(Sketchup::SectionPlane) && entity.respond_to?(:name)

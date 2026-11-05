@@ -16,8 +16,10 @@
 #
 #   KEYS while Deep Scale runs:
 #     TAB          About Centre on / off
-#     SHIFT+TAB    Stretch Planes on / off (the plugin's pattern for a second
-#                  switch: Drawn Volume's Subtraction, 5.1.24)
+#     SHIFT+TAB    Stretch Planes on / off: on, every grip stretches, at a plane
+#                  through the centre of each axis until one is placed (5.2.22).
+#                  The plugin's pattern for a second switch: Drawn Volume's
+#                  Subtraction, 5.1.24
 #     ARROWS       one axis's grips for a moment
 #     CTRL (held)  a stretch plane offered under the cursor; click to add it
 #
@@ -56,6 +58,8 @@ module Na__InsertPrimatives
         :handles_y       => [:value,  'scale_handles', 'y'],
         :handles_z       => [:value,  'scale_handles', 'z'],
         :handles_next    => [:toggle, 'scale_handles', nil],
+        :mode_uniform     => [:mode,   'scale_grip_mode', 'uniform'],
+        :mode_non_uniform => [:mode,   'scale_grip_mode', 'non_uniform'],
         :planes          => [:toggle, 'scale_planes', nil],
         :centre          => [:toggle, 'scale_about_centre', nil],
         :dims            => [:toggle, 'scale_dimensions', nil],
@@ -106,6 +110,7 @@ module Na__InsertPrimatives
 
         case kind
         when :value  then Na__InsertPrimatives.Na__ToolOptions__Value(option).to_s == value
+        when :mode   then Na__InsertPrimatives.Na__ToolOptions__Value(option).to_s == value && !Na__InsertPrimatives.Na__ToolOptions__Enabled?('scale_planes')
         when :toggle then option != 'scale_handles' && Na__InsertPrimatives.Na__ToolOptions__Enabled?(option)
         else              false
         end
@@ -266,6 +271,8 @@ module Na__InsertPrimatives
             return false unless kind
 
             case kind
+            when :mode
+                return na_scale__choose_grip_mode(value)
             when :value
                 Na__InsertPrimatives.Na__ToolOptions__SetValue(option, value)
                 @na_axis_lock = nil
@@ -282,20 +289,13 @@ module Na__InsertPrimatives
         # ---------------------------------------------------------------
 
         # FUNCTION | What a Switch Says When It Changes
-        # Stretch Planes switched on says how to place one: the switch on its
-        # own does nothing visible until there is a plane.
+        # Stretch Planes switched on says what just happened to every grip.
         # ------------------------------------------------------------
         def na_scale__switch_caption(option)
             caption = Na__InsertPrimatives.Na__ToolOptions__CaptionFor(option)
-            return caption unless option.to_s == NA_SCALE_OPTION_PLANES
+            return caption unless option.to_s == NA_SCALE_OPTION_PLANES && na_scale__planes_on?
 
-            if @na_sc_frame && @na_sc_frame[:loose]
-                return "#{caption} — not for loose geometry: planes are saved on a group or component"
-            end
-
-            return caption unless na_scale__planes_on?
-
-            "#{caption} — click a coloured centre line, or hold CTRL over the object, to add a plane"
+            "#{caption} — every grip stretches, at a plane through the centre of each axis until you place your own"
         end
         # ---------------------------------------------------------------
 

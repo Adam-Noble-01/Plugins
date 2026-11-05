@@ -26,6 +26,27 @@ Parent migration entry: main devlog **Version 0.5.1** (16-Jun-2026).
 # =============================================================================
 
 # Na Noble3d Modelling Tools — Component Editor Tools
+## Version 0.6.8 - 05-Nov-2026 - Library Save: `rename_in_model` Renames the Placed Copy
+
+- **What Adam asked for.** Filing the Northway columns (10_2601, 10_2602), `asset_library_edit save` with `rename_in_model` wrote a correct file, but the placed copy kept its old name, with the note "the name is still reserved in this SketchUp session". He said "Yes, fix them".
+- **The cause.** It could never have worked on a new name. `SaveDefinition` applied the name inside its always-aborted operation to write the file, and a rename that `abort_operation` takes back leaves the name reserved in that model. `RenameInModel` then asked for the same name and got `...#1`.
+- **The fix.** With `rename_in_model`, the rename is committed first, as one undo step, and the save follows. By then the definition already has the name, so `ApplyName` does nothing inside the aborted operation and nothing is reserved.
+- **Two smaller changes in the same place.**
+  - The placed copy now gets the `description` as well as the library data, so the file and the copy match. L153 of the skill used to do that by hand.
+  - The result says `renamed_in_model: true`. Before, success was silent and only a failure left a note.
+- **What stays the same.**
+  - A plain save still leaves the model unchanged, and still reserves the name in that model, because the file has to be written under it. To rename the placed copy as well, pass `rename_in_model` on that first save. Renaming it later still means saving and reopening the model.
+  - A name another definition already holds in the model: the save writes the file, renames nothing in the model, and says so in a note, as before.
+- **New failure wording.** If SketchUp cannot write the file after the rename, the error says the component was already renamed and that Ctrl+Z puts it back.
+- **Validation.**
+  - `mcp_operations_unit`: 86 of 86 pass, 10 of them new. The fake model now reserves a name a rollback took back, as SketchUp does. On the old code 5 of the new ones failed.
+  - Live, in a throwaway SketchUp 27.0.267 window on a scratch library, with the real library untouched: the placed copy took the exact name with no `#1`, the file read back right through the C API, one Ctrl+Z took back only the rename, and Redo restored it. Saving again over its own file, a plain save, a name clash and `revert` all behaved as above.
+
+### Validation Checklist
+
+- [ ] Run Reload Plugin Data in Na Noble3d Modelling Tools in each window that was already open. A new window has the fix already.
+- [ ] Save one component with `rename_in_model` in a real model. The Outliner should show the library name, and one Ctrl+Z should put the old one back.
+
 ## Version 0.6.7 - 03-Nov-2026 - Insert At Cursor: Tab Turns the Component, Just After the Click
 
 - **What Adam asked for.** Tab rotation back. 0.6.6 lost it by moving to SketchUp's own placement tool.

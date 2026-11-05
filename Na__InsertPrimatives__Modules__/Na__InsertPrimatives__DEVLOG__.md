@@ -3,6 +3,533 @@
 
 # =============================================================================
 
+## Version 5.2.24 - 05-Nov-2026 - Deep Push Pull: SHIFT+Click an Edge and the Face Travels Along It
+
+### Asked For
+*"in the 3d view give it the additional ability to nominate a edge to follow the trajectory off (Like
+the deep project tool) so holding shift and clicking an edge references that edge so you can do a
+"Vector Push Pull" and the face moves inline relative the the edge trajectory"*
+
+Then, asked whether a nominated edge should stay locked between pushes: *"One push only"*
+
+### What It Does Now
+- **Hold SHIFT over any edge,** at any nesting depth: it lights up in SketchUp's magenta and says what a
+  click will do. **Click it** and the face travels parallel to that edge instead of along its normal.
+- **Either order:** nominate first and then grab a face, or grab a face and nominate mid-drag. Mid-drag
+  the distance starts again at nothing and outward, so typing `1000` straight after the click means
+  1000 out, not 1000 towards wherever that edge happens to be.
+- **The distance is measured along the edge.** The grid snaps it, CTRL takes a vertex, and a typed number
+  is that many mm along it. It can be dragged either way; + is always out of the face.
+- **One push only.** The edge lets go after the push it steered, so the next push is plain again without
+  being told. This differs from Deep Project, whose edge stays locked. A selected batch counts as one push.
+- **Until then it waits,** drawn heavy in magenta with an arrow the way it pushes. A cancelled drag, a
+  refused push, a quad ring, or a face it stands down on do not use it up. BKSP releases it sooner (mid-drag:
+  the edge first, then the face), or SHIFT+click the same edge again.
+- **After placing,** retyping works as ever and keeps the line that push was made along, even though the
+  edge has let go, and a new edge taken in between is still waiting for its own push.
+- **Arrows still measure:** lock Z and the face travels along the edge until it is that much higher. An
+  axis the new line cannot travel along lets go.
+
+### Why It Is Not Slope Mode With a Different Direction
+That was the obvious build, and a live probe showed it silently wrecks the model. pushpull welds its new
+wall into any neighbour square to the face and deletes the line between them, so moving the far end then
+drags that whole neighbour: a 1000 mm box pushed 300 and sheared up 300 had its flat top rise 300 across
+its full length, with no error. Slope only gets away with it because its direction always lies in those
+faces. A nominated edge's need not.
+
+So new `Na__EdgeVector__PushAndShear` puts the start loop back as edges BEFORE the far end moves. The
+neighbours stay exactly where they were and only the new walls lean. Any wall that lands flush with its
+neighbour has its seam healed, so that face simply gets longer. When every face round it contains the
+edge, the existing stretch route carries the face and nothing new is made.
+
+The lean is also read off the model rather than assumed: in a non-uniform scale pushpull's own share is
+not square to the face, and without this the end landed up to 338 mm off the line in the offline double.
+
+### Where It Stands Down or Refuses
+- **An edge lying in the face** (within 5 degrees) cannot carry it anywhere: refused at the click, in red
+  with the reason. A lock already on stands down on such a face, pushes along the normal and says so.
+- **A surface** (Joint Surfaces): every face keeps to its own normal, so the lock stands down, as SHIFT
+  slope and follow do. SHIFT+TAB pushes one face.
+- **Going IN where it would break the solid: refused, red, with the reason on the card and in the status
+  line.** There is no rescue going in: the push has cut those neighbours back and the start loop is left
+  in mid-air. Measured, a slab with one side out of line came out non-manifold with stray triangles. It
+  is allowed where it holds up: every face round it contains the edge (the solid shortens), or none is
+  square to it (a panel on a flat face: a leaning pocket). SHIFT+ALT Follow is the tool for the rest.
+- **QUADS on, going in** is a loop cut as ever, and says so itself if the ring has nowhere to land.
+- **Outranks the held keys:** with a lock steering the face, SHIFT slope and SHIFT+ALT follow stand down.
+  CTRL+SHIFT stays the vertex-then-grid snap and looks for no edge.
+- **3D only.** The 2D variant inherits all of it switched off.
+
+### One Behaviour Change to Know About
+SHIFT+click over an edge used to mean "place the slope push here" in a click-move-click drag. It now
+nominates that edge. The edge lights up first, so it is not a surprise, and press-drag-release is
+untouched. SHIFT+click on a face, away from edges, is exactly what it was.
+
+### Files
+- **New:** `30__System__DeepPushPull/Na__InsertPrimatives__DrawnPushPull__EdgeVector__.rb`, added to the
+  load manifest after Joint.
+- **Changed:** the push tool (the one place direction is decided, cursor, click, BKSP, draw, wording),
+  Commit (the route and its refusal), Revise (the record keeps its line), Preselect (a batch refuses as
+  one, and each face turns the line to its own outward side).
+
+### Checked
+- **Real SketchUp 2027, the geometry function, rolled back in a temp window:** box out along a tilted line
+  (8 faces, the top untouched), the slab with a side out of line (top and far side longer, a new wall on
+  the side, manifold), every-neighbour stretch both ways, a leaning pocket, a panel out, a face with a
+  hole, a loose rectangle, a lone face backwards. All manifold, positions exact.
+- **Offline, the real tool from mouse and key events,** 284 checks: 163 on behaviour, 121 on the Coordinate
+  Rule (moved and rotated, nested three deep, the edge in its own turned group, scaled 2x, scaled 1,2,3
+  including an angled face, a scaled group inside a turned one, parent open, two open, own context open).
+- **67 deliberate breaks** to a scratch copy, all caught. The first pass missed 11, all gaps in the tests
+  rather than the code, and those gaps were closed. A later one proved a replay guard did nothing, so the
+  guard was removed. The overlay was also drawn from the real tool's draw calls and looked at.
+- **Not run:** the whole tool by hand in real SketchUp. Real picking, entering a real group during the push,
+  and pushpull's distance inside a real scaled group (still only believed to be definition units, per the
+  Coordinate Rule notes) are on the list below. If a scaled group refuses with "could not be found again",
+  that belief is what to look at.
+
+### To Test (Reload Plugin Data first: there is a new file)
+- [ ] The slab in your screenshot: SHIFT over the yellow edge lights it, click, grab the angled face, drag:
+      it follows the edge, and the result matches your red outline.
+- [ ] Grab first, push a bit, then SHIFT+click the edge: nothing is placed and the drag carries on along it.
+- [ ] Type a distance straight after that click: it goes OUT by that much.
+- [ ] Once placed the magenta line goes, and the next face pushes along its own normal.
+- [ ] Place it, type a new distance: the push is remade along the same edge. `-` turns it round, or refuses
+      with the reason if going in would break the solid.
+- [ ] Nominate, grab, ESC: the face lets go and the edge is still waiting. BKSP then releases it; SHIFT+click
+      on it does too.
+- [ ] SHIFT+click one of the face's own edges: red, a beep, nothing placed.
+- [ ] Back along the edge on a shape with a side out of line: red, NOT PLACEABLE, a beep, nothing changed.
+- [ ] Ordinary SHIFT slope, SHIFT+ALT follow and CTRL+SHIFT with no edge nominated: all as before.
+- [ ] QUADS on, along an edge: the start loop stays as a line.
+- [ ] In a group moved, rotated and nested three deep, with the edge in another group: the face lands on
+      the preview, and Ctrl+Z is one step.
+- [ ] In a scaled group, then one scaled unevenly: check the distance with Tape Measure.
+
+# =============================================================================
+
+## Version 5.2.23 - 05-Nov-2026 - Deep Scale: UNIFORM, NON-UNIFORM and STRETCH Are Buttons Now
+
+### Asked For
+*"the scale tool shows these as indicators, make them actualy clickable to change the mode"*
+
+### What It Does Now
+Click a pill on the strip under the handle bar and every grip takes that mode:
+- **UNIFORM:** every grip scales uniform, face and edge grips too. Every grip turns teal.
+- **NON-UNIFORM:** every grip scales on its own axes, corner grips too. Every grip turns orange.
+- **STRETCH:** Stretch Planes, the same switch as SHIFT+TAB. Every grip turns violet.
+
+Going between them is one click, including out of a stretch.
+
+- **Click the lit one to let go.** UNIFORM or NON-UNIFORM clicked again goes back to grips going by
+  their kind: corners uniform, faces and edges non-uniform, as SketchUp does it and as Deep Scale
+  always has. That is the default until a pill is clicked, so nothing changes for anyone who never
+  clicks one. STRETCH clicked again is SHIFT+TAB: back to whichever of the three it left.
+- **SHIFT still swaps one pull.** Under UNIFORM it frees that pull, under NON-UNIFORM it makes it
+  uniform, and the card beside the grip says so.
+- **Remembered between sessions,** like the handle bar's choices. The lit pill and the sentence under
+  it say which is in force, so a choice left on from last week can be seen.
+- **It shows it can be clicked.** The pill under the cursor takes a heavier edge, a greyed one takes
+  its own colours, and a tip in the sentence's place says what a click would do. The strip also takes
+  the click across its gaps and panel, so one just off a pill does not take the object behind it.
+
+### A Typed Size Follows the Mode
+- **UNIFORM:** one size scales everything. Click the Z dimension and type 2400 on a door 1200 high and
+  it doubles every way, with the preview showing it before Enter. The measurements box says
+  `Uniform Z`.
+- **UNIFORM with two sizes** (`1500,,2400`) is refused, because one factor cannot meet both. It says
+  so while being typed and names the way out: click NON-UNIFORM.
+- **NON-UNIFORM** and no pill chosen behave as they always did.
+
+### How It Was Done
+All of it turns on one question already asked in one place, `na_scale__uniform?`, which now takes
+the choice before SHIFT. Everything below it was already there: a uniform face pull and a free corner
+pull are what SHIFT has always made. So no new maths reaches the model, no coordinates are worked out
+differently, and the Coordinate Rule is not touched. The hit test is in screen space, off the same
+layout that draws the pills.
+
+UNIFORM and NON-UNIFORM are one stored option, `scale_grip_mode`. It is kept through a stretch but is
+not asked while Stretch Planes is on, which is how SHIFT+TAB gets back to the mode it left, and why a
+stretch behaves exactly as it did in 5.2.22. A pill hidden by a stretch, clicked, is taken up
+rather than let go.
+
+### Also
+- **Right-click menu:** a new `Grips Scale` entry steps through By Grip, Uniform and Non-Uniform, the
+  same stored setting. Picking a mode there under a stretch switches Planes off, or the pick would do
+  nothing.
+- **Preferences > Shortcuts:** `Mode Uniform` and `Mode Non-Uniform`, since every switch is also a
+  command. They tick when in force and re-solve a drag in hand. Stretch already had one.
+- **NOT A STRETCH is not said under NON-UNIFORM clicked:** that is someone asking for a scale. If the
+  object has planes saved, a plain line under the strip still mentions them. The warning stands in red
+  whenever the scale was not clicked for.
+- **Fixed in passing:** a double-click on the handle bar reached through it and went inside the object
+  behind. It no longer does, on the bar or the strip.
+
+### Checks
+Run offline against the plugin's real tool class, through its own mouse and key events.
+- **238 new checks (Suite L):** hit-testing against what is drawn, every click from every
+  state, each mode's grips, typed sizes, the words, the popup and the commands. Compared with SHIFT's
+  pull on the same grip they land on the same sizes, at the root, in a group moved and rotated three
+  deep with the middle one open, and in a scaled group.
+- **1,831 older Deep Scale checks pass,** with the option and command lists they pin updated for
+  the additions, and the reload check now comparing before and after rather than a fixed count.
+- **57 deliberate breakages of the new code in a throwaway copy, 55 caught. Three of those got through at first and showed gaps in the tests, now closed. The other 2 cannot change what the tool does.**
+- **The overlay was looked at,** rendered to images from the tool's real draw calls.
+- **All Deep Scale, option and loader files compile in SketchUp 2027's Ruby 3.4.9.**
+
+Not run in SketchUp: the clicks have only been driven by test events on stand-in API doubles.
+
+### Files
+- `35__System__DeepScale/..DrawnScale__Mode__.rb`: `grip_choice`, `pill_at`, `pill_click`,
+  `choose_grip_mode`, `planes_give_way`, `typed_as_chosen`, the sentence and the tips.
+- `..DrawnScaleTool__.rb`: the question, the hover and press, the double-click guard, the status line.
+- `..DrawnScale__Preview__.rb`: the hovered pill.
+- `..DrawnScale__Overlay__.rb`: the tip, `over_controls?`.
+- `..DrawnScale__Planes__.rb`: the plane help gives way to the tip.
+- `..DrawnScale__Keys__.rb`, `Na__InsertPrimatives__Loader__.rb`: the two commands.
+- `02__AppData/..ToolOptions__.rb`: `scale_grip_mode`.
+
+### Testing Notes
+**Reload Plugin Data** is enough, then start Deep Scale again. The two new commands land at the bottom
+of Deep Scale Options until the next restart, which puts them above Stretch Planes.
+- [ ] Hover each pill: heavier edge, tip under the strip, tip in the status line. Nothing moves.
+- [ ] Click UNIFORM: lit, every grip teal. Drag a FACE grip: the whole object scales in proportion.
+- [ ] Click NON-UNIFORM: lit, every grip orange. Drag a CORNER grip: the axes move apart.
+- [ ] Click STRETCH: lit, three centre planes, every grip violet. Drag: it stretches.
+- [ ] From STRETCH, click UNIFORM: Planes go off, UNIFORM lit, centre planes gone.
+- [ ] Click the lit UNIFORM: back to corners teal and faces orange.
+- [ ] UNIFORM, then SHIFT+TAB twice: stretch, then back to UNIFORM.
+- [ ] Hold SHIFT under each: the grips swap colour, and a pull does what they now say.
+- [ ] UNIFORM, click a dimension, type a size: the preview shows every axis following; Enter does it.
+- [ ] UNIFORM, type `1500,,2400`: refused, naming NON-UNIFORM. Nothing changes.
+- [ ] Double-click a pill over a group: one click's worth, and it does not go inside the group.
+- [ ] Restart SketchUp: the mode you left is still lit.
+- [ ] In a group moved, rotated and nested three deep, and in a scaled one: UNIFORM on a face grip and
+      NON-UNIFORM on a corner both land where the preview showed. Ctrl+Z is one step.
+
+# =============================================================================
+
+## Version 5.2.22 - 04-Nov-2026 - Deep Scale: SHIFT+TAB Always Stretches, With Nothing to Set Up First
+
+### Asked For
+*"Make it so shift + tab always creates centred stretch points so so that hotkey combination always
+stretches rasther than needing you to first make the planes just create 3, 1 on each axis and always
+use stretching when shift + tab"*
+
+### What It Does Now
+- **SHIFT+TAB:** three planes appear, one through the centre of each axis. STRETCH lights at once and
+  every grip turns violet. Face, edge or corner, SHIFT up or down, every grip stretches, and so does
+  a typed size. SHIFT+TAB again goes back to scaling.
+- **The same however it is reached:** the Planes button, the right-click menu, the Shortcuts command,
+  mid-drag (the drag in hand becomes the stretch), a tool started with the switch remembered on, and
+  the next object taken with it on.
+- **An axis with planes of its own keeps them,** with no centre plane added. Only an axis with none
+  gets one.
+
+This removes the accident 5.2.21 was warning about: with Planes on, an axis can no longer scale
+because nobody had put a plane on it.
+
+### Worked Out, Not Stored
+The literal reading was to write three planes onto the object. They are worked out instead, and look
+and behave the same. A plane through the middle of an axis is still through the middle after a
+stretch at it, so there is nothing to remember, and not storing them means:
+- A key press or a click on an object writes nothing to the model and makes no undo step.
+- The next object taken just works, which three planes written at the key press would not have done.
+- SHIFT+TAB off leaves nothing behind, so no object is left saying it has planes that are switched off.
+- Copies of a component are not touched by looking at one.
+- Loose geometry can have them, having nowhere to save one.
+
+Where a plane does get saved:
+- **Drag a centre plane's diamond** and it becomes that axis's own, saved as ever. The two beside it
+  are not stored with it.
+- **Place your own** on an axis (a centre line, or CTRL+click) and it takes over from the centre plane.
+  Further clicks add, as before.
+- **DEL or a double-click on a centre plane** refuses and says why: the axis has to stretch somewhere.
+  Removing the last plane placed on an axis leaves its centre plane back in its place.
+- **Clear Stretch Planes** counts and clears only planes that were placed.
+
+The only plane on an axis, at its exact middle, counts as the centre plane whoever put it there. The
+two behave the same, so they are not told apart, and such a plane is not stored at the next save.
+
+### Loose Geometry Stretches Too
+The reason it could not (nowhere to save a plane) no longer applies. New `Na__ScaleCommit__StretchLoose`
+moves its points through the field from the context they sit in: one operation, no context entered.
+- Its planes stay at the centre: no diamonds and no centre lines, because a moved plane could not be
+  kept. The help says to make it a group to put one elsewhere.
+- A group or component in the selection keeps its size and moves with its side of the plane. One a
+  plane runs through goes with the side its middle is on: carried whole, never half stretched,
+  because opening it would mean leaving the context the loose points are moved from.
+
+### Other Changes
+- **Three diamonds, each reachable.** Centre planes cross at one point, so their diamonds would stand
+  on one spot with only one to grab. Each now moves a little along its own centre line. Only the
+  diamond moves, not the plane.
+- **Plane labels are on cards,** drawn after the grips. A centre plane's label stands where three
+  planes cross, where bare coloured text could not be read.
+- **Bug:** the message from DEL on a plane's diamond was wiped at once, because clearing the hover
+  cancelled it. A removal now says what it did.
+- **A grip that stops says why:** `X stops here: details either side of a plane would meet`. A plane
+  through the middle often runs through a detail, so this comes up more.
+- **Words:** `+400 each` no longer appears with one plane, and a card line that only repeated its
+  title has gone. The advice for a plain scale is now SHIFT+TAB, which works mid-drag too.
+- **What is left of NOT A STRETCH:** planes saved but switched off, and an axis too thin to hold a
+  plane (a part scaled up a long way from next to nothing). That axis is now the only way left to a
+  stretch and a scale at once.
+
+### Verified Offline
+The real tool driven through its events on SketchUp 2026's Ruby 3.2 with API doubles:
+- **New Suite K: 185 checks pass.** Every one of the 26 grips named as a stretch with SHIFT up and
+  down, and each really dragged (Suite J drags them with SHIFT down too); every route to the switch; nothing written by a key press or a click; one undo step; both ends and About
+  Centre; shared components; placing, moving and removing; all three diamonds picked out by position,
+  in 3D and in an elevation; loose geometry at the root, in an open moved and rotated group, and with
+  groups in the selection.
+- **Suite J, on the modes, now 1,131 checks,** covering the new behaviour and the too-thin axis.
+- **The 514 other Deep Scale checks pass,** with 7 updated for deliberate changes.
+- **52 deliberate breakages, each caught.** Three got through at first and showed gaps in the tests,
+  now closed: nothing had tried a commit that moves the low end of the box, or an axis scaled away.
+- **The overlay was looked at**, rendered to images from the tool's real draw calls.
+- **All Deep Scale files compile in SketchUp 2027's Ruby 3.4.9.**
+
+Not run in SketchUp. A real stretch of loose geometry, and of a selection of groups, is the part to
+watch, because the doubles stand in for `transform_by_vectors` and `transform_entities` there.
+
+### Files
+- `35__System__DeepScale/..DrawnScale__Field__.rb`: `LoneCentre?`, `WithCentres`, `WithoutCentres`.
+- `..DrawnScale__Commit__.rb`: `StretchLoose`, `MoveVertices` shared with the object's stretch,
+  `LooseBox`, `CheckRoomLoose`, `RoomFor`.
+- `..DrawnScale__Planes__.rb`: spreading the diamonds, taking over, what cannot be removed, what is
+  saved, cards for labels, the help.
+- `..DrawnScaleTool__.rb`: `planes_of` adds the centre planes, `planes_editable?`, the switch re-reads
+  them mid-drag, the stop line, DEL's message.
+- `..DrawnScale__Mode__.rb`: STRETCH lit at rest, the advice and sentences.
+- `..DrawnScale__Keys__.rb`, `..DrawnScale__Overlay__.rb`, `02__AppData/..ToolOptions__.rb`: the words.
+
+### Testing Notes
+**Reload Plugin Data** is enough, then start Deep Scale again.
+- [ ] A group with no planes: press SHIFT+TAB. Three planes, STRETCH lit, every grip violet, and the
+      model does not show as changed by the key press.
+- [ ] Drag a face grip on each axis, then a corner, then an edge. All stretch, and the plane doing
+      the work is solid while the others are dashed.
+- [ ] Ctrl+Z after a stretch: one step, and it is all back.
+- [ ] SHIFT+TAB off, drag a face: a plain orange scale, with no talk of planes.
+- [ ] Press SHIFT+TAB mid-drag, both ways. The drag in hand changes over.
+- [ ] Click another object with it on: it stretches too, without pressing anything.
+- [ ] Drag each of the three diamonds at the middle. Each picks up its own plane, and moving it does
+      not disturb the others.
+- [ ] Press DEL on a centre plane: it stays and says why. Add your own plane on that axis: the centre
+      one goes. DEL yours: it comes back.
+- [ ] An object with two planes of its own on X: they stay, and Y and Z get centres.
+- [ ] **Loose geometry:** select some, SHIFT+TAB, stretch it. Near side stays, far side moves, one undo
+      step. Repeat inside an open group that is moved and rotated.
+- [ ] **Two groups selected:** they keep their size and move apart.
+- [ ] Stretch something nested in a moved, rotated and scaled group: the planes and bands sit true.
+
+# =============================================================================
+
+## Version 5.2.21 - 04-Nov-2026 - Deep Scale: You Can See Which Mode You Are In, Before You Touch a Grip
+
+### Asked For
+*"Now look at the scale tool, add better preview text overlay and colours when you shift from
+scaling none uniform - uniform scaling - stretching via plane / planes ... currently it is not clear
+enough which mode is active when the tool is being used"*. The fear in Adam's words: too easy to
+wreck the object with a non-uniform scale when trying to stretch.
+
+### What Was Wrong
+Rendering the old overlay made it plain. A real stretch and a non-uniform scale were the same amber
+box, the same amber ghost and the same small label. There were two silent ways into the mistake:
+- **Planes on, but the grip's axis has no plane.** The Field file's rule is that an axis with planes
+  stretches and one without scales, and nothing on screen said which this was.
+- **Planes saved on the object, but the switch off.** Every axis scales. All that said so was one
+  small line of help, and only while the mouse was idle.
+
+One label was simply wrong: a corner with planes on one axis read `Uniform 1.250x` while X stretched
+and Y and Z scaled.
+
+### The Four Modes
+A new Mode file names what a grip or a typed size is about to do.
+
+| Mode | Colour | What happens |
+|---|---|---|
+| Uniform scale | Teal | Every axis by one factor: keeps its proportions |
+| Non-uniform scale | Orange | Some axes and not others: everything inside distorts |
+| Stretch at planes | Violet | Every axis changing has planes: details keep their size |
+| Stretch + scale | Red | At least one axis of each, so part of it still distorts |
+
+None of the four is an axis colour.
+
+### Where It Shows
+- **Every grip wears the colour of what it would do**, before the mouse gets to it, and SHIFT or
+  SHIFT+TAB recolours them all at once. With X planes on, the X faces are violet, the other faces
+  orange and the corners red.
+- **The mode strip**, under the handle bar: UNIFORM, NON-UNIFORM, STRETCH. It lights the mode in
+  force and greys the rest, and a mixed pull lights two. It stays where it is during a drag, when
+  the bar goes away. At rest it is the key to the grips' colours, with STRETCH greyed while nothing
+  can stretch. A sentence under it says what that means for this object.
+- **A card beside the grip**: a title in the mode's colour over a white body, with the sizes, what
+  the mode does to the object and what SHIFT would change it to. It turns to the other side of the
+  grip rather than run off the view.
+- **NOT A STRETCH** in the title whenever a scale is what the planes were set up to avoid, with the
+  way out under it: `No Z plane here: ESC, then CTRL+click to add one`, or
+  `Planes are OFF: SHIFT+TAB stretches X at 2 planes`.
+- **The new box, the ghost and the live dimensions** wear the mode through the drag, each dimension
+  by its own axis's rule, so on a mixed pull the stretching axis and the distorting axis differ.
+- **Violet bands** across the new box where a stretch opens the object up: the picture that says
+  "stretch", not "scale". On a shrink they show what closes up.
+- **Planes doing nothing fade.** Solid planes across a box say "this is stretching", which on a drag
+  along another axis was a lie, so those planes drop to a faint dashed outline.
+- **Typed sizes get all of this too**, read from the field Enter will commit. Clicking a dimension
+  lights the mode a typed size would give, before a digit is typed.
+- **Status line, measurements box and result message** name it as well: the box reads `Stretch X`,
+  `Scale X`, `Uniform X,Y,Z` or `Stretch + Scale X,Y,Z` where it read `Length X` or `Size X,Y`, and
+  the result says `Stretched`, `Scaled non-uniform`, `Scaled uniform` or `Stretched and scaled`.
+
+### One Answer, From the Same Rules as the Commit
+A grip is named from the two questions the drag itself asks: which axes does it pull, and which of
+those have planes? The name is therefore known before it is touched, and holds steady through the
+drag rather than changing for the frame in which two free axes happen to match. A typed size has no
+grip, so it is named from its field.
+
+### A Fix This Needed: SHIFT+TAB Mid-Drag
+The card now recommends SHIFT+TAB mid-drag, and that route had a gap. A stretch's limit on shrinking
+was only worked out when the grip was picked up, so one begun mid-drag had none: the preview showed
+X at 200 mm, then the commit refused it because the object can only shrink to 917 mm. It is now
+worked out again when a switch changes, so the drag is held at the same floor as one that started
+with planes on.
+
+### Other Small Changes
+The bar's tips and the plane help moved down to make room for the strip. A card's lines stand as far
+apart as the text really is tall, for a high DPI display. Deep Scale's old grip and preview colour
+constants are gone from the source; they stay harmlessly in a running SketchUp until a restart.
+
+### Verified Offline
+The real `DrawnScaleTool` driven through its events on SketchUp 2026's Ruby 3.2 with API doubles,
+using an earlier session's Deep Scale kit:
+- **The property that matters:** every grip the view shows, SHIFT up and down, with no planes, planes
+  saved but off, X planes on, and planes on all three axes. Each was really dragged, and what the
+  grip promised had to be what the drag did and what the commit would be told.
+- **New Suite J: 807 checks pass.** It includes the three accident routes, the strip, the card
+  staying in the view, typed sizes, loose geometry, a flat panel, and the bands from either end,
+  about the centre and on a shrink.
+- **The Coordinate Rule:** the bands, the new box and the card inside an open, moved, rotated group,
+  with a non-uniformly scaled group on the way down, against places worked out by composing the
+  placements by hand.
+- **The 513 earlier Deep Scale checks still pass.** 14 of them were updated, each for a deliberate
+  change of wording, draw count or colour.
+- **50 deliberate breakages, each caught.** The first rounds found three gaps in the tests, which
+  were then closed: the card's warning line was hidden by the strip's identical text, and the bands
+  had only been tried from the +X face.
+- **The overlay was looked at**, rendered to images from the tool's real draw calls.
+- **All Deep Scale files compile in SketchUp 2027's Ruby 3.4.9.**
+
+Not run in SketchUp: the doubles stand in for its API, and its fonts will differ from the renders.
+
+### Files
+- `35__System__DeepScale/..DrawnScale__Mode__.rb` (new, in the load manifest): naming the modes and
+  all the words for them.
+- `..DrawnScale__Preview__.rb`: the mode palette, the strip, the card, the hot grip, the idle plane.
+- `..DrawnScaleTool__.rb`: grips, the change preview, status, measurements box, result, the floor.
+- `..DrawnScale__Planes__.rb`: the bands, idle planes, the hint's new place.
+- `..DrawnScale__Overlay__.rb`: live dimension colours, the tip's new place.
+
+### Testing Notes
+**Reload Plugin Data** is enough, then start Deep Scale again. Colours live in one table,
+`NA_SCALE_MODE_STYLES` in the Preview file.
+- [ ] A group with no planes: corners teal, faces and edges orange, STRETCH greyed. Hold SHIFT with
+      the mouse still: they swap.
+- [ ] Drag a corner: all teal, `UNIFORM SCALE 1.250x`. Drag a face: all orange, `NON-UNIFORM SCALE X`.
+- [ ] Add two X planes: the X faces go violet, the corners red, the other faces orange.
+- [ ] Drag an X face: violet, with bands opening at the planes, and `STRETCH AT 2 PLANES X`.
+- [ ] **The accident:** with those planes on, drag a Z face. Orange, `NOT A STRETCH`, X planes faded.
+- [ ] **The other accident:** SHIFT+TAB the planes off and drag an X face: orange, `NOT A STRETCH`.
+      Press SHIFT+TAB mid-drag: it becomes the violet stretch. Pull it right down: it stops at the
+      floor, and letting go commits what was shown.
+- [ ] Drag a corner with X planes on: red, both pills lit, `STRETCH X + SCALE Y + Z`.
+- [ ] Click a dimension: the strip lights what a typed size would do. Type a size: box and card follow.
+- [ ] Drag near the edge of the view: the card stays on screen. Does the text fit on your display?
+- [ ] Repeat a stretch on an object inside an open group that is moved and rotated, and inside a
+      scaled group: the bands sit within the new box.
+
+# =============================================================================
+
+## Version 5.2.20 - 04-Nov-2026 - Drawn Volume & Staircase: A Depth Typed as W,,D Is Kept
+
+### Asked For
+A bug found while building 5.2.19, then Adam's word: *"Yes, fix it"*.
+
+### The Bug
+Typing `1000,,300` pinned the depth at 300 with the height still on the drag. The click that set the
+height then zeroed the depth but left it pinned, so the depth stage had 0 and could not be dragged,
+and only a retype or BKSP got out. `advance_from_b` was the one route that did not check the pin:
+Subtraction's target stage already kept a pinned depth.
+
+### The Fix
+Once the last side settles, a pinned depth means everything is known, so that click places the box,
+as `1000,1000,300` does. The Staircase inherits the fix and moves on to its side stage. BKSP before
+the click still releases the depth, and the rectangle then goes to the depth stage to be dragged.
+Subtraction is unchanged.
+
+### Verified Offline
+The 5.2.19 suite with these cases added: 51 checks pass, and it goes red with the new
+line taken out. Not run in SketchUp.
+
+### Files
+- `20__System__DrawnPrimitives/..DrawnVolumeTool__.rb`: one line in `na_drawn__advance_from_b`.
+
+### Testing Notes
+**Reload Plugin Data**, then type `1000,,300` mid-drag and click: a box 300 deep. The same in the
+Staircase should go on to picking the side.
+
+# =============================================================================
+
+## Version 5.2.19 - 04-Nov-2026 - Drawn Volume: A Depth of 0 Draws a Plane
+
+### Asked For
+*"On the volume tool, if the third value typed in the VCB is 0, then draw a plane instead of a
+volume"*. `1000,1000,1000` stays a 1 m box and `1000,1000,0` is now a 1 m plane.
+
+### How It Reads
+- **Base stage:** `W,H,0` places the plane at once. `W,,0` or `,,0` pins the depth at 0 and leaves
+  the other side on the drag, and the click that settles it places the plane. BKSP takes the pin
+  back, and the rectangle then goes on to a depth stage as usual.
+- **Depth stage:** a bare `0` places the plane.
+- **Straight after drawing:** `W,H,0` turns the box into a plane in the same group, `W,H,300` turns
+  it back, and `W,H` or a bare width on a plane corrects it and leaves it a plane. The group is
+  renamed (`01__DrawnPlane` / `01__DrawnVolume`) in the same undo step, and only when its shape
+  changes, so a name given by hand survives a size correction.
+- **Any spelling of zero:** `0`, `0mm`, `0.0`, `0m`. It has to be an absolute zero: `+0` is still
+  no change, and `-300` landing on a 300 depth is still refused as a slip.
+
+### What Is Still Refused
+- **Subtraction on:** a cut needs a depth, so `W,H,0` is refused and the message names SHIFT+TAB.
+  A `0` typed as a cut depth is refused as before.
+- **The Staircase:** it inherits this tool but reads its block with its own handler, so a depth of
+  0 is still refused there.
+- **A zero width or height:** refused as before. A plane needs both sides.
+
+### Which Plane
+`Na__DrawnGeom__CreatePlane`, the builder Drawn Plane uses, so the two tools' planes match, in an
+open group too. **Plane Faces** applies, so with Face switched off under Drawn Plane this draws the
+four edges only. The Transparent option is Drawn Volume's own.
+
+### Verified Offline
+The real `DrawnVolumeTool` and `DrawnStairTool` driven through `onUserText` on SketchUp 2026's
+Ruby 3.2 with API doubles, with the real geometry helpers writing to recording entities. 43 checks
+pass, and 10 mutations each turned the suite red. All 115 plugin Ruby files compile. Not run in
+SketchUp, and the suite's doubles do not model an open group.
+
+### Files
+- `20__System__DrawnPrimitives/..DrawnVolumeTool__.rb`: the typed entry, `na_volume__commit_plane`,
+  and a revise that can change shape.
+- `04__GeometryHelpers/..DrawnGeometry__.rb`: `RebuildPlane` and `RebuildVolume` take an optional
+  `new_name`, applied inside their operation.
+
+### Testing Notes
+**Reload Plugin Data** is enough. In SketchUp: `1000,1000,0` mid-drag, `1000,1000,1000` mid-drag,
+`0` at the depth stage, then a typed correction either way. Repeat one inside a group that is moved
+and rotated.
+
+# =============================================================================
+
 ## Version 5.2.18 - 29-Oct-2026 - Deep Vertex Move & Deep Scale: Welded Curves No Longer Warp; Loose Geometry Is Picked Straight Away
 
 ### Asked For

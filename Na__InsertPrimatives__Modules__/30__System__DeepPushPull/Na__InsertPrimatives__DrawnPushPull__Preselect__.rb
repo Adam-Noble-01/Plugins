@@ -1,5 +1,6 @@
 # Selected faces own the gesture, even when groups are selected beside them.
-# A batch uses each face's own normal/slope and the same signed measured size.
+# A batch uses each face's own normal/slope (or a nominated edge, turned to each
+# face's outward side) and the same signed measured size.
 # All faces are in the user's open context: no context switches or nested ops.
 #
 # A LARGE SELECTION ASKS FIRST (5.1.22): more than NA_LARGE_SELECTION_FACES
@@ -210,6 +211,7 @@ module Na__InsertPrimatives
             model = Sketchup.active_model
             opened = false
             records = []
+            steering = na_ev__live?                                        # <-- Asked first: the reset below clears the face in hand
             unless Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d)
                 raise ArgumentError, 'Drag further or type a nonzero distance'
             end
@@ -224,7 +226,7 @@ module Na__InsertPrimatives
                 raise 'The editing context changed — reselect the faces' unless Na__InsertPrimatives.Na__DeepPick__InOpenContext?(target[:face])
                 na_pps__with_target(target) do
                     raise 'A selected face cannot travel along the locked axis' unless na_drawn__axis_lock_usable?
-                    problem = na_drawn__follow_problem
+                    problem = na_drawn__follow_problem || na_ev__problem
                     raise problem if problem
                     snapshot = na_revise__snapshot(target, model)
                     offset = na_drawn__local_offset_vector(target)
@@ -261,6 +263,7 @@ module Na__InsertPrimatives
             record = records.first.merge(:kind => :face_batch, :members => records, :counts => counts,
                                          :ghost => { :members => records.map { |member| member[:ghost] } })
             na_revise__arm(record)
+            na_ev__spend if steering                                       # <-- A batch is one push: the edge has done its job
             na_drawn__reset_pick_state
             na_pps__read_selection
             view.invalidate if view

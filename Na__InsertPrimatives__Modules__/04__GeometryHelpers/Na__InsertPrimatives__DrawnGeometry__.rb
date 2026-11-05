@@ -133,8 +133,10 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
     # FUNCTION | Rebuild an Existing Drawn Plane Group in Place
+    # `new_name` renames the group in the same operation, for a Drawn Volume box
+    # turned into a plane by a typed depth of 0.
     # ------------------------------------------------------------
-    def self.Na__DrawnGeom__RebuildPlane(group, origin, plane_key, u_len, v_len, view, create_face)
+    def self.Na__DrawnGeom__RebuildPlane(group, origin, plane_key, u_len, v_len, view, create_face, new_name = nil)
         return false unless group && group.valid? && origin
         return false unless Na__InsertPrimatives.Na__DrawnGeom__ValidRectangle?(u_len, v_len)
 
@@ -143,6 +145,7 @@ module Na__InsertPrimatives
 
         model.start_operation('Adjust Drawn Plane', true)
 
+        group.name = new_name if new_name
         group.transformation = Geom::Transformation.new
         group.entities.clear!
 
@@ -224,8 +227,9 @@ module Na__InsertPrimatives
     # ---------------------------------------------------------------
 
     # FUNCTION | Rebuild an Existing Drawn Volume Group in Place
+    # `new_name` as for the plane above, for a plane given a depth again.
     # ------------------------------------------------------------
-    def self.Na__DrawnGeom__RebuildVolume(group, origin, plane_key, u_len, v_len, d_len)
+    def self.Na__DrawnGeom__RebuildVolume(group, origin, plane_key, u_len, v_len, d_len, new_name = nil)
         return false unless group && group.valid? && origin
         return false unless Na__InsertPrimatives.Na__DrawnGeom__ValidRectangle?(u_len, v_len)
         return false unless Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(d_len)
@@ -235,6 +239,7 @@ module Na__InsertPrimatives
 
         model.start_operation('Adjust Drawn Volume', true)
 
+        group.name = new_name if new_name
         group.transformation = Geom::Transformation.new
         group.entities.clear!
 

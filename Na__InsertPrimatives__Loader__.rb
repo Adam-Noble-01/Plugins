@@ -511,6 +511,8 @@ begin
         ['NA_DeepScale_HandlesY',       :handles_y,       'Handles Y Only',       'Show only the two grips that pull Y (LEFT ARROW for a moment)'],
         ['NA_DeepScale_HandlesZ',       :handles_z,       'Handles Z Only',       'Show only the two grips that pull Z (UP ARROW for a moment)'],
         ['NA_DeepScale_HandlesNext',    :handles_next,    'Next Handle Set',      'Step to the next handle set: All, Faces, Corners, X, Y, Z'],
+        ['NA_DeepScale_ModeUniform',    :mode_uniform,    'Mode Uniform',         'Every grip scales uniform, as the UNIFORM button does; again to let go'],
+        ['NA_DeepScale_ModeNonUniform', :mode_non_uniform, 'Mode Non-Uniform',    'Every grip scales non-uniform, as the NON-UNIFORM button does; again to let go'],
         ['NA_DeepScale_StretchPlanes',  :planes,          'Stretch Planes',       'Stretch Planes on or off (SHIFT+TAB while scaling)'],
         ['NA_DeepScale_AboutCentre',    :centre,          'About Centre',         'Scale about the centre on or off (TAB)'],
         ['NA_DeepScale_Dimensions',     :dims,            'Dimensions',           'Show Dimensions on or off'],
@@ -655,7 +657,7 @@ begin
     Na__InsertPrimatives__AddMenuEntry('scale')           { |m| m.add_item(scale_cmd) }
 
     scale_option_cmds.each do |id, command|
-        if id == 'NA_DeepScale_StretchPlanes'
+        if id == 'NA_DeepScale_ModeUniform'
             Na__InsertPrimatives__AddMenuEntry('scale_options_sep') do |_m|
                 Na__InsertPrimatives__NestedSubmenu('scale_options', 'Deep Scale Options').add_separator
             end

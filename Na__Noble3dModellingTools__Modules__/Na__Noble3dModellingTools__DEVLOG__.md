@@ -3,6 +3,13 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.24 - 05-Nov-2026 - Component Editor Tools: Library Save `rename_in_model` Renames the Placed Copy
+
+- Component Editor Tools 0.6.8. The full entry and checklist are in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.
+- **The problem.** `asset_library_edit save` with `rename_in_model` wrote a correct file, but the placed copy kept its old name: the save's own aborted rename had reserved the new one.
+- **The fix.** The rename is now committed first, as one undo step, and the save follows. The placed copy also gets the description, and the result says `renamed_in_model: true`.
+- **Validation.** 86 of 86 checks pass, 10 of them new, and 5 of those fail on the old code. It also ran live in a throwaway SketchUp 27.0.267 window on a scratch library. A real model is with the user.
+
 ## Na Noble3d Modelling Tools | Version 0.9.23 - 03-Nov-2026 - Component Editor Tools: Tab Turns the Component, Just After the Click
 
 - Component Editor Tools 0.6.7. The full entry and checklist are in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.

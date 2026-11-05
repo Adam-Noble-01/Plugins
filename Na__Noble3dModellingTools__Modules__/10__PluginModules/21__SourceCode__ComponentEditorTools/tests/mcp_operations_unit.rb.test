@@ -27,8 +27,15 @@ end
 # --- Fake SketchUp --------------------------------------------------------------
 
 class NaFakeDefinition
-    attr_accessor :name, :description, :path
+    attr_accessor :description, :path
+    attr_reader :name
     attr_writer :instances
+
+    # $na_reserved_names, when set, is SketchUp's habit: a name a rollback took back
+    # stays reserved in the model, and using it gives "...#1".
+    def name=(value)
+        @name = ($na_reserved_names || []).include?(value) ? "#{value}#1" : value
+    end
 
     def initialize(name, path)
         @name = name
@@ -118,6 +125,9 @@ class NaFakeModel
 
     def abort_operation
         @aborted += 1
+        if $na_reserved_names
+            @snapshot_state.each { |definition, state| $na_reserved_names << definition.name unless definition.name == state[:name] }
+        end
         @definitions.list.replace(@snapshot_list)
         @snapshot_state.each { |definition, state| definition.restore(state) }
     end
@@ -379,6 +389,44 @@ check('safe load refuses an in-use file when asked') do
         error.na_instance_count == 2
     end
 end
+
+# --- save with rename_in_model: the rename must not follow the always-aborted save ---
+
+FileUtils.rm_rf(File.dirname($na_library_root))
+reserve_set = build_library
+reserve_pots = "#{reserve_set}/13__Building__Roof/13_2000__ChimneyPots"
+$na_reserved_names = []
+read_saved = ->(stem) { JSON.parse(File.read("#{reserve_pots}/#{stem}.skp")) }
+
+placeholder = NaFakeDefinition.new('10_????__Placeholder__', '')
+$na_fake_model.definitions.list << placeholder
+kept = OPS.Na__ComponentEditorTools__McpEdit('save', 'definition_object' => placeholder, 'series' => '13_2000', 'code' => '13_2041', 'name' => 'ChimneyPot__Kept__Type-01',
+                                             'rename_in_model' => true, 'library_data' => { 'gallery_name' => 'Kept pot', 'truevision_valid' => 'true' }, 'description' => 'Kept words')
+kept_stem = '13_2041__ChimneyPot__Kept__Type-01__'
+check('rename_in_model: the placed copy takes the name, with no #1') { placeholder.name == kept_stem }
+check('rename_in_model: reported as done, with no note') { kept['results'].first['renamed_in_model'] == true && kept['results'].first['note'].nil? }
+check('rename_in_model: one committed step') { $na_fake_model.committed == 1 }
+check('rename_in_model: the placed copy has the data and description') { placeholder.get_attribute('Na__ComponentLibrary', 'gallery_name') == 'Kept pot' && placeholder.description == 'Kept words' }
+check('rename_in_model: the file has the name, data and description') do
+    saved_file = read_saved.call(kept_stem)
+    saved_file['name'] == kept_stem && saved_file['description'] == 'Kept words' && saved_file['attrs']['Na__ComponentLibrary']['truevision_valid'] == 'true'
+end
+check('rename_in_model: no name left reserved') { $na_reserved_names.empty? }
+
+plain = NaFakeDefinition.new('10_????__Plain__', '')
+$na_fake_model.definitions.list << plain
+plain_saved = OPS.Na__ComponentEditorTools__McpEdit('save', 'definition_object' => plain, 'series' => '13_2000', 'code' => '13_2042', 'name' => 'ChimneyPot__Plain__Type-01')
+check('a plain save still leaves the placed copy alone') { plain.name == '10_????__Plain__' && plain_saved['results'].first['renamed_in_model'].nil? }
+check('a plain save still names the file') { read_saved.call('13_2042__ChimneyPot__Plain__Type-01__')['name'] == '13_2042__ChimneyPot__Plain__Type-01__' }
+
+clash_stem = '13_2043__ChimneyPot__Clash__Type-01__'
+owner = NaFakeDefinition.new(clash_stem, '')
+incomer = NaFakeDefinition.new('10_????__Incomer__', '')
+$na_fake_model.definitions.list.push(owner, incomer)
+clashed = OPS.Na__ComponentEditorTools__McpEdit('save', 'definition_object' => incomer, 'series' => '13_2000', 'code' => '13_2043', 'name' => 'ChimneyPot__Clash__Type-01', 'rename_in_model' => true)
+check('rename_in_model on a name in use: says so and renames nothing') { clashed['results'].first['note'].to_s.include?('kept its name') && incomer.name == '10_????__Incomer__' && owner.name == clash_stem }
+check('rename_in_model on a name in use: the file is still right') { read_saved.call(clash_stem)['name'] == clash_stem }
+$na_reserved_names = nil
 
 FileUtils.rm_rf(File.dirname($na_library_root))
 puts "McpOperations unit: #{$na_checks - $na_failures.length}/#{$na_checks} checks passed."

@@ -171,6 +171,7 @@ module Na__InsertPrimatives
                 :axis_lock   => @na_axis_lock,
                 :slope       => @na_pp_slope,
                 :slope_mode  => sloped ? true : false,
+                :edge_lock   => na_ev__live? ? @na_ev_lock : nil,                 # <-- The line it travelled, whatever is nominated by the time it is retyped
                 :follow      => na_drawn__follow_mode?,
                 :quad        => na_drawn__quad_mode?,
                 :cut         => cutting ? true : false,
@@ -306,6 +307,7 @@ module Na__InsertPrimatives
             held_alt    = @na_alt_held
             held_axis   = @na_axis_lock
             held_follow = @na_pp_follow
+            held_edge   = @na_ev_lock
 
             @na_revise_replaying = record
             @na_pp_target        = target
@@ -313,6 +315,7 @@ module Na__InsertPrimatives
             @na_shift_held       = (record[:slope_mode] || record[:follow]) ? true : false
             @na_alt_held         = record[:follow] ? true : false
             @na_axis_lock        = record[:axis_lock]
+            @na_ev_lock          = na_ev__record_lock(record)
             @na_size_d           = value.to_f.abs
             @na_sign_d           = value.to_f < 0.0 ? -1.0 : 1.0
             na_drawn__follow_refresh(target) if record[:follow]              # <-- The face found again, read afresh
@@ -324,6 +327,7 @@ module Na__InsertPrimatives
             @na_axis_lock        = held_axis
             @na_pp_follow        = held_follow
             @na_pp_follow_lookup = nil
+            @na_ev_lock          = held_edge
             @na_revise_replaying = nil
         end
         # ---------------------------------------------------------------

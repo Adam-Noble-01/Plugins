@@ -24,6 +24,9 @@
 #   base stage   2400 | 2400,1200 | +100,-50 | 2400,1200,300 (straight to a box)
 #   depth stage  300  | +50 | -25
 #   Bare numbers are mm; mm | cm | m suffixes accepted.
+#   A depth of 0 draws a plane instead of a box (5.2.19): 1000,1000,0 at the base
+#   stage, or 0 at the depth stage. It is built as Drawn Plane builds one, and a
+#   size typed straight after turns it back into a box (1000,1000,300).
 #
 # POPUP SUBMENU OPTIONS (see Na__InsertPrimatives__AppData__ToolOptions__.rb):
 #   Subtraction  the box becomes a cutter: an extra stage asks which group to
@@ -101,6 +104,7 @@ module Na__InsertPrimatives
                 'TAB cycles the base plane: Auto > XY > XZ > YZ',
                 'VCB base : 2400 pins W | ,1200 pins L | 2400,1200 moves on | 2400,1200,300 places it',
                 'VCB depth: 300 | +50 | -25',
+                'A depth of 0 draws a plane: 1000,1000,0 at the base, or 0 at the depth',
                 'A pinned axis stops following the drag — BKSP releases it again',
                 'Type straight after drawing to correct the box in place',
                 'Right-click for the menu — Subtraction and Transparent sit under this tool',
@@ -133,6 +137,8 @@ module Na__InsertPrimatives
             end
 
             return na_volume__begin_target_stage(view) if na_volume__subtract_active?
+            return na_volume__commit_plane(view) if na_volume__flat_pinned?    # <-- W,,0 was typed: this click settles the last side of a plane
+            return na_drawn__advance_from_depth(view) if na_drawn__locked?(:d) # <-- W,,D was typed: the same click has everything the box needs
 
             @na_state  = :picking_depth
             @na_size_d = 0.0
@@ -325,6 +331,8 @@ module Na__InsertPrimatives
 
             case @na_state
             when :picking_b
+                return "W #{width_mm} x H #{height_mm} mm — depth 0: release or click to place a plane" if na_volume__flat_pinned?
+
                 "W #{width_mm} x H #{height_mm} mm — release or click to set the base"
             when :picking_target
                 na_volume__target_status
@@ -377,6 +385,17 @@ module Na__InsertPrimatives
             when :picking_b
                 raise ArgumentError, 'base takes one value, W,H or W,H,D' if tokens.length > 3
 
+                if na_volume__zero_token?(tokens[2])
+                    raise ArgumentError, 'a cut needs a depth — SHIFT+TAB switches Subtraction off to draw a plane' if na_volume__subtract_active?
+
+                    na_drawn__apply_typed_sizes(tokens[0, 2], 2)
+                    @na_size_d = 0.0
+                    na_drawn__lock_slot(:d)
+
+                    return true unless na_drawn__all_locked?([:u, :v])         # <-- One side still on the drag: the click that settles it places the plane
+                    return na_volume__commit_plane(view)
+                end
+
                 if tokens.length == 3
                     na_drawn__apply_typed_sizes(tokens, 3)
 
@@ -398,8 +417,9 @@ module Na__InsertPrimatives
 
             when :picking_depth
                 raise ArgumentError, 'depth takes a single value' if tokens.length > 1
+                return na_volume__commit_plane(view) if na_volume__zero_token?(tokens[0]) && !na_volume__target_locked?
 
-                depths = Na__InsertPrimatives.Na__DrawnVcb__ResolveAgainst(tokens, [@na_size_d])
+                depths =Na__InsertPrimatives.Na__DrawnVcb__ResolveAgainst(tokens, [@na_size_d])
                 Na__InsertPrimatives.Na__DrawnVcb__ValidatePositive(depths, ['Depth'])
                 @na_size_d = depths[0]
                 na_drawn__lock_slot(:d)
@@ -426,7 +446,16 @@ module Na__InsertPrimatives
                 # positional: 350 is always the width, ,1610 always the height.
                 na_drawn__clear_locks
                 raise ArgumentError, 'box takes one value, W,H or W,H,D' if tokens.length > 3
-                na_drawn__apply_typed_sizes(tokens, 3)
+
+                # A plane just drawn has a live depth of 0, so an entry that
+                # leaves the depth out corrects the plane and stays a plane.
+                if na_volume__zero_token?(tokens[2]) || (tokens[2].nil? && !Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d))
+                    na_drawn__apply_typed_sizes(tokens[0, 2], 2)
+                    @na_size_d = 0.0
+                else
+                    na_drawn__apply_typed_sizes(tokens, 3)
+                end
+
                 na_drawn__revise_volume(view)
 
             else
@@ -455,6 +484,21 @@ module Na__InsertPrimatives
             end
 
             sizes
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Does This Token Say the Depth Is Exactly Nothing?
+        # Absolute only: "-300" landing on a 300 depth is a slip, and stays refused.
+        # ------------------------------------------------------------
+        def na_volume__zero_token?(token)
+            Na__InsertPrimatives.Na__DrawnVcb__AbsoluteToken?(token) && !Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(token[1])
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Has a Depth of 0 Been Typed for the Rectangle in Hand?
+        # ------------------------------------------------------------
+        def na_volume__flat_pinned?
+            @na_state == :picking_b && na_drawn__locked?(:d) && !Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(@na_size_d)
         end
         # ---------------------------------------------------------------
 
@@ -516,7 +560,58 @@ module Na__InsertPrimatives
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Build a Plane From the Current Drag State (a Depth of 0)
+        # ------------------------------------------------------------
+        # The same builder as Drawn Plane, so the two tools' planes match: the
+        # Face setting is that tool's, the Transparent paint is this one's.
+        # ------------------------------------------------------------
+        def na_volume__commit_plane(view)
+            unless na_drawn__rectangle_valid?
+                UI.beep
+                Sketchup::set_status_text('Rectangle has no area — drag further before clicking', SB_PROMPT)
+                return false
+            end
+
+            origin      = @na_point_a
+            plane_key   = @na_plane_key
+            width_len   = na_drawn__signed_u
+            height_len  = na_drawn__signed_v
+            build_faces = Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+
+            group = Na__InsertPrimatives.Na__DrawnGeom__CreatePlane(
+                origin, plane_key, width_len, height_len, view, build_faces,
+                na_volume__transparent_option? ? NA_STD_MAT_TRANSPARENT : nil
+            )
+
+            unless group
+                UI.beep
+                Sketchup::set_status_text('Could not create a plane here', SB_PROMPT)
+                return false
+            end
+
+            @na_size_d      = 0.0
+            @na_last_record = {
+                :group     => group,
+                :origin    => origin,
+                :plane_key => plane_key,
+                :sign_u    => @na_sign_u,
+                :sign_v    => @na_sign_v,
+                :sign_d    => @na_sign_d,
+                :flat      => true,
+                :faces     => build_faces
+            }
+
+            na_drawn__reset_pick_state
+            na_drawn__arm_revise
+            na_volume__log_plane('DRAWN VOLUME - DEPTH 0, PLANE CREATED', origin, plane_key, width_len, height_len)
+            true
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Rebuild the Last Volume at the Same Anchor
+        # ------------------------------------------------------------
+        # A depth of 0 turns a box into a plane, and a depth on a plane turns it
+        # back. The same group either way, renamed only when its shape changes.
         # ------------------------------------------------------------
         def na_drawn__revise_volume(view)
             record = @na_last_record
@@ -525,11 +620,22 @@ module Na__InsertPrimatives
             width_len  = @na_size_u.to_f.abs * record[:sign_u].to_f
             height_len = @na_size_v.to_f.abs * record[:sign_v].to_f
             depth_len  = @na_size_d.to_f.abs * record[:sign_d].to_f
+            flat       = !Na__InsertPrimatives.Na__DrawnGeom__ValidDimension?(depth_len)
+            new_name   = flat == (record[:flat] == true) ? nil : (flat ? NA_DRAWN_PLANE_GROUP_NAME : NA_DRAWN_VOLUME_GROUP_NAME)
 
-            rebuilt = Na__InsertPrimatives.Na__DrawnGeom__RebuildVolume(
-                record[:group], record[:origin], record[:plane_key],
-                width_len, height_len, depth_len
-            )
+            if flat
+                build_faces = record.key?(:faces) ? record[:faces] : Na__InsertPrimatives.Na__DrawnSettings__PlaneFacesEnabled?
+                rebuilt     = Na__InsertPrimatives.Na__DrawnGeom__RebuildPlane(
+                    record[:group], record[:origin], record[:plane_key],
+                    width_len, height_len, view, build_faces, new_name
+                )
+                record[:faces] = build_faces
+            else
+                rebuilt = Na__InsertPrimatives.Na__DrawnGeom__RebuildVolume(
+                    record[:group], record[:origin], record[:plane_key],
+                    width_len, height_len, depth_len, new_name
+                )
+            end
 
             unless rebuilt
                 UI.beep
@@ -537,9 +643,29 @@ module Na__InsertPrimatives
                 return false
             end
 
+            record[:flat] = flat
             na_drawn__arm_revise                                               # <-- Keep revising while the mouse stays put
-            na_drawn__log_volume('DRAWN VOLUME ADJUSTED', record[:group], record[:origin], record[:plane_key], width_len, height_len, depth_len)
+
+            if flat
+                na_volume__log_plane('DRAWN VOLUME - DEPTH 0, PLANE ADJUSTED', record[:origin], record[:plane_key], width_len, height_len)
+            else
+                na_drawn__log_volume('DRAWN VOLUME ADJUSTED', record[:group], record[:origin], record[:plane_key], width_len, height_len, depth_len)
+            end
+
             true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Console Report for a Plane Drawn With a Depth of 0
+        # ------------------------------------------------------------
+        def na_volume__log_plane(headline, origin, plane_key, width_len, height_len)
+            Na__InsertPrimatives.Na__Debug__Puts "\n"
+            Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
+            Na__InsertPrimatives.Na__Debug__Puts headline
+            Na__InsertPrimatives.Na__Debug__Puts "Anchor: #{Na__InsertPrimatives.Na__DrawnFormat__PointMm(origin)}"
+            Na__InsertPrimatives.Na__Debug__Puts "Plane : #{NA_DRAWN_PLANE_LABELS[plane_key]}"
+            Na__InsertPrimatives.Na__Debug__Puts "Size  : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(width_len).abs}mm x #{Na__InsertPrimatives.Na__DrawnFormat__Mm(height_len).abs}mm"
+            Na__InsertPrimatives.Na__Debug__Puts '----------------------------------------'
         end
         # ---------------------------------------------------------------
 

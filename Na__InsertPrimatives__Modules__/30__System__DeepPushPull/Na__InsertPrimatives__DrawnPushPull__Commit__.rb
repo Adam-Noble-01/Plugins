@@ -62,6 +62,15 @@ module Na__InsertPrimatives
                 return false
             end
 
+            # ALONG AN EDGE's one limit, checked the same way: going in where
+            # the faces round it would not hold up.
+            edge_problem = na_ev__problem
+            if edge_problem
+                UI.beep
+                na_revise__notice("Not placed — #{edge_problem}")
+                return false
+            end
+
             world_travel = na_drawn__world_travel_distance
             local_offset = na_drawn__local_offset_vector(target)
 
@@ -217,9 +226,11 @@ module Na__InsertPrimatives
             sheared = shear.length.to_f >= NA_SLOPE_PUSH_MIN_SHEAR
             cut     = Na__InsertPrimatives.Na__EdgeLoops__IsCut?(quads, local_distance)
             follow  = na_drawn__follow_mode?                                  # <-- SHIFT+ALT: every corner along its own edge
+            vector  = na_ev__live?                                            # <-- SHIFT+click: along a nominated edge
             op_name = if    follow && cut then 'Deep Push Pull (Follow Loop Cut)'
                       elsif follow  then 'Deep Push Pull (Follow)'
                       elsif cut     then 'Deep Push Pull (Edge Loop)'
+                      elsif vector  then 'Deep Push Pull (Along Edge)'
                       elsif sheared then 'Deep Push Pull (Slope)'
                       elsif quads   then 'Deep Push Pull (Quads)'
                       else               'Deep Push Pull'
@@ -317,6 +328,12 @@ module Na__InsertPrimatives
                         build = Na__InsertPrimatives.Na__DeepPick__AddTransform(model, entities, loops.first.first)
                         @na_pp_quad_stats = Na__InsertPrimatives.Na__PushPull__StitchQuadRing(entities, loops, build)
                     end
+                elsif vector && sheared && interior
+                    # ALONG AN EDGE. Looks like the general slope route below, and
+                    # is not: this line need not lie in the faces the push welds
+                    # to, so the start loop goes back BEFORE the far end moves or
+                    # they would tilt. See DrawnPushPullEdgeVector.
+                    face = na_ev__execute(model, entities, face, local_distance, working_split, interior, normal_now, quads)
                 else
                     face.pushpull(local_distance)
 
@@ -435,7 +452,7 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts 'DEEP PUSH/PULL REFUSED'
             Na__InsertPrimatives.Na__Debug__Puts "Reason: #{@na_pp_last_error}"
             Na__InsertPrimatives.Na__Debug__Puts "Target: #{Na__InsertPrimatives.Na__DeepPick__PathLabel(target)}"
-            Na__InsertPrimatives.Na__Debug__Puts "Mode  : #{sloped ? 'SLOPE' : 'normal'}#{na_drawn__quad_mode? ? ' + QUADS' : ''}"
+            Na__InsertPrimatives.Na__Debug__Puts "Mode  : #{sloped ? 'SLOPE' : (na_ev__live? ? 'ALONG EDGE' : 'normal')}#{na_drawn__quad_mode? ? ' + QUADS' : ''}"
             Na__InsertPrimatives.Na__Debug__Puts "Slope : #{sloped ? Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope) : 'n/a'}"
             Na__InsertPrimatives.Na__Debug__Puts "Offset: #{Na__InsertPrimatives.Na__DrawnFormat__Mm(local_offset.length).abs}mm local"
             Na__InsertPrimatives.Na__Debug__Puts "Split : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(split[:distance]).abs}mm along the normal, " \
@@ -476,6 +493,7 @@ module Na__InsertPrimatives
             Na__InsertPrimatives.Na__Debug__Puts "Target: #{Na__InsertPrimatives.Na__DeepPick__PathLabel(target)}"
             measured =
                 if    @na_axis_lock then " along #{NA_DRAWN_AXIS_LABELS[@na_axis_lock]}"
+                elsif na_ev__live?  then " along the edge in #{@na_ev_lock[:name]}"
                 elsif sloped        then ' along the neighbouring slope'
                 else                     ' along the face normal'
                 end
@@ -489,6 +507,13 @@ module Na__InsertPrimatives
             if sloped
                 route = @na_pp_stretched ? 'stretched (no new geometry, no seam)' : 'pushpull + shear'
                 Na__InsertPrimatives.Na__Debug__Puts "Slope        : #{Na__InsertPrimatives.Na__SlopePush__Label(@na_pp_slope)} — #{route}"
+                Na__InsertPrimatives.Na__Debug__Puts "Sideways     : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(split[:shear].length).abs}mm"
+                Na__InsertPrimatives.Na__Debug__Puts "Seam         : #{@na_pp_seam_healed.to_i} coplanar edge(s) cleared" unless @na_pp_stretched
+            end
+
+            if na_ev__live?
+                route = @na_pp_stretched ? 'stretched (every face round it contains the edge)' : 'pushed, start loop kept, walls leaned'
+                Na__InsertPrimatives.Na__Debug__Puts "Along edge   : #{na_ev__angle_label} — #{route}"
                 Na__InsertPrimatives.Na__Debug__Puts "Sideways     : #{Na__InsertPrimatives.Na__DrawnFormat__Mm(split[:shear].length).abs}mm"
                 Na__InsertPrimatives.Na__Debug__Puts "Seam         : #{@na_pp_seam_healed.to_i} coplanar edge(s) cleared" unless @na_pp_stretched
             end

@@ -10,7 +10,7 @@
                 "Na__Size__Width": null,
                 "Na__Size__Height": null
             },
-            "Na__RightClickMenu__ShowMode": "with_tool"
+            "Na__RightClickMenu__ShowMode": "right_click"
         }
     }
 }

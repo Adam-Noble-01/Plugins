@@ -234,11 +234,21 @@ module Na__InsertPrimatives
                 :summary  => 'Which scale grips are shown — one side much thinner than the others is no longer a guess'
             },
             {
+                :id       => 'scale_grip_mode',
+                :kind     => :cycle,
+                :key      => 'ScaleGripMode',
+                :label    => 'Grips Scale',
+                :values   => %w[by_grip uniform non_uniform].freeze,
+                :captions => { 'by_grip' => 'By Grip', 'uniform' => 'Uniform', 'non_uniform' => 'Non-Uniform' }.freeze,
+                :default  => 'by_grip',
+                :summary  => 'By Grip: corners uniform, faces and edges non-uniform. Or every grip one way. The UNIFORM and NON-UNIFORM buttons on the view set this too'
+            },
+            {
                 :id      => 'scale_planes',
                 :key     => 'ScaleStretchPlanesEnabled',
                 :label   => 'Stretch Planes',
                 :default => false,
-                :summary => 'Grips stretch the object at its cut planes, so frames and details keep their size'
+                :summary => 'Every grip stretches the object, so frames and details keep their size: at a plane through the centre of each axis until you place your own (SHIFT+TAB)'
             },
             {
                 :id      => 'scale_about_centre',
