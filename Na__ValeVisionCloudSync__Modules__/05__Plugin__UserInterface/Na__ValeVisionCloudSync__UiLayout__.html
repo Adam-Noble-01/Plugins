@@ -5,9 +5,9 @@ VALEDESIGNSUITE - VALEVISION CLOUD SYNC HTMLDIALOG UI LAYOUT
 
 FILE       : Na__ValeVisionCloudSync__UiLayout__.html
 PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
-             Sync Aura and Settings tabs rendered in HTML (purpose-built sync
-             plugin, not a generic tool launcher, so tabs are defined in markup
-             not generated from JSON)
+             Sync Aura, Sync Vegetation, Sync Entourage and Settings tabs rendered
+             in HTML (purpose-built sync plugin, not a generic tool launcher, so
+             tabs are defined in markup not generated from JSON)
 =============================================================================
 -->
 <html lang="en">
@@ -60,6 +60,8 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
                     onclick="Na__Vvcs__ShowTab('aura', this)">Sync Aura</button>
             <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('vegetation', this)">Sync Vegetation</button>
+            <button class="naVvcs__TabButton"
+                    onclick="Na__Vvcs__ShowTab('entourage', this)">Sync Entourage</button>
             <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('settings', this)">Settings</button>
         </nav>
@@ -306,6 +308,68 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
                     <h3 class="naVvcs__Report__Title">Last Vegetation Sync Report</h3>
                     <div class="naVvcs__Report__Steps" id="naVvcsVegReportSteps"></div>
                     <div class="naVvcs__Report__Summary" id="naVvcsVegReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Sync Entourage Tab -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-entourage" class="naVvcs__TabPanel">
+
+                <!-- Entourage status summary -->
+                <div class="naVvcs__ProjectStatus">
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Signed In As</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsEntUser">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Library Project</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsEntLibraryProject">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Proxies</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsEntProxies">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Last Sync</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsEntLastSync">-</span>
+                    </div>
+                </div>
+
+                <!-- Entourage sync action -->
+                <div class="naVvcs__ActionGroup">
+                    <h3 class="naVvcs__ActionGroup__Title">Sync Actions</h3>
+
+                    <button type="button" class="naVvcs__ActionCard naVvcs__ActionCard--primary" data-na-requires-ent="true"
+                            onclick="Na__Vvcs__RunSyncAction('ent_sync')">
+                        <span class="naVvcs__ActionCard__Icon">&#9654;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Sync People With ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">No export: people placed in ValeVision come in as proxies, and proxies moved, scaled, added or deleted here go back. ValeVision wins a clash. A figure has no turn: it always faces the camera.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Placing a new proxy -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">Place A Figure</h3>
+                    <p class="naVvcs__SettingsGroup__Desc">
+                        Click a figure, then click in the model. It stays a proxy here until the next sync makes it a
+                        figure in ValeVision 3D. Close any open group first: proxies live at the model root.
+                    </p>
+                    <div class="naVvcs__VegAssets" id="naVvcsEntAssets"></div>
+                </div>
+
+                <!-- Last entourage sync report (hidden until one runs) -->
+                <div class="naVvcs__Report" id="naVvcsEntReport" style="display:none;">
+                    <h3 class="naVvcs__Report__Title">Last Entourage Sync Report</h3>
+                    <div class="naVvcs__Report__Steps" id="naVvcsEntReportSteps"></div>
+                    <div class="naVvcs__Report__Summary" id="naVvcsEntReportSummary"></div>
                 </div>
 
             </section>

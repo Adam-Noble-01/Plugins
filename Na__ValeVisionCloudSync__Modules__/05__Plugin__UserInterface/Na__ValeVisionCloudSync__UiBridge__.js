@@ -31,6 +31,10 @@
     // - The Sync Vegetation tab: its status rows, its card (locked until signed in, the
     //   same Vale sign-in as Sync Aura's), its list of plants to place, its own report.
     //
+    // 05-Nov-2026 - Version 1.5.0
+    // - The Sync Entourage tab, as above: its status rows, its card, its list of figures
+    //   to place, its own report.
+    //
     // =============================================================================
 
 
@@ -48,6 +52,7 @@
     var NA_VVCS_REQUIRES_SYNC_SELECTOR = '.naVvcs__ActionCard[data-na-requires-sync="true"]'; // <-- The three Update cards
     var NA_VVCS_REQUIRES_AURA_SELECTOR = '.naVvcs__ActionCard[data-na-requires-aura="true"]'; // <-- The two Sync Aura cards
     var NA_VVCS_REQUIRES_VEG_SELECTOR  = '.naVvcs__ActionCard[data-na-requires-veg="true"]';  // <-- The Sync Vegetation card
+    var NA_VVCS_REQUIRES_ENT_SELECTOR  = '.naVvcs__ActionCard[data-na-requires-ent="true"]';  // <-- The Sync Entourage card
 
     // endregion -------------------------------------------------------------------
 
@@ -122,12 +127,13 @@
         }
         var isAura = actionId.indexOf('aura_') === 0;
         var isVeg  = actionId.indexOf('veg_') === 0;
+        var isEnt  = actionId.indexOf('ent_') === 0;
         // <-- Update actions are locked until a full Sync Project has succeeded once
-        if (!isAura && !isVeg && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
+        if (!isAura && !isVeg && !isEnt && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
             na__vvcs__setStatus('Run a full Sync Project To ValeVision 3D first.', 'warning');
             return;
         }
-        if ((isAura || isVeg) && !naVvcsState.auraSignedIn) {
+        if ((isAura || isVeg || isEnt) && !naVvcsState.auraSignedIn) {
             na__vvcs__setStatus('Sign in first (top of the Sync Aura tab).', 'warning');
             return;
         }
@@ -254,6 +260,21 @@
 
 
     // -----------------------------------------------------------------------------
+    // REGION | SketchUp Bridge: Placing an Entourage Proxy
+    // -----------------------------------------------------------------------------
+
+    function Na__Vvcs__EntPlace(assetId) {
+        if (!window.sketchup || !window.sketchup.na_vvcs_ent_place) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        window.sketchup.na_vvcs_ent_place(String(assetId));
+    }
+
+    // endregion -------------------------------------------------------------------
+
+
+    // -----------------------------------------------------------------------------
     // REGION | Ruby Push Receivers — Report, Path Status
     // -----------------------------------------------------------------------------
 
@@ -277,6 +298,7 @@
         na__vvcs__applyButtonLockState();
         na__vvcs__renderAuraStatus(pathData.aura || null, pathData.library || null);
         na__vvcs__renderVegetationStatus(pathData.vegetation || null, pathData.library || null);
+        na__vvcs__renderEntourageStatus(pathData.entourage || null, pathData.library || null);
 
         var modelNameEl  = document.getElementById('naVvcsModelName');
         var projectRootEl = document.getElementById('naVvcsProjectRoot');
@@ -411,7 +433,7 @@
             if (!library)              { libraryEl.textContent = '-'; libraryEl.className = base; }
             else if (library.error)    { libraryEl.textContent = library.error; libraryEl.className = base + ' ' + base + '--error'; }
             else if (!library.exists)  { libraryEl.textContent = library.rel + ': not in the Project Library yet (sync it to ValeVision 3D first)'; libraryEl.className = base + ' ' + base + '--error'; }
-            else                       { libraryEl.textContent = library.rel + ' (switch vegetation on in ValeVision 3D\'s Dev Tools)'; libraryEl.className = base; }
+            else                       { libraryEl.textContent = library.rel + ' (vegetation is on unless an admin switches it off in ValeVision 3D\'s Dev Tools)'; libraryEl.className = base; }
         }
         if (proxiesEl) {
             proxiesEl.textContent = veg
@@ -442,6 +464,58 @@
         }
     }
 
+    // FUNCTION | The Sync Entourage Tab: Status Rows and the Figures to Place
+    // ------------------------------------------------------------
+    function na__vvcs__renderEntourageStatus(ent, library) {
+        var userEl    = document.getElementById('naVvcsEntUser');
+        var libraryEl = document.getElementById('naVvcsEntLibraryProject');
+        var proxiesEl = document.getElementById('naVvcsEntProxies');
+        var lastEl    = document.getElementById('naVvcsEntLastSync');
+        var assetsEl  = document.getElementById('naVvcsEntAssets');
+        var base      = 'naVvcs__ProjectStatus__Value';
+        var signedIn  = !!(ent && ent.signed_in);
+
+        if (userEl) {
+            userEl.textContent = signedIn
+                ? (ent.user_name || 'Signed in') + (ent.user_level ? ' (' + ent.user_level + ')' : '')
+                : 'Not signed in: sign in at the top of the Sync Aura tab (the same Vale sign-in)';
+            userEl.className = base + (signedIn ? '' : ' ' + base + '--error');
+        }
+        if (libraryEl) {
+            if (!library)              { libraryEl.textContent = '-'; libraryEl.className = base; }
+            else if (library.error)    { libraryEl.textContent = library.error; libraryEl.className = base + ' ' + base + '--error'; }
+            else if (!library.exists)  { libraryEl.textContent = library.rel + ': not in the Project Library yet (sync it to ValeVision 3D first)'; libraryEl.className = base + ' ' + base + '--error'; }
+            else                       { libraryEl.textContent = library.rel + ' (entourage is on unless an admin switches it off in ValeVision 3D\'s Dev Tools)'; libraryEl.className = base; }
+        }
+        if (proxiesEl) {
+            proxiesEl.textContent = ent
+                ? String(ent.proxies || 0) + ' in the model: ' + String(ent.linked || 0) + ' linked to ValeVision' + (ent.proxy_tag ? ', on ' + ent.proxy_tag : '')
+                : '-';
+        }
+        if (lastEl) {
+            lastEl.textContent = ent && ent.last_sync
+                ? ent.last_sync + (ent.base_project ? ' (' + ent.base_project + ')' : '')
+                : 'Never';
+        }
+        if (assetsEl) {
+            var assets = ent && Array.isArray(ent.assets) ? ent.assets : [];
+            assetsEl.innerHTML = assets.length === 0
+                ? '<p class="naVvcs__SettingsGroup__Desc">The entourage library was not found on this PC.</p>'
+                : assets.map(function(asset) {
+                    return '<button type="button" class="naVvcs__Btn naVvcs__VegAssets__Item" data-na-asset="' + na__vvcs__escHtml(asset.id) + '">'
+                        + '<span class="naVvcs__VegAssets__Name">' + na__vvcs__escHtml(asset.name) + '</span>'
+                        + '<span class="naVvcs__VegAssets__Size">' + na__vvcs__escHtml(String(asset.width_mm) + ' x ' + String(asset.height_mm) + ' mm') + '</span>'
+                        + '</button>';
+                }).join('');
+            var items = assetsEl.querySelectorAll('.naVvcs__VegAssets__Item');
+            for (var i = 0; i < items.length; i += 1) {
+                items[i].addEventListener('click', function(event) {
+                    Na__Vvcs__EntPlace(event.currentTarget.getAttribute('data-na-asset'));
+                });
+            }
+        }
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -451,7 +525,7 @@
 
     function na__vvcs__renderReport(report) {
         var scope     = String(report.scope || report.action_id || '');
-        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : (scope.indexOf('veg_') === 0 ? 'naVvcsVegReport' : 'naVvcsReport');   // <-- Each tab shows its own last report
+        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : (scope.indexOf('veg_') === 0 ? 'naVvcsVegReport' : (scope.indexOf('ent_') === 0 ? 'naVvcsEntReport' : 'naVvcsReport'));   // <-- Each tab shows its own last report
         var reportEl  = document.getElementById(prefix);
         var stepsEl   = document.getElementById(prefix + 'Steps');
         var summaryEl = document.getElementById(prefix + 'Summary');
@@ -561,6 +635,12 @@
         for (var vi = 0; vi < vegCards.length; vi += 1) {
             vegCards[vi].disabled = lockAura;                                   // <-- One Vale sign-in for both tabs
             vegCards[vi].title    = lockAura ? 'Sign in first (top of the Sync Aura tab).' : '';
+        }
+
+        var entCards = document.querySelectorAll(NA_VVCS_REQUIRES_ENT_SELECTOR);
+        for (var ei = 0; ei < entCards.length; ei += 1) {
+            entCards[ei].disabled = lockAura;                                   // <-- One Vale sign-in for every tab
+            entCards[ei].title    = lockAura ? 'Sign in first (top of the Sync Aura tab).' : '';
         }
     }
 

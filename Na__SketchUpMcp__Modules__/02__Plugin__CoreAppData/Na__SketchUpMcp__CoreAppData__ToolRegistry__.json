@@ -18,7 +18,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.6",
+        "version": "1.0.7",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -72,7 +72,7 @@
             "timeout_s": 15,
             "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
             "api": ["Sketchup.version", "Sketchup.is_pro?", "Sketchup::Model#active_path", "Sketchup::Tools#active_tool_name"],
-            "description": "Call this first. Reports whether SketchUp is connected, its version and licence (Pro is needed for solid_boolean), the open model (title, path, unsaved changes), the active edit context (open groups), selection count, active tool and scene, the bridge's read-only / Ruby-eval settings, and any tools unavailable in this SketchUp. Lists every running SketchUp window (each is a separate process); pass select_pid to direct all later calls to another window. If SketchUp is not connected, the reply says how to start the bridge (Extensions > Na SketchUp MCP > Bridge Running).",
+            "description": "Call this first. Reports whether SketchUp is connected, its version and licence (Pro is needed for solid_boolean), the open model (title, path, unsaved changes), the active edit context (open groups), selection count, active tool and scene, the bridge's read-only / Ruby-eval settings, and any tools unavailable in this SketchUp. Lists every running SketchUp window (each is a separate process), with selected true on the one in use. The server stays on that window: one opened later never takes over. Pass select_pid to direct all later calls to another window. If the window in use closes, calls are refused until you do. If SketchUp is not connected, the reply says how to start the bridge (Extensions > Na SketchUp MCP > Bridge Running).",
             "input_schema": {
                 "type": "object",
                 "properties": {

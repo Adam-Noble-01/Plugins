@@ -11,8 +11,9 @@
 # ONE FILE PER PROCESS:
 # On Windows every SketchUp window is its own process with its own bridge, so
 # each writes 91__UserConfig__LocalOnly/Connections/Na__SketchUpMcp__Connection__<pid>.json.
-# The Python server lists them, pings each, and targets the most recently
-# started live one unless told otherwise (sketchup_status select_pid).
+# The Python server lists them and pings each. It takes the most recently
+# started live one when it first needs a window, then stays on it until told
+# otherwise (sketchup_status select_pid).
 # The file is removed when the bridge stops or SketchUp quits; a file left by a
 # crash is detected as stale by the Python side (port refuses, pid gone).
 #

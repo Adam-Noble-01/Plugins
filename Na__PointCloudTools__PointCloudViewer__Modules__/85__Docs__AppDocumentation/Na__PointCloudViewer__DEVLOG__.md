@@ -9,7 +9,7 @@
 ### Summary
 Adam asked for two things. A hotkey mapper for the main things, above all one key that switches every
 point cloud on and off while he models ("it's kind of a pain in the ass" to give plugins keys); and a
-new form of the clipping tool that puts a clip box in the 3D space quickly, the way Insert Primitives
+new form of the clipping tool that puts a clip box in the 3D space quickly, the way Noble Drawing Tools
 draws a volume (drag a rectangle, then the height, on the same 5 mm voxel snapping), on a key of its
 own, to move from one area to the next once the model is roughed out. ARCHITECTURE section 27.
 
@@ -17,8 +17,8 @@ own, to move from one area to the next once the model is roughed out. ARCHITECTU
 - SketchUp gives keys only to menu items, by menu path, in `SharedPreferences.json`; Ruby can read
   them (`Sketchup.get_shortcuts`) but never set them. Adam's plugins all put commands in a submenu for
   this (Noble 3D Tools' JSON command registry, Edge Util, Dev Tools, NaKeys).
-- The pain: a menu built once at start up shows a command added later only after a restart. Insert
-  Primitives already works round it with a registry that a reload tops up; the viewer does the same.
+- The pain: a menu built once at start up shows a command added later only after a restart. Noble Drawing
+  Tools already works round it with a registry that a reload tops up; the viewer does the same.
 - Adam's old Undet keys are still in SketchUp's settings (Ctrl+Alt+Shift+P was Hide/Show, Ctrl+Alt+
   Shift+B New Clipping Box By Selection, Ctrl+Shift+1 RGB colouring, Ctrl+Shift+. and , the density),
   which is why Clip Box Around Selection, the colour modes and the budget steps are commands too.
@@ -34,7 +34,7 @@ own, to move from one area to the next once the model is roughed out. ARCHITECTU
   and Open SketchUp Shortcuts (SketchUp's own page); read again when the window gets the focus back.
 - **Draw Clip Box** (`50__System__ClipBox/...DrawTool__.rb`): drag the base, pull the height, click; the
   5 mm grid in the model's axes; Ctrl and Ctrl+Shift; Tab, arrows and the right click menu for the plane
-  and the grid; typed sizes as in Insert Primitives, typing over the box just drawn; Backspace, Esc; the
+  and the grid; typed sizes as in Noble Drawing Tools, typing over the box just drawn; Backspace, Esc; the
   preview drawn over the cloud picture in screen space. The box goes to every cloud on show in ONE
   undoable step, and the tool stays on for the next area. A Draw a Clip Box card on the Clipping tab
   starts it, shows its key and holds the grid and the selection margin.

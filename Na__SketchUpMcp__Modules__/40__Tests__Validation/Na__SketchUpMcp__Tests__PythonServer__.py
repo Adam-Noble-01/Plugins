@@ -48,9 +48,13 @@ NA_PNG_1X1 = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAD
 class NaFakeBridge:
     """A stand-in for the Ruby bridge: same framing, same token check, canned answers."""
 
-    def __init__(self, connections_dir, token='test-token-0001'):
+    def __init__(self, connections_dir, token='test-token-0001', pid=None, started_at='2026-09-30T10:00:00Z', file_title='Fake Model', live_title=None):
         self.connections_dir = connections_dir
         self.token = token
+        self.pid = os.getpid() if pid is None else pid
+        self.started_at = started_at
+        self.file_title = file_title        # what the connection file says
+        self.live_title = file_title if live_title is None else live_title      # what SketchUp has open now
         self.requests = []
         self.reject_next_as_unauthorized = False
         self.delay_seconds = 0.0
@@ -64,10 +68,10 @@ class NaFakeBridge:
         self.write_connection_file()
 
     def write_connection_file(self):
-        path = os.path.join(self.connections_dir, 'Na__SketchUpMcp__Connection__%d.json' % os.getpid())
+        path = os.path.join(self.connections_dir, 'Na__SketchUpMcp__Connection__%d.json' % self.pid)
         with open(path, 'w', encoding='utf-8') as handle:
-            json.dump({'pid': os.getpid(), 'host': '127.0.0.1', 'port': self.port, 'token': self.token,
-                       'model_title': 'Fake Model', 'sketchup_version': '26.2.243', 'started_at': '2026-09-30T10:00:00Z'}, handle)
+            json.dump({'pid': self.pid, 'host': '127.0.0.1', 'port': self.port, 'token': self.token,
+                       'model_title': self.file_title, 'sketchup_version': '26.2.243', 'started_at': self.started_at}, handle)
 
     def serve(self):
         while self.running:
@@ -103,9 +107,9 @@ class NaFakeBridge:
         command = request['command']
         params = request.get('params', {})
         if command == 'ping':
-            return {'id': rid, 'ok': True, 'result': {'pong': True}}
+            return {'id': rid, 'ok': True, 'result': {'pong': True, 'pid': self.pid, 'model_title': self.live_title, 'model_path': ''}}
         if command == 'sketchup_status':
-            return {'id': rid, 'ok': True, 'result': {'sketchup': {'version': '26.2.243'}, 'model': {'title': 'Fake Model'}}}
+            return {'id': rid, 'ok': True, 'result': {'sketchup': {'version': '26.2.243'}, 'model': {'title': self.live_title}}}
         if command == 'view_capture':
             path = os.path.join(self.connections_dir, 'capture.png')
             with open(path, 'wb') as handle:
@@ -372,6 +376,189 @@ class NaBridgeClientTests(unittest.TestCase):
             os.remove(os.path.join(self.temp_dir, name))
         with self.assertRaises(Na__BridgeClientModule.Na__BridgeUnavailable):
             self.client.Na__BridgeClient__Request('ping', {}, 1)
+
+
+class NaWindowChoiceTests(unittest.TestCase):
+    """The server stays on the window it is using: opening another never moves later calls."""
+
+    # Odd numbers: no Windows process has one, so a stopped fake reads as a closed window.
+    FIRST, SECOND, THIRD = 3999991, 3999993, 3999995
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix='na_mcp_windows_')
+        os.environ['NA_SKETCHUP_MCP_CONNECTIONS_DIR'] = self.temp_dir
+        os.environ.pop('NA_SKETCHUP_MCP_PID', None)
+        self.bridges = []
+        self.sessions = []
+        self.first = self.window(self.FIRST, '09', 'First Model')
+        self.client = Na__BridgeClientModule.Na__BridgeClient()
+
+    def tearDown(self):
+        for session in self.sessions:
+            session.close()
+        for bridge in self.bridges:
+            bridge.stop()
+        os.environ.pop('NA_SKETCHUP_MCP_CONNECTIONS_DIR', None)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def window(self, pid, hour, title, **options):
+        bridge = NaFakeBridge(self.temp_dir, pid=pid, started_at='2026-11-05T%s:00:00Z' % hour, file_title=title, **options)
+        self.bridges.append(bridge)
+        return bridge
+
+    def commands(self, bridge):
+        return [request['command'] for request in bridge.requests]
+
+    def work(self, bridge):
+        """Everything sent to a window except the pings that read its title."""
+        return [command for command in self.commands(bridge) if command != 'ping']
+
+    def call(self, command='model_info'):
+        return self.client.Na__BridgeClient__Request(command, {}, 5)
+
+    def session(self):
+        env = dict(os.environ, NA_SKETCHUP_MCP_CONNECTIONS_DIR=self.temp_dir, PYTHONUTF8='1')
+        env.pop('NA_SKETCHUP_MCP_PORT', None)
+        session = NaMcpSession(env)
+        session.request('initialize', {'protocolVersion': '2025-11-25', 'capabilities': {}, 'clientInfo': {'name': 'tests', 'version': '1'}})
+        session.send({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+        self.sessions.append(session)
+        return session
+
+    def status(self, session, **arguments):
+        return json.loads(session.call('sketchup_status', arguments)['result']['content'][0]['text'])
+
+    # --- the fault: a new window took every later call ---------------------------------
+
+    def test_a_new_window_does_not_take_over(self):
+        self.call('ping')
+        second = self.window(self.SECOND, '10', 'Second Model')
+        self.call('geometry_create_solid')
+        self.assertEqual(self.commands(self.first), ['ping', 'geometry_create_solid'])
+        self.assertEqual(second.requests, [])
+
+    def test_with_two_open_the_first_call_takes_the_newest_and_stays(self):
+        second = self.window(self.SECOND, '10', 'Second Model')
+        self.call()
+        third = self.window(self.THIRD, '11', 'Third Model')
+        self.call()
+        self.assertEqual(self.commands(second), ['model_info', 'model_info'])
+        self.assertEqual(self.first.requests + third.requests, [])
+
+    # --- when the window goes: refuse, never pick another --------------------------------
+
+    def test_a_closed_window_refuses_and_lists_the_others(self):
+        self.call()
+        second = self.window(self.SECOND, '10', 'Second Model')
+        self.first.stop()
+        with self.assertRaises(Na__BridgeClientModule.Na__BridgeUnavailable) as caught:
+            self.call('geometry_create_solid')
+        self.assertEqual(caught.exception.na_code, 'not_connected')
+        self.assertIn(str(self.FIRST), caught.exception.na_message)
+        self.assertIn(str(self.SECOND), caught.exception.na_message)
+        self.assertIn('Second Model', caught.exception.na_message)
+        self.assertIn('select_pid', caught.exception.na_hint)
+        self.assertEqual(self.work(second), [])
+
+    def test_a_closed_window_with_none_left_says_so(self):
+        self.call()
+        self.first.stop()
+        with self.assertRaises(Na__BridgeClientModule.Na__BridgeUnavailable) as caught:
+            self.call()
+        self.assertIn(str(self.FIRST), caught.exception.na_message)
+        self.assertIn('No other', caught.exception.na_message)
+
+    def test_a_window_opened_after_the_close_is_not_picked_either(self):
+        self.call()
+        self.first.stop()
+        reopened = self.window(self.SECOND, '10', 'Reopened Model')
+        with self.assertRaises(Na__BridgeClientModule.Na__BridgeUnavailable):
+            self.call('geometry_create_solid')
+        self.assertEqual(self.work(reopened), [])
+        self.client.Na__BridgeClient__Select(self.SECOND)
+        self.call('geometry_create_solid')
+        self.assertEqual(self.work(reopened), ['geometry_create_solid'])
+
+    # --- what must not change ------------------------------------------------------------
+
+    def test_select_moves_it_and_it_stays_there(self):
+        self.call()
+        second = self.window(self.SECOND, '10', 'Second Model')
+        self.client.Na__BridgeClient__Select(self.SECOND)
+        self.call()
+        third = self.window(self.THIRD, '11', 'Third Model')
+        self.call()
+        self.assertEqual(self.commands(self.first), ['model_info'])
+        self.assertEqual(self.commands(second), ['model_info', 'model_info'])
+        self.assertEqual(third.requests, [])
+
+    def test_a_restarted_bridge_in_the_same_window_is_still_reached(self):
+        self.call()
+        self.first.stop()
+        restarted = self.window(self.FIRST, '12', 'First Model', token='token-after-reload')
+        self.call()
+        self.assertEqual(self.commands(restarted), ['model_info'])
+
+    def test_the_pid_variable_still_chooses_the_window(self):
+        second = self.window(self.SECOND, '10', 'Second Model')
+        os.environ['NA_SKETCHUP_MCP_PID'] = str(self.FIRST)
+        try:
+            client = Na__BridgeClientModule.Na__BridgeClient()
+            client.Na__BridgeClient__Request('model_info', {}, 5)
+        finally:
+            os.environ.pop('NA_SKETCHUP_MCP_PID', None)
+        self.assertEqual(self.commands(self.first), ['model_info'])
+        self.assertEqual(second.requests, [])
+
+    # --- sketchup_status, through the real server ----------------------------------------
+
+    def test_status_names_the_window_in_use_before_any_selection(self):
+        self.window(self.SECOND, '10', 'Second Model')
+        status = self.status(self.session())
+        marked = {item['pid']: item['selected'] for item in status['instances']}
+        self.assertEqual(marked, {self.FIRST: False, self.SECOND: True})
+        self.assertEqual(status['selected_pid'], self.SECOND)
+        self.assertEqual(status['model']['title'], 'Second Model')
+
+    def test_status_says_when_more_than_one_window_is_open(self):
+        session = self.session()
+        self.assertNotIn('windows_note', self.status(session))
+        self.window(self.SECOND, '10', 'Second Model')
+        note = self.status(session).get('windows_note', '')
+        self.assertIn(str(self.FIRST), note)
+        self.assertIn('select_pid', note)
+
+    def test_status_stays_on_the_window_when_another_opens(self):
+        session = self.session()
+        self.status(session)
+        self.window(self.SECOND, '10', 'Second Model')
+        status = self.status(session)
+        self.assertEqual(status['selected_pid'], self.FIRST)
+        self.assertEqual(status['model']['title'], 'First Model')
+
+    def test_status_titles_are_the_models_open_now(self):
+        self.window(self.SECOND, '10', '', live_title='Opened After The Bridge Started')
+        titles = {item['pid']: item['model_title'] for item in self.status(self.session())['instances']}
+        self.assertEqual(titles[self.SECOND], 'Opened After The Bridge Started')
+        self.assertEqual(titles[self.FIRST], 'First Model')
+
+    def test_status_and_tools_after_the_window_closes(self):
+        session = self.session()
+        self.status(session)
+        second = self.window(self.SECOND, '10', 'Second Model')
+        self.first.stop()
+        status = self.status(session)
+        self.assertFalse(status['connected'])
+        self.assertIn('Second Model', status['message'])
+        self.assertIn('select_pid', status['how_to_fix'])
+        self.assertEqual([(item['pid'], item['selected']) for item in status['instances']], [(self.SECOND, False)])
+        tool = session.call('entity_query', {})['result']
+        self.assertTrue(tool['isError'])
+        self.assertIn('Second Model', tool['content'][0]['text'])
+        self.assertEqual(self.work(second), [])
+        status = self.status(session, select_pid=self.SECOND)
+        self.assertTrue(status['connected'])
+        self.assertEqual(status['model']['title'], 'Second Model')
 
 # endregion -------------------------------------------------------------------
 

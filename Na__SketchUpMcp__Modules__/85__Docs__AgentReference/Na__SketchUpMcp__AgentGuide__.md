@@ -15,7 +15,7 @@ How to drive a live SketchUp 2026 model through this server. It is written for a
 
 ## 2. Connecting
 
-- Every SketchUp window on Windows is a separate process with its own bridge. `sketchup_status` lists them all in `instances` (pid, model title, path). Pass `select_pid` once and every later call goes to that window.
+- Every SketchUp window on Windows is a separate process with its own bridge. `sketchup_status` lists them all in `instances` (pid, the model open now, path), with `selected: true` on the one in use. With none chosen, the server takes the newest window when it first needs one and stays on it: a window opened later never takes over. Pass `select_pid` once and every later call goes to that window. If the window in use closes, every call is refused and names the windows still open, until you pass `select_pid`.
 - If SketchUp is not connected, `sketchup_status` returns `connected: false` and tells you how to fix it: start SketchUp, or tick **Extensions > Na SketchUp MCP > Bridge Running**. Other tools return `Error (not_connected)`. Tell the user; do not retry in a loop.
 - The bridge only listens on 127.0.0.1 and needs a per-session token that the server reads from a local file. No setup is needed from you.
 - The user can see what you do. SketchUp's status bar shows each call. **Extensions > Na SketchUp MCP > Status Dialog** lists the recent calls and has the safety switches.

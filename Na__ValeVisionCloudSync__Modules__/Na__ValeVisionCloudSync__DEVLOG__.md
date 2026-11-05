@@ -1,5 +1,65 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.7.0 - 05-Nov-2026 - Sync Entourage: a Project's People as Proxies, Both Ways, and Both Syncs On Unless Switched Off
+
+### Overview
+**Asked for by Adam,** 05-Nov-2026. Asked "Should placed people sync both ways with SketchUp, as plants do through Cloud Sync?", he said: "Yes, both ways now". A new tab, **Sync Entourage**, beside Sync Vegetation and built the same way: Ruby reads and writes raw poses, the Python holds every conversion and the merge, and the base goes in the model's `ValeVision__CloudExport` dictionary inside the one operation, so an Undo puts both back together.
+
+Two changes to the contract followed from Adam's later answers, through the ValeVision 3D session, and are in this version: both syncs count a project as on unless an admin has switched it off, and a path can swap or remove a single plant.
+
+### What It Does
+- **A proxy** is a component instance at the model root whose definition this plugin built from the asset, as the source components are: a flat figure in the definition's x z plane at y 0, feet on z 0, front on -y, always facing the camera, its shadow facing the sun, so it turns to the camera in SketchUp as in the app. A Silhouette is one face, its edges hidden, in `MAT901__Entourage__Silhouette__MidGrey` on both sides. A LineDrawing is its faces, unpainted, and its lines as edges. One definition an asset; an instance is that placed and scaled evenly.
+- **Its own dictionaries:** `Na__ValeVisionCloudSync__EntourageAsset` on the definition (`AssetId`, `Name`, `NominalMm`) and `Na__ValeVisionCloudSync__EntourageFigure` on the instance (`Uid`, `ProjectId`). Not vegetation's: Sync Vegetation takes any definition in its dictionary with a VVL id for a plant, and both libraries number their assets VVL.
+- **Its tag** is `05__ValeVision__EntourageProxies` (AppConfig `entourage.proxy_tag`), number 05 in the GLB builder's skip range, so a proxy never goes into the model's GLBs. A new instance goes on it as it lands, through a definition observer and a transparent operation. It is hidden in the `IMG##` scenes, and a scene that does not save tags is reported. Provisional, as Sync Aura's and Sync Vegetation's are: not yet a DataLib standard tag.
+- **The sync** reads the project record's one key, `Entourage__SceneData`, through ValeVision 3D's API with the Sync Aura tab's kept session, merges three ways against the base (`entourage_base`, `entourage_base_project`, `entourage_last_sync`), writes only that key's `Figures` and any `Assets` a new proxy needs, and applies the answer in one undo step. Changed on one side goes to the other; changed on both, **ValeVision wins** and the report names it; both making the same change is no clash. `LineRules`, `Tools` and every other key are never touched.
+- **A figure has no turn.** It always faces the camera, so nothing about rotation is handed over, compared or saved, and moving a proxy keeps the directions of its axes.
+- **A figure's scale** is the length of the proxy's blue axis, against the height its definition was built at and the asset's own, to a thousandth; exactly 1 is no key. Stretched unevenly (red and blue more than half a percent apart), the report says so, the height is used and the proxy is left as it is. A scale is written as it is: the app's slider runs 0.50 to 1.50, and it draws any scale over 0.
+- **A new proxy** (Place A Figure, through SketchUp's own component tool, or a copy of a placed one) becomes a figure with the next Uid above any either side has used, a seed of its own, and its asset pinned whole, as the app pins it. A copy brings its Uid with it: whichever still stands where the base has it keeps the name. **Replace Selected** does what the app's own swap does: the spot, the Uid and the seed stay, and only who it is changes.
+- **An Undo in SketchUp** takes back the proxies and the base, and not what the sync wrote to the project. So a new proxy standing exactly where a figure the base has never heard of stands, of the same asset, is that figure with its stamp undone: it takes its Uid back instead of being drawn twice. The same goes for a sync cut short before SketchUp, or a model closed without saving.
+- **Said in the report:** a proxy inside a group or component, which a sync cannot see (and so reads as deleted), and a tilted one, as a figure always stands upright.
+- **Who may:** reading needs a sign-in; writing is an App Admin, decided again by the server. An Employee is refused in words, and SketchUp is not changed.
+
+### On Unless Switched Off (Both Syncs)
+**This is the one change of behaviour to Sync Vegetation besides the next section.** Entourage and Vegetation are now on for every project unless an admin has switched them off. A record with no key counts as on, and only an explicit `Enabled: false` is refused. A first sync that has something to write makes the key with `Enabled` true, its figures or plops and the assets they need, and nothing more: the page lays every default over that when it reads it, and the report says so. A first sync with nothing to write makes nothing. A key with no `Enabled` counts as on, and a write sets it. The dialog's words follow.
+
+Remove All in the app takes the key out, so the next sync takes that project's proxies out of SketchUp, as deleted in ValeVision, in one undo step.
+
+### A Path's Single Plants (Sync Vegetation)
+A path gains an optional `Vegetation__Path__PlantChanges`, keyed by a plant's number as a string from 1 (`P0001-007` is `"7"`), each value holding `Vegetation__PlantChange__AssetId`, `__Scale` and `__Removed`. `na_plants_for` follows it after every draw, so no other plant moves, and takes the same asset lookup as the app's: a project's pinned copy, else the library. A removed plant's proxy goes; a swapped plant's proxy is replaced by one of the new asset; a scaled one is resized. An override's asset is pinned and read like any other.
+
+### Found on the Way
+- **The Labrador's body would have been lost.** A small hole touches its outline at one vertex, so the asset's outer loop repeats a point, as SketchUp's own loop does, and `add_face` refuses a repeated point: the biggest face would have gone, silently. The builder splits a loop at its repeats and cuts what it went round as a hole.
+- **Read from the source components** in SketchUp (in an operation that was aborted): the Man's material is 127, 127, 127 at alpha 0.5 on both sides, so the proxy's is too (the DataLib says 125, 125, 125 at the same opacity). The Labrador's faces have no material, so they stay unpainted. Its `shadows_face_sun` is false, and it is set true here, as asked.
+
+### A Safe Write, and What It Is Not
+As Sync Vegetation's: the record is read again just before the PATCH, and a change in between starts the merge again, once, then gives up and changes nothing. It is a comparison, not an API guard, so a save landing in the moment between that read and the PATCH could still be overwritten; its revision is kept on the server. The app's Save makes the same comparison from its side.
+
+### Files Changed
+- New: `04__Plugin__SyncFeatures/11__EntourageSync/Na__ValeVisionCloudSync__EntourageSync__.rb` (1.0.0) and `.py` (1.0.0)
+- `10__VegetationSync/...VegetationSync__.py` (1.2.0) and `.rb` (1.2.0, its words only)
+- `07__SyncOrchestrator` (2.3.0): the scope and its label. `...DialogManager__.rb` (1.5.0): the Place callback, the status block. `...ConfigLoader__.rb`: `Na__ValeVisionCloudSync__EntouragePaths`. `...ModuleLoaders__Main__.rb`. AppConfig: the `entourage` block
+- `05__Plugin__UserInterface`: the tab in `UiLayout`, `UiBridge` (1.5.0). `Styles` is unchanged: the list of figures uses the list of plants' classes
+
+### Verified (05-Nov-2026)
+**The whole Run path on SketchUp's own Ruby DLL, against stand-in entities,** driving the real Python and a sandbox of the real API (my own testing server, port 8044, fake users, no real data), 163 checks: every asset of the library built; placing, the observer and its one undo step; a first sync on no key; moved, turned and scaled evenly; a turn alone changes nothing; moved in the app keeps the proxy's turn; stretched; a Labrador from the app; a locked proxy moved and left locked; swapped in the app; a copy; deleted on each side; a clash; a figure that cannot be built, retried and leaving no empty definition; `IMG##` scenes; nested and tilted said; a group open refused; each sync sees only its own proxies, with the real `10__VegetationSync` loaded beside it. Numbers off the origin: a proxy at 600, 300, 120 inches is `[15240, 3048, -7620]` in the record, and `[-1234, 567, 8901]` comes back at -1234, -8901, 567 mm, its turn kept.
+**From Python, by numbers:** 175 checks: the frames off the origin, every branch of the merge, what it writes read by the app's own `Na__Entourage__SceneData__.js` in Node.
+**Live against the sandbox, the real script,** 115 checks: no key and nothing to do writes nothing; a first sync writes exactly `Enabled`, `Figures` and `Assets`, and the app's Normalise lays its defaults over that; an explicit false refused and kept; a new proxy at the right place, its asset pinned identical to the library's file, every other key of the record kept; the second sync finds nothing to do; from the app; both ways; a clash named; a save landing between the read and the write survives; a key that keeps changing sends nothing; an Employee refused in words; signed out, a dead session, no such project; another project's model; Undo then sync draws nothing twice.
+**Sync Vegetation 1.2.0,** 87 checks: the port against the app's own `Na__Vegetation__PathModel__.js` in Node, 9,723 plants of 60 paths identical to the last key (19 swapped, 10 removed and 9 rescaled by hand among them), and 9,733 with no changes at all; `PlantChanges` to the words it was specified in; the merge round it; on by default against the sandbox.
+**The real app in headless Edge on the sandbox,** as a fake App Admin, after a first sync on no key: 2 figures drawn, both assets pinned, the default line rules laid over, no script error, and in the picture the Man and the Labrador standing in the model's own line.
+**The dialog's real page in headless Edge at 560 x 660 with a stand-in bridge,** 48 checks: five tabs fit on one line (the last ends at 539), the lock, the thirteen figures from the index, Place and Sync reach Ruby, its own report, Sync Vegetation's and Sync Aura's cards and the Update cards unchanged.
+**Do the checks bite?** 58 deliberate faults in copies of the plugin (the swap's sign, SketchUp winning a clash, an undone stamp drawn twice, a moved proxy losing its turn, the pinched body lost and so on), all caught. A base written outside the operation cannot be seen by a stand-in's undo: that one needs the real thing.
+**Real SketchUp 2027, read only:** the source components, above. Nothing of this version was loaded there.
+
+### Not Verified: Please Try
+- [ ] **Nothing here has touched a real SketchUp entity.** The empty untitled window this job was given closed at about 11:56, before any of this was loaded (no crash dump; its bridge file was removed cleanly). The only other window held a client's model, which was not touched, SketchUp has since closed altogether, and an agent never launches it. So `add_face` on the real outlines, `always_face_camera` as an instance's axes are read, tags, `set_visibility`, the component tool, the observer and Undo are the API as documented. If a figure looks wrong, look first at `na_build_line_drawing`, `na_cut_hole` and `na_split_at_repeats`.
+- [ ] **In a throwaway copy of a project's model,** in a project with figures: Sync People. They come in as proxies on `05__ValeVision__EntourageProxies`, facing you as you orbit. Move one, scale one from a corner, sync, reload the app. Then Undo in SketchUp: the proxy and the base both go back; sync again: nothing is doubled.
+- [ ] Place A Figure: click, click in the model; the tag is set as it lands; sync; the app draws it after a reload. The Labrador: its 35 faces and 896 lines, as its source holds.
+- [ ] A GLB export leaves the proxies out; an `IMG##` scene picture does not show them.
+- [ ] A first sync on a project with no key, on the live server: the record gains the key, and the app draws it.
+
+### Noted, Not Changed
+Sync Vegetation has three things this tab does not, left alone as told: a stamp undone there draws a second plant at the next sync; both sides making the same change is reported as a clash; a definition whose build fails leaves an empty one behind.
+
 ## Version 0.6.1 — 04-Nov-2026 — Sync Vegetation Follows ValeVision 3D v2.86.0: a Plant's Scale, Clipped Hedges, a Box Proxy
 
 ### Overview

@@ -10,7 +10,7 @@
 # SketchUp reports coordinates in global inches while a group is open, and in
 # that definition's local inches while it is closed. Reading a closed group's
 # vertices and then adding an image without opening it mixes those two spaces.
-# The same rule is written up in Insert Primitives' deep-pick hub.
+# The same rule is written up in Noble Drawing Tools' deep-pick hub.
 #
 # =============================================================================
 

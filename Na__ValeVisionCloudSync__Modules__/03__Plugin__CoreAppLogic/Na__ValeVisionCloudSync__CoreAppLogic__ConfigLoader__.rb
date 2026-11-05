@@ -11,8 +11,8 @@
 # - Reads Na__ValeVisionCloudSync__CoreAppData__UiCommandRegistry__.json for
 #   dialog and command settings, and AppConfig__.json for sync operation
 #   settings (paths, image export params, Python, the Project Library, the
-#   Vale Virtual Server Manager files the sync uses, and the Sync Aura and Sync
-#   Vegetation tabs' scripts, session file and proxy tags).
+#   Vale Virtual Server Manager files the sync uses, and the Sync Aura, Sync
+#   Vegetation and Sync Entourage tabs' scripts, session file and proxy tags).
 # - Merges against hardcoded defaults so the plugin is safe even if JSON
 #   files are missing.
 #
@@ -86,6 +86,11 @@ module Na__ValeVisionCloudSync
                 'sync_script'      => '04__Plugin__SyncFeatures/10__VegetationSync/Na__ValeVisionCloudSync__VegetationSync__.py',
                 'asset_library'    => 'Vale__ValeVision3D/53__Vegetation__AssetLibrary',
                 'proxy_tag'        => '05__ValeVision__VegetationProxies'
+            },
+            'entourage'            => {
+                'sync_script'      => '04__Plugin__SyncFeatures/11__EntourageSync/Na__ValeVisionCloudSync__EntourageSync__.py',
+                'asset_library'    => 'Vale__ValeVision3D/54__Entourage__AssetLibrary',
+                'proxy_tag'        => '05__ValeVision__EntourageProxies'
             }
         }.freeze
 
@@ -250,6 +255,23 @@ module Na__ValeVisionCloudSync
         def self.Na__ValeVisionCloudSync__VegetationPaths
             defaults = NA_DEFAULT_APP_CONFIG['vegetation']
             cfg      = self.Na__ValeVisionCloudSync__AppConfig.fetch('vegetation', defaults)
+            modules  = Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot.to_s.tr('\\', '/')
+            script   = (cfg['sync_script'].to_s.empty? ? defaults['sync_script'] : cfg['sync_script']).to_s.tr('\\', '/')
+            {
+                script:        script =~ %r{\A([A-Za-z]:)?/} ? script : File.join(modules, script),
+                asset_library: (cfg['asset_library'].to_s.empty? ? defaults['asset_library'] : cfg['asset_library']).to_s,
+                proxy_tag:     cfg['proxy_tag'].to_s
+            }
+        end
+
+        # FUNCTION | The Sync Entourage Tab's Script, Asset Library and Proxy Tag
+        # ------------------------------------------------------------
+        # sync_script is relative to the plugin modules, asset_library to the Server
+        # Manager's mirror root. The session is the Sync Aura tab's.
+        # ---------------------------------------------------------------
+        def self.Na__ValeVisionCloudSync__EntouragePaths
+            defaults = NA_DEFAULT_APP_CONFIG['entourage']
+            cfg      = self.Na__ValeVisionCloudSync__AppConfig.fetch('entourage', defaults)
             modules  = Na__PathResolver.Na__ValeVisionCloudSync__ModulesRoot.to_s.tr('\\', '/')
             script   = (cfg['sync_script'].to_s.empty? ? defaults['sync_script'] : cfg['sync_script']).to_s.tr('\\', '/')
             {

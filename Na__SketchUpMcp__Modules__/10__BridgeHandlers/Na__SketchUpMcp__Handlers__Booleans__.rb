@@ -7,7 +7,7 @@
 # PURPOSE    : solid_boolean: union, subtract, intersect, trim, split, outer_shell
 # CREATED    : 2026
 #
-# OPERAND ORDER (InsertPrimatives 5.1.4 devlog, measured, and matching
+# OPERAND ORDER (NobleDrawingTools 5.1.4 devlog, measured, and matching
 # SketchUp's own Solid Tools "the first solid you select is your cutting tool"):
 #   cutter.subtract(target)  ->  NEW group = target - cutter; BOTH erased
 #   cutter.trim(target)      ->  target trimmed by cutter; cutter KEPT

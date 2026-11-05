@@ -3,7 +3,7 @@
 Updated 16 September 2026 for version 0.3.
 
 This applies the established Noble coordinate-space findings from
-[Insert Primatives 5.1.2, “Stacked Local Axes”](../../Na__InsertPrimatives__Modules__/Na__InsertPrimatives__DEVLOG__.md)
+[Noble Drawing Tools 5.1.2, “Stacked Local Axes”](../../Na__NobleDrawingTools__Modules__/Na__NobleDrawingTools__DEVLOG__.md)
 and [Noble 3D Modelling Tools, OrthoMirror 1.2.1](../../Na__Noble3dModellingTools__Modules__/Na__Noble3dModellingTools__DEVLOG__.md).
 Those logs contain the earlier investigation into the displaced nested previews.
 

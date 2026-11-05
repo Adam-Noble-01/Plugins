@@ -8,7 +8,7 @@
 #              container at any nesting depth, open or closed
 # CREATED    : 2026
 #
-# THE RULE (SketchUp API team, via the InsertPrimatives 5.1.2 devlog research):
+# THE RULE (SketchUp API team, via the NobleDrawingTools 5.1.2 devlog research):
 #   "In the active drawing context and all its parent coordinate systems all
 #    coordinates are global. In all other coordinate systems they are local."
 #

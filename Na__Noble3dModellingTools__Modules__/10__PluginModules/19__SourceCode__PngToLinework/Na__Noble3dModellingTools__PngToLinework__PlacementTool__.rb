@@ -6,7 +6,7 @@
 # NAMESPACE  : Na__Noble3dModellingTools::Na__PngToLinework
 # AUTHOR     : Adam Noble - Noble Architecture
 # PURPOSE    : Interactive crosshair placement tool for the traced linework
-#              component, snapping to a 5mm grid (Insert Primitives pattern).
+#              component, snapping to a 5mm grid (Noble Drawing Tools pattern).
 # CREATED    : 2026
 #
 # DESIGN NOTES:

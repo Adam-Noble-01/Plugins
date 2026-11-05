@@ -535,7 +535,7 @@
 - Fingerprint: open a group moved 1 m along red and mirror across a line parallel to green - the copy lands 2 m out, twice the offset measured across the mirror line. A rotated group gives a skewed copy. At the model root, or in a group sitting at the origin, the conversion is the identity and the mirror was exact - which is how it went unnoticed.
 
 ### Update 02 - One Space for Everything
-- SketchUp's rule, from the API team: *"In the active drawing context and all its parent coordinate systems all coordinates are global. In all other coordinate systems they are local."* The research is written up in the Insert Primitives devlog, 5.1.2 "Stacked Local Axes"; the Multiple Offset Tool (0.4.5) already works this way.
+- SketchUp's rule, from the API team: *"In the active drawing context and all its parent coordinate systems all coordinates are global. In all other coordinate systems they are local."* The research is written up in the Noble Drawing Tools devlog, 5.1.2 "Stacked Local Axes"; the Multiple Offset Tool (0.4.5) already works this way.
 - The mirror is now built from the world clicks and the world camera direction, and applied with `Entities#transform_entities`, which is documented to read the transform as global in the active context. No conversion at any depth.
 - Already correct and unchanged: the preview line, snap markers and dashed axis guide (view drawing is always world), and the arrow-key lock. `world_axis_for_lock` turns the open group's red/green/blue into world directions through `edit_transform` - the whole nesting stack in one matrix - which is now the tool's only use of it.
 - The coordinate rule is written into the Tool file header. The Ruby console reports the nesting depth on each mirror.
@@ -1399,7 +1399,7 @@ it is the whole point of the module.
 ### Update 05 - Geometry Build and Crosshair Placement (Ruby)
 - `GeometryBuilder__.rb` converts mm polylines to inch `Geom::Point3d`s on the chosen plane - Vertical X-Z (elevations: trees, people) or Ground X-Y (plans) - and builds a `ComponentDefinition` of plain segmented edges via `entities.add_edges` (no curves), named `Na__PngLinework__<file>__<HHMMSS>`.
 - Creation happens inside an OPEN `start_operation`; the placement tool commits on click so create-and-place is ONE undo step, and ESC aborts the operation erasing the component cleanly.
-- `PlacementTool__.rb` follows the Insert Primitives placement pattern: `Sketchup::InputPoint` pick, 5mm grid snap (mm-converted rounding), six-arm blue crosshair drawn in `draw`, live instance repositioning via `move!` (records no undo steps), selection + tool pop on click.
+- `PlacementTool__.rb` follows the Noble Drawing Tools placement pattern: `Sketchup::InputPoint` pick, 5mm grid snap (mm-converted rounding), six-arm blue crosshair drawn in `draw`, live instance repositioning via `move!` (records no undo steps), selection + tool pop on click.
 
 ### Update 06 - Registry, Router, and Loader Wiring
 - Registered command, button, and hotkey binding in the JSON-driven UI registry under a new `Import Tools > Raster Tracing` group (tool_group_order 20, after Vector Import):

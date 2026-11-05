@@ -88,7 +88,7 @@
 
     "clip" : {
         "draw" : {
-            "_comment"          : "Draw Clip Box (v0.13.0): drag a base rectangle, then the height, as Insert Primitives' Drawn Volume does. Every pick lands on a grid of gridMm (5 mm, the Insert Primitives voxel) along the model's axes; the Clipping tab offers gridStepsMm and remembers the choice per user. Clip Box Around Selection grows the box round what is selected by selectionMarginMm (per user too). Both give the box to every cloud on show.",
+            "_comment"          : "Draw Clip Box (v0.13.0): drag a base rectangle, then the height, as Noble Drawing Tools' Drawn Volume does. Every pick lands on a grid of gridMm (5 mm, the Noble Drawing Tools voxel) along the model's axes; the Clipping tab offers gridStepsMm and remembers the choice per user. Clip Box Around Selection grows the box round what is selected by selectionMarginMm (per user too). Both give the box to every cloud on show.",
             "gridMm"            : 5,
             "gridStepsMm"       : [1, 5, 10, 25, 50, 100],
             "selectionMarginMm" : 100

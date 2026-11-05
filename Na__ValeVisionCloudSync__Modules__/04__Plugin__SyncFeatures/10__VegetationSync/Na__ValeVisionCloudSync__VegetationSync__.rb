@@ -41,6 +41,9 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 05-Nov-2026 - Version 1.2.0
+# - On unless switched off: its words, the Python decides.
+#
 # 04-Nov-2026 - Version 1.1.0
 # - A box for an asset whose proxy is a box.
 #
@@ -110,7 +113,7 @@ module Na__ValeVisionCloudSync
             paths   = Na__ProjectPathMapper.Na__ValeVisionCloudSync__GetProjectPaths(model)
             library = Na__ProjectPathMapper.Na__ValeVisionCloudSync__ResolveLibraryProject(model)
             problem = if !library[:error].to_s.empty? then library[:error]
-                      elsif !library[:exists]         then "#{library[:library_id]} is not in the Project Library yet: run Sync Project To ValeVision 3D once, then switch vegetation on in ValeVision 3D's Dev Tools."
+                      elsif !library[:exists]         then "#{library[:library_id]} is not in the Project Library yet: run Sync Project To ValeVision 3D once."
                       else ''
                       end
             unless problem.empty?

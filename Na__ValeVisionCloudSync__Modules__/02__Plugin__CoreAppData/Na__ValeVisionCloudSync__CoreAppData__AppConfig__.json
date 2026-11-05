@@ -48,5 +48,12 @@
         "sync_script"      : "04__Plugin__SyncFeatures/10__VegetationSync/Na__ValeVisionCloudSync__VegetationSync__.py",
         "asset_library"    : "Vale__ValeVision3D/53__Vegetation__AssetLibrary",
         "proxy_tag"        : "05__ValeVision__VegetationProxies"
+    },
+
+    "entourage": {
+        "_About"           : "The Sync Entourage tab. A project's placed figures (the record's Entourage__SceneData) sync both ways with entourage proxies at the model root, through ValeVision 3D's API, signed in as you with the Sync Aura tab's session. Proxies sit on proxy_tag, which must be in the GLB builder's skip range (00, 02 to 06) so they never go into the model's GLBs. proxy_tag is provisional: not yet a DataLib standard tag. asset_library is relative to the Server Manager's mirror root.",
+        "sync_script"      : "04__Plugin__SyncFeatures/11__EntourageSync/Na__ValeVisionCloudSync__EntourageSync__.py",
+        "asset_library"    : "Vale__ValeVision3D/54__Entourage__AssetLibrary",
+        "proxy_tag"        : "05__ValeVision__EntourageProxies"
     }
 }

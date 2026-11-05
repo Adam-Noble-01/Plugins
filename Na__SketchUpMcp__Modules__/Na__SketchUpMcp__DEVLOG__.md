@@ -3,6 +3,33 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.7 - 05-Nov-2026 - The Server Stays on Its Window
+
+- **What Adam asked for.** "Do this task here: Stop the MCP following the newest SketchUp window."
+- **The fault.** With no pid selected, `Na__BridgeClient__Target` returned the newest live window on every call, so opening a second SketchUp window silently moved every later call to it. While filing the entourage people, opening the SK02 workshop sent seven library saves to the wrong window. They were refused only because the component was not there; a model edit would have landed in the wrong model.
+- **The fix.** When it first needs a window, the server takes the newest live one and stays on it until `select_pid` changes it. Opening another window never moves it.
+- **When that window closes, it refuses.** It does not pick another, because the next call could be an edit meant for the window that closed. The message names what is open: "The SketchUp window this server was using (pid N) is no longer running its bridge, so nothing was sent. Open now: pid N (Title), pid N (Title)."
+  - A bridge restarting in the same window, as Reload Plugin Data does, is still reached, because the pid is the same.
+  - After SketchUp is closed and reopened, the first call is refused until `select_pid`. That is one extra step, and it means someone has said which model they mean.
+- **`sketchup_status` says which window, from the first call.**
+  - `selected: true` and `selected_pid` mark the window in use, not only after `select_pid`.
+  - Titles are the model open now, read with a ping limited to one second. The connection file can be out of date: McpTemp showed a blank title all morning on 05-Nov-2026. A window too busy to answer keeps what its file says. Each status call adds a `ping` row to every open window's activity log.
+  - `windows_note` appears when more than one window is open.
+- **Each client session has its own server, so its own window.** Two sessions can work in two windows. A server that is already running keeps the old behaviour until it is restarted.
+- **Also.** The "not connected" hint no longer names SketchUp 2026. The `sketchup_status` description, the agent guide and the header comments say how this works now.
+- **Versions.** `bridge_version` and `server.version` are `1.0.7`. All the code is in the Python server; on the Ruby side only a comment changed.
+- **Validation.**
+  - `ValidateApiUsage` passes: 45 tools, 182 API dependencies. `RunRubyChecks`: 44 of 44 files compile, and `BridgeCore` passes 57. `--check` and `node --check` pass.
+  - `PythonServer`: 37 tests pass, 13 of them new. On the old code 10 of the new ones failed, the first with `['ping'] != ['ping', 'geometry_create_solid']`: the create call had gone to the new window. The other 3 guard what must not change: `select_pid`, a restarted bridge and `NA_SKETCHUP_MCP_PID`.
+  - Live, 15 of 15 checks: the real server over stdio, real bridges at 1.0.7 and two throwaway windows, with read-only calls. The second window was sent no work. When the window in use closed, the call was refused and named the windows open, and `select_pid` recovered. The window already open was left alone.
+  - Not run: the 2026 Plugins folder, which is an older copy at 1.0.4 and does not have this fix.
+
+### Validation Checklist
+
+- [ ] Start a new Claude session, or reconnect the server. `sketchup_status` should report server 1.0.7.
+- [ ] With one model open, call `sketchup_status`, then open a second SketchUp window. The next call should still report the first model.
+- [ ] Close the first window. The next call should be refused and name the second window, and `select_pid` should bring it back.
+
 ## Na SketchUp MCP | Version 1.0.6 - 05-Nov-2026 - `entity_get` Answers for Definitions, Materials and Tags
 
 - **What Adam asked for.** Filing the Northway columns (10_2601, 10_2602) turned up two plugin faults, and he said "Yes, fix them". This version is the first. The second, `asset_library_edit save` with `rename_in_model`, is in Component Editor Tools 0.6.8 (Na Noble3d Modelling Tools 0.9.24).
@@ -234,7 +261,7 @@
   `--toolset core` keeps the 22 essentials for clients that limit tool counts.
 - **Units and coordinates.**
   - Everything is world coordinates in mm (or `units`), degrees and persistent ids, at every nesting depth, inside open, rotated, mirrored and scaled groups.
-  - It uses the stacked-local-axes rule from Insert Primitives 5.1.2. `06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Coordinates__.rb` holds the one formula. New groups are pinned to identity, and push/pull distances are divided by the scale along the normal.
+  - It uses the stacked-local-axes rule from Noble Drawing Tools 5.1.2. `06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Coordinates__.rb` holds the one formula. New groups are pinned to identity, and push/pull distances are divided by the scale along the normal.
 - **Undo and safety.**
   - Each model change is one `start_operation("MCP: <Tool>", true)`, aborted on any error.
   - Batches are atomic by default.

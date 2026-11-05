@@ -4885,7 +4885,7 @@ The state-management audit caught five small parallel-state issues that landed i
 
 - **Problem:** The placement tool used `CONSTRAIN_MODIFIER_KEY = COPY_MODIFIER_KEY` for rotation. On Windows, `COPY_MODIFIER_KEY` resolves to Ctrl (not Shift), so the rotation never fired. The true Shift key (`CONSTRAIN_MODIFIER_KEY`) also interferes with VCB uppercase input.
 - **Bug SKEXT-3890:** SketchUp's `onKeyDown` double-fires on Windows (introduced 23.1.340, unresolved as of 2026). The old code had no guard against this, causing two rotation steps per keypress.
-- **Fix:** Replaced Shift with **Tab** (`NA_ROTATION_KEY = 9`), using the proven pattern from the `Na__InsertPrimatives` tool. `onKeyDown` now guards with `@key_tab_held` (acts only on first fire); `onKeyUp` resets the flag. Tab is safe with VCB enabled as it does not send characters.
+- **Fix:** Replaced Shift with **Tab** (`NA_ROTATION_KEY = 9`), using the proven pattern from the `Na__NobleDrawingTools` tool. `onKeyDown` now guards with `@key_tab_held` (acts only on first fire); `onKeyUp` resets the flag. Tab is safe with VCB enabled as it does not send characters.
 
 ### Changed: Binary Toggle → 4-Step Cycle
 

@@ -55,7 +55,7 @@ module Na__PointCloudViewer
         NA_DRAW_AXIS_INDEX  = { 'x' => 0, 'y' => 1, 'z' => 2 }.freeze
         NA_MARGIN_MAX_MM    = 5000.0
 
-        # Insert Primitives' palette: the base rectangle blue, the box amber.
+        # Noble Drawing Tools' palette: the base rectangle blue, the box amber.
         # The box is drawn over everything, so its fill is the thin one that
         # lets the model and the cloud read through six overlapping faces.
         NA_DRAW_PLANE_FILL   = Sketchup::Color.new(0, 120, 255, 70)    unless defined?(NA_DRAW_PLANE_FILL)
@@ -84,7 +84,7 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         # The snap grid in millimetres: the user's choice, else the default
-        # (clip.draw.gridMm: 5 mm, Insert Primitives' voxel).
+        # (clip.draw.gridMm: 5 mm, Noble Drawing Tools' voxel).
         def self.Na__Clip__DrawGridMm
             stored = Na__UserConfigStore.Na__UserConfig__Get('clip', 'drawGridMm', nil)
             return stored.to_f if stored.is_a?(Numeric) && self.na_grid_step?(stored.to_f)

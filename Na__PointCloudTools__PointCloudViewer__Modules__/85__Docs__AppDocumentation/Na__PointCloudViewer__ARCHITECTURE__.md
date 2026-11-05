@@ -731,7 +731,7 @@ measurements (tests only; not bound in Ruby).
 | **Scenes** (built, v0.9.0) | Point cloud scenes for TrueVision; export to scale; LAZ import (v0.9.1) | TrueVision Sync renders and publishes them |
 | **Several clouds** (built, v0.10.0) | Up to ten clouds per model, one record each; the cloud bar and the active cloud; looks and visibility per cloud; one depth-tested frame with a shared budget; scenes holding every cloud; v0.9 models converted on their first change | Adam: an interior GeoSLAM scan and an exterior photogrammetry scan in one model, switched on and off and saved with scenes |
 | **Crop and Cut** (built, v0.11.0) | The Clean tab's Keep box (Remove Outside) and up to 20 Cut boxes (Remove Inside) captured from the clip box; live Result / Differences preview; exact counts; Remove Points & Export LAS to a NEW file through Clean & Export's path; boxes cleared with the switch (one Undo) | Adam: capture the clip box to remove points outside it, and inner boxes for a tree or noise, physically and without ever touching the original |
-| **Shortcuts + Draw Clip Box** (built, v0.13.0) | 14 commands in Extensions > Na__PointCloudViewer for SketchUp's keys, listed with their keys in Settings; Draw Clip Box (Insert Primitives' drag, 5 mm grid) and Clip Box Around Selection for every cloud on show | Adam: a hotkey to switch the clouds on and off while modelling, and a fast clip box tool on a key, area by area |
+| **Shortcuts + Draw Clip Box** (built, v0.13.0) | 14 commands in Extensions > Na__PointCloudViewer for SketchUp's keys, listed with their keys in Settings; Draw Clip Box (Noble Drawing Tools' drag, 5 mm grid) and Clip Box Around Selection for every cloud on show | Adam: a hotkey to switch the clouds on and off while modelling, and a fast clip box tool on a key, area by area |
 | M4 | Two-point align, set origin, round trip across both computers | Round trip across both computers |
 | M5 | Large-cloud hardening, error wording, docs | |
 
@@ -1723,15 +1723,15 @@ Box tool, Clip Box Around Selection and their settings) and the "clouds on show"
 ### 27.1 What it is for
 
 Adam, 26-Oct-2026: a hotkey mapper for the main things, above all one key that switches every point
-cloud on and off while modelling; and a fast way to put a clip box round an area, drawn like Insert
-Primitives' Drawn Volume (drag a rectangle, then the height, on the same 5 mm voxel grid), on a key of
+cloud on and off while modelling; and a fast way to put a clip box round an area, drawn like Noble Drawing
+Tools' Drawn Volume (drag a rectangle, then the height, on the same 5 mm voxel grid), on a key of
 its own, so that once the building is roughed out each area can be looked at in turn.
 
 ### 27.2 How SketchUp gives keys
 
 - SketchUp gives a key only to a **menu item**, and keeps it by the item's **menu path**: Windows
   keeps `Shortcut_N = "<ctrl> <alt> <shift> <key> <path>"` in `SharedPreferences.json` (`Windows Only /
-  Settings`), for example `1 1 0 P Extensions/Na__InsertPrimitives/Drawn Volume` is Ctrl+Alt+P.
+  Settings`), for example `1 1 0 P Extensions/Na__NobleDrawingTools/Drawn Volume` is Ctrl+Alt+P.
   `Sketchup.get_shortcuts` reads them (`"Ctrl+Alt+P\tExtensions/..."`); no API sets one, and the viewer
   never writes SketchUp's settings. So every command is an item in **Extensions > Na__PointCloudViewer**,
   and the submenu's name and each `menuText` (config `hotkeys`) must never change: a renamed item loses
@@ -1772,7 +1772,7 @@ The dialog's own switches still act on the active cloud.
 
 ### 27.4 Draw Clip Box
 
-Insert Primitives' Drawn Volume, for a clip box (`Na__ClipBox::Na__ClipDrawTool`):
+Noble Drawing Tools' Drawn Volume, for a clip box (`Na__ClipBox::Na__ClipDrawTool`):
 
 - Press and drag the base rectangle (or click, move, click), then pull the height and click. Every pick
   lands on the grid, **5 mm** (`clip.draw.gridMm`; 1, 5, 10, 25, 50 or 100 mm on the Clipping tab or the
@@ -1780,7 +1780,7 @@ Insert Primitives' Drawn Volume, for a clip box (`Na__ClipBox::Na__ClipDrawTool`
   the model (section 10), so rotated drawing axes are not followed.
 - **Ctrl** takes SketchUp's inference exactly where it lands (a vertex, an edge); **Ctrl+Shift** takes it
   and rounds it onto the grid, with an open square on the grid point and a dotted leader from the vertex.
-  The modifiers are read from every mouse event's flags (Insert Primitives' finding).
+  The modifiers are read from every mouse event's flags (Noble Drawing Tools' finding).
 - **The base plane** follows the drag (the axis it moved least along is the normal, and it changes only
   when another is clearly better), or is locked: **Tab** cycles Auto, Plan, Front, Side; **Up**, **Right**,
   **Left** lock Plan, Side, Front (the arrow names the normal, as SketchUp's blue, red and green), drawn as
@@ -1799,8 +1799,8 @@ Insert Primitives' Drawn Volume, for a clip box (`Na__ClipBox::Na__ClipDrawTool`
   showed (the box is a new area). The clouds and the master switch come on: the box is drawn to be seen.
   Edit Clip Box still edits the active cloud's box only; Copy to Other Clouds keeps two boxes the same.
 - **Drawing:** by the overlay after the cloud picture (as the clip cage), in screen space with no depth
-  test, so a floor or a wall the box sits in never hides it: the rectangle blue, the box amber (Insert
-  Primitives' colours, the box's fill thin enough to read the model through six faces), sizes on the
+  test, so a floor or a wall the box sits in never hides it: the rectangle blue, the box amber (Noble Drawing
+  Tools' colours, the box's fill thin enough to read the model through six faces), sizes on the
   edges and a card naming the clouds it clips. A corner behind a perspective camera falls back to the
   depth tested draw. While the overlay is off or paused after a fault, `Tool#draw` draws it instead.
   SketchUp's inference marker is drawn from the overlay too; if `InputPoint#draw` ever refuses there,

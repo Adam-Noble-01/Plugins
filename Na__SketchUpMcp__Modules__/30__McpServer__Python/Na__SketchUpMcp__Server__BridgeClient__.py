@@ -10,10 +10,15 @@
 # Each SketchUp process running the Na SketchUp MCP extension writes
 # 91__UserConfig__LocalOnly/Connections/Na__SketchUpMcp__Connection__<pid>.json
 # with its port and a fresh session token. This client lists those files,
-# checks which are alive, deletes ones left by crashed processes, and targets
-# the most recently started live SketchUp unless another pid was selected.
+# checks which are alive and deletes ones left by crashed processes.
 # Overrides for special setups: NA_SKETCHUP_MCP_PID, NA_SKETCHUP_MCP_PORT +
 # NA_SKETCHUP_MCP_TOKEN, NA_SKETCHUP_MCP_CONNECTIONS_DIR.
+#
+# WHICH WINDOW (a call must never land in a model nobody chose):
+# When it first needs a window, the client takes the most recently started live
+# one and stays on it until sketchup_status select_pid changes it. Opening
+# another window never moves it. If that window closes, every call is refused
+# and the refusal names the windows still open: it does not pick one.
 #
 # RETRY POLICY (never duplicate geometry):
 # - Refused connection or an 'unauthorized' reply: the request never ran, so it
@@ -40,6 +45,7 @@ NA_MODULES_ROOT = os.path.abspath(os.path.join(NA_SERVER_DIR, '..'))
 NA_DEFAULT_CONNECTIONS_DIR = os.path.join(NA_MODULES_ROOT, '91__UserConfig__LocalOnly', 'Connections')
 NA_CONNECT_TIMEOUT_S = 2.0
 NA_PROBE_TIMEOUT_S = 0.3
+NA_MODEL_READ_TIMEOUT_S = 1.0
 NA_MAX_RESPONSE_BYTES = 256 * 1024 * 1024
 
 
@@ -118,10 +124,11 @@ def na_port_open(host, port, timeout_s=NA_PROBE_TIMEOUT_S):
 # -----------------------------------------------------------------------------
 
 class Na__BridgeClient:
-    """Discovers SketchUp bridges and sends requests; remembers the selected SketchUp."""
+    """Discovers SketchUp bridges and sends requests; stays on one SketchUp window."""
 
     def __init__(self, logger=None):
         self.na_connections_dir = os.environ.get('NA_SKETCHUP_MCP_CONNECTIONS_DIR', NA_DEFAULT_CONNECTIONS_DIR)
+        # The window in use: chosen by select_pid or this variable, else settled by the first call.
         self.na_selected_pid = int(os.environ['NA_SKETCHUP_MCP_PID']) if os.environ.get('NA_SKETCHUP_MCP_PID', '').isdigit() else None
         self.na_logger = logger
         self.na_lock = threading.Lock()
@@ -150,6 +157,26 @@ class Na__BridgeClient:
         instances.sort(key=lambda item: item.get('started_at', ''), reverse=True)
         return instances
 
+    def Na__BridgeClient__Windows(self):
+        """Every instance, with each live window's model as it is now."""
+        windows = self.Na__BridgeClient__Instances()
+        for item in windows:
+            if item['live']:
+                self.na_read_open_model(item)
+        return windows
+
+    def na_read_open_model(self, item):
+        """A connection file can name an older model than the one open. A window too busy to answer keeps what its file says."""
+        payload = {'id': uuid.uuid4().hex, 'token': item.get('token', ''), 'command': 'ping', 'params': {}}
+        try:
+            response = self.na_round_trip(item, payload, NA_MODEL_READ_TIMEOUT_S)
+        except (Na__BridgeError, OSError, KeyError):
+            return
+        result = response.get('result') if response.get('ok') else None
+        if isinstance(result, dict) and 'model_title' in result:
+            item['model_title'] = result.get('model_title')
+            item['model_path'] = result.get('model_path', item.get('model_path'))
+
     def Na__BridgeClient__Select(self, pid):
         with self.na_lock:
             match = [item for item in self.Na__BridgeClient__Instances() if int(item.get('pid', -1)) == int(pid)]
@@ -166,19 +193,31 @@ class Na__BridgeClient:
                     'token': os.environ.get('NA_SKETCHUP_MCP_TOKEN', ''), 'pid': None, 'manual': True}
 
         live = [item for item in self.Na__BridgeClient__Instances() if item['live']]
-        if self.na_selected_pid is not None:
-            chosen = [item for item in live if int(item.get('pid', -1)) == self.na_selected_pid]
-            if chosen:
-                return chosen[0]
-            raise Na__BridgeUnavailable('not_connected', 'The selected SketchUp (pid %s) is no longer running its bridge.' % self.na_selected_pid,
-                                        'Call sketchup_status to choose another SketchUp window (select_pid).')
-        if live:
-            return live[0]
-        raise Na__BridgeUnavailable(
+        with self.na_lock:
+            if self.na_selected_pid is None and live:
+                self.na_selected_pid = int(live[0].get('pid', -1))      # the newest now; a window opened later must not move it
+            selected = self.na_selected_pid
+        if selected is None:
+            raise Na__BridgeUnavailable(
+                'not_connected',
+                'SketchUp is not connected: no running SketchUp bridge was found.',
+                'Open SketchUp with the Na SketchUp MCP extension (it starts the bridge by itself), or turn it on with '
+                'Extensions > Na SketchUp MCP > Bridge Running. Connection files are read from: %s' % self.na_connections_dir)
+        chosen = [item for item in live if int(item.get('pid', -1)) == selected]
+        if chosen:
+            return chosen[0]
+        raise self.na_window_gone(selected, live)
+
+    def na_window_gone(self, pid, live):
+        """Never pick another window: the next call could be an edit meant for the one that closed."""
+        for item in live:
+            self.na_read_open_model(item)
+        names = ', '.join('pid %s (%s)' % (item.get('pid'), item.get('model_title') or 'untitled') for item in live)
+        return Na__BridgeUnavailable(
             'not_connected',
-            'SketchUp is not connected: no running SketchUp bridge was found.',
-            'Open SketchUp 2026 with the Na SketchUp MCP extension (it starts the bridge by itself), or turn it on with '
-            'Extensions > Na SketchUp MCP > Bridge Running. Connection files are read from: %s' % self.na_connections_dir)
+            'The SketchUp window this server was using (pid %s) is no longer running its bridge, so nothing was sent. %s'
+            % (pid, 'Open now: %s.' % names if names else 'No other SketchUp window is running its bridge.'),
+            'Choose the window with sketchup_status select_pid. A bridge restarting in the same window is picked up by itself.')
 
     # --- requests --------------------------------------------------------------
 

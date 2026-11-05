@@ -21,7 +21,7 @@
 #   registry; Na__HotkeyCommands holds what each one does.
 #
 # HOT RELOAD: a menu built once at start up never shows a command added later,
-#   so it cannot be given a key until SketchUp restarts (Insert Primitives found
+#   so it cannot be given a key until SketchUp restarts (Noble Drawing Tools found
 #   the same). Here each command is added once per SketchUp session and
 #   remembered (`unless defined?`), so Reload Plugin adds exactly the commands
 #   that are new, and never a second copy (SketchUp cannot take a menu item

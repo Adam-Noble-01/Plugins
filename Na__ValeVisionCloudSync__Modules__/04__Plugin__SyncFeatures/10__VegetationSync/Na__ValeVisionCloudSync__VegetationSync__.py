@@ -27,7 +27,8 @@ DESCRIPTION:
   plants, so they are worked out here with a port of the app's sums (the REGION
   below). A proxy of one that has been moved goes back where its path says, and the
   report names it: to change a path, edit it in the app or bake it first. A copy of
-  one is a plant of its own.
+  one is a plant of its own. A single plant swapped or removed in the app is in the
+  path's PlantChanges, and the port follows it: no draw changes and no other plant moves.
 - SAFE WRITE: the record is read again just before the PATCH, and a change in between
   starts the merge again, once. It is a comparison and not the API guard the plan
   asked for (the API file holds other sessions' open work), so a save landing in the
@@ -39,8 +40,10 @@ DESCRIPTION:
   shows and is compared at what the plant really measures. Scaled evenly in SketchUp, a
   plant's scale changes, the same bush smaller. Scaled on one axis only, its saved size
   changes: fitted to a space, its clumps keeping their size, as a stretched run's do.
-- NOTHING IS MADE HERE WITHOUT THE APP: a project that has not been switched on is
-  refused. Switching on and off is the app's, in Dev Tools.
+- ON UNLESS SWITCHED OFF (Adam, 05-Nov-2026): a project with no key counts as on, and only
+  an explicit Enabled false is refused. A first sync that has something to write makes the
+  key with Enabled true, its plants and the assets they need, and nothing more: the page
+  lays every default over that when it reads it. Switching off is the app's, in Dev Tools.
 
 USAGE:
   python Na__ValeVisionCloudSync__VegetationSync__.py --action sync
@@ -50,6 +53,12 @@ USAGE:
 -----------------------------------------------------------------------------
 
 DEVELOPMENT LOG:
+05-Nov-2026 - Version 1.2.0
+- On unless switched off: no key counts as on, and a first sync makes it. Only an explicit
+  Enabled false is refused.
+- A path's PlantChanges in the port, with the asset lookup the app's takes: a single plant
+  swapped, scaled or removed. An override's asset is pinned and read like any other.
+
 04-Nov-2026 - Version 1.1.0
 - A plant's scale through the merge. The path sums follow the app's v2.86.0: Plant Scale, each
   palette item's scale, Height, clipped plants and the corners of their runs.
@@ -83,7 +92,7 @@ import Na__ValeVisionCloudSync__AuraSync__ as aura                           # n
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-NA__VEG__VERSION                = "1.1.0"
+NA__VEG__VERSION                = "1.2.0"
 NA__VEG__ACTIONS                = ("sync",)
 NA__VEG__API                    = "/valevision/api"
 NA__VEG__ROOT_KEY               = "Vegetation__SceneData"
@@ -96,6 +105,10 @@ NA__VEG__K_PATHS                = "Vegetation__SceneData__Paths"
 NA__VEG__K_PALETTES             = "Vegetation__SceneData__Palettes"
 NA__VEG__K_ASSETS               = "Vegetation__SceneData__Assets"
 NA__VEG__K_ENABLED              = "Vegetation__SceneData__Enabled"
+NA__VEG__K_PLANT_CHANGES        = "Vegetation__Path__PlantChanges"          # <-- Keyed by a plant's number as a string, from 1: P0001-007 is "7"
+NA__VEG__C_ASSET                = "Vegetation__PlantChange__AssetId"
+NA__VEG__C_SCALE                = "Vegetation__PlantChange__Scale"
+NA__VEG__C_REMOVED              = "Vegetation__PlantChange__Removed"
 NA__VEG__P_UID                  = "Vegetation__Plop__Uid"
 NA__VEG__P_ASSET                = "Vegetation__Plop__AssetId"
 NA__VEG__P_SEED                 = "Vegetation__Plop__Seed"
@@ -342,9 +355,37 @@ def na_scale_of(value) -> float:
     return value if isinstance(value, (int, float)) and value > 0 else 1
 # ---------------------------------------------------------------
 
+# HELPER FUNCTION | One Plant of a Path Under the Change Saved for Its Number, or None If It Is Removed
+# ------------------------------------------------------------
+# After every draw, so no other plant moves. An asset whose recipe cannot be found leaves it as drawn.
+def na_change_plant(plant: dict, change: dict, recipe_of, zoom: float, drawn_scale: float, drawn_higher: float, depth_fit: float, height_fit: float) -> dict | None:
+    if change.get(NA__VEG__C_REMOVED) is True:
+        return None
+    asset_id = change.get(NA__VEG__C_ASSET)
+    other = recipe_of(asset_id) if asset_id and recipe_of else None
+    if other:
+        size = other["Asset__Size"]
+        kept = (other.get("Asset__Placement") or {}).get("Placement__Clipped") is True
+        scale, higher = (1, 1) if kept else (drawn_scale, drawn_higher)
+        depth_mm = depth_fit / zoom if depth_fit > 0 else size["Size__DepthMm"] * scale
+        height_mm = (height_fit / zoom if height_fit > 0 else size["Size__HeightMm"]) * scale * higher
+        plant[NA__VEG__P_ASSET] = asset_id
+        plant[NA__VEG__P_SIZE] = [na_js_round(size["Size__WidthMm"] * scale), na_js_round(depth_mm), na_js_round(height_mm)]
+        plant.pop("Vegetation__Plop__Ends", None)
+    wanted = change.get(NA__VEG__C_SCALE)
+    if isinstance(wanted, (int, float)) and wanted > 0:
+        zoomed = na_js_round(zoom * wanted * 1000) / 1000
+        if zoomed != 1:
+            plant[NA__VEG__P_SCALE] = zoomed
+        else:
+            plant.pop(NA__VEG__P_SCALE, None)
+    return plant
+# ---------------------------------------------------------------
+
 # FUNCTION | Every Plant of a Path, in the Shape of Saved Plops (Na__VegPath__PlantsFor)
 # ------------------------------------------------------------
-def na_plants_for(path: dict, items: list) -> list:
+# recipe_of: the same lookup as the app's, a project's pinned copy, else the library.
+def na_plants_for(path: dict, items: list, recipe_of=None) -> list:
     usable = [it for it in (items or []) if it.get("recipe") and (it.get("weight") or 0) > 0]
     line = na_path_line(path.get("Vegetation__Path__PointsMm"), path.get("Vegetation__Path__Curved") is True)
     if not usable or line["total"] <= 0:
@@ -362,6 +403,7 @@ def na_plants_for(path: dict, items: list) -> list:
     depth_fit = rules.get("Vegetation__PathAdvanced__DepthAcrossMm") or 0
     height_fit = rules.get("Vegetation__PathAdvanced__HeightFitMm") or 0
     path_zoom = na_scale_of(path.get("Vegetation__Path__PlantScale"))
+    changes = path.get(NA__VEG__K_PLANT_CHANGES) if isinstance(path.get(NA__VEG__K_PLANT_CHANGES), dict) else {}
 
     wanted = na_js_round(line["total"] / spacing) if fit else math.ceil(line["total"] / spacing)
     cells = max(1, min(NA__VEG__MAX_PLANTS, wanted))
@@ -448,7 +490,11 @@ def na_plants_for(path: dict, items: list) -> list:
             plant[NA__VEG__P_SCALE] = na_js_round(zoom * 1000) / 1000
         if ends:
             plant["Vegetation__Plop__Ends"] = ends
-        plants.append(plant)
+        change = changes.get(str(number + 1))
+        if isinstance(change, dict):
+            plant = na_change_plant(plant, change, recipe_of, zoom, drawn_scale, drawn_higher, depth_fit, height_fit)
+        if plant:
+            plants.append(plant)
         at += span
         number += 1
     return plants
@@ -516,7 +562,7 @@ def na_path_plants(scene: dict, recipe_of) -> dict:
         items = [{"assetId": it.get("Vegetation__PaletteItem__AssetId"), "weight": it.get("Vegetation__PaletteItem__Weight"),
                   "scale": it.get("Vegetation__PaletteItem__PlantScale"), "recipe": recipe_of(it.get("Vegetation__PaletteItem__AssetId"))}
                  for it in palette.get("Vegetation__Palette__Items") or []]
-        for plant in na_plants_for(path, items):
+        for plant in na_plants_for(path, items, recipe_of):
             plants[plant[NA__VEG__P_UID]] = plant
     return plants
 # ---------------------------------------------------------------
@@ -774,6 +820,16 @@ def na_merge(base: list, scene: dict, proxies: list, model_nominals: dict, recip
         if uid not in wanted:
             apply.append({"Op": "delete", "Key": s["Key"], "Uid": uid})
 
+    # AN OVERRIDE'S ASSET IS IN USE | Copied in as any other, so the project draws from its own copy (Na__VegRun__NamedAssets)
+    for path in scene.get(NA__VEG__K_PATHS) or []:
+        path_changes = path.get(NA__VEG__K_PLANT_CHANGES) if isinstance(path, dict) else None
+        for change in (path_changes.values() if isinstance(path_changes, dict) else []):
+            asset_id = change.get(NA__VEG__C_ASSET) if isinstance(change, dict) else None
+            recipe = recipe_of(asset_id) if asset_id and asset_id not in (scene.get(NA__VEG__K_ASSETS) or {}) and asset_id not in pins else None
+            if recipe:
+                pins[asset_id] = copy.deepcopy(recipe)
+                changed = True
+
     new_base = [A[uid] for uid in order if uid in A and uid not in skipped]
     new_base += [want for uid, want in wanted.items() if uid not in skipped]
     return {"Plops": [records[uid] for uid in order if uid in records], "Pins": pins, "Apply": apply, "Base": new_base,
@@ -810,10 +866,8 @@ def na_read_scene(args, session: dict, rep) -> dict | None:
         return None
     scene = record.get(NA__VEG__ROOT_KEY)
     if not isinstance(scene, dict):
-        rep.step("Read The Project", False, f"Vegetation is not switched on for {args.library_id}: in ValeVision 3D, Dev Tools, "
-                 "Vegetation, Switch On, then sync here. Nothing was changed.")
-        return None
-    if scene.get(NA__VEG__K_ENABLED) is not True:
+        return {}                                                            # <-- No key counts as on: a first sync makes it
+    if scene.get(NA__VEG__K_ENABLED) is False:
         rep.step("Read The Project", False, f"Vegetation is switched off for {args.library_id} in ValeVision 3D's Dev Tools. "
                  "Its plants are kept; switch it on to sync. Nothing was changed.")
         return None
@@ -856,6 +910,7 @@ def na_sync_planting(args, session: dict, sketchup: dict, rep) -> dict | None:
                 return None
             continue
         out = dict(scene)
+        out.setdefault(NA__VEG__K_ENABLED, True)                             # <-- What a first sync makes; the page lays every default over it
         out[NA__VEG__K_PLOPS] = merged["Plops"]
         if merged["Pins"]:
             out[NA__VEG__K_ASSETS] = {**(scene.get(NA__VEG__K_ASSETS) or {}), **merged["Pins"]}
@@ -870,12 +925,16 @@ def na_sync_planting(args, session: dict, sketchup: dict, rep) -> dict | None:
     count = lambda op: sum(1 for o in ops if o["Op"] == op)                  # noqa: E731
     parts = [f"{len(merged['Plops'])} placed plant(s) and {merged['PathPlants']} from paths in ValeVision"]
     if merged["AppChanged"]:
-        parts.append(f"ValeVision updated ({counts['new']} new from SketchUp, {counts['moved']} moved, {counts['removed']} taken out)")
+        pinned = f", {len(merged['Pins'])} asset(s) pinned" if merged["Pins"] else ""
+        parts.append(f"ValeVision updated ({counts['new']} new from SketchUp, {counts['moved']} moved, {counts['removed']} taken out{pinned})")
     if count("create") or count("update") or count("delete"):
         parts.append(f"SketchUp: {count('create')} to place, {count('update')} to move, {count('delete')} to take out")
     if not merged["AppChanged"] and not (count("create") or count("update") or count("delete")):
         parts.append("both sides already match")
     rep.step("Sync Planting", True, "; ".join(parts) + ".")
+    if merged["AppChanged"] and not scene:
+        rep.step("First Sync Of This Project", True, f"{args.library_id} had no vegetation yet, so this sync started it: switched on, with its plants "
+                 "and the assets they need. ValeVision 3D lays every default over that when it reads it.")
     if merged["Clashes"]:
         rep.step("Clashes (ValeVision Kept)", True, "; ".join(merged["Clashes"]) + ".")
     if merged["Moved"] or merged["Returned"]:

@@ -109,18 +109,29 @@ class Na__ToolRunner:
     # --- sketchup_status -------------------------------------------------------------
 
     def na_status(self, tool, arguments):
-        selected = None
         if arguments.get('select_pid') is not None:
-            selected = self.na_bridge.Na__BridgeClient__Select(arguments['select_pid'])
+            self.na_bridge.Na__BridgeClient__Select(arguments['select_pid'])
+        try:
+            self.na_bridge.Na__BridgeClient__Target()       # settles the window in use, so the list below can mark it
+        except Na__BridgeClientModule.Na__BridgeError:
+            pass                                            # reported below, with the list
+
+        windows = self.na_bridge.Na__BridgeClient__Windows()
+        in_use = self.na_bridge.na_selected_pid
         instances = [{
             'pid': item.get('pid'), 'port': item.get('port'), 'model_title': item.get('model_title'),
             'model_path': item.get('model_path'), 'sketchup_version': item.get('sketchup_version'), 'live': item.get('live'),
-            'selected': self.na_bridge.na_selected_pid == item.get('pid')
-        } for item in self.na_bridge.Na__BridgeClient__Instances()]
+            'selected': in_use == item.get('pid')
+        } for item in windows]
 
         payload = {'server': self.na_server_facts, 'instances': instances}
-        if selected:
-            payload['selected_pid'] = selected.get('pid')
+        current = [item for item in windows if item['live'] and item.get('pid') == in_use]
+        if current:
+            payload['selected_pid'] = in_use
+            open_count = sum(1 for item in windows if item['live'])
+            if open_count > 1:
+                payload['windows_note'] = ('%d SketchUp windows are open. This server is using pid %s (%s) and stays on it, whichever opens later. '
+                                           'To use another, pass select_pid.' % (open_count, in_use, current[0].get('model_title') or 'untitled'))
         try:
             response = self.na_bridge.Na__BridgeClient__Request('sketchup_status', {'include_extensions': bool(arguments.get('include_extensions'))}, tool.get('timeout_s', 15))
         except Na__BridgeClientModule.Na__BridgeError as error:

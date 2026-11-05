@@ -11,7 +11,7 @@
             "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__SpecialObject__CameraFollowObjectHandling__.rb",
             "Na__TrueVision__GlbBuilderUtility__Modules__/Na__TrueVision__GlbBuilder__Main__.rb",
             "ValeDesignSuite/Tools_WindowPanelConfigurator/ValeDesignSuite_Tools_WindowPanelConfigurator.rb",
-            "Na__InsertPrimatives__Modules__/Na__InsertPrimatives__Main__.rb"
+            "Na__NobleDrawingTools__Modules__/Na__NobleDrawingTools__Main__.rb"
         ],
         "idFormatNote"      : "The standard Na__ ID pattern is a 3-letter type code + 3-digit zero-padded number, e.g. AWN001, ADR002, PNL003. The ID is followed by __ and a descriptor. This gives 999 unique IDs per type which is sufficient for any single model.",
         "divergenceNote"    : "The ValeDesignSuite WindowPanelConfigurator uses a PNL prefix and different dictionary name (WindowConfigurator_Config without Na__ prefix) which diverges from the Na__ standard. This is flagged for alignment.",
@@ -287,8 +287,8 @@
         },
 
         "Primitives__": {
-            "Description"           : "Primitive geometry objects inserted by Na__InsertPrimatives plugin.",
-            "SourcePlugin"          : "Na__InsertPrimatives",
+            "Description"           : "Primitive geometry objects inserted by Na__NobleDrawingTools plugin.",
+            "SourcePlugin"          : "Na__NobleDrawingTools",
             "Objects"               : {
                 "PrimitiveCube" : {
                     "GroupName"     : "01__PrimitiveCube",

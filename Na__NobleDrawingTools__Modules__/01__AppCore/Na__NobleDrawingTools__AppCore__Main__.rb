@@ -1,0 +1,95 @@
+# =============================================================================
+# NA NOBLE DRAWING TOOLS - MAIN MODULE
+# =============================================================================
+#
+# FILE       : Na__NobleDrawingTools__AppCore__Main__.rb
+# NAMESPACE  : Na__NobleDrawingTools
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Composition root — requires every runtime module and exposes public entries
+# CREATED    : 2026
+#
+# DESCRIPTION:
+# - Requires feature files from Na__NobleDrawingTools__AppCore__LoadManifest__
+# - Public entry point for the click-to-place cube tool
+#
+# FOLDER MAP:
+# - 01__AppCore              : this file, PathResolver, LoadManifest, Reloader, ModeSwitch
+# - 02__AppData              : AppConfig + UserConfig JSON and loaders, tool memory, persisted drawn-tool settings
+# - 03__AppUtils             : VCB parse, VCB arithmetic, format helpers, keyboard mixin
+# - 04__GeometryHelpers      : voxel grid, solids, roof geom, deep pick, slope, loops, profile sweep
+# - 05__PreviewGraphics      : cube wireframe and drawn shaded previews
+# - 06__Tools__DrawnShared   : drag state machine mixin, shared revise (retype / repeat / ghost), profile sweep tool,
+#                              the 2D camera guard Drawn Plane and Drawn Volume prepend, and the AltGr filter
+#                              (Windows thread hooks) that keeps AltGr from starting SketchUp 2027's orbit / pan
+# - 10__System__PlaceCube    : click-to-place cube tool and plane mode
+# - 20__System__DrawnPrimitives : plane / volume / cylinder tools
+# - 21__System__DrawnRoofs   : pitched / hipped roof tools
+# - 22__System__DrawnStairs  : staircase: a block, a side, then an even flight (a Drawn Volume subclass)
+# - 23__System__DrawnPipework : pipework along selected edges or drawn point by point, bends to a radius
+# - 30__System__DeepPushPull : nested push/pull 3d + 2d; a smoothed surface pushes as one (joint)
+# - 31__System__DeepChamfer  : nested chamfer
+# - 32__System__DeepOgee     : nested ogee moulding (a Deep Chamfer subclass)
+# - 33__System__DeepFillet   : nested fillet / radius (a Deep Chamfer subclass)
+# - 34__System__DeepOvolo    : nested ovolo / cavetto, a quarter circle with a step (a Deep Chamfer subclass)
+# - 35__System__DeepScale    : scale any group or component by its grips, typed dimensions, stretch planes
+# - 36__System__DeepProject  : carry a nested face on to a plane, a point or an object
+# - 37__System__DeepVertexMove : pick vertices inside the selection at any depth, move or stretch them with a gimbal
+# - 40__UserInterface        : right-click HtmlDialog
+#
+# =============================================================================
+
+require 'sketchup.rb'
+require_relative 'Na__NobleDrawingTools__AppCore__PathResolver__'
+require_relative 'Na__NobleDrawingTools__AppCore__LoadManifest__'
+
+Na__NobleDrawingTools::NA_LOAD_MANIFEST.each do |relative_path|
+    require Na__NobleDrawingTools::Na__PathResolver.Na__NobleDrawingTools__ModulesFile(relative_path)
+end
+
+module Na__NobleDrawingTools
+
+    # -----------------------------------------------------------------------------
+    # REGION | Helper Functions
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Round Point to the Shared Voxel Grid Coordinate
+    # ------------------------------------------------------------
+    # Delegates to Na__DrawnGrid__SnapPoint so the click-to-place tool and the
+    # click-and-drag tools are guaranteed to land on the *same* lattice — a
+    # separate copy of the rounding maths here would drift the moment the snap
+    # step or the drawing axes changed. Behaviour with the default axes and the
+    # default 5mm step is identical to the original world-space rounding.
+    # ------------------------------------------------------------
+    def self.round_point_to_nearest_5mm(pt)
+        Na__NobleDrawingTools.Na__DrawnGrid__SnapPoint(pt)
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+    # @delegate: ../10__System__PlaceCube/Na__NobleDrawingTools__PrimitiveCubeTool__.rb
+
+    # -----------------------------------------------------------------------------
+    # REGION | Public Entry Point
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Insert Cube (Hotkey Entry Point)
+    # ------------------------------------------------------------
+    # Bind this method in Preferences -> Shortcuts to activate the tool
+    # Method name: Na__NobleDrawingTools.Na__NobleDrawingTools__InsertCube
+    # ------------------------------------------------------------
+    def self.Na__NobleDrawingTools__InsertCube
+        model = Sketchup.active_model
+        return unless model
+
+        model.select_tool(PrimitiveCubeTool.new)
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+end # End Na__NobleDrawingTools module
+
+# =============================================================================
+# END OF MAIN MODULE
+# =============================================================================

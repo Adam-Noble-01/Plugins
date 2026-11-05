@@ -778,7 +778,7 @@ Research sources cross-referenced when designing this implementation:
 - [API issue #926](https://github.com/SketchUp/api-issue-tracker/issues/926) -
   SKEXT-3890 onKeyDown double-fire regression on Windows 23.1.340+;
   mitigated here with the same per-key held-flag guard pattern used in
-  `Na__InsertPrimatives__KeyboardHandlers__.rb`.
+  `Na__NobleDrawingTools__KeyboardHandlers__.rb`.
 
 #### Why a Previous Attempt Was Rolled Back
 

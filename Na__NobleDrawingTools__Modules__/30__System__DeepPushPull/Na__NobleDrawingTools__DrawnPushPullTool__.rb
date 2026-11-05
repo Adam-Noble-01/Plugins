@@ -1,0 +1,1477 @@
+# =============================================================================
+# NA NOBLE DRAWING TOOLS - DEEP PUSH PULL TOOL
+# =============================================================================
+#
+# FILE       : Na__NobleDrawingTools__DrawnPushPullTool__.rb
+# NAMESPACE  : Na__NobleDrawingTools
+# CLASS      : DrawnPushPullTool
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Push/pull any face at any nesting depth, on the shared voxel grid
+# CREATED    : 2026
+#
+# DESCRIPTION:
+# - Hover to highlight the face under the cursor, click to grab it, drag to push,
+#   click again to place. One click fewer than native when the face is buried:
+#   there is no double-clicking down through groups first.
+# - Distances snap to the shared voxel step, CTRL suspends that for vertex
+#   snapping, CTRL+SHIFT snaps to the vertex and rounds the distance anyway,
+#   and the measurements box pins the distance — the same controls every
+#   other tool in this plugin uses.
+#
+# WHY THE DISTANCE IS SNAPPED, NOT THE POINT:
+# - Elsewhere the cursor point is rounded onto the lattice. That is wrong here:
+#   a face normal is rarely axis-aligned, so rounding a point on it would give
+#   ragged distances. The travel along the push direction is snapped instead,
+#   which keeps clean 5mm pushes whatever angle the face sits at.
+# - CTRL+SHIFT keeps to the same rule: the vertex decides the travel and the
+#   travel is what gets rounded. A face that starts on the grid and is pushed
+#   square to an axis still ends on it.
+#
+# TAB — QUAD MODE:
+# - SketchUp's push welds the new wall into the coplanar wall it grew out of and
+#   deletes the edge where they met. That is usually what you want and is
+#   exactly what you do not want when the extrusion is a run of wall: the corner
+#   you meant to make has no line to turn at.
+# - TAB arms QUAD mode, which re-draws that start loop as edges after the push —
+#   edges only, never a face, so the solid stays hollow and stays a solid. Two
+#   pushes in different directions then meet on a real quad corner.
+# - The setting is remembered between sessions, so the mode is a preference the
+#   user sets once, not something to re-arm on every face.
+#
+# SHIFT — SLOPE MODE:
+# - pushpull only ever extrudes along the face normal, and on the plumb-cut end
+#   of a roof that normal is horizontal. Push it and the roof gets longer on
+#   plan while the rake it was cut to is thrown away.
+# - SHIFT swaps the normal for the direction that CONTINUES THE NEIGHBOURING
+#   FACE'S PLANE, so the roof runs on down its own pitch with its end cut still
+#   plumb. The neighbour is chosen and the maths is done in Na__SlopePush__;
+#   this tool only asks for a direction and travels along it.
+# - Held, not toggled, and inert on geometry with no trajectory to continue —
+#   a box says so in the status bar and pushes normally.
+# - With CTRL down as well it is CTRL+SHIFT, which means vertex-then-grid here
+#   as in every shape tool, and slope mode rides along wherever there is a
+#   slope to follow: a roof end runs down its rake to the vertex, distance
+#   rounded. The one combination given up (5.1.8) is an exact, unrounded
+#   slope push to a vertex.
+#
+# ARROW KEY AXIS LOCK — WHAT IT ACTUALLY MEANS:
+# - Sketchup::Face#pushpull only ever extrudes along the face normal, so a lock
+#   cannot redirect the extrusion. What it does instead is change what the drag
+#   MEASURES: lock to Z and drag 1000, and the face is pushed far enough along
+#   its own normal to end up 1000 higher. Pushing a sloped roof plane up by a
+#   known vertical is a real gap in the native tool, and this closes it.
+# - A face whose normal is near-perpendicular to the locked axis cannot move
+#   along that axis at all, so the lock is refused rather than dividing by
+#   something close to zero.
+#
+# AFTER PLACING — RETYPE, REPEAT, AND THE GHOST:
+# - The measurements box stays live after the click that places a push: type
+#   1200 and the push just made becomes 1200, -1200 turns it round. Moving the
+#   mouse, hovering, TAB, the arrows and the right-click menu all leave that
+#   open; only grabbing another face, changing the model or leaving the tool
+#   closes it. Every retype replays the preview for a beat so the direction
+#   and the size of the change are seen, not inferred.
+# - A double-click on a face with no drag behind it pushes it by the last
+#   distance placed, exactly as native Push/Pull does. That distance lives in
+#   the model's own attribute dictionary, so it survives a tool switch, a
+#   plugin reload and a reopened file.
+# - The mechanics are shared with the chamfer tool (06__Tools__DrawnShared,
+#   DrawnReviseShared); the push-specific half is DrawnPushPullRevise.
+#
+# SHIFT+ALT — FOLLOW MODE:
+# - Every corner of the face runs along its OWN edge instead of the whole face
+#   moving one way, so a tapered slab's front runs up the roof at the top and
+#   along the soffit at the bottom, and every neighbour keeps its plane. With
+#   QUADS on, inward is a follow loop cut. See DrawnPushPullFollow.
+#
+# SHIFT+CLICK AN EDGE — VECTOR PUSH:
+# - SHIFT over any edge offers it; a click takes it, before a face is grabbed or
+#   mid-drag, and that one push travels along the edge's line instead of the
+#   face's normal. Mid-drag along it, SHIFT squares the far end to the edge. See
+#   DrawnPushPullEdgeVector.
+#
+# QUAD LINES — OFFSET, ARRAY, DIVIDE (QUADS on):
+# - Hover a face near one of its quad lines and the whole ring that line
+#   belongs to lights up; drag along the run to push/pull a new ring off it.
+#   Type *4 to array it or /7 to divide the span, mid-drag or after placing,
+#   and a loop cut takes *N and /N the same way. Further in from the line the
+#   face is pushed exactly as before. See DrawnPushPullQuadOffset.
+#
+# PRESELECTED FACES (DrawnPushPullPreselect):
+# - Faces selected before the tool starts are pushed together. More than ten
+#   ask first (5.1.22): CTRL+A and the shortcut must not push a whole model.
+#
+# SURFACES PUSH AS ONE — JOINT (5.2.14, DrawnPushPullJoint):
+# - A face on a smoothed surface (faces joined by soft edges: what Entity Info
+#   calls a Surface) brings the whole surface with it: every face along its
+#   own normal, every corner mitred, so a curved fascia pushes out as one
+#   continuous band instead of a fan of boxes. Preselected faces that touch
+#   push the same way. The faces round it stretch where they can (a flat roof
+#   above the fascia grows to meet it) and get new sides where they cannot.
+# - Joint Surfaces is the tool's option, on by default: SHIFT+TAB, the
+#   right-click menu or its Shortcuts command switch it off, and every face
+#   is pushed on its own again. SHIFT slope and SHIFT+ALT follow are single-
+#   face modes and stand down on a surface.
+#
+# PUSHED INTO THE SOLID, THE PREVIEW IS THE VOLUME REMOVED (5.1.22):
+# - The orange preview is depth-tested, which is right for a push OUT: the
+#   new slab stands in front of the model. Pushed IN, every line of it is
+#   inside the solid and the face hides it — there was no feedback at all.
+#   So a face on a solid pushed against its normal draws the volume it will
+#   take away in the cutter red, through everything, exactly as Drawn
+#   Volume's subtract draws its cutter (5.1.6). Orange out, red in.
+#
+# =============================================================================
+
+require 'sketchup.rb'
+require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnToolShared__'
+require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnRevise__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnSlopePush__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__QuadRing__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__Commit__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__Revise__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__QuadOffset__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__Follow__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__Joint__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__EdgeVector__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__Preselect__'
+
+module Na__NobleDrawingTools
+    # -----------------------------------------------------------------------------
+    # REGION | Deep Push Pull Tool Class
+    # -----------------------------------------------------------------------------
+
+    # CLASS | Push/Pull Any Face at Any Nesting Depth
+    # ------------------------------------------------------------
+    class DrawnPushPullTool
+
+        include Na__NobleDrawingTools::DrawnToolShared
+        include Na__NobleDrawingTools::DrawnReviseShared                      # <-- After DrawnToolShared, so its life-cycle wrappers sit over the mixin's
+        include Na__NobleDrawingTools::DrawnPushPullCommit
+        include Na__NobleDrawingTools::DrawnPushPullRevise                    # <-- The push half of the revise contract
+        include Na__NobleDrawingTools::DrawnPushPullQuadOffset                # <-- Quad lines: offset, array, divide. After Revise, so its overrides sit in front
+        include Na__NobleDrawingTools::DrawnPushPullFollow                    # <-- SHIFT+ALT: every corner along its own edge
+        include Na__NobleDrawingTools::DrawnPushPullJoint                     # <-- Surfaces push as one. Before Preselect, so a batch's super reaches it
+        include Na__NobleDrawingTools::DrawnPushPullEdgeVector                # <-- SHIFT+click an edge: the face travels along it. After Follow, which it outranks
+
+        include Na__NobleDrawingTools::DrawnPushPullPreselect
+
+        NA_PP_MIN_AXIS_FACTOR = 0.0872                                        # <-- cos 85 degrees; below this the lock is refused
+        NA_PP_HOVER_FILL      = Sketchup::Color.new(  0, 140, 255,  80)
+        NA_PP_HOVER_BORDER    = Sketchup::Color.new(  0, 110, 235, 235)
+        NA_PP_RESULT_FILL     = Sketchup::Color.new(255, 150,  30,  70)
+        NA_PP_RESULT_BORDER   = Sketchup::Color.new(226, 118,   0, 235)
+        NA_PP_QUAD_BORDER     = Sketchup::Color.new(200,  60, 200, 255)   # <-- The line quad mode will leave behind
+
+        # INITIALIZE | Tool Constructor
+        # ------------------------------------------------------------
+        def initialize
+            na_drawn__init_shared_state
+            na_drawn__clear_target
+            na_revise__init_state                                             # <-- No push placed yet, so nothing to retype or repeat
+            na_qo__init_state                                                 # <-- No quad line on offer or grabbed
+            na_ev__init_state                                                 # <-- No edge nominated
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Console Trace of Every Decision Point
+        # Off by default. Turn it on from the Ruby Console with
+        #   Na__NobleDrawingTools.Na__PushPull__SetTrace(true)
+        # and every grab, placement and refusal prints with the state it saw.
+        # Diagnosing this tool from screenshots cost three wrong guesses; this
+        # exists so the next question is answered with a log instead.
+        # ------------------------------------------------------------
+        def na_drawn__trace(message)
+            return unless Na__NobleDrawingTools.Na__PushPull__Trace?
+
+            Na__NobleDrawingTools.Na__Debug__Puts "[NA PUSHPULL] #{message} | state=#{@na_state.inspect} " \
+                 "dist=#{Na__NobleDrawingTools.Na__DrawnFormat__Mm(@na_size_d).abs}mm " \
+                 "face=#{@na_pp_target && @na_pp_target[:face] ? @na_pp_target[:face].entityID : 'none'} " \
+                 "ctrl=#{@na_ctrl_held ? 'on' : 'off'} shift=#{@na_shift_held ? 'on' : 'off'} " \
+                 "slope=#{na_drawn__slope_mode? ? 'on' : 'off'} axis=#{@na_axis_lock.inspect}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Forget the Currently Grabbed Face
+        # ------------------------------------------------------------
+        def na_drawn__clear_target
+            @na_pp_target      = nil
+            @na_pp_triangles   = []
+            @na_pp_loop        = []
+            @na_pp_area        = '0.00'
+            @na_pp_fingerprint = nil
+            @na_pp_quad_stats  = nil
+            @na_pp_slope       = nil                                          # <-- The SHIFT trajectory for THIS face, or nil
+            @na_pp_seam_healed = 0
+            @na_pp_stretched   = false
+            @na_pp_split       = nil
+            @na_pp_joint       = nil                                          # <-- The surface this face pushes with, or nil for one face
+        end
+        # ---------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Subclass Contract — Identity
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | Status Bar Title
+        # ------------------------------------------------------------
+        def na_drawn__tool_title
+            'Deep Push/Pull'
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Popup Menu Highlight Key
+        # ------------------------------------------------------------
+        def na_drawn__mode_key
+            :drawn_push_pull
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Console Banner Hint Lines
+        # ------------------------------------------------------------
+        def na_drawn__activation_hints
+            [
+                'Hover any face, click to grab it, drag to push, click to place',
+                'Reaches faces inside groups and components without opening them',
+                "Distance snaps to the #{Na__NobleDrawingTools.Na__DrawnSettings__GridStepLabel} grid — hold CTRL for vertex snapping",
+                'Hold CTRL+SHIFT to snap to a vertex and round the distance — on a roof end it follows the rake as well',
+                'ARROWS lock the measured axis: Right X, Left Y, Up Z, Down releases',
+                'Hold SHIFT to push along the NEIGHBOURING face instead — a roof runs on down its own rake',
+                'Hold SHIFT+ALT to FOLLOW — every corner runs along its own edge, so a taper stays a taper',
+                'SHIFT+click an EDGE and the next push travels along it instead — before grabbing or mid-drag; BKSP releases it',
+                'While a push follows an edge, hold SHIFT to square its far end to that edge',
+                'A face on a smoothed surface pushes the WHOLE surface as one — every face along its own normal',
+                'SHIFT+TAB switches JOINT surfaces off and on — off, one face at a time as native',
+                'TAB toggles QUAD mode — the extrusion keeps its start loop as edges, no face',
+                'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
+                'With QUADS on, hover near a quad line to grab its whole ring — drag along the run to offset a new one',
+                'Quad offsets and loop cuts take *4 (array) and /7 (divide), while dragging or after placing',
+                'VCB: 300 | +50 | -25   (the typed distance pins and places)',
+                'After placing, keep typing: 1200 resizes the push, -1200 turns it round — the preview replays the change',
+                'Double-click a face to push it by the last distance placed (remembered in the model)'
+            ]
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Push Direction and Distance Maths
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | World Unit Normal of the Grabbed Face
+        # ------------------------------------------------------------
+        def na_drawn__face_normal
+            return nil unless @na_pp_target
+
+            @na_pp_target[:world_normal]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is SHIFT Actually Buying Anything on This Face?
+        # ------------------------------------------------------------
+        # Held SHIFT alone is not slope mode. The face also has to have a
+        # neighbour worth following, and a box does not — so on a box SHIFT is
+        # inert, the push stays normal, and the status line says why rather
+        # than leaving the user pressing a key that does nothing.
+        # ------------------------------------------------------------
+        def na_drawn__slope_mode?
+            @na_shift_held && !@na_pp_slope.nil? && !na_drawn__follow_requested? &&   # <-- SHIFT+ALT is follow, not slope
+                !na_jp__active? &&                                                 # <-- One face's neighbour; a surface has none to follow
+                !na_ev__live?                                                      # <-- A nominated edge was set on purpose and outranks the held key
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | CTRL+SHIFT Is Vertex-Then-Grid Here Too
+        # ------------------------------------------------------------
+        # The mixin already answers yes; this says it again on purpose. 5.1.7
+        # defined this method here as false, and Reload Plugin Data re-loads
+        # files without removing methods, so in a session that loaded 5.1.7
+        # only a definition in THIS file can replace that one. Without it the
+        # stale false outlives every reload: CTRL+SHIFT stays plain CTRL, the
+        # distance goes unrounded and the orange mark never draws.
+        # ------------------------------------------------------------
+        def na_drawn__vertex_grid_supported?
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Trajectory SHIFT Is Following, or nil
+        # ------------------------------------------------------------
+        def na_drawn__slope_direction
+            na_drawn__slope_mode? ? @na_pp_slope[:direction] : nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Direction the Face Actually Travels
+        # ------------------------------------------------------------
+        # The face normal, in slope mode the neighbour's continuation, or a
+        # nominated edge's line. This is the ONE place the modes differ:
+        # everything below measures, previews, snaps and commits against
+        # whatever this returns, so neither needed a second copy of any of it.
+        # ------------------------------------------------------------
+        def na_drawn__travel_direction
+            na_ev__direction || na_drawn__slope_direction || na_drawn__face_normal
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Direction the Drag Is Measured Along
+        # ------------------------------------------------------------
+        def na_drawn__push_direction
+            locked = @na_axis_lock ? Na__NobleDrawingTools.Na__DrawnGrid__AxisVector(@na_axis_lock) : nil
+            locked || na_drawn__travel_direction
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | How Much of the Locked Axis the Travel Direction Carries
+        # This is the cosine between the two, and the divisor that converts a
+        # distance along the axis into a distance along the travel.
+        # ------------------------------------------------------------
+        def na_drawn__axis_travel_factor
+            travel = na_drawn__travel_direction
+            axis   = @na_axis_lock ? Na__NobleDrawingTools.Na__DrawnGrid__AxisVector(@na_axis_lock) : nil
+            return 1.0 unless travel && axis
+
+            axis.dot(travel).to_f
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Can the Face Move Along the Locked Axis at All?
+        # ------------------------------------------------------------
+        def na_drawn__axis_lock_usable?
+            return true unless @na_axis_lock
+
+            na_drawn__axis_travel_factor.abs >= NA_PP_MIN_AXIS_FACTOR
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Signed World Distance the Face Travels Along Its Direction
+        # ------------------------------------------------------------
+        def na_drawn__world_travel_distance
+            travel = na_drawn__signed_d
+            return travel unless @na_axis_lock
+
+            factor = na_drawn__axis_travel_factor
+            return 0.0 if factor.abs < NA_PP_MIN_AXIS_FACTOR
+
+            travel / factor
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | World Offset Vector Applied to the Preview Face
+        # ------------------------------------------------------------
+        def na_drawn__push_offset_vector
+            direction = na_drawn__travel_direction
+            return nil unless direction
+
+            distance = na_drawn__world_travel_distance
+            Geom::Vector3d.new(
+                direction.x.to_f * distance,
+                direction.y.to_f * distance,
+                direction.z.to_f * distance
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | That Same Offset in the Face's Own Definition Space
+        # ------------------------------------------------------------
+        # Two points rather than the vector: a direction is only a difference of
+        # positions, and transforming positions cannot be caught out by how a
+        # translation is or is not applied to a bare vector. For a plain normal
+        # push this comes back as the normal times the old local_distance, which
+        # is exactly what pushpull was being given before slope mode existed.
+        # ------------------------------------------------------------
+        def na_drawn__local_offset_vector(target)
+            offset = na_drawn__push_offset_vector
+            return nil unless offset && target
+
+            inverse = target[:transformation].inverse
+            origin  = Geom::Point3d.new(0, 0, 0)
+            ahead   = origin.offset(offset)
+
+            ahead.transform(inverse) - origin.transform(inverse)
+        rescue StandardError
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Overrides — Cursor, Axis Lock and Stage Control
+        # -----------------------------------------------------------------------------
+
+        # -----------------------------------------------------------------------------
+        # REGION | State Containment
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | This Tool Has Exactly Two States
+        # ------------------------------------------------------------
+        # The shared mixin drives a three-stage machine (idle > picking_b >
+        # picking_depth) because the shape tools sweep a rectangle before they
+        # extrude. Push/pull has no rectangle stage and no :picking_b branch
+        # anywhere in it, so being put into that state kills the tool outright:
+        # clicks match no branch, Enter matches no branch, and only ESC gets out.
+        #
+        # That is reachable today — the inherited BKSP/DEL handler calls
+        # step_back, which demotes :picking_depth to :picking_b. Rather than trust
+        # every inherited path to respect a state this tool cannot service, any
+        # unknown state is snapped straight back to idle.
+        # ------------------------------------------------------------
+        def na_drawn__ensure_known_state
+            return true if @na_state == :idle || @na_state == :picking_depth
+
+            na_drawn__trace("recovered from unsupported state #{@na_state.inspect}")
+            na_drawn__reset_pick_state
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Backspace Releases the Face, It Does Not Half-Retreat
+        # A push either has a face or it does not; there is no intermediate stage
+        # to fall back to, so the mixin's demotion to :picking_b is replaced.
+        # ------------------------------------------------------------
+        def na_drawn__step_back(view)
+            return na_qo__step_back(view) if na_qo__active?
+
+            released = na_drawn__release_last_lock || na_ev__release          # <-- A pinned distance, then the edge, then the face
+
+            unless released
+                na_drawn__trace('step back — releasing the grabbed face')
+                na_drawn__reset_pick_state
+            end
+
+            na_drawn__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y) if released
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate if view
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Enter Places the Push
+        # Overridden so it can never be routed at a stage this tool does not have.
+        # ------------------------------------------------------------
+        def onReturn(view)
+            return false unless na_drawn__ensure_known_state
+            return false unless @na_state == :picking_depth
+
+            na_drawn__trace('onReturn — placing')
+            na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate if view
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Double Click Places the Push, or Repeats the Last One
+        # ------------------------------------------------------------
+        # A double click arrives as Down, Up, DoubleClick, Up, and the first
+        # Down has already grabbed the face under the cursor. If the mouse has
+        # not travelled since that grab there is no drag to place, and what a
+        # SketchUp user means by it is native Push/Pull's repeat: push THIS
+        # face by the same distance as the last one. A double click that
+        # arrives after a drag places the drag, as it always did.
+        # ------------------------------------------------------------
+        def onLButtonDoubleClick(flags, x, y, view)
+            na_drawn__sync_modifier(flags)
+            return false unless na_drawn__ensure_known_state
+            return false unless @na_state == :picking_depth
+            return na_qo__double_click(view, x, y) if na_qo__active?
+            return true if @na_ev_settling                                    # <-- The second half of a double-click on an edge just nominated
+
+            travelled_px = (x.to_f - @na_press_x.to_f).abs + (y.to_f - @na_press_y.to_f).abs
+
+            if travelled_px < NA_DRAWN_DRAG_MIN_PX
+                na_drawn__trace('onLButtonDoubleClick — repeating the remembered distance')
+                na_revise__repeat_or_refuse(view)
+            else
+                na_drawn__trace('onLButtonDoubleClick — placing')
+                na_drawn__update_cursor(view, x, y)
+                na_drawn__commit_push(view)
+            end
+
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate if view
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Overrides — Cursor Tracking
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | Track the Push Distance, Picking Nothing While Doing It
+        # ------------------------------------------------------------
+        # This replaces the mixin's generic version, whose last line is
+        #
+        #     resolved ||= na_drawn__input_point_position(view, x, y)
+        #
+        # For the shape tools that fallback is harmless — the InputPoint is their
+        # normal cursor source anyway. Here it is the bug: any frame where the
+        # ray-to-line solve returns nil silently re-picks against whatever face
+        # happens to be under the cursor and turns ITS inferred point into a push
+        # distance. That is the "it keeps grabbing other faces while I drag, and
+        # the distance jumps" behaviour, and because the solve only fails on some
+        # frames it looked intermittent rather than broken.
+        #
+        # Once a face is grabbed, nothing is picked again unless CTRL explicitly
+        # asks for vertex inference. The distance is pure ray-to-line maths, and a
+        # frame that cannot be solved keeps the previous distance rather than
+        # inventing a new one.
+        # ------------------------------------------------------------
+        def na_drawn__update_cursor(view, x, y)
+            @na_last_mouse_x = x
+            @na_last_mouse_y = y
+
+            na_ev__track_hover(view, x, y)                                    # <-- SHIFT offers the edge under the cursor, keys included
+
+            return na_qo__update_cursor(view, x, y) if na_qo__active?          # <-- A grabbed ring measures along its own run
+            return false unless @na_state == :picking_depth && @na_point_a
+            return false if na_ev__settling?(x, y)                            # <-- Just nominated: no distance until the mouse moves on
+
+            resolved =
+                if @na_ctrl_held
+                    na_drawn__input_point_position(view, x, y)                # <-- Deliberate vertex snapping only
+                else
+                    na_drawn__depth_point_from_ray(view, x, y)
+                end
+
+            return false unless resolved                                      # <-- Hold the last good distance
+
+            @na_cursor_raw     = resolved
+            @na_cursor_snapped = resolved
+            na_drawn__recalculate_sizes
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Project the Pick Ray onto the Push Direction
+        # ------------------------------------------------------------
+        def na_drawn__depth_point_from_ray(view, x, y)
+            direction = na_drawn__push_direction
+            return nil unless direction && @na_point_a
+
+            ray     = view.pickray(x, y)
+            closest = Geom.closest_points([@na_point_a, direction], ray)
+            return nil unless closest && closest[0]
+
+            na_drawn__point_in_front_of_ray?(ray, closest[0]) ? closest[0] : nil
+        rescue StandardError
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Measure the Drag Along the Push Direction
+        # The raw cursor point is used and the TRAVEL is snapped, rather than
+        # snapping the point first — see the note at the top of this file.
+        # ------------------------------------------------------------
+        def na_drawn__recalculate_sizes
+            return unless @na_state == :picking_depth
+            return if na_drawn__locked?(:d)
+            return unless @na_point_a && @na_cursor_raw
+
+            direction = na_drawn__push_direction
+            return unless direction
+
+            travel     = (@na_cursor_raw - @na_point_a).dot(direction).to_f
+            snapped    = na_drawn__snap_distance(travel).to_f
+            @na_sign_d = snapped < 0.0 ? -1.0 : 1.0
+            @na_size_d = snapped.abs
+
+            # Where that rounding leaves the cursor point: slid along the
+            # measured direction by the amount rounded off. CTRL+SHIFT's mark
+            # is drawn there, beside the vertex the travel was read from.
+            @na_cursor_snapped = Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(@na_cursor_raw, direction, snapped - travel)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Arrow Keys Lock the Measured Axis
+        # ------------------------------------------------------------
+        def na_drawn__apply_axis_lock(axis, view)
+            return na_qo__refuse_axis_lock if na_qo__active?
+
+            previous      = @na_axis_lock
+            @na_axis_lock = (@na_axis_lock == axis) ? nil : axis
+
+            if @na_axis_lock && @na_pp_target && !na_drawn__axis_lock_usable?
+                @na_axis_lock = previous
+                UI.beep
+                Sketchup::set_status_text(
+                    "This face is edge-on to #{NA_DRAWN_AXIS_LABELS[axis]} — it cannot travel along it",
+                    SB_PROMPT
+                )
+                return false
+            end
+
+            na_drawn__after_axis_lock_changed(view)
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Axis Ray Runs Through the Grabbed Point
+        # ------------------------------------------------------------
+        def na_drawn__axis_ray_origin
+            na_qo__active? ? nil : @na_point_a                                 # <-- A ring's run is not the locked axis; no ray to draw
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | TAB Toggles Quad Mode
+        # There is no drawing plane to cycle in this tool, so TAB is free, and
+        # this is the one modifier that has to be reachable mid-drag: it changes
+        # what the SAME push produces, and the preview redraws to show it.
+        # ------------------------------------------------------------
+        def na_drawn__cycle_plane_lock(view)
+            enabled = Na__NobleDrawingTools.Na__DrawnSettings__ToggleQuadPush
+            na_drawn__trace("quad mode #{enabled ? 'ON' : 'OFF'}")
+
+            Sketchup::set_status_text(
+                enabled ? 'QUAD mode ON — the push keeps its start loop as edges' :
+                          'QUAD mode OFF — the push merges into the wall it extends',
+                SB_PROMPT
+            )
+            @na_last_status_text = nil                                        # <-- Let the composed line replace this notice
+            na_drawn__refresh_vcb
+            view.invalidate if view
+            enabled
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is the Quad Ring Armed?
+        # A replay answers with the setting the push it is rebuilding was made
+        # under, not the one in force now: retyping a distance must not quietly
+        # add or drop a quad line because TAB was pressed in between.
+        # ------------------------------------------------------------
+        def na_drawn__quad_mode?
+            return @na_revise_replaying[:quad] if @na_revise_replaying
+
+            Na__NobleDrawingTools.Na__DrawnSettings__QuadPushEnabled?
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is This Drag Going to Cut a Loop Instead of Pushing?
+        # Quads armed and travelling INTO the material. The preview and the
+        # commit both ask this same question of the same module, so they cannot
+        # disagree about which of the two the user is about to get.
+        # ------------------------------------------------------------
+        def na_drawn__loop_cut_mode?
+            return na_jp__loop_cut? if na_jp__active?                         # <-- Round a surface only where the faces round it run with it
+
+            Na__NobleDrawingTools.Na__EdgeLoops__IsCut?(na_drawn__quad_mode?, na_drawn__world_travel_distance)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | What TAB Does in This Tool
+        # ------------------------------------------------------------
+        def na_drawn__tab_hint
+            joint = na_jp__supported? ? "  SHIFT+TAB joint #{na_jp__enabled? ? 'ON' : 'OFF'}" : ''
+            "TAB quads #{na_drawn__quad_mode? ? 'ON' : 'OFF'}#{joint}#{na_ev__tab_hint}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Describe the Push Direction Rather Than a Drawing Plane
+        # ------------------------------------------------------------
+        def na_drawn__plane_description
+            return na_qo__plane_description if na_qo__active? || na_qo__hovering?
+            return 'No face grabbed' unless @na_pp_target
+
+            what = na_jp__active? ? 'surface' : 'face'
+            return "Loose geometry #{what}" if @na_pp_target[:depth].to_i.zero?
+
+            "#{na_jp__active? ? 'Surface in' : 'In'} #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(@na_pp_target)}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Return to Hovering
+        # ------------------------------------------------------------
+        def na_drawn__reset_pick_state
+            super
+            na_drawn__clear_target
+            na_qo__clear_grab
+            @na_ev_settling = nil                                             # <-- The lock itself stays, until it is released
+            @na_size_d = 0.0
+            @na_sign_d = 1.0
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Mouse — Grab a Face, Then Push It
+        # -----------------------------------------------------------------------------
+
+        # ON MOUSE MOVE | Hover Highlight While Idle, Distance While Pushing
+        # ------------------------------------------------------------
+        # The one statement this tool gained for the 2D variant. A parallel camera
+        # cannot work this tool at all — the wall you want is edge-on and there
+        # is no face to hover — so switching to a 2D scene tab hands over to
+        # DrawnPushPull2dTool on the next idle mouse move. Inert when that
+        # module is not loaded, and it never fires mid-drag.
+        # ------------------------------------------------------------
+        def onMouseMove(flags, x, y, view)
+            return if defined?(Na__NobleDrawingTools::DrawnPushPull2dTool) &&
+                      Na__NobleDrawingTools.Na__PushPull2d__HandoverIfCameraFlipped(self, view, @na_state)
+
+            na_drawn__sync_modifier(flags)
+            na_drawn__ensure_known_state
+            @na_last_mouse_x = x
+            @na_last_mouse_y = y
+
+            if @na_state == :idle
+                na_ev__track_hover(view, x, y)
+                na_drawn__hover_face(view, x, y)
+            else
+                na_drawn__update_cursor(view, x, y)
+            end
+
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Track Whichever Face Is Under the Cursor
+        # ------------------------------------------------------------
+        def na_drawn__hover_face(view, x, y)
+            return na_pps__hover(view, x, y) if na_pps__active?
+            target = Na__NobleDrawingTools.Na__DeepPick__FaceAt(view, x, y)
+
+            if target.nil?
+                na_drawn__clear_target
+                na_qo__clear_hover
+                return false
+            end
+
+            na_drawn__adopt_target(target)
+            na_qo__track_hover(view, x, y, target)                            # <-- QUADS on and near a quad line: its ring is offered instead
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Cheap Fingerprint of a Face's Identity AND Position
+        # entityID alone is not enough: pushpull MOVES a face and keeps its id, so
+        # an id-only check happily reuses triangles cached before the push and
+        # draws the highlight where the face used to be. A vertex position is what
+        # makes a moved face read as different, and reading one vertex is nothing
+        # next to re-triangulating the whole mesh.
+        # ------------------------------------------------------------
+        def na_drawn__target_fingerprint(target)
+            return nil unless target
+
+            face = target[:face]
+            return nil unless face && face.valid?
+
+            vertices = face.vertices
+            return nil if vertices.empty?
+
+            [
+                face.entityID,
+                vertices.length,
+                vertices.first.position.to_a,
+                target[:transformation].to_a
+            ]
+        rescue StandardError
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is This the Same Face, Unmoved, That We Already Cached?
+        # ------------------------------------------------------------
+        def na_drawn__same_target?(target)
+            return false if @na_pp_triangles.nil? || @na_pp_triangles.empty?
+            return false unless @na_pp_fingerprint
+
+            fresh = na_drawn__target_fingerprint(target)
+            return false unless fresh
+
+            fresh == @na_pp_fingerprint
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Cache the Face Geometry in World Space
+        # Rebuilt only when the picked face actually changes. Hovering calls this
+        # on every mouse move, and triangulating a face, transforming every vertex
+        # and re-measuring its area at that rate is what made the tool feel like it
+        # was lagging a beat behind the cursor.
+        # ------------------------------------------------------------
+        def na_drawn__adopt_target(target)
+            if na_drawn__same_target?(target)
+                @na_pp_target = target                                        # <-- Keep the fresh path, reuse the cached geometry
+                na_jp__refresh(target)                                        # <-- A lookup while the surface stands where it stood
+                return false
+            end
+
+            @na_pp_target      = target
+            @na_pp_triangles   = Na__NobleDrawingTools.Na__DeepPick__WorldTriangles(target[:face], target[:transformation])
+            @na_pp_loop        = Na__NobleDrawingTools.Na__DeepPick__WorldOuterLoop(target[:face], target[:transformation])
+            @na_pp_area        = Na__NobleDrawingTools.Na__DeepPick__WorldAreaM2(target[:face], target[:transformation])
+            @na_pp_fingerprint = na_drawn__target_fingerprint(target)
+            @na_pp_slope       = Na__NobleDrawingTools.Na__SlopePush__Best(target)
+            na_drawn__follow_refresh(target)                                  # <-- The rail at every corner, for SHIFT+ALT
+            na_jp__refresh(target)                                            # <-- The surface this face belongs to, when Joint is on
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # ON LEFT BUTTON DOWN | Grab a Face, or Place the Push
+        # ------------------------------------------------------------
+        def onLButtonDown(flags, x, y, view)
+            @na_vcb_typing_active = false
+            na_drawn__sync_modifier(flags)
+            na_drawn__ensure_known_state
+            @na_last_mouse_x = x                                              # <-- grab_face uses these as the press origin
+            @na_last_mouse_y = y
+            na_drawn__trace("onLButtonDown")
+
+            # SHIFT+click on an edge nominates it, in either stage. It takes
+            # nothing up and places nothing; anywhere else this click is as ever.
+            if na_ev__try_click(view, x, y)
+                na_drawn__update_status_text
+                na_drawn__refresh_vcb
+                view.invalidate
+                return
+            end
+
+            case @na_state
+            when :idle
+                # Taking hold of a face is the "something else" that closes the
+                # measurements box on the previous push, exactly as it does in
+                # the native tool. A click that grabs nothing leaves it open.
+                # A quad line beside the cursor is taken ahead of the face it
+                # borders, which is what the hover was already showing.
+                grabbed = na_qo__try_grab(view, x, y) || na_drawn__grab_face(view, x, y)
+                na_revise__forget if grabbed
+            when :picking_depth
+                @na_drag_press_active = false
+                na_drawn__update_cursor(view, x, y)
+                na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
+            end
+
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Take Hold of the Face Under the Cursor
+        # ------------------------------------------------------------
+        def na_drawn__grab_face(view, x, y)
+            target = na_pps__active? ? na_pps__nearest(view, x, y) : Na__NobleDrawingTools.Na__DeepPick__FaceAt(view, x, y)
+
+            unless target
+                UI.beep
+                na_drawn__trace('grab refused — no face under the cursor')
+                Sketchup::set_status_text('No face under the cursor', SB_PROMPT)
+                return false
+            end
+
+            # Backstop only. Locked geometry is skipped by the picker itself, so
+            # a locked target should never reach this far — but a refusal is a
+            # far better failure than editing something the user locked.
+            if target[:locked]
+                UI.beep
+                Sketchup::set_status_text('That face is inside a locked group or component', SB_PROMPT)
+                return false
+            end
+
+            na_drawn__adopt_target(target)
+
+            @na_ip.pick(view, x, y)
+            @na_point_a = if na_pps__active?
+                na_pps__anchor(target, view, x, y)
+            else
+                @na_ip.position || Na__NobleDrawingTools.Na__DeepPick__WorldOuterLoop(target[:face], target[:transformation]).first
+            end
+            return false unless @na_point_a
+
+            @na_ip_origin.copy!(@na_ip)
+            na_drawn__clear_locks
+            @na_state  = :picking_depth
+            @na_size_d = 0.0
+            @na_sign_d = 1.0
+
+            # Arms press-drag-release, so a face can be grabbed and pushed in one
+            # gesture as well as click-move-click, matching the native tool.
+            @na_drag_press_active = true
+            @na_press_x           = @na_last_mouse_x
+            @na_press_y           = @na_last_mouse_y
+
+            na_drawn__warn_if_shared(target)
+            na_drawn__trace('face grabbed')
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Say So When the Push Will Change Every Copy
+        # ------------------------------------------------------------
+        def na_drawn__warn_if_shared(target)
+            count = target[:shared_count].to_i
+            return false if count <= 1
+
+            Sketchup::set_status_text(
+                "Heads up: this definition has #{count} instances — pushing changes all of them",
+                SB_PROMPT
+            )
+            Na__NobleDrawingTools.Na__Debug__Puts "NA PUSH/PULL: shared definition, #{count} instances will change"
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # ON LEFT BUTTON UP | Press-Drag-Release Places the Push Too
+        # ------------------------------------------------------------
+        def onLButtonUp(flags, x, y, view)
+            na_drawn__sync_modifier(flags)
+            return unless @na_state == :picking_depth
+            return unless @na_drag_press_active
+
+            @na_drag_press_active = false
+            travelled_px = (x.to_f - @na_press_x.to_f).abs + (y.to_f - @na_press_y.to_f).abs
+            return if travelled_px < NA_DRAWN_DRAG_MIN_PX
+
+            na_drawn__update_cursor(view, x, y)
+            na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
+            na_drawn__update_status_text
+            na_drawn__refresh_vcb
+            view.invalidate
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Subclass Contract — Drag Completion
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | Never Reached — This Tool Has No Rectangle Stage
+        # ------------------------------------------------------------
+        def na_drawn__advance_from_b(view)
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Distance Settled — Push the Face
+        # ------------------------------------------------------------
+        def na_drawn__advance_from_depth(view)
+            na_qo__active? ? na_qo__commit(view) : na_drawn__commit_push(view)
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Subclass Contract — Preview
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | Points the Preview Occupies, for the Draw Extents
+        # ------------------------------------------------------------
+        def na_drawn__preview_points
+            return na_pps__preview_points if na_pps__active? && !na_qo__active?
+            return na_qo__preview_points if na_qo__active? || na_qo__hovering?
+            return na_jp__preview_points(@na_pp_joint) if na_jp__active?
+            return [] if @na_pp_loop.nil? || @na_pp_loop.empty?
+            return @na_pp_loop unless @na_state == :picking_depth
+
+            offset = na_drawn__push_offset_vector
+            return @na_pp_loop unless offset
+
+            @na_pp_loop + @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Highlight the Hovered Face, or Preview the Push
+        # ------------------------------------------------------------
+        def na_drawn__draw_preview(view)
+            return na_pps__draw(view) if na_pps__active? && !na_qo__active?
+            na_drawn__draw_push_preview(view)
+        end
+        # ---------------------------------------------------------------
+
+        # DRAW | Hover Highlight and Push Preview
+        # The mixin's draw only calls the preview once a drag is running, but
+        # this tool has something to show while idle too, so draw is taken over.
+        # ------------------------------------------------------------
+        def draw(view)
+            @na_ip.draw(view) if na_drawn__inference_visible? && @na_ip && @na_ip.valid?
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawAxisRay(view, na_drawn__axis_ray_origin, @na_axis_lock)
+
+            if @na_state == :idle
+                if na_pps__active?
+                    na_pps__draw(view)
+                elsif !na_ev__hovering?                                       # <-- On an edge the click nominates it, so the face is not on offer
+                    na_drawn__draw_hover(view)
+                end
+
+                na_ev__draw(view)
+                na_revise__draw_animation(view)                               # <-- The ghost of a retyped push sweeping to its new distance
+                return
+            end
+
+            na_drawn__draw_preview(view)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawCrosshair(view, @na_point_a, nil, NA_DRAWN_ANCHOR_COLOR)
+            na_drawn__draw_grid_correction(view)                              # <-- CTRL+SHIFT only; the mixin decides
+            na_ev__draw(view)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Shade the Face Under the Cursor
+        # ------------------------------------------------------------
+        def na_drawn__draw_hover(view)
+            return na_qo__draw_hover(view) if na_qo__hovering?
+            return na_jp__draw_hover(view, @na_pp_joint) if na_jp__active?  # <-- The whole surface lights up, as the Select tool takes it
+            return if @na_pp_triangles.nil? || @na_pp_triangles.empty?
+
+            quads = na_drawn__quad_mode?
+
+            # The outline carries the mode before the grab, not after it. TAB is
+            # a state you can be in without realising, and on a face that has no
+            # wall to divide the result looks identical either way — so the
+            # answer to "am I in quad mode" has to be on the face you are
+            # pointing at, whatever it is nested in.
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, @na_pp_triangles, NA_PP_HOVER_FILL)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(
+                view, @na_pp_loop,
+                quads ? NA_PP_QUAD_BORDER : NA_PP_HOVER_BORDER,
+                quads ? 3 : 2
+            )
+
+            return if @na_pp_loop.empty?
+
+            lines = ["#{@na_pp_area} m2 face", Na__NobleDrawingTools.Na__DeepPick__PathLabel(@na_pp_target)]
+            lines << 'QUADS — keeps the start loop' if quads
+            lines.concat(na_qo__face_hover_notes(quads))
+
+            edge_note = na_ev__face_note
+            lines << edge_note if edge_note
+
+            if na_ev__live?
+                nil                                                           # <-- The line above says it all; the held keys are not in play
+            elsif na_drawn__follow_requested?
+                reason = na_drawn__follow_reason
+                lines << (reason ? "SHIFT+ALT FOLLOW off — #{reason}" : 'SHIFT+ALT FOLLOW — each corner along its own edge')
+            elsif na_drawn__slope_mode?
+                lines << "SHIFT SLOPE — #{Na__NobleDrawingTools.Na__SlopePush__Label(@na_pp_slope)}"
+            elsif @na_pp_slope
+                lines << "SHIFT — follow the #{Na__NobleDrawingTools.Na__SlopePush__Label(@na_pp_slope)} neighbour"
+            end
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawWorldLabel(view, @na_pp_loop.first, lines)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Preview the Face at Its Pushed Position
+        # ------------------------------------------------------------
+        def na_drawn__draw_push_preview(view)
+            return na_qo__draw_preview(view) if na_qo__active?
+            return na_jp__draw_push(view, @na_pp_joint) if na_jp__active?
+            return if @na_pp_loop.nil? || @na_pp_loop.empty?
+
+            # In quad mode the start loop is not just where the face was, it is
+            # geometry the push will leave behind — so it is drawn as the thing
+            # it is about to become rather than as a faded memory.
+            if na_drawn__quad_mode?
+                Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, @na_pp_loop, NA_PP_QUAD_BORDER, 3)
+            else
+                Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, @na_pp_loop, NA_PP_HOVER_BORDER, 1)
+            end
+
+            offset = na_drawn__push_offset_vector
+            unless offset && Na__NobleDrawingTools.Na__DrawnGeom__ValidDimension?(@na_size_d)
+                Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, @na_pp_triangles, NA_PP_HOVER_FILL)
+                return
+            end
+
+            if na_drawn__loop_cut_mode?
+                na_drawn__draw_loop_cut_preview(view, offset)
+                return
+            end
+
+            moved_triangles = @na_pp_triangles.map { |points| points.map { |point| na_drawn__move_world_point(point, offset) } }
+            moved_loop      = @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
+
+            if na_drawn__push_inward?(offset)
+                na_drawn__draw_inward_preview(view, moved_triangles, moved_loop)    # <-- Into the solid: the volume removed, in red, through the model
+            else
+                na_drawn__draw_sides(view, moved_triangles, moved_loop, NA_PP_RESULT_FILL, NA_PP_RESULT_BORDER)
+            end
+
+            na_drawn__draw_travel_arrow(view, offset)
+            na_drawn__draw_distance_label(view, moved_loop)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Pushed Face and Its Travel Lines, Depth-Tested
+        # ------------------------------------------------------------
+        def na_drawn__draw_sides(view, moved_triangles, moved_loop, fill, border)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, moved_triangles, fill)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, moved_loop, border)
+
+            # Drawn here rather than through the preview module, so the pair of
+            # loops has to be converted to draw space by hand.
+            side_from = Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(@na_pp_loop)
+            side_to   = Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(moved_loop)
+
+            side_from.each_with_index do |point, index|
+                view.drawing_color = border
+                view.line_width    = 1
+                view.draw_line(point, side_to[index])
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is the Face Being Pushed Into Its Own Solid?
+        # ------------------------------------------------------------
+        # Against its normal, and the face is part of a shell: every one of its
+        # edges borders another face. A lone face pushed backwards is still
+        # an extrusion — it adds a volume behind it — so it stays orange.
+        # ------------------------------------------------------------
+        def na_drawn__push_inward?(offset)
+            normal = na_drawn__face_normal
+            return false unless normal && offset && offset.length > 0
+            return false unless offset.dot(normal) < 0.0
+
+            face = @na_pp_target ? @na_pp_target[:face] : nil
+            return false unless face && face.valid?
+
+            face.edges.all? { |edge| edge.faces.length >= 2 }
+        rescue StandardError
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Preview a Push Into the Solid as the Volume It Removes
+        # ------------------------------------------------------------
+        # In the cutter red, in screen space, so the face that would hide it
+        # does not. Falls back to the depth-tested draw, still red, when a
+        # corner sits behind the camera.
+        # ------------------------------------------------------------
+        def na_drawn__draw_inward_preview(view, moved_triangles, moved_loop)
+            drawn = Na__NobleDrawingTools.Na__DrawnPreview__DrawPrismOnTop(
+                view, @na_pp_loop, moved_loop, moved_triangles,
+                NA_DRAWN_CUTTER_XRAY_FILL, NA_DRAWN_CUTTER_BORDER_COLOR
+            )
+            return true if drawn
+
+            na_drawn__draw_sides(view, moved_triangles, moved_loop, NA_DRAWN_CUTTER_FILL_COLOR, NA_DRAWN_CUTTER_BORDER_COLOR)
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Preview a Loop Cut — Nothing Moves, a Line Appears
+        # ------------------------------------------------------------
+        # Showing the ordinary push preview here would be a lie: it shades the
+        # face at its new position in result orange, which reads as "the solid
+        # is about to end HERE". On this path the solid does not move at all.
+        # So the face is left drawn where it is, and the only thing put at the
+        # inset position is the ring itself, in the quad colour, because a line
+        # is genuinely all that is going to be created.
+        # ------------------------------------------------------------
+        def na_drawn__draw_loop_cut_preview(view, offset)
+            cut_loop = @na_pp_loop.map { |point| na_drawn__move_world_point(point, offset) }
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, @na_pp_triangles, NA_PP_HOVER_FILL)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, @na_pp_loop, NA_PP_HOVER_BORDER, 1)
+
+            # The inset distance, shown as the strip it measures across.
+            strip_from = Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(@na_pp_loop)
+            strip_to   = Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(cut_loop)
+
+            strip_from.each_with_index do |point, index|
+                view.drawing_color = NA_PP_QUAD_BORDER
+                view.line_width    = 1
+                view.draw_line(point, strip_to[index])
+            end
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, cut_loop, NA_PP_QUAD_BORDER, 3)
+
+            na_drawn__draw_travel_arrow(view, offset)
+            na_drawn__draw_distance_label(view, cut_loop)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Point an Arrow the Way the Face Is Actually Travelling
+        # ------------------------------------------------------------
+        # Taken from the OFFSET rather than from the face normal, so it flips to
+        # point into the solid on a negative push. An axis lock changes what the
+        # drag MEASURES and never where the face goes, so the arrow must not
+        # follow the locked axis either — it follows the travel.
+        # ------------------------------------------------------------
+        def na_drawn__draw_travel_arrow(view, offset)
+            return unless @na_point_a && offset && offset.length > 0
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawDirectionArrow(view, @na_point_a, offset.normalize)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Label the Push Distance on EVERY Travel Edge
+        # ------------------------------------------------------------
+        # One label on one corner left the other three corners of a pushed wall
+        # unmeasured, and WHICH corner got it came down to loop order rather than
+        # to anything the user could see or choose. Every travel edge is
+        # labelled instead.
+        #
+        # THE OVERLAP CULL IS WHAT MAKES "EVERY" SAFE:
+        # - A rectangle has four travel edges and all four get labelled, which is
+        #   the case this was asked for. A pushed circle has as many as it has
+        #   segments, and two dozen copies of one number piled on each other is
+        #   worse than the single label this replaced. So a label is skipped when
+        #   it would land within NA_DRAWN_LABEL_MIN_GAP_PX of one already placed.
+        # - Positions are compared in SCREEN space. Whether two labels collide is
+        #   a question about the viewport, and two corners far apart in the model
+        #   can project onto the same pixels.
+        # ------------------------------------------------------------
+        def na_drawn__draw_distance_label(view, moved_loop)
+            locked = na_drawn__locked?(:d)
+            text   = Na__NobleDrawingTools.Na__DrawnPreview__DimensionText(@na_size_d, locked)
+            color  = @na_axis_lock ? Na__NobleDrawingTools.Na__DrawnPreview__AxisColor(@na_axis_lock) :
+                                     Na__NobleDrawingTools.Na__DrawnPreview__DimensionColor(locked)
+            placed = []
+            square = na_ev__square?                                           # <-- Every rail its own length, so each says its own
+
+            @na_pp_loop.each_with_index do |point, index|
+                moved_point = moved_loop[index]
+                next unless moved_point
+                next unless na_drawn__claim_label_slot(view, point, moved_point, placed)
+
+                rail = square ? Na__NobleDrawingTools.Na__DrawnPreview__DimensionText(point.distance(moved_point), locked) : text
+                Na__NobleDrawingTools.Na__DrawnPreview__DrawEdgeLabel(view, point, moved_point, rail, color)
+            end
+
+            moved    = moved_loop.first
+            distance = Na__NobleDrawingTools.Na__DrawnFormat__Mm(@na_size_d).abs
+
+            lines =
+                if na_drawn__loop_cut_mode?
+                    ["Loop cut #{distance} mm inset"]                          # <-- "(quads)" is redundant; a cut only happens with them on
+                else
+                    inward = na_drawn__push_inward?(na_drawn__push_offset_vector) ? ' in' : ''
+                    ["#{na_ev__live? ? na_ev__verb : 'Push'} #{distance} mm#{inward}#{na_drawn__quad_mode? ? '  (quads)' : ''}"]
+                end
+
+            if @na_axis_lock
+                along = Na__NobleDrawingTools.Na__DrawnFormat__Mm(na_drawn__world_travel_distance).abs
+                lines << "along #{NA_DRAWN_AXIS_LABELS[@na_axis_lock]} · #{along} mm on the #{na_ev__live? ? 'edge' : 'face normal'}"
+            else
+                lines << "#{@na_pp_area} m2 face"
+            end
+
+            follow = na_drawn__follow_note
+            lines << follow.sub(/\A · /, '') unless follow.empty?
+
+            lines << 'square to the edge, that far at its leading corner' if square
+
+            problem = na_ev__problem
+            lines.concat(['NOT PLACEABLE'] + problem.split(' — ')) if problem    # <-- Short lines: a label this long runs off the screen
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawWorldLabel(view, moved, lines, 14, -26, problem ? NA_DRAWN_REFUSED_TEXT_COLOR : nil)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Take a Screen Slot for a Travel Label, or Report It Taken
+        # Mutates `placed` on success, so the caller's loop naturally thins a
+        # dense run of corners down to the ones that can actually be read.
+        # ------------------------------------------------------------
+        def na_drawn__claim_label_slot(view, point, moved_point, placed)
+            midpoint = Geom::Point3d.new(
+                (point.x.to_f + moved_point.x.to_f) * 0.5,
+                (point.y.to_f + moved_point.y.to_f) * 0.5,
+                (point.z.to_f + moved_point.z.to_f) * 0.5
+            )
+
+            screen = view.screen_coords(
+                Na__NobleDrawingTools.Na__DrawnPreview__ToDrawPoint(midpoint)
+            )
+            wanted = [screen.x.to_f, screen.y.to_f]
+
+            clash = placed.any? do |taken|
+                dx = taken[0] - wanted[0]
+                dy = taken[1] - wanted[1]
+                Math.sqrt((dx * dx) + (dy * dy)) < NA_DRAWN_LABEL_MIN_GAP_PX
+            end
+            return false if clash
+
+            placed << wanted
+            true
+        rescue StandardError
+            false                                                             # <-- A slot that cannot be measured is not drawn
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Subclass Contract — Status and Measurements Box
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | Middle Section of the Status Bar Line
+        # ------------------------------------------------------------
+        def na_drawn__status_detail
+            return na_ev__hover_status if na_ev__hovering?
+            return "#{na_pps__status}#{na_ev__status_hint}" if na_pps__active? && !na_qo__active?
+            return na_qo__status_detail if na_qo__active? || na_qo__hovering?
+            return "#{na_jp__status_detail}#{na_ev__status_hint}" if na_jp__active?
+
+            quads = na_drawn__quad_mode? ? ' QUADS' : ''
+            slope = na_drawn__slope_hint
+
+            if @na_state == :picking_depth
+                distance = Na__NobleDrawingTools.Na__DrawnFormat__Mm(@na_size_d).abs
+                text     = na_drawn__locked?(:d) ? "[#{distance}]" : distance.to_s
+                return "Loop cut #{text} mm inset — release or click to cut#{slope}" if na_drawn__loop_cut_mode?
+
+                verb = na_ev__live? ? na_ev__verb : (na_drawn__follow_mode? ? 'Follow' : (na_drawn__slope_mode? ? 'Slope' : 'Push'))
+                return "#{verb}#{quads} #{text} mm — release or click to place#{slope}"
+            end
+
+            focus  = na_drawn__focus_hint
+            adjust = na_revise__status_hint
+
+            return "Face #{@na_pp_area} m2 — click to grab it#{quads}#{slope}#{focus}#{adjust}" if @na_pp_target
+            "Hover a face to push, at any nesting depth#{quads}#{slope}#{focus}#{adjust}"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Status Fragment for the SHIFT Trajectory
+        # ------------------------------------------------------------
+        # Three things to say and all three matter. SHIFT doing something says
+        # what it is following. SHIFT doing nothing says WHY, because a modifier
+        # that silently no-ops on a box is the kind of thing users decide is
+        # broken. And with SHIFT up, a face that HAS a trajectory advertises it,
+        # which is the only way anyone finds the feature at all. With CTRL down
+        # as well SHIFT is never doing nothing — it is rounding the vertex snap,
+        # and the grid fragment says so — so the no-neighbour line stays quiet.
+        # ------------------------------------------------------------
+        def na_drawn__slope_hint
+            return na_ev__status_hint if @na_ev_lock                          # <-- Says whether it is steering this face, and why not
+            return " — #{@na_jp_note}" if @na_jp_note && !na_jp__active?
+            return '' if na_jp__active?                                       # <-- A surface's own status line says what SHIFT does not
+            return " —#{na_drawn__follow_note.sub(/\A ·/, '')}" if na_drawn__follow_requested?
+            return " — SHIFT slope #{Na__NobleDrawingTools.Na__SlopePush__Label(@na_pp_slope)} (+ALT: every corner its own edge)" if na_drawn__slope_mode?
+            return ' — SHIFT: no sloped neighbour here (+ALT: every corner its own edge)' if @na_shift_held && !@na_ctrl_held && @na_pp_target
+            return '' unless @na_pp_slope
+
+            " — SHIFT follows the #{Na__NobleDrawingTools.Na__SlopePush__Label(@na_pp_slope)} neighbour, SHIFT+ALT every corner's own edge"
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Measurements Box Label and Live Value
+        # ------------------------------------------------------------
+        def na_drawn__vcb_label_and_value
+            return na_qo__vcb_label_and_value if na_qo__active? || na_qo__record_open?
+
+            label = na_ev__live? ? 'Edge distance' : (na_drawn__slope_mode? ? 'Slope distance' : 'Push distance')
+            return [label, na_drawn__format_sizes([@na_size_d])] if @na_state == :picking_depth
+
+            # A placed push leaves its distance sitting in the box, which is
+            # both the reminder that it can still be retyped and the value a
+            # retype is judged against. With nothing placed, the box shows the
+            # distance a double-click will repeat.
+            ['Push distance', na_revise__vcb_value]
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Subclass Contract — Measurements Box Entry
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | A Typed Distance Pins and Places, or Corrects What Is Placed
+        # ------------------------------------------------------------
+        # Two stages take a distance and they read the sign differently, which
+        # is deliberate:
+        #
+        # - MID-DRAG the direction is the mouse's, so + and - are the plugin's
+        #   ordinary relative arithmetic against the live number on screen.
+        # - AFTER PLACING there is no drag left to be relative to, and what a
+        #   SketchUp user types a minus for is to turn the extrusion round. So
+        #   the sign names the direction instead. See the Revise module header.
+        # ------------------------------------------------------------
+        def na_drawn__handle_vcb_text(text, view)
+            return na_revise__retype(text, view) if na_revise__available?
+            return na_qo__handle_vcb_text(text, view) if na_qo__active?
+
+            unless @na_state == :picking_depth
+                UI.beep
+                Sketchup::set_status_text("Grab a face before typing a distance#{na_revise__status_hint}", SB_PROMPT)
+                return false
+            end
+
+            # *4 or /7 while dragging a face: a loop cut turned into an array,
+            # or refused with the reason when the drag is not a cut. A
+            # surface's ring is not one face's ring, so it takes a distance.
+            if Na__NobleDrawingTools.Na__QuadRings__ArrayEntry?(text)
+                raise ArgumentError, '*N and /N array one face\'s loop cut — a surface takes a distance' if na_jp__active?
+
+                return na_qo__convert_cut_drag(text, view)
+            end
+
+            tokens = Na__NobleDrawingTools.Na__DrawnVcb__ParseEntry(text)
+            raise ArgumentError, 'push takes a single distance' if tokens.length > 1
+
+            distances = Na__NobleDrawingTools.Na__DrawnVcb__ResolveAgainst(tokens, [@na_size_d])
+            Na__NobleDrawingTools.Na__DrawnVcb__ValidatePositive(distances, ['Distance'])
+
+            @na_size_d = distances[0]
+            na_drawn__lock_slot(:d)
+            na_drawn__commit_push(view)
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # @delegate: Na__NobleDrawingTools__DrawnPushPull__Commit__.rb
+
+    end # End DrawnPushPullTool class
+
+    # endregion -------------------------------------------------------------------
+
+    # @delegate: Na__NobleDrawingTools__DrawnPushPull__QuadRing__.rb
+
+    # -----------------------------------------------------------------------------
+    # REGION | Public Entry Point
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Is Push/Pull Console Tracing On?
+    # ------------------------------------------------------------
+    def self.Na__PushPull__Trace?
+        @na_push_pull_trace == true
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Turn Push/Pull Console Tracing On or Off
+    # ------------------------------------------------------------
+    def self.Na__PushPull__SetTrace(enabled)
+        @na_push_pull_trace = (enabled ? true : false)
+        Na__NobleDrawingTools.Na__Debug__Puts "NA PUSH/PULL trace #{@na_push_pull_trace ? 'ON' : 'OFF'}"
+        @na_push_pull_trace
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Push/Pull Tool (Hotkey Entry Point)
+    # ------------------------------------------------------------
+    def self.Na__NobleDrawingTools__DeepPushPull
+        Na__NobleDrawingTools.Na__ModeSwitch__ActivateDrawnPushPullTool
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+end # End Na__NobleDrawingTools module
+
+# =============================================================================
+# END OF DEEP PUSH PULL TOOL MODULE
+# =============================================================================

@@ -1,0 +1,271 @@
+# =============================================================================
+# NA NOBLE DRAWING TOOLS - DRAWN SETTINGS
+# =============================================================================
+#
+# FILE       : Na__NobleDrawingTools__AppData__DrawnSettings__.rb
+# NAMESPACE  : Na__NobleDrawingTools
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Persist voxel-grid, plane-face, segment and quad-push preferences
+# CREATED    : 2026
+#
+# =============================================================================
+
+require 'sketchup.rb'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnGridSnap__'
+
+module Na__NobleDrawingTools
+
+    NA_DRAWN_PLANE_FACES_OPTION = 'plane_faces'.freeze                     # <-- Declared in ToolOptions under :drawn_plane
+
+    # -----------------------------------------------------------------------------
+    # REGION | Persisted Shared Settings
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Current Snap Step in Millimetres
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__GridStepMm
+        if @na_drawn_grid_step_mm.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_GRID_STEP_KEY, NA_DRAWN_DEFAULT_GRID_MM)
+            value  = stored.to_f
+            @na_drawn_grid_step_mm = value > 0.0 ? value : NA_DRAWN_DEFAULT_GRID_MM
+        end
+
+        @na_drawn_grid_step_mm
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set Snap Step in Millimetres
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetGridStepMm(value_mm)
+        value = value_mm.to_f
+        return Na__NobleDrawingTools.Na__DrawnSettings__GridStepMm unless value > 0.0
+
+        @na_drawn_grid_step_mm = value
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_GRID_STEP_KEY, value)
+        value
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Advance Snap Step to the Next Value in the Cycle
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__CycleGridStepMm
+        current = Na__NobleDrawingTools.Na__DrawnSettings__GridStepMm
+        index   = NA_DRAWN_GRID_STEP_CYCLE_MM.index { |step| (step - current).abs < 0.0001 }
+        index   = index.nil? ? 0 : (index + 1) % NA_DRAWN_GRID_STEP_CYCLE_MM.length
+
+        Na__NobleDrawingTools.Na__DrawnSettings__SetGridStepMm(NA_DRAWN_GRID_STEP_CYCLE_MM[index])
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Snap Step Rendered for Display (e.g. "5mm")
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__GridStepLabel
+        step = Na__NobleDrawingTools.Na__DrawnSettings__GridStepMm
+        step == step.round ? "#{step.round}mm" : "#{step}mm"
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Shared Plane Face Creation Preference
+    # ------------------------------------------------------------
+    # Since 5.1.25 this is the Drawn Plane's "Face" submenu option, read
+    # through ToolOptions on the same registry key. Two caches of one value
+    # would let the submenu and the old Plane Faces button disagree, so
+    # there is only the one, and both buttons go through it.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__PlaneFacesEnabled?
+        Na__NobleDrawingTools.Na__ToolOptions__Enabled?(NA_DRAWN_PLANE_FACES_OPTION)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set Shared Plane Face Creation Preference
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetPlaneFacesEnabled(enabled)
+        Na__NobleDrawingTools.Na__ToolOptions__Set(NA_DRAWN_PLANE_FACES_OPTION, enabled)
+        Na__NobleDrawingTools.Na__DrawnSettings__PlaneFacesEnabled?
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Quad Push/Pull Preference
+    # When on, Deep Push/Pull leaves the ring of edges the extrusion started
+    # from instead of letting SketchUp melt it into the wall it extended.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__QuadPushEnabled?
+        if @na_drawn_quad_push.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_QUAD_PUSH_KEY, false)
+            @na_drawn_quad_push = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_quad_push
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set Quad Push/Pull Preference
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetQuadPushEnabled(enabled)
+        @na_drawn_quad_push = (enabled ? true : false)
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_QUAD_PUSH_KEY, @na_drawn_quad_push)
+        @na_drawn_quad_push
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Flip the Quad Push/Pull Preference
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ToggleQuadPush
+        Na__NobleDrawingTools.Na__DrawnSettings__SetQuadPushEnabled(
+            !Na__NobleDrawingTools.Na__DrawnSettings__QuadPushEnabled?
+        )
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Is Deep Ogee Turned Round?
+    # When on, the ogee rolls off the face that is NOT nearer horizontal.
+    # TAB's choice, remembered between sessions like the quad push setting.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__OgeeFlipped?
+        if @na_drawn_ogee_flipped.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OGEE_FLIP_KEY, false)
+            @na_drawn_ogee_flipped = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_ogee_flipped
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Turn Deep Ogee Round, Returning the New Setting
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ToggleOgeeFlip
+        @na_drawn_ogee_flipped = !Na__NobleDrawingTools.Na__DrawnSettings__OgeeFlipped?
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OGEE_FLIP_KEY, @na_drawn_ogee_flipped)
+        @na_drawn_ogee_flipped
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Does Deep Fillet Cut a Cove Instead of a Round-Over?
+    # TAB's choice, remembered between sessions like the ogee's turn-round.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__FilletCove?
+        if @na_drawn_fillet_cove.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_FILLET_COVE_KEY, false)
+            @na_drawn_fillet_cove = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_fillet_cove
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Swap Deep Fillet Between Round-Over and Cove, Returning the New Setting
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ToggleFilletCove
+        @na_drawn_fillet_cove = !Na__NobleDrawingTools.Na__DrawnSettings__FilletCove?
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_FILLET_COVE_KEY, @na_drawn_fillet_cove)
+        @na_drawn_fillet_cove
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Does Deep Ovolo Cut a Cavetto (the Hollow) Instead of an Ovolo?
+    # TAB's choice, remembered between sessions like the fillet's round or cove.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__OvoloCavetto?
+        if @na_drawn_ovolo_cavetto.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_CAVETTO_KEY, false)
+            @na_drawn_ovolo_cavetto = (stored == true || stored == 'true' || stored == 1)
+        end
+
+        @na_drawn_ovolo_cavetto
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set Deep Ovolo to Cut a Cavetto or an Ovolo, Returning the Setting
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetOvoloCavetto(cavetto)
+        @na_drawn_ovolo_cavetto = (cavetto ? true : false)
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_CAVETTO_KEY, @na_drawn_ovolo_cavetto)
+        @na_drawn_ovolo_cavetto
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Step Deep Ovolo Leaves Beside Its Quarter Round, in mm
+    # The small square shoulder a joiner leaves at each end of the arc. It is
+    # the second value of an entry ("40,5") and is remembered between
+    # sessions, so a run of mouldings keeps one step. Zero is a plain quarter
+    # round or cove with no step at all.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__OvoloStepMm
+        if @na_drawn_ovolo_step_mm.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_STEP_KEY, NA_DRAWN_OVOLO_DEFAULT_STEP_MM).to_f
+            @na_drawn_ovolo_step_mm = stored >= 0.0 ? stored : NA_DRAWN_OVOLO_DEFAULT_STEP_MM
+        end
+
+        @na_drawn_ovolo_step_mm
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Remember a Typed Ovolo Step, Returning It in mm
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetOvoloStepMm(value_mm)
+        step = value_mm.to_f
+        step = 0.0 if step < 0.0
+        @na_drawn_ovolo_step_mm = step
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_OVOLO_STEP_KEY, step)
+        step
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Segment Count Used for Circles and Cylinders
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__CircleSegments
+        if @na_drawn_circle_segments.nil?
+            stored = Sketchup.read_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_SEGMENTS_KEY, NA_DRAWN_DEFAULT_SEGMENTS)
+            count  = stored.to_i
+
+            # An unreadable stored value falls back to the default rather than to
+            # the 3-sided minimum, which would be a bizarre thing to wake up to.
+            @na_drawn_circle_segments = count < NA_DRAWN_MIN_SEGMENTS ?
+                                        NA_DRAWN_DEFAULT_SEGMENTS :
+                                        Na__NobleDrawingTools.Na__DrawnSettings__ClampSegments(count)
+        end
+
+        @na_drawn_circle_segments
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Clamp a Segment Count into a Buildable Range
+    # Typed input clamps rather than snapping back to a default, so "2s" gives
+    # the 3-sided minimum instead of silently jumping to 24.
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__ClampSegments(value)
+        count = value.to_i
+        return NA_DRAWN_MIN_SEGMENTS if count < NA_DRAWN_MIN_SEGMENTS
+
+        count > NA_DRAWN_MAX_SEGMENTS ? NA_DRAWN_MAX_SEGMENTS : count
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Set the Segment Count Used for Circles and Cylinders
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__SetCircleSegments(value)
+        count = Na__NobleDrawingTools.Na__DrawnSettings__ClampSegments(value)
+        @na_drawn_circle_segments = count
+        Sketchup.write_default(NA_DRAWN_SETTINGS_SECTION, NA_DRAWN_SEGMENTS_KEY, count)
+        count
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Advance the Segment Count to the Next Value in the Cycle
+    # ------------------------------------------------------------
+    def self.Na__DrawnSettings__CycleCircleSegments
+        current = Na__NobleDrawingTools.Na__DrawnSettings__CircleSegments
+        index   = NA_DRAWN_SEGMENT_CYCLE.index(current)
+        index   = index.nil? ? 0 : (index + 1) % NA_DRAWN_SEGMENT_CYCLE.length
+
+        Na__NobleDrawingTools.Na__DrawnSettings__SetCircleSegments(NA_DRAWN_SEGMENT_CYCLE[index])
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+end # End Na__NobleDrawingTools module
+
+# =============================================================================
+# END OF DRAWN SETTINGS
+# =============================================================================

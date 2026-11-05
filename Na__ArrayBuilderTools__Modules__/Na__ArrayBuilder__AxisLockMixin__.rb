@@ -25,7 +25,7 @@
 #     picked point onto a line previously set via view.lock_inference, so
 #     this mixin never touches @cursor_pos or onMouseMove. Likewise the
 #     dashed inference line is drawn natively by SketchUp - no overlay.
-# - SKEXT-3890 guard reused from Na__InsertPrimatives__KeyboardHandlers__:
+# - SKEXT-3890 guard reused from Na__NobleDrawingTools__KeyboardHandlers__:
 #   per-key held flag, only acts on the up->down transition (defeats the
 #   Windows 23.1.340+ onKeyDown double-fire regression).
 #
