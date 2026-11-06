@@ -19,12 +19,24 @@
 #   Model Parts List categories automatically per tour scene.
 # - Writes the result as the ValeVison3D__SketchUpCameraData object into
 #   the local *__ProjectData__.json array (merges, does not overwrite).
+# - A scene's target is moved along its own view line when it lies beyond the
+#   far side of the model (na_reachable_target), so the framing is unchanged
+#   but ValeVision 3D, which orbits about the target, can reach it. Each scene
+#   says where its target came from in "target_source".
 # - Note: the key name "ValeVison3D" (one 'i') matches the existing web
 #   app convention used in project.json.
 #
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 06-Nov-2026 - Version 1.2.0 (Cloud Sync 0.7.1)
+# - A target beyond the far side of the model is moved onto the first thing
+#   the view line hits, or failing that level with the model's centre.
+#   SketchUp only uses a target for its direction, so Look Around, Walk or a
+#   script can leave one kilometres away and the scene still looks right.
+#   ValeVision 3D orbits about it: Thorpe's IMG03 to IMG05 sat 21.5 km out and
+#   the carousel flew the camera off the model. New "target_source" key.
+#
 # 01-Jul-2026 - Version 1.1.0
 # - Added per-scene model_layer_visibility capture (Na__TagVisibilityCapture)
 #   alongside the existing camera block, so both Full Sync and Update Camera
@@ -43,6 +55,7 @@ module Na__ValeVisionCloudSync
 
         INCHES_TO_MM  = 25.4  # <-- SketchUp internal unit is inches
         CAMERA_OBJECT_KEY = 'ValeVison3D__SketchUpCameraData'  # <-- Matches web app key (one 'i')
+        TARGET_MIN_DEPTH  = 1000.0 / INCHES_TO_MM               # <-- 1 m in inches: the nearest a moved target may sit
 
 # endregion -------------------------------------------------------------------
 
@@ -118,6 +131,7 @@ module Na__ValeVisionCloudSync
         # ---------------------------------------------------------------
         def self.na_extract_scene_camera(page)
             camera = page.camera
+            target, target_source = na_reachable_target(page.model, camera)  # <-- Same view line, a point ValeVision can orbit about
 
             {
                 'scene_name'            => page.name.to_s,
@@ -125,7 +139,8 @@ module Na__ValeVisionCloudSync
                 'include_in_animation'  => page.include_in_animation?,
                 'camera'                => {
                     'eye'            => na_vector_to_mm(camera.eye),
-                    'target'         => na_vector_to_mm(camera.target),
+                    'target'         => na_vector_to_mm(target),
+                    'target_source'  => target_source,                   # <-- 'scene' | 'raytest' | 'model_centre'
                     'up'             => na_direction_to_hash(camera.up),
                     'direction'      => na_direction_to_hash(camera.direction),
                     'fov_degrees'    => camera.fov.to_f.round(4),
@@ -143,6 +158,51 @@ module Na__ValeVisionCloudSync
                 'scene_name'  => page.name.to_s,
                 'error'       => error.message
             }
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Camera Target Helper
+# -----------------------------------------------------------------------------
+
+        # HELPER FUNCTION | A Target ValeVision 3D Can Orbit About
+        # ---------------------------------------------------------------
+        # SketchUp uses a camera's target only for its direction, so a scene
+        # set with Look Around, Walk or a script can keep a target kilometres
+        # down the view line and still look right in SketchUp. ValeVision 3D
+        # orbits about the target and holds the camera within its orbit reach
+        # of it, so such a target flies the camera off the model.
+        #
+        # A target no further than the far side of the model's bounding sphere
+        # is kept as it is. One beyond it is moved along the same view line, so
+        # the framing does not change: onto the first thing the line hits
+        # (Model#raytest, which sees the model as it is shown now, not as the
+        # scene shows it), or failing that level with the model's centre.
+        #
+        # Returns [Geom::Point3d, 'scene' | 'raytest' | 'model_centre'].
+        # Degrades to the scene's own target on any error.
+        # ---------------------------------------------------------------
+        def self.na_reachable_target(model, camera)
+            eye    = camera.eye
+            target = camera.target
+            bounds = model.bounds
+            return [target, 'scene'] if bounds.empty?
+
+            far_limit = eye.distance(bounds.center) + bounds.diagonal / 2.0  # <-- Far side of the model's bounding sphere
+            return [target, 'scene'] if eye.distance(target) <= far_limit
+
+            direction = camera.direction
+            hit       = model.raytest([eye, direction], true)                # <-- First visible thing on the view line
+            return [hit[0], 'raytest'] if hit && eye.distance(hit[0]) <= far_limit
+
+            depth = (bounds.center - eye).dot(direction)                     # <-- Model centre's depth along the view line
+            depth = eye.distance(bounds.center) if depth <= 0                # <-- Looking away from the model: keep its distance
+            depth = TARGET_MIN_DEPTH if depth < TARGET_MIN_DEPTH             # <-- Never on the eye itself
+            [eye.offset(direction, depth), 'model_centre']
+        rescue => error
+            puts "[Na__ValeVisionCloudSync] Camera target kept as saved: #{error.message}"
+            [camera.target, 'scene']
         end
 
 # endregion -------------------------------------------------------------------

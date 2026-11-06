@@ -112,6 +112,8 @@ module Na__NobleDrawingTools
         # where it is and only the ring is drawn where it will land.
         # ------------------------------------------------------------
         def na_pj__draw_solution(view, source, solution, quads, labels)
+            return na_pj__draw_sections(view, source, solution, quads, labels) if solution[:sections]
+
             colours = self.class
             near    = source[:loops][0]
             far     = solution[:loops][0]
@@ -151,6 +153,79 @@ module Na__NobleDrawingTools
 
             na_pj__draw_travel_labels(view, source, solution) if labels
             far
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Only the Parts That Meet the Target (Sections, 5.2.31)
+        # ------------------------------------------------------------
+        # The face stays outlined in blue. The lines it will be split along
+        # are drawn on it in the quad magenta: lines the click will add. Each part that goes is drawn landed, in orange where it comes
+        # out and the cutter red where it goes back in, with its rungs, all of
+        # it on top: a part that goes back is inside the solid.
+        # ------------------------------------------------------------
+        def na_pj__draw_sections(view, source, solution, quads, labels)
+            colours  = self.class
+            sections = solution[:sections]
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(
+                view, source[:loops][0],
+                quads ? colours::NA_PJ_QUAD_BORDER : colours::NA_PJ_HOVER_BORDER,
+                quads ? 3 : 1
+            )
+
+            cuts = sections[:cuts].flatten
+            na_pj__draw_on_top(view, cuts, colours::NA_PJ_QUAD_BORDER, 2) unless cuts.empty?
+
+            sections[:cells].each do |cell|
+                fill = cell[:triangles].map { |indices| indices.map { |index| cell[:landed][0][index] } }
+                Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, fill, colours::NA_PJ_RESULT_FILL) unless fill.empty?
+
+                cell[:starts].each_with_index do |points, index|
+                    landed = cell[:landed][index]
+                    ring   = landed.each_with_index.flat_map { |point, corner| [point, landed[(corner + 1) % landed.length]] }
+                    out    = []
+                    back   = []
+
+                    points.each_with_index do |point, corner|
+                        next if cell[:travels][index][corner].to_f < NA_PROJECT_TOL
+
+                        rung = [point, landed[corner]]
+                        cell[:heights][index][corner].to_f < 0.0 ? back.concat(rung) : out.concat(rung)
+                    end
+
+                    going_back = cell[:heights][index].all? { |height| height.to_f <= NA_PROJECT_TOL }
+                    na_pj__draw_on_top(view, ring, going_back ? NA_DRAWN_CUTTER_BORDER_COLOR : colours::NA_PJ_RESULT_BORDER, 2)
+                    na_pj__draw_on_top(view, out,  colours::NA_PJ_RESULT_BORDER, 1)
+                    na_pj__draw_on_top(view, back, NA_DRAWN_CUTTER_BORDER_COLOR, 2)
+                end
+            end
+
+            na_pj__draw_section_labels(view, solution) if labels
+            solution[:loops][0]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Each Moving Corner's Own Travel, on Its Own Rung
+        # ------------------------------------------------------------
+        def na_pj__draw_section_labels(view, solution)
+            color  = Na__NobleDrawingTools.Na__DrawnPreview__DimensionColor(false)
+            color  = self.class::NA_PJ_EDGE_COLOR if @na_pj_edge_lock
+            color  = Na__NobleDrawingTools.Na__DrawnPreview__AxisColor(@na_axis_lock) if @na_axis_lock && !@na_pj_edge_lock
+            placed = []
+
+            solution[:sections][:cells].each do |cell|
+                cell[:starts][0].each_with_index do |point, index|
+                    travel = cell[:travels][0][index].to_f
+                    next if travel < NA_PROJECT_TOL
+
+                    far = cell[:landed][0][index]
+                    next unless na_pj__claim_label_slot(view, point, far, placed)
+
+                    text = Na__NobleDrawingTools.Na__DrawnFormat__Mm(travel).abs.to_s
+                    text = "−#{text}" if cell[:heights][0][index].to_f < 0.0
+                    Na__NobleDrawingTools.Na__DrawnPreview__DrawEdgeLabel(view, point, far, text, color)
+                end
+            end
         end
         # ---------------------------------------------------------------
 
@@ -341,7 +416,8 @@ module Na__NobleDrawingTools
                 # corner can already be sitting on it, with no way to point.
                 spans  = solution[:travels][0]
                 widest = spans.index(spans.max) || 0
-                vector = solution[:loops][0][widest] - source[:loops][0][widest]
+                starts = solution[:starts] || source[:loops]
+                vector = solution[:loops][0][widest] - starts[0][widest]
                 break
             end
 
@@ -410,11 +486,18 @@ module Na__NobleDrawingTools
                 end
             head = "#{sources.length} faces — #{head}" if sources.length > 1
 
+            parted = solutions.select { |solution| solution[:sections] }
+            unless parted.empty?
+                pieces = parted.inject(0) { |sum, solution| sum + solution[:sections][:cells].length }
+                head   = "#{head} — #{pieces == 1 ? 'one part' : "#{pieces} parts"} of the face"
+            end
+
             reach = @na_pj_target[:kind] == :object ? "until it touches #{@na_pj_target[:name]}" : "on to #{@na_pj_target[:name]}"
             lines = [head, reach, first[:words]]
             lines << "offset #{na_pj__offset_words(@na_pj_offset)}" unless Na__NobleDrawingTools.Na__DrawnFormat__Mm(@na_pj_offset).zero?
             lines << 'looking back through the face (DOWN flips)' if @na_pj_target[:kind] == :object && na_pj__sense_value < 0.0
             lines << first[:note] if first[:note]
+            lines << 'only where it meets it: split there, the rest stays (Full Face takes it all)' if parted.any? { |solution| solution[:sections][:stays] }
             lines
         end
         # ---------------------------------------------------------------
@@ -451,7 +534,8 @@ module Na__NobleDrawingTools
                 quads = target[:quads]
                 return unless quads
 
-                lines = refused ? [target[:name], na_pj__refusal] : [target[:name], 'the face stops where it first touches it']
+                touch = na_pj__full_face? ? 'the face stops where it first touches it' : 'each part of the face lands where it meets it'
+                lines = refused ? [target[:name], na_pj__refusal] : [target[:name], touch]
                 Na__NobleDrawingTools.Na__DrawnPreview__DrawTargetHighlight(view, quads[0], quads[1], !refused, lines)
             end
         end

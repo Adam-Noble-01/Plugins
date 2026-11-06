@@ -74,7 +74,8 @@
 # - A double-click on a face with no drag behind it pushes it by the last
 #   distance placed, exactly as native Push/Pull does. That distance lives in
 #   the model's own attribute dictionary, so it survives a tool switch, a
-#   plugin reload and a reopened file.
+#   plugin reload and a reopened file. CTRL+SHIFT+double-click does the same
+#   to the face's shortest ring (5.2.33, DrawnPushPullPickSet).
 # - The mechanics are shared with the chamfer tool (06__Tools__DrawnShared,
 #   DrawnReviseShared); the push-specific half is DrawnPushPullRevise.
 #
@@ -113,6 +114,12 @@
 #   is pushed on its own again. SHIFT slope and SHIFT+ALT follow are single-
 #   face modes and stand down on a surface.
 #
+# CTRL+CLICK PICKS FACES AT ANY DEPTH (5.2.30, DrawnPushPullPickSet):
+# - Before a face is grabbed, CTRL+click adds a face to a pick set or takes it
+#   out, whatever group it is in; CTRL+SHIFT+click adds the face and its
+#   shortest quad ring. A plain drag then pushes the set, each face along its
+#   own normal, as a preselection pushes. BKSP or ESC lets the set go.
+#
 # PUSHED INTO THE SOLID, THE PREVIEW IS THE VOLUME REMOVED (5.1.22):
 # - The orange preview is depth-tested, which is right for a push OUT: the
 #   new slab stands in front of the model. Pushed IN, every line of it is
@@ -136,6 +143,7 @@ require_relative 'Na__NobleDrawingTools__DrawnPushPull__Follow__'
 require_relative 'Na__NobleDrawingTools__DrawnPushPull__Joint__'
 require_relative 'Na__NobleDrawingTools__DrawnPushPull__EdgeVector__'
 require_relative 'Na__NobleDrawingTools__DrawnPushPull__Preselect__'
+require_relative 'Na__NobleDrawingTools__DrawnPushPull__PickSet__'
 
 module Na__NobleDrawingTools
     # -----------------------------------------------------------------------------
@@ -156,6 +164,7 @@ module Na__NobleDrawingTools
         include Na__NobleDrawingTools::DrawnPushPullEdgeVector                # <-- SHIFT+click an edge: the face travels along it. After Follow, which it outranks
 
         include Na__NobleDrawingTools::DrawnPushPullPreselect
+        include Na__NobleDrawingTools::DrawnPushPullPickSet                   # <-- CTRL+click picks faces at any depth. After Preselect, whose set it fills
 
         NA_PP_MIN_AXIS_FACTOR = 0.0872                                        # <-- cos 85 degrees; below this the lock is refused
         NA_PP_HOVER_FILL      = Sketchup::Color.new(  0, 140, 255,  80)
@@ -244,6 +253,9 @@ module Na__NobleDrawingTools
                 'While a push follows an edge, hold SHIFT to square its far end to that edge',
                 'A face on a smoothed surface pushes the WHOLE surface as one — every face along its own normal',
                 'SHIFT+TAB switches JOINT surfaces off and on — off, one face at a time as native',
+                'CTRL+click faces to PICK several at any depth, then drag one to push them all — BKSP drops the picks',
+                'CTRL+SHIFT+click a quad face to pick it and its SHORTEST RING',
+                'CTRL+SHIFT+DOUBLE-click a quad face: its ring pushed by the last distance placed, at once',
                 'TAB toggles QUAD mode — the extrusion keeps its start loop as edges, no face',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
                 'With QUADS on, hover near a quad line to grab its whole ring — drag along the run to offset a new one',
@@ -438,7 +450,8 @@ module Na__NobleDrawingTools
         def na_drawn__step_back(view)
             return na_qo__step_back(view) if na_qo__active?
 
-            released = na_drawn__release_last_lock || na_ev__release          # <-- A pinned distance, then the edge, then the face
+            released = na_drawn__release_last_lock || na_ev__release ||       # <-- A pinned distance, then the edge, then the face
+                       (@na_state == :idle && na_pk__clear)                   # <-- With no face in hand, the picked set
 
             unless released
                 na_drawn__trace('step back — releasing the grabbed face')
@@ -476,10 +489,21 @@ module Na__NobleDrawingTools
         # SketchUp user means by it is native Push/Pull's repeat: push THIS
         # face by the same distance as the last one. A double click that
         # arrives after a drag places the drag, as it always did.
+        #
+        # With CTRL+SHIFT down and nothing in hand, the first Down picked the
+        # shortest ring instead of grabbing, and the double click pushes the
+        # picked set by that same remembered distance (5.2.33).
         # ------------------------------------------------------------
         def onLButtonDoubleClick(flags, x, y, view)
             na_drawn__sync_modifier(flags)
             return false unless na_drawn__ensure_known_state
+            if @na_state == :idle && na_pk__ring_gesture?
+                na_pk__double_click(view, x, y)
+                na_drawn__update_status_text
+                na_drawn__refresh_vcb
+                view.invalidate if view
+                return true
+            end
             return false unless @na_state == :picking_depth
             return na_qo__double_click(view, x, y) if na_qo__active?
             return true if @na_ev_settling                                    # <-- The second half of a double-click on an edge just nominated
@@ -533,6 +557,7 @@ module Na__NobleDrawingTools
             @na_last_mouse_y = y
 
             na_ev__track_hover(view, x, y)                                    # <-- SHIFT offers the edge under the cursor, keys included
+            na_drawn__hover_face(view, x, y) if @na_state == :idle && view && x && y   # <-- A key went down with the mouse still: CTRL's pick offer follows at once
 
             return na_qo__update_cursor(view, x, y) if na_qo__active?          # <-- A grabbed ring measures along its own run
             return false unless @na_state == :picking_depth && @na_point_a
@@ -673,7 +698,7 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def na_drawn__tab_hint
             joint = na_jp__supported? ? "  SHIFT+TAB joint #{na_jp__enabled? ? 'ON' : 'OFF'}" : ''
-            "TAB quads #{na_drawn__quad_mode? ? 'ON' : 'OFF'}#{joint}#{na_ev__tab_hint}"
+            "TAB quads #{na_drawn__quad_mode? ? 'ON' : 'OFF'}#{joint}#{na_ev__tab_hint}#{na_pk__key_hint}"
         end
         # ---------------------------------------------------------------
 
@@ -742,6 +767,8 @@ module Na__NobleDrawingTools
         # FUNCTION | Track Whichever Face Is Under the Cursor
         # ------------------------------------------------------------
         def na_drawn__hover_face(view, x, y)
+            na_pk__track(view, x, y)
+            return true if na_pk__hovering?                                   # <-- CTRL: the pick on offer is drawn instead of the push
             return na_pps__hover(view, x, y) if na_pps__active?
             target = Na__NobleDrawingTools.Na__DeepPick__FaceAt(view, x, y)
 
@@ -831,6 +858,15 @@ module Na__NobleDrawingTools
             @na_last_mouse_x = x                                              # <-- grab_face uses these as the press origin
             @na_last_mouse_y = y
             na_drawn__trace("onLButtonDown")
+
+            # CTRL+click with nothing in hand picks the face (CTRL+SHIFT its
+            # ring) into the set the next drag pushes. It grabs nothing.
+            if @na_state == :idle && na_pk__try_click(view, x, y)
+                na_drawn__update_status_text
+                na_drawn__refresh_vcb
+                view.invalidate
+                return
+            end
 
             # SHIFT+click on an edge nominates it, in either stage. It takes
             # nothing up and places nothing; anywhere else this click is as ever.
@@ -976,6 +1012,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Points the Preview Occupies, for the Draw Extents
         # ------------------------------------------------------------
         def na_drawn__preview_points
+            return na_pk__preview_points + (na_pps__active? ? na_pps__preview_points : []) if na_pk__hovering?
             return na_pps__preview_points if na_pps__active? && !na_qo__active?
             return na_qo__preview_points if na_qo__active? || na_qo__hovering?
             return na_jp__preview_points(@na_pp_joint) if na_jp__active?
@@ -1006,7 +1043,10 @@ module Na__NobleDrawingTools
             Na__NobleDrawingTools.Na__DrawnPreview__DrawAxisRay(view, na_drawn__axis_ray_origin, @na_axis_lock)
 
             if @na_state == :idle
-                if na_pps__active?
+                if na_pk__hovering?
+                    na_pps__draw(view) if na_pps__active?                     # <-- The set so far, under what a CTRL click would change
+                    na_pk__draw(view)
+                elsif na_pps__active?
                     na_pps__draw(view)
                 elsif !na_ev__hovering?                                       # <-- On an edge the click nominates it, so the face is not on offer
                     na_drawn__draw_hover(view)
@@ -1317,6 +1357,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Middle Section of the Status Bar Line
         # ------------------------------------------------------------
         def na_drawn__status_detail
+            return na_pk__status if na_pk__gesture?                           # <-- CTRL with nothing in hand: picking
             return na_ev__hover_status if na_ev__hovering?
             return "#{na_pps__status}#{na_ev__status_hint}" if na_pps__active? && !na_qo__active?
             return na_qo__status_detail if na_qo__active? || na_qo__hovering?

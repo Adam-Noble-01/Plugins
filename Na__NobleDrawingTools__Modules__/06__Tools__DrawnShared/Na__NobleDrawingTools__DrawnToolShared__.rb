@@ -57,6 +57,7 @@ require_relative '../03__AppUtils/Na__NobleDrawingTools__DrawnVcbArithmetic__'
 require_relative '../05__PreviewGraphics/Na__NobleDrawingTools__DrawnPreviewGraphics__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnGeometry__'
 require_relative '../01__AppCore/Na__NobleDrawingTools__AppCore__ModeSwitch__'
+require_relative 'Na__NobleDrawingTools__DrawnRevise__Morph__'
 
 module Na__NobleDrawingTools
 
@@ -69,6 +70,7 @@ module Na__NobleDrawingTools
     module DrawnToolShared
 
         include Na__NobleDrawingTools::ToolModeSwitching
+        include Na__NobleDrawingTools::DrawnReviseMorph                       # <-- A typed size after the fact replays, old shape to new (5.2.34)
 
         # -----------------------------------------------------------------------------
         # REGION | Interaction Constants
@@ -338,6 +340,7 @@ module Na__NobleDrawingTools
         # DEACTIVATE | Clear Overlays and the Measurements Box
         # ------------------------------------------------------------
         def deactivate(view)
+            na_morph__stop
             Na__NobleDrawingTools.Na__RightClickPopup__CloseMenu()
             Sketchup::set_status_text('', SB_VCB_LABEL)
             Sketchup::set_status_text('', SB_VCB_VALUE)
@@ -531,6 +534,7 @@ module Na__NobleDrawingTools
 
             # Drawn before the shape so the shaded preview sits on top of it.
             Na__NobleDrawingTools.Na__DrawnPreview__DrawAxisRay(view, na_drawn__axis_ray_origin, @na_axis_lock)
+            na_morph__draw(view)                                              # <-- A retyped size replaying, old shape to new
 
             if @na_state == :idle
                 Na__NobleDrawingTools.Na__DrawnPreview__DrawCrosshair(view, @na_cursor_snapped)
@@ -575,7 +579,7 @@ module Na__NobleDrawingTools
             bounds.add(@na_cursor_snapped) if @na_cursor_snapped
 
             na_drawn__preview_points.each { |pt| bounds.add(pt) }
-            bounds
+            na_morph__extend(bounds)
         end
         # ---------------------------------------------------------------
 
@@ -725,7 +729,9 @@ module Na__NobleDrawingTools
             cleaned = text.to_s.strip
             return if cleaned.empty?
 
+            before = na_drawn__morph_segments                                 # <-- What a size typed after the fact is about to change
             na_drawn__handle_vcb_text(cleaned, view)
+            na_morph__play(before, na_drawn__morph_segments, na_drawn__morph_label(cleaned)) if before
             na_drawn__update_status_text
             na_drawn__rearm_vcb
             view.invalidate if view
@@ -1181,6 +1187,28 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | What a Size Typed Now Would Change, as World Segments, or nil
+        # ------------------------------------------------------------
+        # Read before the entry and again after it, and the replay sweeps one
+        # into the other (DrawnReviseMorph). The shape tools revise the group
+        # they still hold. A tool with its own idea of "the last thing placed"
+        # (Vertex Move, Deep Scale) answers for itself; the modifier tools run
+        # their own richer ghost and answer nil here.
+        # ------------------------------------------------------------
+        def na_drawn__morph_segments
+            return nil unless @na_state == :idle && na_drawn__revise_available?
+
+            na_morph__segments(@na_last_record[:group])
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Words Beside the Replay
+        # ------------------------------------------------------------
+        def na_drawn__morph_label(text)
+            "Adjusted: #{text}"
+        end
+        # ---------------------------------------------------------------
+
         # endregion -------------------------------------------------------------------
 
 
@@ -1212,12 +1240,19 @@ module Na__NobleDrawingTools
                 "#{na_drawn__tool_title} | #{na_drawn__status_detail} | " \
                 "#{na_drawn__grid_description} | " \
                 "#{na_drawn__plane_description}#{na_drawn__axis_description}#{na_drawn__lock_summary}#{na_drawn__option_summary} | " \
-                "#{na_drawn__tab_hint}  ARROWS axis  #{na_drawn__vertex_hint}  BKSP back  ESC cancel"
+                "#{na_drawn__key_hints}"
 
             return if composed == @na_last_status_text
 
             Sketchup::set_status_text(composed, SB_PROMPT)
             @na_last_status_text = composed
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Keys Named at the End of the Status Line
+        # ------------------------------------------------------------
+        def na_drawn__key_hints
+            "#{na_drawn__tab_hint}  ARROWS axis  #{na_drawn__vertex_hint}  BKSP back  ESC cancel"
         end
         # ---------------------------------------------------------------
 

@@ -399,8 +399,7 @@ module Na__NobleDrawingTools
         # the rounding took off, which is where the CTRL+SHIFT mark draws.
         # ------------------------------------------------------------
         def na_roof__measure_fascia(source)
-            _u_axis, _v_axis, n_axis = Na__NobleDrawingTools.Na__DrawnGrid__PlaneAxes(@na_plane_key)
-
+            n_axis = na_roof__up_axis
             travel = (source - @na_point_a).dot(n_axis).to_f
             fascia = na_drawn__snap_distance(travel).to_f
             fascia = 0.0 if fascia < 0.0
@@ -451,7 +450,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Cut the Cursor Ray With the Plane the Soffit Is Read On
         # ------------------------------------------------------------
         def na_roof__soffit_plane_point(view, x, y)
-            u_axis, v_axis, n_axis = Na__NobleDrawingTools.Na__DrawnGrid__PlaneAxes(@na_plane_key)
+            n_axis  = na_roof__up_axis
             looking = view.camera.direction
             steep   = looking.dot(n_axis).to_f
 
@@ -467,9 +466,7 @@ module Na__NobleDrawingTools
                     )
                     return nil unless facing.length > 0.0001
 
-                    middle = Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(top,    u_axis, na_drawn__signed_u * 0.5)
-                    middle = Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(middle, v_axis, na_drawn__signed_v * 0.5)
-                    [middle, facing.normalize]
+                    [na_roof__wall_middle(top), facing.normalize]
                 end
 
             ray = view.pickray(x, y)
@@ -477,6 +474,23 @@ module Na__NobleDrawingTools
             na_drawn__point_in_front_of_ray?(ray, hit) ? hit : nil
         rescue StandardError
             nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Way the Roof Rises
+        # ------------------------------------------------------------
+        def na_roof__up_axis
+            Na__NobleDrawingTools.Na__DrawnGrid__PlaneAxes(@na_plane_key)[2]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Middle of the Wall Line, at the Level of a Given Point
+        # ------------------------------------------------------------
+        def na_roof__wall_middle(top)
+            u_axis, v_axis, _n_axis = Na__NobleDrawingTools.Na__DrawnGrid__PlaneAxes(@na_plane_key)
+
+            middle = Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(top, u_axis, na_drawn__signed_u * 0.5)
+            Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(middle, v_axis, na_drawn__signed_v * 0.5)
         end
         # ---------------------------------------------------------------
 

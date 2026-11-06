@@ -34,6 +34,10 @@
 # With QUADS on and the face going out, the start loop is put back as edges
 # afterwards, as every quad push does.
 #
+# SECTIONS (5.2.31) — only part of the face meets the target — goes by none
+# of these: the face is split where the target ends and the moving pieces
+# are swept explicitly, walls and all (Na__ProjectSections__Build).
+#
 # CUT AND EXTEND (5.2.2) — a target that crosses the face — goes by FOLLOW or
 # STRETCH, where the faces round it lengthen on one side and shorten on the
 # other. pushpull goes one way only, so without such faces it is refused (the
@@ -66,6 +70,7 @@ require_relative '../30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPu
 require_relative '../30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPull__Follow__'
 require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnLargeSelection__'
 require_relative 'Na__NobleDrawingTools__DrawnProject__Geometry__'
+require_relative 'Na__NobleDrawingTools__DrawnProject__Sections__'
 
 module Na__NobleDrawingTools
 
@@ -141,7 +146,8 @@ module Na__NobleDrawingTools
                 :normal => source[:normal],
                 :plane  => solution[:plane],
                 :height => solution[:plane] ? nil : solution[:heights][0][0],
-                :way    => solution[:way]
+                :way    => solution[:way],
+                :sections => solution[:sections]
             }
         end
         # ---------------------------------------------------------------
@@ -296,6 +302,7 @@ module Na__NobleDrawingTools
         def na_pj__operation_name(plan, settings, count)
             detail =
                 if    count > 1                                   then 'Selected Faces'
+                elsif plan[:sections]                             then 'Sections'
                 elsif plan[:mode] == :follow                      then 'Follow'
                 elsif settings[:quads] && plan[:way] == :in       then 'Loop Cut'
                 elsif plan[:way] == :mixed                        then 'Cut and Extend'
@@ -348,7 +355,9 @@ module Na__NobleDrawingTools
 
             cut = quads && plan[:way] == :in
 
-            if plan[:mode] == :follow
+            if plan[:sections]
+                Na__NobleDrawingTools.Na__ProjectSections__Build(job, plan[:sections])
+            elsif plan[:mode] == :follow
                 na_pj__route_follow(job, cut)
             elsif cut
                 na_pj__route_cut(job)

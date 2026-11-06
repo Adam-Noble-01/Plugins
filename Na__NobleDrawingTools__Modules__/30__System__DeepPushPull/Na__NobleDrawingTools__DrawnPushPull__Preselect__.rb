@@ -23,6 +23,13 @@
 # DrawnPushPullJoint (every face along its own normal, the corners mitred);
 # a face touching no other selected face is a unit of its own and pushes
 # exactly as before. Joint Surfaces off, every face is its own unit.
+#
+# A PICK SET IS A PRESELECTION TOO (5.2.30, DrawnPushPullPickSet):
+# CTRL+click fills @na_pps_targets from faces at any depth, so a unit carries
+# the context its faces live in and the transform they report through, and
+# only faces in one context are joined. A set that reaches outside the
+# user's own context is pushed by DrawnPushPullPickSet, one context at a
+# time; everything else goes through the one operation below.
 require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnLargeSelection__'
 require_relative 'Na__NobleDrawingTools__DrawnPushPull__JointGeometry__'
@@ -56,21 +63,44 @@ module Na__NobleDrawingTools
             @na_pps_targets
         end
 
-        # The selection is in the open context, so the faces report world and
-        # each surface's plan is read through the identity.
+        # A selection is in the open context, so its faces report world and
+        # each surface's plan is read through the identity. A pick set's
+        # faces may sit in closed groups: they are joined only with faces of
+        # the same context, read through that context's transform.
         def na_pps__regroup
             targets = @na_pps_targets || []
             @na_pps_units =
                 if na_jp__enabled? && targets.length > 1
-                    by_face = {}
-                    targets.each { |target| by_face[target[:face]] = target }
-                    Na__NobleDrawingTools.Na__JointPush__Components(targets.map { |target| target[:face] }).map do |faces|
-                        plan = faces.length > 1 ? Na__NobleDrawingTools.Na__JointPush__Plan(faces, Geom::Transformation.new) : nil
-                        { :targets => faces.map { |face| by_face[face] }, :joint => plan }
+                    targets.group_by { |target| na_pps__context_key(target) }.values.flat_map do |members|
+                        by_face = {}
+                        members.each { |target| by_face[target[:face]] = target }
+                        xform = members.first[:transformation] || Geom::Transformation.new
+                        Na__NobleDrawingTools.Na__JointPush__Components(members.map { |target| target[:face] }).map do |faces|
+                            plan = faces.length > 1 ? Na__NobleDrawingTools.Na__JointPush__Plan(faces, xform) : nil
+                            { :targets => faces.map { |face| by_face[face] }, :joint => plan, :path => members.first[:path] }
+                        end
                     end
                 else
-                    targets.map { |target| { :targets => [target], :joint => nil } }
+                    targets.map { |target| { :targets => [target], :joint => nil, :path => target[:path] } }
                 end
+        end
+
+        # Which instances a target is reached through, as something a Hash
+        # can group on. One key for every face of the user's open context.
+        def na_pps__context_key(target)
+            Na__NobleDrawingTools.Na__DeepPick__Instances(target[:path]).map(&:entityID)
+        end
+
+        # The editing context a unit is pushed in (nil: the model root).
+        def na_pps__unit_context(unit)
+            target    = unit[:targets].first
+            instances = Na__NobleDrawingTools.Na__DeepPick__Instances(unit[:path] || (target && target[:path]))
+            instances.empty? ? nil : instances
+        end
+
+        # Is the set being pushed one picked in the tool (CTRL+click)?
+        def na_pps__picked?
+            @na_pk_picked ? true : false
         end
 
         # true to take the selection on. No leaves it alone (hover a face as
@@ -93,6 +123,7 @@ module Na__NobleDrawingTools
         def na_pps__commit_confirmed?
             count = @na_pps_targets.length
             return true if count <= NA_LARGE_SELECTION_FACES || na_revise__replaying?
+            return true if na_pps__picked?                                 # <-- Picked one click at a time: never by accident
             return true if Na__NobleDrawingTools.Na__LargeSelection__Confirmed?(:faces, count)
             Na__NobleDrawingTools.Na__LargeSelection__Ask(:faces, count, na_drawn__tool_title, 'pushed', 'Push') == :yes
         end
@@ -191,7 +222,8 @@ module Na__NobleDrawingTools
                 faces = joined.sum { |plan| plan[:count] }
                 surfaces = " (#{faces} joined into #{joined.length} surface#{joined.length == 1 ? '' : 's'}, every face along its own normal)"
             end
-            "#{count} preselected face#{count == 1 ? '' : 's'}#{surfaces} — #{verb}#{na_pps__problem_note(joined)}#{na_revise__status_hint}"
+            noun = na_pps__picked? ? 'picked' : 'preselected'
+            "#{count} #{noun} face#{count == 1 ? '' : 's'}#{surfaces} — #{verb}#{na_pps__problem_note(joined)}#{na_revise__status_hint}"
         end
 
         # A surface the live drag cannot push says so before the click.
@@ -217,13 +249,19 @@ module Na__NobleDrawingTools
             end
             raise 'that many faces were not confirmed — nothing pushed' unless na_pps__commit_confirmed?
             distance = na_drawn__world_travel_distance                     # <-- The driver's; every surface moves by it
-            # Prepare every recipe before any push can alter a neighbouring face.
+            picked   = na_pps__picked?
+            home     = model.respond_to?(:active_path) ? model.active_path : nil
+            # Prepare every recipe before any push can alter a neighbouring face,
+            # and before any group is opened: everything read here is read in
+            # the user's own context, the space the targets' transforms expect.
             recipes = na_pps__units.map do |unit|
                 next na_pps__joint_recipe(model, unit, distance) if unit[:joint]
                 target = unit[:targets].first
                 raise 'A selected face is no longer available' unless target[:face].valid?
                 raise 'A selected face is locked' if target[:locked]
-                raise 'The editing context changed — reselect the faces' unless Na__NobleDrawingTools.Na__DeepPick__InOpenContext?(target[:face])
+                unless picked || Na__NobleDrawingTools.Na__DeepPick__InOpenContext?(target[:face])
+                    raise 'The editing context changed — reselect the faces'
+                end
                 na_pps__with_target(target) do
                     raise 'A selected face cannot travel along the locked axis' unless na_drawn__axis_lock_usable?
                     problem = na_drawn__follow_problem || na_ev__problem
@@ -231,9 +269,17 @@ module Na__NobleDrawingTools
                     snapshot = na_revise__snapshot(target, model)
                     offset = na_drawn__local_offset_vector(target)
                     raise 'A selected face could not be measured' unless snapshot && offset
-                    { :kind => :face,
-                      :data => [target, snapshot, offset, na_drawn__slope_mode?, na_drawn__loop_cut_mode?, na_revise__build_ghost(target)] }
+                    interior = Na__NobleDrawingTools.Na__SlopePush__InteriorPoint(target[:face])
+                    { :kind    => :face,
+                      :context => na_pps__unit_context(unit),
+                      :anchor  => interior ? [interior.transform(target[:transformation]), target[:world_normal]] : nil,
+                      :split   => Na__NobleDrawingTools.Na__SlopePush__SplitOffset(target[:face], offset),
+                      :state   => NA_PPS_TARGET_STATE.map { |name| instance_variable_get(name) },
+                      :data    => [target, snapshot, offset, na_drawn__slope_mode?, na_drawn__loop_cut_mode?, na_revise__build_ghost(target)] }
                 end
+            end
+            if picked && respond_to?(:na_pk__apply_chain) && na_pk__spans_contexts?(recipes, home)
+                return na_pps__commit_chain(view, model, recipes, distance, home, steering)
             end
             model.start_operation('Deep Push Pull (Selected Faces)', true)
             opened = true
@@ -257,15 +303,15 @@ module Na__NobleDrawingTools
             end
             model.commit_operation
             opened = false
-            reselect = (@na_pps_reselect || []).select(&:valid?)
+            reselect = picked ? [] : (@na_pps_reselect || []).select(&:valid?)   # <-- A pick set was never the selection
             model.selection.add(reselect) unless reselect.empty?
             counts = recipes.map { |recipe| na_pps__recipe_entities(recipe) }.compact.uniq.map { |entities| [entities, na_revise__entity_count(entities)] }
-            record = records.first.merge(:kind => :face_batch, :members => records, :counts => counts,
+            record = records.first.merge(:kind => :face_batch, :members => records, :counts => counts, :picked => picked,
                                          :ghost => { :members => records.map { |member| member[:ghost] } })
             na_revise__arm(record)
             na_ev__spend if steering                                       # <-- A batch is one push: the edge has done its job
             na_drawn__reset_pick_state
-            na_pps__read_selection
+            picked ? na_pk__clear(true) : na_pps__read_selection
             view.invalidate if view
             true
         rescue StandardError => error
@@ -280,19 +326,40 @@ module Na__NobleDrawingTools
             @na_pps_reselect = nil
         end
 
+        # A set across groups, pushed one context at a time, and armed for a
+        # retype like any batch (5.2.34). Its undo walks back step by step
+        # rather than trusting a count: see DrawnPushPullPickSet.
+        def na_pps__commit_chain(view, model, recipes, distance, home, steering)
+            result = na_pk__apply_chain(model, recipes, distance, home)
+            na_ev__spend if steering
+            armed = na_pk__arm_chain(result[:records], result[:stages])
+            na_drawn__reset_pick_state
+            na_pk__clear(true)
+            unless armed || na_revise__replaying?
+                count = result[:done]
+                na_revise__notice("#{count} picked face#{count == 1 ? '' : 's'} pushed — this one could not be armed for a retype")
+            end
+            view.invalidate if view
+            true
+        end
+
         # A selected surface, checked and snapshotted before anything moves.
         def na_pps__joint_recipe(model, unit, distance)
             faces = unit[:joint][:faces]
             raise 'A selected face is no longer available' unless faces.all?(&:valid?)
             raise 'A selected face is locked' if unit[:targets].any? { |target| target[:locked] }
-            raise 'The editing context changed — reselect the faces' unless faces.all? { |face| Na__NobleDrawingTools.Na__DeepPick__InOpenContext?(face) }
+            unless na_pps__picked? || faces.all? { |face| Na__NobleDrawingTools.Na__DeepPick__InOpenContext?(face) }
+                raise 'The editing context changed — reselect the faces'
+            end
             raise 'A selected face cannot travel along the locked axis' unless na_drawn__axis_lock_usable?
-            plan = Na__NobleDrawingTools.Na__JointPush__Plan(faces, Geom::Transformation.new)
+            xform = unit[:targets].first[:transformation] || Geom::Transformation.new
+            plan = Na__NobleDrawingTools.Na__JointPush__Plan(faces, xform)
             problem = Na__NobleDrawingTools.Na__JointPush__Problem(plan, distance)
             raise problem if problem
             snapshot = na_jp__snapshot(plan, unit[:targets].first, model)
             raise 'A selected surface could not be measured' unless snapshot
             { :kind => :joint, :unit => unit, :plan => plan, :snapshot => snapshot,
+              :context => na_pps__unit_context(unit), :anchors => na_jp__world_anchors(plan),
               :ghost => na_jp__ghost(plan, na_jp__cut_for?(plan, distance)) }
         end
 
@@ -307,14 +374,24 @@ module Na__NobleDrawingTools
         end
 
         # A batch comes back as units again: a surface member as its plan, a
-        # face member as itself, the first member driving the distance.
+        # face member as itself, the first member driving the distance. A
+        # picked set is a picked set again for the rebuild, so faces in closed
+        # groups are taken and a set across groups chains again; it is let go
+        # afterwards whatever happened, because a retype never leaves one.
         def na_revise__rebuild(record, target, value, view)
             return super unless record[:kind] == :face_batch
             @na_pps_units = target.map do |member|
-                member[:kind] == :joint ? { :targets => member[:targets], :joint => member[:plan] } : { :targets => [member], :joint => nil }
+                if member[:kind] == :joint
+                    { :targets => member[:targets], :joint => member[:plan], :path => member[:path] }
+                else
+                    { :targets => [member], :joint => nil, :path => member[:path] }
+                end
             end
             @na_pps_targets = @na_pps_units.flat_map { |unit| unit[:targets] }
+            @na_pk_picked   = true if record[:picked]
             na_revise__wearing(record, target.first, value) { na_pps__commit(view) }
+        ensure
+            na_pk__clear(true) if record && record[:picked] && respond_to?(:na_pk__clear)
         end
 
         def na_revise__parse_retype(text, record)

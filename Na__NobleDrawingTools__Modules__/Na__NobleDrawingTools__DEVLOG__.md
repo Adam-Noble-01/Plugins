@@ -3,6 +3,538 @@
 
 # =============================================================================
 
+## Version 5.2.34 - 06-Nov-2026 - Retype After the Fact Everywhere: Picked Faces Across Groups Retype, and Every Tool Replays the Change
+
+### Asked For
+*"Make the push pull more forgiving, it does not have the behaviour the same as the normal mode in which you can
+retype and regenerate a different offset, the normal mode animates to a new position if you change your mind and
+type and enter a new dimension after the fact, ensure this behaviour is common accross all my tools"*
+
+### What It Does Now
+- **Deep Push Pull: a CTRL-picked set retypes like a single push,** across groups too. Push a ring of a fascia in a
+  group by 120, then type 200 and every face lands at 200 from where it started. Typing -50 turns the set round,
+  and 120 puts it back exactly where the first push was. The ghost sweeps from the old size to the new, as on one
+  face. That covers a CTRL+SHIFT+double-click repeat, the 2D tool, a set spread over several groups, a set picked
+  while working inside a group, and a ring pushed as one surface with Joint on.
+- **Every other tool that takes a size after the fact now replays it too.** The old shape stays on screen, faint and
+  dashed, while the new one sweeps out of it, eased, holds a beat and clears (the push ghost's timing). That is:
+  Drawn Plane, Drawn Volume, Drawn Cylinder, the Pitched and Hipped Roofs (pitch, plan, fascia and soffit),
+  Stairs, Pipework (a spec typed over pipes just built or selected), Vertex Move (a typed correction), Deep Scale
+  (every typed size) and Place Cube / Plane. The card beside it says what was typed.
+- Deep Push Pull, the chamfers (Chamfer, Ogee, Fillet, Ovolo) and Deep Project already replayed theirs, and keep
+  their own ghosts.
+
+### How It Is Built
+- **The retype across groups (DrawnPushPullPickSet):** the shared retype takes the push back with Sketchup.undo
+  and runs the commit again at the new size. How many undo steps a push across groups takes is still unmeasured.
+  Entering and leaving a group are undo steps of their own, and the chain asks SketchUp to merge them. So this
+  retype does not trust a count:
+  - It undoes one step at a time and stops the moment every picked face is back where it started.
+  - "Back" means a face on the same side holds the point that was inside it before the push. The point is read
+    in whatever space the face reports now: world while its group is open, local while it is closed.
+  - It never takes more steps than the chain could have made (an op and a hop per group, plus the way home).
+  - If the faces are not all back by then, it puts everything back with Redo and refuses, with a beep.
+  - It never opens a group while walking back, since that would add an undo step of its own.
+  - Each face's record is read in the user's own context before the first hop, as the push itself is.
+  - A rebuilt surface reads every one of its faces through its own group, not the root.
+- **The shared replay (new DrawnReviseMorph, 06__Tools__DrawnShared):**
+  - The tool hands over the shape's edges in world before the typed value lands and again after it. Group edges
+    are read through the group's transformation, which is world because the group sits in the open context, and
+    on down through nested instances.
+  - A rebuild of the same topology makes the same edges in the same order, so edge N sweeps to edge N.
+  - When the counts differ, or that pairing would scramble, the new shape starts squeezed into the old one's box
+    and grows out to its own instead. Examples: a stair gaining a step, a box flattened to a plane.
+  - DrawnToolShared asks each tool what a typed value would change (na_drawn__morph_segments) before and after
+    every typed entry. The shape tools answer with the group they still hold, and only at idle with a revise
+    armed. Vertex Move answers with the edges at its picks, and Deep Scale with its ghost carried to world.
+  - Pipework and Place Cube have their own typed-value handlers and wrap them the same way.
+  - Every tool's draw and extents carry the replay, and leaving the tool clears it.
+
+### Checked
+- **Offline, the real tools on the doubles:**
+  - **The retype across groups (`f_chainretype`, 66 checks).** The undo double is a journal that really restores
+    geometry. It runs in three modes:
+    - SketchUp merging the chain into one step: one undo.
+    - Every op and every group change a step of its own: two undos.
+    - An undo that brings nothing back: refused after exactly 3 steps, with 3 Redos.
+    Retype 200, then -50, then 120 lands to the micron every time. The cases: a fascia ring in a moved, rotated, 2x
+    group; a loose face plus a ring (two groups); working inside G1 with a face of G1 and a face three deep; the
+    ring as one surface with Joint on; a CTRL+SHIFT+double-click repeat; the 2D band.
+  - **The replay (`g_morph`, 72 checks):**
+    - World edges through moved, rotated, nested and scaled groups, also with a group open.
+    - Pairing versus the box: exact old shape at the start and new shape at the end, eased in between, and a
+      plane into a box or a box into a plane all finite.
+    - The shared hook on a real Drawn Volume tool: plays at idle, not mid-drag, not when nothing changed, not on
+      a refused entry.
+    - The real draw and extents of all ten retyping tools.
+    - Each tool's own answer to what a typed value changes, plus Place Cube and Pipework's own handlers.
+- **Deliberate breaks:** 10 of 10 caught for the retype across groups and 18 of 18 for the replay. Three
+  survived at first, and each led to a stronger test: a check on every face of a surface rather than the
+  driving one, a face turned the other way at the probe point, and a box flattened to a plane.
+- **No regressions:** Push Pull 230 + 322 + 76 + 29 + 34 still pass; c_pickset's B14 now expects the retype it
+  used to rule out. Deep Scale kit: all 13 suites, 2,260 checks. Roof kit: tool 140, build 3,399, more 381. Syntax 123 of 123.
+- **Not run:** anything in real SketchUp. Unmeasured: how many Ctrl+Z a push across groups takes (the retype no
+  longer depends on it), and the thicken route's back faces, which the doubles cannot build (the probe was
+  checked against such a face directly). The Vertex Move kit predates the rename, so it was not rerun; its tool
+  is loaded and checked in `g_morph`.
+
+### To Test (Reload Plugin Data first)
+- [ ] Fascia ring in a group: CTRL+SHIFT+click, drag and type 120. Then type 200, Enter: the whole ring moves to 200
+      with the ghost sweeping. Then -50, then 120. Ctrl+Z once afterwards: is the ring back to the start?
+- [ ] The same with a loose face CTRL+clicked as well (two contexts), and on TEMP_LEFT in 2D.
+- [ ] CTRL+SHIFT+double-click a ring (repeat), then type a new size.
+- [ ] Draw a box with Drawn Volume, then type 1200,800,600: the old box dashed, the new one sweeping out of it.
+- [ ] Re-pitch a roof (type 35), retype a stair, retype a cylinder.
+- [ ] Vertex Move: move some vertices, then type 300. Deep Scale: type a size twice. Pipework: type a new size
+      over pipes just built. Place Cube: type a size after placing one.
+
+# =============================================================================
+
+## Version 5.2.33 - 06-Nov-2026 - Deep Push Pull: CTRL+SHIFT+Double-Click Pushes the Shortest Ring by the Last Distance
+
+### Asked For
+*"Add the same double click feature so you can control + shift + double click to do the same command with the last
+value applied as the push pull (this functionality already works with the main version but not with the new face
+ring mode we added"*
+
+### What It Does Now
+- **CTRL+SHIFT+double-click a face** and its shortest ring is picked and pushed at once by the last distance placed,
+  every face along its own normal. It is native Push/Pull's double-click repeat, on the whole ring.
+- **The same in 2D:** CTRL+SHIFT+double-click the band seen face-on, and its front, back and both ends are pulled
+  by the last distance. As with a drag, an edge-on face drives it; a lone face looking at the camera is refused with
+  a beep and the reason, and stays picked.
+- **Faces CTRL+clicked before go with it**, as they would with a drag. A face that is not a quad has no ring and is
+  pushed alone.
+- **The sign is kept:** a remembered inward push pulls the ring in.
+- **The distance is shown before the click:** the ring's card says "CTRL+SHIFT+double-click repeats 120 mm" and the
+  status line ends "dbl-click to repeat 120 mm".
+- **Nothing remembered yet:** a beep and "Nothing to repeat yet", and the ring stays picked, ready to drag. A
+  double-click within 0.55 s of a placement is not a repeat (the plain double-click's guard), so the ring is
+  picked and nothing is pushed.
+- CTRL alone + double-click still only picks the face. Only the ring gesture repeats, as asked.
+
+### How It Is Built
+- A double click arrives as Down, Up, DoubleClick, Up. The CTRL+SHIFT Down already picks the ring (a ring click
+  only ever adds, so a second ring click never takes it out). `onLButtonDoubleClick` in the tool now hands an idle
+  CTRL+SHIFT double click to `na_pk__double_click` before its own "nothing grabbed" exit.
+- `na_pk__double_click` (DrawnPushPullPickSet) grabs the picked set exactly as a plain click does
+  (`na_drawn__grab_face`, so the 2D tool's edge-on driver rule applies) and calls `na_revise__apply_repeat` with the
+  remembered value, which reaches the same `na_pps__commit` (and the per-group chain) as a drag.
+- CTRL, SHIFT and ALT are let go for the push itself and given back after it: held SHIFT would send every ring face
+  up its slope (`na_drawn__slope_mode?`) and CTRL snaps. The hover is redrawn with the keys still down, so the ring
+  under the cursor is on offer again at once.
+- A set of one face is let go after the push, as a set of several already was.
+- Also: the 2D tool's header said 5.2.31 for the CTRL picks; it is 5.2.32.
+
+### Checked
+- **Offline, the real tools on the doubles, 34 new checks (`e_pickdbl`):**
+  - A fascia three groups deep (moved, rotated 30 degrees, nested, scaled 2x). A plain push of 120 is placed first,
+    so the tool remembers the value itself. Then one CTRL+SHIFT double click: the first click picks the ring and
+    pushes nothing. The double click pushes exactly the four ring faces, each 120 mm world along its own normal and
+    60 in the group's own units. SHIFT and CTRL are up during the push, back down after it, and the set is let go.
+  - The guards: nothing remembered, too soon after a placement, and CTRL alone.
+  - Faces picked first go with the ring: five pushes of 40.
+  - A triangle with no ring is pushed alone.
+  - An inward value of -20 pulls every face in.
+  - In 2D, the band seen face-on in a tilted, scaled group: four pulls of 120 world. A lone face-on face is refused.
+- **Deliberate breaks, all 7 caught:** the double click not routed, keys held through the push, keys not given back,
+  the guard ignored, a set of one kept, the sign dropped, the hint never shown.
+- **No regressions:** 230 + 322 + 76 + 29 checks from 5.2.28 to 5.2.32 still pass. Syntax 122 of 122.
+- **Not run:** anything in real SketchUp, including whether the DoubleClick event carries CTRL+SHIFT in its flags
+  (the tests send them) and the Ctrl+Z count for a ring in a group.
+
+### To Test (Reload Plugin Data first)
+- [ ] Push any face by a typed 120. Then hold CTRL+SHIFT over the fascia front: the yellow ring's card says
+      "CTRL+SHIFT+double-click repeats 120 mm".
+- [ ] Double-click it: the front, back and both ends all come out 120, and the top does not. One Ctrl+Z undoes all of it.
+- [ ] Do it inside a rotated group, and inside a scaled one: still 120 as measured.
+- [ ] On TEMP_LEFT, CTRL+SHIFT+double-click the band: both ends grow 120 and the front and back thicken.
+- [ ] CTRL+click a face elsewhere, then CTRL+SHIFT+double-click a ring: the face is pushed with the ring.
+- [ ] In a new model with nothing pushed yet: a beep, and the ring stays picked, ready to drag.
+
+# =============================================================================
+
+## Version 5.2.32 - 06-Nov-2026 - Deep Push Pull 2D: CTRL Picks Walls Too, and a Drag Pulls the Whole Set Out
+
+### Asked For
+*"Add to the 2d version now and draging in a direction move them out, there is a seperate 2d camera handler for
+it see so make sure it works in 2d too"*
+
+With a screenshot of a left elevation: a fascia band seen face-on, shaded yellow (a ring), and an arrow to the right.
+
+### What It Does Now
+- **In a parallel (2D) view, CTRL+click an edge** and the wall behind it is picked, the same wall a plain click
+  grabs. CTRL+click more edges to pick more walls, at any depth.
+- **CTRL+SHIFT+click a face** picks it and its shortest ring, **even a face that looks straight at the camera.** On
+  the band in the screenshot that is its front, both ends and its back. With an edge under the cursor, the ring
+  starts from the wall behind that edge instead.
+- **Then drag.** The drag is measured on the picked face nearest the cursor that lies across the screen, since a
+  face looking at the camera cannot be dragged. Every face moves along its own normal by the same distance, so
+  dragging the way an end face points pulls the set out. On the band that makes both ends longer and the front and
+  back thicker, at once. The drag starts at zero wherever it is grabbed.
+- **A set with only face-on faces is refused** with a beep and the reason: pick an edge-on face too, or orbit.
+- **CTRL+click on a face-on face** offers nothing, and the status line says to CTRL+click an edge.
+- **The camera handover keeps the set.** Pick in 3D, click a 2D scene tab, and the 2D tool starts with the same
+  faces picked, ready to drag (and the other way round).
+- The colours are as in 3D: green for a face on offer, drawn as a wide line because it is edge-on; yellow for a
+  ring on offer; blue once picked; a red outline to take one out.
+
+### How It Is Built
+- `DrawnPushPullPickSet` asks the tool which face a CTRL click is about (`na_pk__pick_target`). The 3D tool says
+  the face under the cursor; the 2D tool says the wall behind an edge (`Na__PushPull2d__ResolveTargetAt`), or for a
+  ring, the face under the cursor.
+- The 2D tool overrides `na_pps__nearest` so that only faces whose normal lies across the screen
+  (`NA_PP2D_MIN_SCREEN_FACTOR`) can drive, and `na_pps__anchor` so the drag starts on the driver's normal under the
+  cursor. The 3D anchor meets the pick ray with the face's plane, which an edge-on plane never does under a
+  parallel camera.
+- `Na__PushPull2d__HandoverIfCameraFlipped` reads `na_pk__carry` from the tool it replaces and hands it to the new
+  one before `select_tool`; the new tool takes it up in `activate`.
+- Everything after the grab is 5.2.30's: the preview, the per-group commit chain, the undo flags.
+
+### Checked
+- **Offline, the real 2D tool under the parallel view double, 29 new checks:** the band's ring from a face-on face,
+  a drag by the right end in a group that is moved, tilted 20 degrees about the view axis and scaled 2x (every face
+  120 mm world along its own normal, 60 in the group's own units, one operation, no jump at the grab, dragging right
+  is outward), CTRL+click on the lines at each end picks the walls, CTRL on the face-on band offers nothing and says
+  why, a face-on-only set is refused, and a set carried from the 3D tool through the camera handover.
+- **No regressions:** 230 + 322 + 76 checks from 5.2.28 and 5.2.30 still pass. Syntax 122 of 122.
+- **Deliberate breaks, all caught by the 2D suite:** the anchor from the inherited plane meet, face-on faces allowed
+  to drive, the ring seed taken only from the edge resolver, plus 5.2.30's split, undo flags and ring length.
+- **Not run:** anything in real SketchUp. The handover is checked with the timer run at once and `activate` called
+  by hand, because the doubles' `select_tool` does not activate.
+
+### To Test (Reload Plugin Data first)
+- [ ] Your screenshot: on the TEMP_LEFT tab, CTRL+SHIFT over the band. The ring is yellow and the card says 4 faces.
+      Click, and it turns blue.
+- [ ] Without CTRL, near the right end, press and drag right: both ends grow outwards together, and the preview shows
+      them. Type a distance: it lands exactly. Ctrl+Z once undoes it.
+- [ ] Drag left from near the left end: also outwards. Drag right from near the left end: inwards, in red.
+- [ ] CTRL+click two vertical lines in different groups, then drag one: both walls pull.
+- [ ] Pick a ring in 3D, click the TEMP_LEFT tab, and drag: the same faces are still picked.
+
+# =============================================================================
+
+## Version 5.2.31 - 06-Nov-2026 - Deep Project: Only the Parts That Meet the Target Go, the Face Split Where It Ends
+
+### Asked For
+*"Change the behaviour of deep project so it alyways seeks to project a section until it meets the target,
+this will involve an additional step that breaks the face as required in the projection object"*, and
+*"Add a dynamic toggle in the menu under the tool to use the old behaviour instead so we can also have the
+tool do full face projection, but the default behavour should be to project the sections its able to from
+candidate face to target face / object"*.
+
+With three screenshots: a gap left at the end of a plinth against a raking return, a skirting that should
+reach the corner with a break line where it changes, and the wedge the projection should fill.
+
+### What It Does Now
+- **A target face is the face as drawn, not its endless plane.** Each part of the face is carried along the
+  travel until it meets the target. A part that would pass the target by stays where it is, and the face is
+  broken along the line where the two meet: the break line.
+- **An object target is every face of it.** Each part lands on the first face of the object it reaches, so a
+  wall top half under a hip roof climbs both slopes and meets at the hip, and the rest stays.
+- **One landing for the whole face goes the way it always went.** When the target covers the whole face,
+  nothing is split and the old routes (STRETCH, PUSH, FOLLOW, the loop cut) build it. An object whose one
+  face covers the whole face now lands the face on that face's plane.
+- **Cut and extend works on a part, and on a whole face the old routes refused.** A target that crosses the
+  part is built with walls that pinch to a point where the heights cross. A whole face whose neighbours do
+  not run along the travel (the 5.2.2 red card) is now built this way instead of being refused.
+- **Full Face** is a new switch under Deep Project in the right-click menu, off by default. On, it is 5.2.30
+  exactly: the whole face to the target's plane, or rigidly to first contact with an object.
+- **The preview:** the break lines in magenta on the face, the parts that go in orange (red for a part going
+  back, drawn on top), a figure on every rung. The card says *one part of the face* (or *3 parts*) and *only
+  where it meets it: split there, the rest stays*. The status line says the same. The undo step is
+  *Deep Project (Sections)*.
+- **A point target (CTRL) and FOLLOW (SHIFT+ALT) still carry the whole face.** A point has no outline, and
+  FOLLOW has no single travel to cast a shadow along.
+- **Nothing of the face meets the target:** a red card, naming Full Face as the way to reach the plane.
+
+### How It Is Built
+- **`Na__ProjectSections__*`, a new file.** The maths is plain floats in the face's own plane. The target's
+  outline is cast back down the travel on to that plane (its SHADOW: one subtraction, because the motion
+  has `m . n = 1`). The face's loops and the shadows are thrown together as segments, cut where they cross
+  or touch, with points within 0.005 mm made one, so a target edge lying along an edge of the face becomes
+  that edge. The faces of that drawing are walked, and each is asked once, just inside one of its edges,
+  what it meets. A cut is an edge with a different answer on each side, both inside the face.
+- **The split is cached on the target** per face, direction and sense. Only the landing heights depend on
+  the offset, so a typed offset and the retype ghost re-solve at once.
+- **The build is an explicit sweep, not pushpull.** The cuts are drawn, so the face falls into pieces.
+  Each moving piece gets its landed face, and every edge round it a wall from the height on one side to
+  the height on the other, facing the lower side. That one rule covers carrying out, cutting back, cut and
+  extend, and two pieces landing side by side at different heights. The faces round the original are
+  treated as pushpull would: one that runs along the travel is continued (going out, the seam is healed
+  unless QUADS) or cut back to the target (going back); one that does not is only cut through where the
+  cut stays inside the solid.
+- **Checked before it commits:** every piece must give one answer just inside each of its edges, a trim
+  must find the strip it cuts off at the right area, and every landed face must survive. Any failure
+  raises and the whole operation is aborted.
+- **Coordinates:** the sections are world. The build reads and writes in the space the face reports and
+  converts at the edges, the identity when its context is open, by the Coordinate Rule.
+
+### Found on Real Geometry (rolled-back probes in SketchUp 2027, a scratch model)
+- A target smaller than the face, wholly inside it, did not split it: a loop drawn wholly inside a face
+  only becomes a face when asked, so the cut lines now call `find_faces`.
+- A trim whose lines were all drawn already (by the landed face and the trims beside it) split nothing.
+  Its lines call `find_faces` too, and the strips are erased only at the end, because `find_faces` would
+  otherwise fill an erased strip back in.
+- Healing two coplanar walls on one side left an edge between them that bounded nothing. A final sweep
+  erases it.
+
+### Verified
+- **Syntax:** every file compiles under SketchUp 2026's Ruby 3.2 (offline, 122 files) and the changed ones
+  under SketchUp 2027's Ruby 3.4.9 (live, compile only).
+- **Sections maths, 39 checks (offline):** a part under a target, a whole cover, a target inside the face
+  (a hole in what stays), a tilted target crossing, a target beside the face, target edges along the
+  face's own edges, a hip roof object, a flat object over the whole face, a slanted travel, a face with a
+  hole, an offset, the forced whole, an object behind the face (sense found), a wall face, and a
+  sixty-faced stepped object under 1.5 s.
+- **The tool, 19 checks (offline):** the default, the status line, the card, the preview and ghost drawing,
+  the plan and undo name, Full Face on and off, and the menu listing.
+- **The build on real SketchUp geometry, 9 solids, all manifold, each volume exact:** a part raised, a part
+  cut back, a part cut and extended, a square inside the top, a skirting end out to a raking wall over
+  its upper part, a forced whole cut and extend, QUADS (seams kept), a wall top under a hip roof object,
+  and a slanted travel. Nothing was left in the model.
+- **Not covered:** the build inside a moved, rotated and nested group, a scaled group, and the commit and
+  retype through the tool itself. The Testing Notes cover them.
+
+### Testing Notes
+- [ ] Reload Plugin Data. Deep Project's right-click submenu has *Full Face: Off* under *Object Target*.
+- [ ] Your skirting: click its end face, hover the return wall. Only the part the wall covers is orange, the
+      break line is magenta, the card says *one part of the face*. Click: the face is split there, the part
+      runs to the wall, the rest stays. One Ctrl+Z.
+- [ ] A wall top half under a roof face: only that half goes up. The same with SHIFT+TAB on the roof group:
+      both slopes, meeting at the hip.
+- [ ] A target below the top over part of it: that part is cut back, the sides trimmed. The card shows red.
+- [ ] Full Face on: the whole face to the plane, exactly as before. Off again: sections.
+- [ ] Inside a group moved AND rotated, three deep, and in a scaled group: the same results.
+- [ ] Type `25` after placing: re-made 25 short, still split in the same place.
+- [ ] TAB (QUADS) on: the start line stays where the part came out.
+
+### Files
+- **New** `36__System__DeepProject/..DrawnProject__Sections__.rb`: the shadows, the arrangement, the cells,
+  the cuts, the build, `NA_PROJECT_FULL_FACE_OPTION`.
+- `..Geometry__.rb`: `Na__Project__Solve` hands face and object targets to the sections when `:sections`
+  is set, and takes a whole landing back to the plane routes; the object scan keeps each face's loops.
+- `..Target__.rb`: a plane target keeps every loop of its face and a memo; `na_pj__full_face?`.
+- `..DrawnProjectTool__.rb`: `:sections` in the settings (`na_pj__sections_mode?`, the recorded one during a
+  retype), the forced build for a whole face that would have been refused, the status line, a hint line.
+- `..Commit__.rb`: the plan carries the sections, which go to the build; the undo name.
+- `..Preview__.rb`: `na_pj__draw_sections`, its labels, the arrow, the card and the object line.
+- `..Revise__.rb`: the retype and the ghost keep the mode the projection was made in.
+- `02__AppData/..ToolOptions__.rb`: *Full Face* under `:drawn_project`.
+- `01__AppCore/..LoadManifest__.rb`: the new file, after the geometry.
+- `.cursor/rules`: the 36 folder line and `Na__ProjectSections__*`.
+
+# =============================================================================
+
+## Version 5.2.30 - 06-Nov-2026 - Deep Push Pull: CTRL+Click Picks Faces at Any Depth, CTRL+SHIFT+Click Adds the Shortest Ring
+
+### Asked For
+*"In the push pull tool, when in the selection part of the process, make it so holding Control allows for
+selection multiple deep nested faces, in this case it would select two. then a second modifier, holding
+cntrl + alt + shift on a face performs the "Select Shorted Face Ring" From Noble 3D Tools and uses those
+faces as the candidates for push pull"*
+
+With two screenshots: a fascia face in `OuterShell` beside a face in another context, both to be pushed, and a
+fascia board whose front face should bring its ring but not the top.
+
+### What It Does Now
+- **Before a face is grabbed, CTRL+click picks the face under the cursor,** at any depth: a face three groups
+  down and a loose face beside it go into one set, which the Select tool cannot do. CTRL+click a picked face
+  again to take it out. Nothing is grabbed and nothing moves.
+- **CTRL+SHIFT+click picks the face and its shortest ring.** This is Noble 3D Tools' Select Shortest Face Ring,
+  run on the face clicked: out across its shorter pair of opposite edges, quad to quad, until the ring closes or
+  meets a face that is not a quad. On the fascia's front face that is the front, both ends and the back, not the
+  top. Lengths are measured in world, so a scaled group takes the ring that looks shortest. A face that is not a
+  quad is picked alone, and the card says why.
+- **Holding CTRL shows what a click will do,** with a card that says "adds
+  this face", "takes this face out" or "Shortest ring: 4 faces, adds 4", and where the face is nested. It shows as
+  soon as CTRL goes down, without moving the mouse.
+- **The colours say which is which** (asked for mid-build: *"Make the highlighting of additional faces green and
+  then blue, keep the yellow preview reserved only for ring selections so its clear always"*): one face on offer
+  is **green**, faces already picked are **blue**, a ring on offer is **yellow** and nothing else is, and a picked
+  face that CTRL+click would take out has a **red** outline.
+- **Then drag as usual.** Without CTRL the set behaves as a preselection does: the nearest picked face is grabbed
+  and every face goes along its own normal by the same distance, with joint surfaces, QUADS, loop cuts and a typed
+  distance all as before. Faces that share an edge in one group push as one surface when Joint is on.
+- **BKSP or ESC lets the set go** (ESC only leaves the tool once there is nothing picked). A preselection becomes
+  the start of the set if you CTRL+click on top of it.
+- **A picked set never asks** "push N faces?". That question is for CTRL+A, not for faces picked one click at a time.
+
+### CTRL+SHIFT, Not CTRL+ALT+SHIFT
+SketchUp 2027 takes **Shift+Ctrl+Alt with the mouse as its own pan** (and Ctrl+Alt as its touchpad orbit; see
+`Camera__AltGrFilter__`), so hovering with those three keys down moves the camera. And ALT is not in the mouse
+flags, which made every ALT modifier in this plugin unreliable before (0.4.34, 5.1.21, 5.1.23). CTRL and SHIFT
+are in the flags of every mouse event, so the ring is **CTRL+SHIFT+click**. Holding ALT as well does not stop it.
+
+### Faces in Different Groups
+- A push has to run with the face's own group open, or the screen does not update. One operation cannot cover
+  two groups, so a set spread over several is pushed **one group at a time**: your own context first, then
+  straight into each other group in turn, then back to where you were.
+- Every operation after a group change is started transparent and every one before a change next_transparent,
+  so the whole push should **undo with one Ctrl+Z**. This has not been checked in SketchUp yet. Until it has, a
+  push across groups **cannot be retyped** afterwards (typing 1200 to resize it), because a retype that undid
+  too little would push twice. The status line says so. Faces that are all in one context can be retyped as before.
+- **Coordinate Rule:** every push direction, the pushpull distance in the group's own units, and the slope split
+  are read before the first group is opened, in your own context. The split is passed to the commit, so it is
+  never read again from a face that has started reporting world.
+- If one group fails partway, the groups already pushed stay pushed and the message says how many (Ctrl+Z
+  takes them back). You are always put back in the context you started in.
+
+### How It Is Built
+- **`DrawnPushPull__PickSet__.rb` is new:** the ring walk (`Na__PushPullPick__ShortestRing`), the CTRL hover,
+  click, card and status, and the chain that pushes one context at a time (`na_pk__apply_chain`).
+- **The set is `@na_pps_targets`,** so the preview, the grab and the commit are `DrawnPushPullPreselect`'s.
+  Preselect's units now carry their context, and a surface is only joined from faces in one context, read
+  through that context's transform (it was always the identity, which was right only for a selection).
+- **`execute_push`** takes the pick set's chain as "context already open": it does not enter, does not restore,
+  and uses the split it was given.
+- **Hooks in the tool:** CTRL+click before SHIFT's edge nomination, the CTRL hover in `hover_face`, a refresh of
+  the hover when a key goes down, the candidate in `draw` and the extents, the status line, and BKSP.
+- In the 3D tool only. (5.2.32 brings it to the 2D variant.)
+
+### Checked
+- **Offline, the real tool from mouse and key events, 76 new checks** (7 of them on the colours drawn): a loose face plus a face in a group that is
+  moved, rotated 30 degrees, nested three deep and scaled 2x, pushed together; world travel exact on both, the
+  scaled group given half in its own units, the operation flags, no operation open when the context changes, and
+  the user put back at the root. Also all faces in one closed group (exactly the single push's undo pattern),
+  starting from inside G1 with a face there and one in G3, the fascia ring from the front, the end and the top,
+  the joint plan for the ring, a triangle, BKSP, ESC twice, CTRL with the mouse still, and a preselection
+  added to.
+- **No regressions:** the 230 tool checks and 322 Coordinate Rule checks from 5.2.28 all still pass. Syntax:
+  121 of 121 files compile.
+- **Deliberate breaks to a scratch copy, all caught:** the split read after the group change, no transparent
+  operations, your own context not first, and the ring taking the longer pair.
+- **Not run:** anything in real SketchUp. Not measured: how many Ctrl+Z a push across groups takes; whether
+  opening a copied group gives fresh faces (the commit looks them up again by a point inside each, as joint
+  pushes do); and a loop cut, slope or along-edge push in a set across groups, which the test doubles cannot cut.
+
+### To Test (Reload Plugin Data first)
+- [ ] Your first screenshot: hold CTRL over the face in OuterShell (green), click (it turns blue), then the other
+      one. The status line says "2 picked faces".
+- [ ] Let go of CTRL and drag one of them: both preview, both push by the same distance, each along its own normal.
+- [ ] **Ctrl+Z once:** both come back, and you are in the context you started in. Tell me how many presses it took.
+- [ ] Your second screenshot: CTRL+SHIFT over the fascia's front face. The card says the ring, the front, both ends
+      and the back light up yellow, the top does not. Click (they turn blue), then drag.
+- [ ] CTRL+click a picked face: it comes out of the set. BKSP drops the whole set; ESC drops it, a second ESC leaves.
+- [ ] Press CTRL with the mouse still over a face: the amber offer appears straight away.
+- [ ] In a group that is moved, rotated, nested three deep and scaled: the faces land where the preview showed.
+- [ ] Picked faces all in one group: after placing, type a new distance and it resizes the push.
+
+# =============================================================================
+
+## Version 5.2.29 - 05-Nov-2026 - Hipped Roof: A Selected Face Is the Plan, Any Shape, With Hips, Valleys and T Junctions Worked Out
+
+### Asked For
+*"In Noble Drawing Tools, update the hipped roof tool so as if a face is selected it uses that as the base
+shape rather than requiring a rectangle to be defined. Ensure it can handle hips and valleys. i.e t junctions,
+and roofs even like this, See hjow uneven thus shape is?"*
+
+With three screenshots: a 16-sided plan as a selected face, and the roof it should carry from two sides.
+
+### What It Does Now
+- **Select a face, then start the Hipped Roof.** The rectangle stage is skipped and the face is the wall line,
+  whatever its shape. Fascia, soffit and pitch then go as they always have, by mouse or typed, `225,300,35`
+  included. With Fascia & Soffit off it goes straight to the pitch.
+- **Every hip, valley and ridge is worked out from the plan.** One pitch on every slope. A wing narrower than
+  the body dies on the body's slope in two valleys; one as wide meets its ridge level; one wider takes the
+  body's ridge. L, U, H, plus, comb and stepped plans all come out, and walls at any angle, not just square.
+- **Eaves on one straight line either side of a wing are one face,** with no line down the middle.
+- **A courtyard is part of the plan.** A hole in the face gets its own eaves and hips, and the status line says
+  it has counted one. A soffit big enough to close a recess or a courtyard closes it.
+- **The rise is the height of the top of the roof, and the pitch is the pitch of every slope.** A roof over a
+  rectangular face is the same roof, point for point, as the rectangle tool draws.
+- **Afterwards:** `35` re-pitches, `3000mm` sets the rise, `250f` and `400s` correct the plinth and hold the
+  pitch. A plan size like `6000,4000` is refused, naming what to type instead: the face is the plan.
+- **The face is left alone.** The roof is a new group standing on it, built as the rectangle roofs are:
+  `01__DrawnHippedRoof` holding `02__FasciaSoffit` and `02__RoofMass`, each its own solid.
+- **Letting go of the face:** BKSP past the first stage, or ESC, and the next drag is a rectangle. TAB and the
+  arrows have no ridge direction to choose over a face, and say so.
+- **Several faces selected:** the largest flat one, and of a top and a bottom the top, so a triple-clicked box
+  takes its top. The status line says it chose. They are not merged.
+- **Only the Hipped Roof.** A gable has to be told which ends are gables, which a plan alone does not say, so
+  the Pitched Roof carries on ignoring the selection.
+
+### How It Is Built
+- **`DrawnRoofSkeleton` is the maths, on plain arrays with no SketchUp API.** It is the straight skeleton: let
+  every eaves line walk inward at one speed, so how far a line has walked is how high its plane has climbed.
+  Where two walking lines meet is where their planes meet. Lines meeting at a corner trace a hip or a valley,
+  and lines meeting head on make a ridge.
+- **Everything that touches at one moment is one job.** A square-cornered plan is the worst case: valleys
+  collide head on, eaves land on one line, a ridge closes in the instant its ends do. So there are no separate
+  events. At each moment, corners in one place are clustered, edges with a corner on them are split there,
+  edges that have shrunk away are dropped, the edges round each cluster are sorted by angle and paired, and
+  the wavefront is walked again. A loop of two has closed flat, and that is a ridge. A T junction, a pinwheel
+  and a square need no code of their own.
+- **Checked before it is believed.** Every face must be a simple loop, and every interior segment is used once
+  each way or the faces do not close, which together prove the faces cover the plan exactly once. A sum of
+  areas alone would prove nothing: it telescopes to the right answer for any topology. A roof that fails is
+  solved again with a coarser tolerance, and if none passes the answer is nil and no roof is built.
+- **The soffit is the same wavefront, run on the plan's outside** and stopped at the soffit's distance. So a
+  mitred offset of any plan closes recesses and courtyards by itself.
+- **`Na__DrawnRoofFootprint__*` is the bridge to SketchUp,** and `DrawnRoof__FaceFootprint__` is the tool side,
+  mixed into `DrawnHippedRoofTool` only, handing back with `super` whenever no face is in play. Two small seams
+  opened in the fascia stages (`na_roof__up_axis`, `na_roof__wall_middle`) and one in the status line
+  (`na_drawn__key_hints`).
+- **Coordinates:** a selected face is in the open context, so it reads world, and everything here is world. No
+  `edit_transform`. The roof rises square to the face, so a face in a tilted group gets its roof along that
+  group's own up.
+- **Faces are turned by what each knows it should look at:** up for a slope, down for an underside, out from
+  the wall line for a fascia. The rectangle roofs' turn-away-from-the-middle is only true of convex solids.
+- **The selection is set aside while the tool holds a face** and put back when it ends, because DEL steps back
+  in these tools and SketchUp's own Delete shortcut would otherwise take the face. See 5.2.27.
+- **The anchor goes under the cursor** at each stage's first mouse move, so each stage opens reading nothing
+  wherever the cursor is. There is no corner just clicked to read height up.
+
+### Found While Testing
+Walls a hair out of parallel were refused at every tolerance. The two sides of a wing met at a corner whose
+speed came from `1 + a.b`, which has lost nearly all its digits by then, and the test for two edges being on
+one line and the test for that were out of step with each other, leaving a gap between them. The speed is now
+`2(a + b) / |a + b|^2`, the same number with its digits kept, and the gap is closed. Found by nudging every
+corner of thousands of plans at random, from a hundred-billionth of an inch up to a millimetre.
+
+### Checked
+- **Against an oracle that owes nothing to the solver:** on a square-cornered plan the straight skeleton is the
+  L-infinity medial axis, so the roof's height at any point must equal its L-infinity distance to the walls.
+  Random plans of up to 9 x 9 bays, half on one bay size so everything collides at once, half turned to a
+  random angle, with holes: 5,818 plans solved and sampled, none wrong. Convex plans at any angle against the least distance to an eaves line.
+  Random star plans against the rule that the height never exceeds the distance to the walls.
+- **Real numbers:** whole millimetres in inches, far from the origin. Every corner nudged at random at eleven
+  sizes up to 1 mm: all solved, and heights within what the nudge itself accounts for.
+- **The plan in the screenshots** was read off the picture, solved, and drawn from the same camera beside it:
+  the same hips, valleys and ridges.
+- **The real tool from mouse and key events,** 521 checks, against the Coordinate Rule doubles: moved and
+  rotated nested three deep, a scaled group, a tilted group. A build fuzz through an `add_face` that refuses what
+  SketchUp refuses: 3,154 random plans, all closed solids with every face looking out.
+- **134 deliberate breaks** to a scratch copy. 118 caught. The other 16 were each read and do not change a result: a false event that resolves
+  to nothing, two checks that cover for each other, a mirrored frame that is still consistent. The first
+  pass caught 93 of 135, and what it missed is why a tilted face by mouse, the checks that refuse a bad
+  roof and the fallback paths have tests of their own.
+- **Compiled** under SketchUp 2027's own Ruby 3.4. Every API call confirmed against the API index. 600 sides
+  solve in about a quarter of a second.
+- **Not run: real SketchUp building the roof.** The only window open was the paid Brown whitecard, and nothing
+  is built in a paid model to test it. So `add_face` on real geometry, and real welding, have only been through
+  the double. If SketchUp refuses a face the tool falls back to its triangles, so a refusal shows as an extra
+  line on a slope, and the Ruby Console's `Solid:` line reports the result.
+
+### To Test (Reload Plugin Data first)
+- [ ] Your 16-sided plan: double-click the face, start Hipped Roof. It goes straight to the fascia with the plan
+      shaded, and the selection clears.
+- [ ] Pull up the fascia and click, drag out the soffit past a wall and click, pull up the roof and click.
+- [ ] Compare with your screenshots. Then open the Ruby Console: `Solid : 02__FasciaSoffit solid, 02__RoofMass solid`.
+- [ ] Type `35`, then `400s`, then `300f`: each corrects the roof in place, and Ctrl+Z is one step each.
+- [ ] Type `6000,4000`: refused, and the roof is unchanged.
+- [ ] Select the face, start the tool, type `225,300,35`: built in one go.
+- [ ] Press DEL in the fascia stage: it steps back, and the face is still there. BKSP or ESC, and a drag draws a
+      rectangle as before. Leave the tool: the face is selected again.
+- [ ] A T plan, once each with the wing narrower, the same width and wider than the body.
+- [ ] A face with a hole in it, and a plan with an angled wall or an arc.
+- [ ] Fascia & Soffit off in the right-click menu: straight to the pitch, and the roof sits on the face.
+- [ ] In a group moved, rotated and nested three deep, and in a scaled group: open it, select a face inside, and
+      the roof lands on the face.
+- [ ] The rectangle tool with nothing selected, and the Pitched Roof with a face selected: exactly as before.
+
+# =============================================================================
+
 ## Version 5.2.28 - 05-Nov-2026 - Deep Push Pull: Hold SHIFT Along an Edge and the Far End Comes Out Square
 
 ### Asked For

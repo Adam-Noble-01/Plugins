@@ -22,6 +22,11 @@
 # - A target that passes THROUGH the face cuts and extends (5.2.2): the
 #   corners in front run out to it, the ones behind run back, and the face
 #   lands flat on it.
+# - SECTIONS (5.2.31, the default): a target face is the face as drawn, not
+#   its endless plane, and an object is every face of it. Only the parts of
+#   the face that meet the target are carried; the face is split where the
+#   target ends and the rest stays. FULL FACE in the right-click menu brings
+#   back the whole face to the plane (the Sections file has the detail).
 #
 # THE STAGES:
 #   :idle            hover a face; click it, or press on it and drag
@@ -75,6 +80,7 @@ require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnSlopePush__'
 require_relative '../30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPull__Follow__'
 require_relative 'Na__NobleDrawingTools__DrawnProject__Geometry__'
+require_relative 'Na__NobleDrawingTools__DrawnProject__Sections__'
 require_relative 'Na__NobleDrawingTools__DrawnProject__Target__'
 require_relative 'Na__NobleDrawingTools__DrawnProject__Commit__'
 require_relative 'Na__NobleDrawingTools__DrawnProject__Revise__'
@@ -150,6 +156,7 @@ module Na__NobleDrawingTools
             [
                 'Click a face — at any nesting depth — then click what it should reach',
                 'A face as the target: every corner lands on its plane, so a wall top takes a roof pitch',
+                'Only the parts that meet the target face or object go — the face is split where it ends (Full Face in the right-click menu carries it all)',
                 'CTRL: a point instead — the face stops level with it (CTRL+SHIFT rounds that height onto the grid)',
                 'SHIFT+TAB: OBJECT mode — the face stops where it first touches the group or component',
                 'Click an edge, or press DOWN over one: the face travels parallel to it. DOWN again flips it',
@@ -504,8 +511,16 @@ module Na__NobleDrawingTools
         def na_pj__solve(source, settings)
             solution = Na__NobleDrawingTools.Na__Project__Solve(source, @na_pj_target, settings)
             return solution unless solution[:ok] && solution[:way] == :mixed
+            return solution if solution[:sections]
             return solution unless source[:uniform]
             return solution if na_pj__stretchable?(source)
+
+            # Section mode builds its own walls, so a whole face the faces round
+            # it cannot stretch for is cut and extended that way instead.
+            if settings[:sections] && Na__NobleDrawingTools.Na__ProjectSections__Applies?(source, @na_pj_target, settings)
+                forced = Na__NobleDrawingTools.Na__Project__Solve(source, @na_pj_target, settings.merge(:force_sections => true))
+                return forced if forced[:ok] && forced[:sections]
+            end
 
             Na__NobleDrawingTools.Na__Project__Refused(NA_PROJECT_MIXED_REFUSAL)
         end
@@ -514,7 +529,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Does Any Corner Run Back Into a Solid Along One Direction?
         # ------------------------------------------------------------
         def na_pj__cuts_back?(source, solution)
-            solution && solution[:ok] && [:in, :mixed].include?(solution[:way]) &&
+            solution && solution[:ok] && !solution[:sections] && [:in, :mixed].include?(solution[:way]) &&
                 source[:uniform] && source[:solid] && source[:average_motion]
         end
         # ---------------------------------------------------------------
@@ -602,7 +617,18 @@ module Na__NobleDrawingTools
         # FUNCTION | What Every Solve Is Given
         # ------------------------------------------------------------
         def na_pj__settings
-            { :offset => @na_pj_offset.to_f, :sense => @na_pj_sense, :quads => na_pj__quad_mode? }
+            { :offset => @na_pj_offset.to_f, :sense => @na_pj_sense, :quads => na_pj__quad_mode?, :sections => na_pj__sections_mode? }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Are Only the Parts That Meet the Target Carried? (FULL FACE Off)
+        # A rebuild answers with the setting the projection was made under, as
+        # QUADS does.
+        # ------------------------------------------------------------
+        def na_pj__sections_mode?
+            return @na_revise_replaying[:sections] if @na_revise_replaying && @na_revise_replaying.key?(:sections)
+
+            !na_pj__full_face?
         end
         # ---------------------------------------------------------------
 
@@ -1034,6 +1060,7 @@ module Na__NobleDrawingTools
             refusal = na_pj__refusal
             return "Cannot reach #{@na_pj_target[:name]} — #{refusal}" if refusal
 
+            stays  = @na_pj_solutions.any? { |solution| solution[:sections] && solution[:sections][:stays] }
             travel =
                 if @na_pj_solutions.any? { |solution| solution[:way] == :mixed }
                     Na__NobleDrawingTools.Na__Project__CutExtendText(@na_pj_solutions)
@@ -1041,7 +1068,7 @@ module Na__NobleDrawingTools
                     "#{Na__NobleDrawingTools.Na__Project__TravelText(@na_pj_solutions.map { |solution| solution[:travels] })} mm"
                 end
             offset = Na__NobleDrawingTools.Na__DrawnFormat__Mm(@na_pj_offset).zero? ? '' : ", #{na_pj__offset_words(@na_pj_offset)}"
-            "#{what} → #{@na_pj_target[:name]}: #{travel}#{offset} — click to place"
+            "#{what} → #{@na_pj_target[:name]}: #{travel}#{offset}#{stays ? ', only where it meets it (Full Face in the menu takes it all)' : ''} — click to place"
         end
         # ---------------------------------------------------------------
 

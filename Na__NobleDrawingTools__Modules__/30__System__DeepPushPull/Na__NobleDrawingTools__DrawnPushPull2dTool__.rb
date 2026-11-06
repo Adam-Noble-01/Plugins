@@ -45,6 +45,18 @@
 #   pointing at the camera is refused with a line telling the user to hover an
 #   edge instead, rather than being silently accepted and behaving badly.
 #
+# CTRL PICKS SEVERAL WALLS (5.2.32, DrawnPushPullPickSet):
+# - CTRL+click an edge picks the wall behind it, as a plain click grabs it;
+#   CTRL+SHIFT+click a face picks it and its shortest quad ring, face-on or
+#   not, so a fascia seen end-on brings its front, back and both ends.
+# - The drag is measured on the picked face nearest the cursor that lies
+#   ACROSS the screen: a face looking at the camera cannot be dragged, so it
+#   rides along at the same distance. Every face goes along its own normal,
+#   so drag the way an edge-on face points and the set moves out.
+# - A set picked in 3D comes across when a 2D scene tab swaps the tool in.
+# - CTRL+SHIFT+double-click picks the ring and pulls it by the last distance
+#   placed at once (5.2.33), driven by an edge-on face as a drag is.
+#
 # CAMERA SWITCHING IS AUTOMATIC:
 # - There is one Deep Push Pull command and one shortcut. Whichever activates
 #   it asks the camera first, and while a tool is running an idle mouse move
@@ -143,6 +155,9 @@ module Na__NobleDrawingTools
                 'Hold CTRL+SHIFT to snap to a vertex and then round the distance onto the grid',
                 'ARROWS lock the measured axis, TAB toggles QUAD mode',
                 'Hold SHIFT+ALT to FOLLOW — every corner of the wall runs along its own edge',
+                'CTRL+click edges to PICK several walls, then drag one to pull them all — BKSP drops the picks',
+                'CTRL+SHIFT+click a quad face to pick it and its SHORTEST RING, then drag an edge-on one outwards',
+                'CTRL+SHIFT+DOUBLE-click a quad face: its ring pulled by the last distance placed, at once',
                 'With QUADS on, dragging INWARDS cuts an inset edge loop instead of shortening',
                 'QUADS: grab a loop edge to offset it; *4 arrays, /7 divides, 450*4 does both',
                 'VCB: 300 | +50 | -25   (the typed distance pins and places)',
@@ -222,7 +237,13 @@ module Na__NobleDrawingTools
         end
 
         def na_drawn__hover_face(view, x, y)
-            return na_pps__hover(view, x, y) if na_pps__active?
+            na_pk__track(view, x, y)
+            return true if na_pk__hovering?                                   # <-- CTRL: the pick on offer is drawn instead of the pull
+
+            if na_pps__active?
+                @na_pp2d_edge_world = nil                                     # <-- A set has no one edge to sweep
+                return na_pps__hover(view, x, y)
+            end
             ring_face = na_qo__pick_face(view, x, y) if na_drawn__quad_mode?
             if na_qo__track_hover(view, x, y, ring_face)
                 na_drawn__adopt_target(ring_face)
@@ -262,7 +283,15 @@ module Na__NobleDrawingTools
         # FUNCTION | Take Hold of the Wall Behind the Edge Under the Cursor
         # ------------------------------------------------------------
         def na_drawn__grab_face(view, x, y)
-            return super if na_pps__active?
+            if na_pps__active?
+                @na_pp2d_edge_world = nil
+                return super if na_pps__nearest(view, x, y)
+
+                UI.beep
+                Sketchup::set_status_text('Every picked face points at the camera — pick an edge-on one too, or orbit', SB_PROMPT)
+                @na_last_status_text = nil
+                return false
+            end
             resolved = Na__NobleDrawingTools.Na__PushPull2d__ResolveTargetAt(view, x, y)
 
             if resolved.nil? || resolved[:reason] == :none
@@ -302,6 +331,80 @@ module Na__NobleDrawingTools
             na_drawn__warn_if_shared(target)
             na_drawn__trace("wall grabbed via #{@na_pp2d_reason}")
             true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | What a CTRL Click Picks Under a Parallel Camera
+        # ------------------------------------------------------------
+        # The wall behind an edge, exactly what a plain click would grab. A
+        # ring starts from that wall too when an edge is under the cursor, and
+        # otherwise from the face under it, even one looking at the camera:
+        # the band of a fascia seen end-on is the face the ring runs round.
+        # ------------------------------------------------------------
+        def na_pk__pick_target(view, x, y, ring)
+            resolved = Na__NobleDrawingTools.Na__PushPull2d__ResolveTargetAt(view, x, y)
+            return resolved[:face_target] if resolved && resolved[:reason] == :edge
+
+            if ring
+                seed = Na__NobleDrawingTools.Na__DeepPick__FaceAt(view, x, y)
+                return seed if seed
+            end
+
+            return resolved[:face_target] if resolved && resolved[:reason] != :none
+
+            refusal = resolved && resolved[:refusal]
+            @na_pk_refusal = refusal ? "#{refusal} — CTRL+click an edge to pick its wall" : nil
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | An Edge-On Face on Offer Is a Line, So Draw It Wide
+        # ------------------------------------------------------------
+        def na_pk__line_width
+            NA_PP2D_EDGE_WIDTH
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Picked Face Nearest the Cursor That Can Be Dragged
+        # ------------------------------------------------------------
+        # A face looking at the camera measures its drag INTO the screen,
+        # where the mouse cannot go, so it can never drive. It still pushes,
+        # by the distance the driver is dragged. nil when no face can drive.
+        # ------------------------------------------------------------
+        def na_pps__nearest(view, x, y)
+            camera     = Na__NobleDrawingTools.Na__PushPull2d__CameraDirection(view)
+            everything = @na_pps_targets
+            return super unless camera && everything
+
+            @na_pps_targets = everything.select do |target|
+                target[:face].valid? &&
+                    Na__NobleDrawingTools.Na__PushPull2d__ScreenFactor(target[:world_normal], camera) >= NA_PP2D_MIN_SCREEN_FACTOR
+            end
+            super
+        ensure
+            @na_pps_targets = everything if everything
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Measure a Set's Drag From the Cursor, Not From the Face
+        # ------------------------------------------------------------
+        # The inherited anchor meets the pick ray with the driver's plane. An
+        # edge-on plane is parallel to every ray of a parallel camera, so that
+        # meeting does not exist, and the face's own middle would start the
+        # drag at however far the click was from it. The point on the
+        # driver's normal under the cursor starts it at zero.
+        # ------------------------------------------------------------
+        def na_pps__anchor(target, view, x, y)
+            return super unless Na__NobleDrawingTools.Na__PushPull2d__ParallelCamera?(view)
+
+            interior = Na__NobleDrawingTools.Na__SlopePush__InteriorPoint(target[:face])
+            return super unless interior
+
+            origin = interior.transform(target[:transformation])
+            on     = Geom.closest_points([origin, target[:world_normal]], view.pickray(x, y))
+            on && on[0] ? on[0] : origin
+        rescue StandardError
+            super
         end
         # ---------------------------------------------------------------
 
@@ -792,6 +895,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Middle Section of the Status Bar Line
         # ------------------------------------------------------------
         def na_drawn__status_detail
+            return na_pk__status if na_pk__gesture?                           # <-- CTRL with nothing in hand: picking
             return na_pps__status if na_pps__active? && !na_qo__active?
             return na_qo__status_detail if na_qo__active? || na_qo__hovering?
             quads = na_drawn__quad_mode? ? ' QUADS' : ''

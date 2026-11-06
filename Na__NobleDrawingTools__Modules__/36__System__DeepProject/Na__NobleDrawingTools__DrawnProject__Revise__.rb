@@ -241,6 +241,7 @@ module Na__NobleDrawingTools
                 :shift       => @na_shift_held ? true : false,
                 :alt         => @na_alt_held ? true : false,
                 :quads       => settings[:quads] ? true : false,
+                :sections    => settings[:sections] ? true : false,
                 :preselected => @na_pj_preselected ? true : false,
                 :anchor      => @na_point_a,
                 :user_path   => snaps.first[:user_path],
@@ -281,8 +282,9 @@ module Na__NobleDrawingTools
             {
                 :sources => sources.map { |source| source.reject { |key, _value| key == :target } },
                 :target  => target,
-                :sense   => settings[:sense],
-                :quads   => settings[:quads] ? true : false
+                :sense    => settings[:sense],
+                :quads    => settings[:quads] ? true : false,
+                :sections => settings[:sections] ? true : false
             }
         end
         # ---------------------------------------------------------------
@@ -394,7 +396,7 @@ module Na__NobleDrawingTools
 
             ghost[:sources].each do |source|
                 solution = Na__NobleDrawingTools.Na__Project__Solve(
-                    source, ghost[:target], { :offset => value, :sense => ghost[:sense] }
+                    source, ghost[:target], { :offset => value, :sense => ghost[:sense], :sections => ghost[:sections] }
                 )
                 next unless solution[:ok]
 
@@ -417,7 +419,7 @@ module Na__NobleDrawingTools
         def na_revise__ghost_points(ghost, value)
             ghost[:sources].flat_map do |source|
                 solution = Na__NobleDrawingTools.Na__Project__Solve(
-                    source, ghost[:target], { :offset => value, :sense => ghost[:sense] }
+                    source, ghost[:target], { :offset => value, :sense => ghost[:sense], :sections => ghost[:sections] }
                 )
                 points = source[:loops].flatten
 

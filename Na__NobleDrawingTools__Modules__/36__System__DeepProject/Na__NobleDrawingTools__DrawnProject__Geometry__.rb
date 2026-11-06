@@ -212,7 +212,10 @@ module Na__NobleDrawingTools
     #           for a cut back; nil where nothing limits it), :normal,
     #           :origin, :centroid, :uniform, :key, :problem
     # target    :kind (:plane / :point / :object) and its own data
-    # settings  :offset (inches; + short, - past) and :sense (:auto / 1.0 / -1.0)
+    # settings  :offset (inches; + short, - past) and :sense (:auto / 1.0 / -1.0);
+    #           :sections (5.2.31, the default) carries only the parts of the
+    #           face that meet a face or object target (the Sections file),
+    #           and :force_sections builds even a whole face that way
     #
     # Returns { :ok => true, :loops, :heights, :travels, :way, :lookup, ... }
     # or { :ok => false, :reason }. The reason is a sentence for the status bar:
@@ -223,6 +226,18 @@ module Na__NobleDrawingTools
         return Na__NobleDrawingTools.Na__Project__Refused('there is nothing to project to yet') unless target
         return Na__NobleDrawingTools.Na__Project__Refused(source[:problem]) if source[:problem]
         return Na__NobleDrawingTools.Na__Project__Refused(target[:refusal]) if target[:refusal]
+
+        if Na__NobleDrawingTools.respond_to?(:Na__ProjectSections__Applies?) &&
+           Na__NobleDrawingTools.Na__ProjectSections__Applies?(source, target, settings)
+            sections = Na__NobleDrawingTools.Na__ProjectSections__Solve(source, target, settings, settings[:force_sections])
+            return sections unless sections[:ok] && sections[:whole]
+
+            # One landing for the whole face: the routes that always carried a
+            # whole face carry it. An object's one face becomes its plane.
+            if target[:kind] == :object
+                target = { :kind => :plane, :plane => sections[:plane], :name => target[:name], :whole_of => target[:kind] }
+            end
+        end
 
         offset = (settings || {})[:offset].to_f
         found  =
@@ -458,7 +473,7 @@ module Na__NobleDrawingTools
     def self.Na__Project__ScanInstance(instance, xform)
         return nil unless instance && instance.valid? && instance.respond_to?(:definition)
 
-        state = { :triangles => [], :edges => [], :vertices => {}, :truncated => false }
+        state = { :triangles => [], :edges => [], :vertices => {}, :faces => [], :truncated => false }
         Na__NobleDrawingTools.Na__Project__ScanEntities(
             instance.definition.entities, xform || Geom::Transformation.new, state, 0
         )
@@ -467,6 +482,7 @@ module Na__NobleDrawingTools
             :triangles => state[:triangles],
             :edges     => state[:edges],
             :vertices  => state[:vertices].values,
+            :faces     => state[:faces],
             :count     => state[:triangles].length,
             :truncated => state[:truncated]
         }
@@ -515,6 +531,15 @@ module Na__NobleDrawingTools
                 Na__NobleDrawingTools.Na__Project__Xyz(mesh.point_at(index.abs).transform(xform))
             end
         end
+
+        # The face's own loops as well, for section mode: each part of a face
+        # being projected lands on the face of the object it first reaches.
+        outer = face.outer_loop
+        state[:faces] << {
+            :loops => ([outer] + face.loops.reject { |loop| loop == outer }).map do |loop|
+                loop.vertices.map { |vertex| Na__NobleDrawingTools.Na__Project__Xyz(vertex.position.transform(xform)) }
+            end
+        }
 
         state[:truncated] = true if state[:triangles].length > NA_PROJECT_SCAN_LIMIT
     end

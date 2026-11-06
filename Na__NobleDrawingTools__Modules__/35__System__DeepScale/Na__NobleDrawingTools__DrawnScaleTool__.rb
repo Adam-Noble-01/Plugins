@@ -1667,6 +1667,27 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | The Object's Edges in World, for the Replay (DrawnToolShared Hook)
+        # ------------------------------------------------------------
+        # Every typed size here lands at once, so each one replays: the ghost
+        # the drag draws, read before the entry and after it. Not mid-drag,
+        # and not while typing moves a plane, which leaves the object alone.
+        # ------------------------------------------------------------
+        def na_drawn__morph_segments
+            frame = @na_sc_frame
+            return nil unless frame && !@na_sc_drag && !na_scale__typing_plane?
+
+            ghost = na_scale__ghost
+            return nil unless ghost && ghost[:drawable]
+
+            world  = frame[:world]
+            points = ghost[:points].map { |point| point.transform(world) }
+            ghost[:segments].each_slice(2).map { |first, second| [points[first], points[second]] }
+        rescue StandardError
+            nil
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Does Typing Go to a Plane Right Now?
         # ------------------------------------------------------------
         def na_scale__typing_plane?
@@ -1885,6 +1906,7 @@ module Na__NobleDrawingTools
         def draw(view)
             na_scale__refresh_frame
             @na_ip.draw(view) if na_drawn__inference_visible? && @na_ip && @na_ip.valid?
+            na_morph__draw(view)                                              # <-- A typed size replaying, old shape to new
 
             na_scale__draw_hover_object(view)
 
@@ -2162,7 +2184,7 @@ module Na__NobleDrawingTools
                 quads.flatten.each { |point| bounds.add(point) } if quads
             end
 
-            bounds
+            na_morph__extend(bounds)
         rescue StandardError
             Geom::BoundingBox.new
         end

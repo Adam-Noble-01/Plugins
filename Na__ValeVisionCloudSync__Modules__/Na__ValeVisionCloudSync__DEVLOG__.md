@@ -1,5 +1,29 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.7.1 - 06-Nov-2026 - A Scene's Target Is Captured Where ValeVision 3D Can Orbit About It
+
+### Overview
+**Asked for by Adam,** 06-Nov-2026: "Investigate why Valevision Cloudsync is not syncing the correct camera positions. I'm getting to camera 3 in the carousel of the latest job we just uploaded, and it's whipping the camera back at a strange angle", then "make the other fixes suggested too".
+
+The capture was faithful: Thorpe's (60227) model, record and server all agreed. But its IMG03 to IMG05 kept their SketchUp targets 21.5 km down the view line. SketchUp uses a target only for its direction, so the shots look right there. ValeVision 3D orbits about the target and holds the camera within its orbit reach of it, so the carousel flew the camera off the model.
+
+### What It Does
+- `na_reachable_target` (CameraDataCapture 1.2.0): a target no further than the far side of the model's bounding sphere is kept. One beyond it is moved along the same view line, so the framing is unchanged: onto the first thing the line hits (`Model#raytest`, which sees the model as it is shown at sync time, not as the scene shows it), or failing that level with the model's centre, never nearer than 1 m. On any error the scene's own target is kept.
+- Each scene's camera gains `target_source`: `scene`, `raytest` or `model_centre`. ValeVision 3D ignores it; it says what happened.
+- ValeVision 3D v2.91.1 makes the same correction on its side, so records synced before this version fly correctly too.
+
+### Files Changed
+- `04__Plugin__SyncFeatures/02__CameraDataCapture/Na__ValeVisionCloudSync__CameraDataCapture__.rb` (1.2.0)
+
+### Verified (06-Nov-2026)
+**In real SketchUp 2027, on Thorpe's model, with the file loaded** (read only, nothing written): Thorpe's three original cameras, rebuilt as `Sketchup::Camera`s, came back `raytest`, at 38.40, 38.27 and 36.89 m on the lanterns, with the view line unchanged (0 degrees). A camera looking away from the model came back `model_centre`. IMG01 and IMG02 kept their own targets (`scene`).
+
+**Also done in Thorpe's model, at Adam's word, one undo step:** IMG03, IMG04 and IMG05's targets moved onto those same lantern hits with `Camera#set`, the eye, up and field of view unchanged. The model is not saved.
+
+### Not Verified: Please Try
+- [ ] Save Thorpe, then Full Sync or Update Camera Data. The record's IMG03 to IMG05 targets should be 37 to 38 m from the eye, and the carousel should fly to camera 3 without whipping.
+- [ ] Other SketchUp windows still run 0.7.0 until Reload Plugin Data or a restart. Thorpe's window already has this file loaded.
+
 ## Version 0.7.0 - 05-Nov-2026 - Sync Entourage: a Project's People as Proxies, Both Ways, and Both Syncs On Unless Switched Off
 
 ### Overview

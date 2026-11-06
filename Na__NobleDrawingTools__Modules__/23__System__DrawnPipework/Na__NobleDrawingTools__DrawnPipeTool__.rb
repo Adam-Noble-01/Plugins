@@ -819,7 +819,9 @@ module Na__NobleDrawingTools
             cleaned = text.to_s.strip
             return if cleaned.empty?
 
-            kind = na_pipe__apply_text(cleaned)
+            before = na_pipe__morph_segments                                  # <-- Pipes a spec typed now would rebuild
+            kind   = na_pipe__apply_text(cleaned)
+            na_morph__play(before, na_pipe__morph_segments, "Adjusted: #{cleaned}") if before && kind != :refused
             na_pipe__update_cursor(view, @na_last_mouse_x, @na_last_mouse_y) if @na_pipe_mode == :draw
             na_pipe__bar_after_entry if na_pipe__bar_role?
             na_drawn__update_status_text unless kind == :spec                  # <-- A spec says its own result; this would cover it
@@ -1111,6 +1113,27 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | The Pipes a Typed Spec Would Rebuild, as World Segments, or nil
+        # ------------------------------------------------------------
+        # The selected pipes while resizing, the pipes just built otherwise.
+        # Not while a run is being drawn (the cursor's run shows the spec), and
+        # not while editing one open pipe (its overlay draws it).
+        # ------------------------------------------------------------
+        def na_pipe__morph_segments
+            groups =
+                if @na_pipe_mode == :resize
+                    @na_pipe_resize
+                elsif !na_pipe__drawing? && @na_pipe_mode != :edit && na_pipe__revise_available?
+                    @na_pipe_built
+                end
+            return nil if groups.nil? || groups.empty?
+
+            na_morph__segments(groups)
+        rescue StandardError
+            nil
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Is There a Pipe Just Built That a Typed Spec Would Change?
         # ------------------------------------------------------------
         def na_pipe__revise_available?
@@ -1136,6 +1159,7 @@ module Na__NobleDrawingTools
             else              na_pipe__draw_run(view)
             end
 
+            na_morph__draw(view)                                              # <-- A typed spec replaying, old pipe to new
             na_pipe__draw_bar(view)
         end
         # ---------------------------------------------------------------
@@ -1363,7 +1387,7 @@ module Na__NobleDrawingTools
                 @na_pipe_runs.each { |run| run[:points].each { |point| bounds.add(point) } }
             end
 
-            bounds
+            na_morph__extend(bounds)
         end
         # ---------------------------------------------------------------
 

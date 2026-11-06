@@ -12,6 +12,7 @@
 # =============================================================================
 
 require 'sketchup.rb'
+require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnRevise__Morph__'
 
 module Na__NobleDrawingTools
 
@@ -25,6 +26,7 @@ module Na__NobleDrawingTools
 
         include Na__NobleDrawingTools::KeyboardHandlers
         include Na__NobleDrawingTools::ToolModeSwitching
+        include Na__NobleDrawingTools::DrawnReviseMorph                       # <-- A typed size regenerating the last one replays (5.2.34)
 
         # INITIALIZE | Tool Constructor
         # ------------------------------------------------------------
@@ -77,6 +79,7 @@ module Na__NobleDrawingTools
         # DEACTIVATE | Refresh View When Another Tool Is Selected
         # ------------------------------------------------------------
         def deactivate(view)
+            na_morph__stop
             Na__NobleDrawingTools.Na__RightClickPopup__CloseMenu()
             view.invalidate if view
         end
@@ -103,6 +106,7 @@ module Na__NobleDrawingTools
         # DRAW | Render crosshair and ghost cube preview at cursor position
         # ------------------------------------------------------------
         def draw(view)
+            na_morph__draw(view)                                              # <-- The last cube or plane, regenerated, replaying
             return unless @cursor_pos
 
             @ip.draw(view)

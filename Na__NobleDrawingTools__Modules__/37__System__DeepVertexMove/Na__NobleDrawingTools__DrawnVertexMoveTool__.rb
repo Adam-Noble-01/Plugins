@@ -1304,6 +1304,19 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | What a Typed Correction Would Move, in World (DrawnToolShared Hook)
+        # ------------------------------------------------------------
+        # Once a move has been made and no drag is running: the edges at the
+        # picks, the same ones the drag stretches. Read before the correction
+        # and after it, and the replay sweeps the old edges into the new.
+        # ------------------------------------------------------------
+        def na_drawn__morph_segments
+            return nil unless @na_vm_record && !@na_vm_drag && @na_vm_phase != :scope
+
+            na_vm__rubber_edges(@na_vm_selected.values).map { |near, _near_moves, far, _far_moves| [near, far] }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Correct the Last Move: Take It Back and Make It Again
         # ------------------------------------------------------------
         # The Push/Pull way (DrawnReviseShared): undo our own step(s), stand the
@@ -1538,6 +1551,8 @@ module Na__NobleDrawingTools
         # DRAW | Candidates, Picks, the Box, the Gimbal and a Running Move
         # ------------------------------------------------------------
         def draw(view)
+            na_morph__draw(view)                                              # <-- A retyped move replaying, old edges to new
+
             if @na_vm_phase == :scope
                 na_vm__draw_scope_hover(view)
                 na_vm__draw_box(view)
@@ -1761,7 +1776,7 @@ module Na__NobleDrawingTools
             plane[:loop].each { |point| bounds.add(point) } if plane && plane[:loop]
 
             bounds.add(@na_vm_scope_hover.bounds) if @na_vm_scope_hover && @na_vm_scope_hover.valid?
-            bounds
+            na_morph__extend(bounds)
         end
         # ---------------------------------------------------------------
 

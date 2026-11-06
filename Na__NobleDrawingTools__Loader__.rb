@@ -383,7 +383,7 @@ begin
         Na__NobleDrawingTools__RunTool(:Na__NobleDrawingTools__DrawHippedRoof)
     }
     hipped_roof_cmd.tooltip         = "Draw Hipped Roof"
-    hipped_roof_cmd.status_bar_text = "Drag a plan footprint then pull up the ridge, or type a pitch"
+    hipped_roof_cmd.status_bar_text = "Select a face for a plan of any shape, or drag a rectangle; then pull up the ridge, or type a pitch"
     hipped_roof_cmd.menu_text       = "Hipped Roof"
     # ---------------------------------------------------------------
 

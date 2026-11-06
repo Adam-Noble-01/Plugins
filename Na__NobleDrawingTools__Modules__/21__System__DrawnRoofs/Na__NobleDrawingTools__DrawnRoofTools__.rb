@@ -40,16 +40,23 @@
 #                    tools are the roof alone, exactly as before. Stage
 #                    behaviour lives in DrawnRoof__FasciaSoffit__.
 #
+# A FACE SELECTED FIRST (Hipped Roof only):
+# - The face is the plan, whatever its shape, and the rectangle stage is skipped.
+#   Hips, valleys and ridges are worked out from it. The stage behaviour lives in
+#   DrawnRoof__FaceFootprint__, the maths in DrawnRoofSkeleton.
+#
 # =============================================================================
 
 require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnToolShared__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnRoofGeometry__'
 require_relative 'Na__NobleDrawingTools__DrawnRoof__FasciaSoffit__'
+require_relative 'Na__NobleDrawingTools__DrawnRoof__FaceFootprint__'
 
 module Na__NobleDrawingTools
 
     # @delegate: Na__NobleDrawingTools__DrawnRoof__FasciaSoffit__.rb
+    # @delegate: Na__NobleDrawingTools__DrawnRoof__FaceFootprint__.rb
 
     # -----------------------------------------------------------------------------
     # REGION | Shared Roof Tool Behaviour
@@ -805,6 +812,8 @@ module Na__NobleDrawingTools
     # CLASS | Hipped Roof Tool
     # ------------------------------------------------------------
     class DrawnHippedRoofTool < DrawnRoofToolBase
+
+        include Na__NobleDrawingTools::DrawnRoofFaceFootprint                  # <-- In front of the base class: a selected face is the plan
 
         def na_drawn__roof_kind
             :hip

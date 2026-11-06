@@ -55,7 +55,8 @@
 #                               Internal Diameter (default OFF), Bar on
 #                               Selection (default ON)
 #   Deep Push/Pull              Joint Surfaces (default ON; SHIFT+TAB)
-#   Deep Project                Object Target (default OFF; SHIFT+TAB)
+#   Deep Project                Object Target (default OFF; SHIFT+TAB),
+#                               Full Face (default OFF)
 #   Deep Scale                  Handles, Stretch Planes, About Centre,
 #                               Dimensions, Dimension Size, Dimension Offset,
 #                               Clear Stretch Planes
@@ -208,6 +209,19 @@ module Na__NobleDrawingTools
                 :label   => 'Object Target',
                 :default => false,
                 :summary => 'Stop where the face first touches the group or component under the cursor, instead of landing on the plane of the face'
+            },
+            # Off by default (5.2.31): only the parts of the face that meet the
+            # target are carried, and the face is split where the target ends.
+            # On, the whole face goes to the target's plane, or rigidly to
+            # first contact with an object, as before. The id is
+            # NA_PROJECT_FULL_FACE_OPTION, spelt out because the Deep Project
+            # files load after this table.
+            {
+                :id      => 'project_full_face',
+                :key     => 'ProjectFullFaceEnabled',
+                :label   => 'Full Face',
+                :default => false,
+                :summary => 'Carry the whole face to the plane of the target face (or rigidly to first contact with an object); off, only the parts that meet the target go, and the face is split where it ends'
             }
         ],
 

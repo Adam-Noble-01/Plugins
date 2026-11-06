@@ -96,11 +96,16 @@ module Na__NobleDrawingTools
                 return
             end
 
+            last   = @primitive_mode == :plane ? @last_plane_group : @last_cube_group
+            before = respond_to?(:na_morph__segments) && last && last.valid? ? na_morph__segments(last) : nil
+
             if @primitive_mode == :plane
                 Na__VcbHandler__HandlePlaneInput(cleaned_text, view)
             else
                 Na__VcbHandler__HandleCubeInput(cleaned_text, view)
             end
+
+            na_morph__play(before, na_morph__segments(last), "Adjusted: #{cleaned_text}") if before   # <-- The last one, regenerated, replays
         rescue ArgumentError => e
             UI.beep
             Sketchup::set_status_text("Invalid input: #{e.message}", SB_PROMPT)

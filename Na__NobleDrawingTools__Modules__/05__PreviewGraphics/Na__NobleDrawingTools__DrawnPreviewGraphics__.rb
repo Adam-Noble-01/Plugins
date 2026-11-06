@@ -744,6 +744,59 @@ module Na__NobleDrawingTools
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Draw Faces of Any Shape, Each Given as Outlines and Its Triangles
+    # ------------------------------------------------------------
+    # The roof over a face has faces with inside corners, which a triangle fan
+    # fills straight across. faces: [{ :outer, :holes, :triangles }].
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawFilledLoops(view, faces, fill_color, border_color)
+        faces.each do |face|
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, face[:triangles], fill_color)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, face[:outer], border_color)
+            face[:holes].each { |hole| Na__NobleDrawingTools.Na__DrawnPreview__DrawLoop(view, hole, border_color) }
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw a Filled, Bordered Upright Prism Over a Plan of Any Shape
+    # ------------------------------------------------------------
+    # near_loops and far_loops run point for point, and far_triangles fills the
+    # top. The Filled Box, for plans that are not rectangles.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawFilledPrism(view, near_loops, far_loops, far_triangles, fill_color, border_color)
+        return unless near_loops && far_loops
+
+        near_loops = near_loops.map { |points| Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(points) }
+        far_loops  = far_loops.map { |points| Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(points) }
+
+        Na__NobleDrawingTools.Na__DrawnPreview__DrawTriangles(view, far_triangles, fill_color)
+
+        walls = []
+        posts = []
+
+        near_loops.each_with_index do |near_points, loop_index|
+            far_points = far_loops[loop_index]
+            count      = near_points.length
+
+            count.times do |index|
+                following = (index + 1) % count
+                walls << near_points[index] << near_points[following] << far_points[following] << far_points[index]
+                posts << near_points[index] << far_points[index]
+            end
+        end
+
+        view.drawing_color = fill_color
+        view.draw(GL_QUADS, walls) unless walls.empty?
+
+        view.line_stipple  = ''
+        view.line_width    = 2
+        view.drawing_color = border_color
+        near_loops.each { |points| view.draw(GL_LINE_LOOP, points) }
+        far_loops.each { |points| view.draw(GL_LINE_LOOP, points) }
+        view.draw(GL_LINES, posts) unless posts.empty?
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Draw a Highlighted Ridge Line
     # ------------------------------------------------------------
     def self.Na__DrawnPreview__DrawRidgeLine(view, point_a, point_b)

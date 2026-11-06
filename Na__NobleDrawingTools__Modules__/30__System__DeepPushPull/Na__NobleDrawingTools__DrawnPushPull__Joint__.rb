@@ -790,7 +790,7 @@ module Na__NobleDrawingTools
         # what is there now. Raises, and the batch rolls back whole.
         # ------------------------------------------------------------
         def na_jp__apply_in_batch(model, recipe, distance)
-            faces = recipe[:plan][:faces]
+            faces = recipe[:faces] || recipe[:plan][:faces]                   # <-- A pick set hands over the faces found again inside the group
             raise 'A push removed a selected face; the batch was cancelled' unless faces.all?(&:valid?)
 
             plan = Na__NobleDrawingTools.Na__JointPush__Plan(faces, Geom::Transformation.new)
@@ -1032,11 +1032,16 @@ module Na__NobleDrawingTools
             plan   = Na__NobleDrawingTools.Na__JointPush__Plan(faces, target[:transformation])
             return nil unless plan
 
-            path = Na__NobleDrawingTools.Na__DeepPick__ContextPath
+            # Every face of the surface shares the driver's context, so it is
+            # read through the driver's path and transform: a picked surface in
+            # a closed group regroups and pushes in that group (5.2.34). For a
+            # surface in the open context that is the context path and world.
             target.merge(
                 :kind    => :joint,
                 :plan    => plan,
-                :targets => faces.map { |face| face == driver ? target : Na__NobleDrawingTools.Na__DeepPick__BuildTarget(face, path, nil) }
+                :targets => faces.map do |face|
+                    face == driver ? target : Na__NobleDrawingTools.Na__DeepPick__BuildTarget(face, target[:path], target[:transformation])
+                end
             )
         rescue StandardError
             nil

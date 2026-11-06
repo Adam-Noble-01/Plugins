@@ -104,7 +104,7 @@ module Na__CameraHelperOverlays
         
         # Search for overlay in collection
         existing = overlays.find { |o| o.overlay_id == overlay_id }      # <-- Check if overlay exists
-        !existing.nil?                                                    # <-- Return true if found
+        !existing.nil? && existing.enabled?                               # <-- Registered AND switched on (a registered overlay starts disabled)
     end
     # ---------------------------------------------------------------
     
@@ -120,10 +120,9 @@ module Na__CameraHelperOverlays
         # Check if overlay already exists
         existing = overlays.find { |o| o.overlay_id == overlay_id }      # <-- Search for existing overlay
         
-        unless existing                                                   # <-- Only add if doesn't exist
-            overlay = ThirdsOverlay.new                                   # <-- Create new overlay instance
-            overlays.add(overlay)                                         # <-- Add to overlay collection
-        end                                                               # <-- End existence check
+        overlay = existing || ThirdsOverlay.new                           # <-- Reuse or create overlay instance
+        overlays.add(overlay) unless existing                             # <-- Register only once
+        overlay.enabled = true                                            # <-- A newly added overlay starts disabled (measured 27.0.267): draw never runs until enabled
     end
     # ---------------------------------------------------------------
     

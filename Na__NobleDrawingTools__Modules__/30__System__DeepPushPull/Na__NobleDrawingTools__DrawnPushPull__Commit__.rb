@@ -183,7 +183,11 @@ module Na__NobleDrawingTools
             # because the scalar pushpull is given is measured in the
             # definition's own units and this is the last moment the face
             # reports in them.
-            split          = Na__NobleDrawingTools.Na__SlopePush__SplitOffset(target[:face], local_offset)
+            # A pick set across groups opens the face's context before this
+            # runs, so it hands over the split it read in the user's own
+            # context; read here, the face would already be reporting world.
+            split          = (@na_pk_chain && @na_pk_chain[:split]) ||
+                             Na__NobleDrawingTools.Na__SlopePush__SplitOffset(target[:face], local_offset)
             local_distance = split[:distance]
             @na_pp_split   = split                                            # <-- Kept for the console report, which runs after the push
 
@@ -193,7 +197,9 @@ module Na__NobleDrawingTools
             previous       = nil
             selected       = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
 
-            if model.respond_to?(:active_path=)
+            if @na_pk_chain
+                entered = @na_pk_chain[:entered] ? true : false               # <-- The pick set's chain opened it; it closes it too
+            elsif model.respond_to?(:active_path=)
                 begin
                     previous = model.active_path                              # <-- nil at root, else the user's context
                     unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(previous, target_path)
@@ -250,7 +256,7 @@ module Na__NobleDrawingTools
             # would merge the push into whatever the user did LAST, making their
             # next Ctrl+Z silently eat two unrelated actions.
             if @na_pps_transaction
-                raise "A selected face left the active editing context" if entered
+                raise "A selected face left the active editing context" if entered && !@na_pk_chain
             elsif entered
                 model.start_operation(op_name, true, true, true)
             else
@@ -405,7 +411,7 @@ module Na__NobleDrawingTools
                 na_drawn__trace("pushpull raised: #{error.message}")
             end
 
-            if entered
+            if entered && !@na_pk_chain
                 na_drawn__restore_context(model, previous)
 
                 # Opening the group cleared the user's selection, and that

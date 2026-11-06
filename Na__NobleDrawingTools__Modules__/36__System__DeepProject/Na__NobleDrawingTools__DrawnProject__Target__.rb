@@ -56,6 +56,7 @@ require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__P
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Instance__'
 require_relative '../30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPull__Follow__'
 require_relative 'Na__NobleDrawingTools__DrawnProject__Geometry__'
+require_relative 'Na__NobleDrawingTools__DrawnProject__Sections__'
 
 module Na__NobleDrawingTools
 
@@ -92,6 +93,13 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def na_pj__object_mode?
             Na__NobleDrawingTools.Na__ToolOptions__Enabled?(NA_PJ_OBJECT_OPTION)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is FULL FACE On? (Off by Default: Only the Parts That Meet the Target Go)
+        # ------------------------------------------------------------
+        def na_pj__full_face?
+            Na__NobleDrawingTools.Na__ToolOptions__Enabled?(NA_PROJECT_FULL_FACE_OPTION)
         end
         # ---------------------------------------------------------------
 
@@ -175,11 +183,18 @@ module Na__NobleDrawingTools
             return nil unless face && face.valid?
             return nil if na_pj__source_face?(face)
 
-            key = [:plane, face.entityID, face.vertices.first.position.to_a, xform.to_a]
+            key = [:plane, face.entityID, face.vertices.first.position.to_a, xform.to_a, na_pj__full_face?]
             return @na_pj_target if @na_pj_target && @na_pj_target[:key] == key
 
             loop = Na__NobleDrawingTools.Na__DeepPick__WorldOuterLoop(face, xform)
             return nil if loop.empty?
+
+            # Every loop, holes too: in section mode the face as drawn is the
+            # target, not the endless plane it lies in.
+            outer = face.outer_loop
+            loops = ([outer] + face.loops.reject { |each_loop| each_loop == outer }).map do |each_loop|
+                each_loop.vertices.map { |vertex| vertex.position.transform(xform) }
+            end
 
             {
                 :kind      => :plane,
@@ -188,7 +203,10 @@ module Na__NobleDrawingTools
                 :plane     => [loop.first, picked[:world_normal]],
                 :triangles => Na__NobleDrawingTools.Na__DeepPick__WorldTriangles(face, xform),
                 :loop      => loop,
-                :name      => "the plane of #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(picked)}"
+                :loops     => loops,
+                :memo      => {},
+                :name      => na_pj__full_face? ? "the plane of #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(picked)}" :
+                                                  Na__NobleDrawingTools.Na__DeepPick__PathLabel(picked)
             }
         end
         # ---------------------------------------------------------------

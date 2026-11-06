@@ -100,10 +100,18 @@ module Na__NobleDrawingTools
         )
         Na__NobleDrawingTools.Na__Debug__Puts "NA PUSH/PULL: camera is #{parallel ? 'parallel (2D)' : 'perspective (3D)'} — swapping tool"
 
+        # Faces picked with CTRL in one view are meant to be pushed in the
+        # other, so the set rides across. Read now, while the tool still has it.
+        carried = tool.respond_to?(:na_pk__carry) ? tool.na_pk__carry : nil
+
         UI.start_timer(0, false) do
             begin
                 model = Sketchup.active_model
-                model.select_tool(wanted.new) if model
+                if model
+                    fresh = wanted.new
+                    fresh.na_pk__incoming = carried if carried && fresh.respond_to?(:na_pk__incoming=)
+                    model.select_tool(fresh)
+                end
             rescue StandardError => swap_error
                 Na__NobleDrawingTools.Na__Debug__Puts "NA PUSH/PULL: camera handover failed — #{swap_error.message}"
             ensure
