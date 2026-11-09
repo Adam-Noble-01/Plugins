@@ -345,12 +345,16 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                 ? removedSource.map(String)
                 : []);
             const positions = na_final_bar_positions(leaf, region, pane);
+            const flush     = settings.glazeBarInsetMm <= 0;                // <-- V2.5.3 A bar as deep as the leaf is a muntin, drawn as joinery
+            if (flush) {
+                na_draw_flush_bars(svg, layout, leaf, region, palette, positions, removedBars, cellIndex);
+            }
 
             positions.vertical.forEach(function (x, index) {
                 const barIndex = index + 1;
                 const barX     = layout.openingX + x - settings.glazeBarWidthMm / 2;
                 const barY     = na_y(layout, region.zMm + region.heightMm);
-                if (!removedBars.has(na_glazebar_key(leaf, 'vertical', barIndex, cellIndex))) {
+                if (!flush && !removedBars.has(na_glazebar_key(leaf, 'vertical', barIndex, cellIndex))) {
                     na_rect(svg, barX, barY, settings.glazeBarWidthMm, region.heightMm, palette.leaf);
                 }
                 na_add_glazebar_click_target(
@@ -363,7 +367,7 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                 const barIndex = index + 1;
                 const barX     = layout.openingX + region.xMm;
                 const barY     = na_y(layout, z + settings.glazeBarWidthMm / 2);
-                if (!removedBars.has(na_glazebar_key(leaf, 'horizontal', barIndex, cellIndex))) {
+                if (!flush && !removedBars.has(na_glazebar_key(leaf, 'horizontal', barIndex, cellIndex))) {
                     na_rect(svg, barX, barY, region.widthMm, settings.glazeBarWidthMm, palette.leaf);
                 }
                 na_add_glazebar_click_target(
@@ -371,6 +375,76 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                     leaf, 'horizontal', barIndex, cellIndex
                 );
             });
+        }
+        // ---------------------------------------------------------------
+
+        // HELPER FUNCTION | Draw Flush Bars as Joinery (V2.5.3)
+        // ------------------------------------------------------------
+        // A bar with Glazing Bar Inset 0 is as deep as the leaf, so the 3D
+        // fuses it into the leaf joinery. Draw it the same way: a fill laid
+        // over the glass outline at its ends, and side lines broken where
+        // two flush bars cross.
+        function na_draw_flush_bars(svg, layout, leaf, region, palette, positions, removedBars, cellIndex) {
+            const half = leaf.settings.glazeBarWidthMm / 2;
+            const lap  = 1;                                                     // <-- Covers the glass outline's stroke
+            const top  = region.zMm + region.heightMm;
+            const verticals = positions.vertical.filter(function (x, index) {
+                return !removedBars.has(na_glazebar_key(leaf, 'vertical', index + 1, cellIndex));
+            });
+            const horizontals = positions.horizontal.filter(function (z, index) {
+                return !removedBars.has(na_glazebar_key(leaf, 'horizontal', index + 1, cellIndex));
+            });
+
+            verticals.forEach(function (x) {
+                na_rect(svg, layout.openingX + x - half, na_y(layout, top) - lap,
+                        2 * half, region.heightMm + 2 * lap, palette.leaf, { stroke: 'none' });
+            });
+            horizontals.forEach(function (z) {
+                na_rect(svg, layout.openingX + region.xMm - lap, na_y(layout, z + half),
+                        region.widthMm + 2 * lap, 2 * half, palette.leaf, { stroke: 'none' });
+            });
+
+            verticals.forEach(function (x) {
+                const cuts = horizontals.map(function (z) { return [z - half, z + half]; });
+                na_open_spans(region.zMm, top, cuts).forEach(function (span) {
+                    [x - half, x + half].forEach(function (edge) {
+                        na_svg_line(svg, layout.openingX + edge, na_y(layout, span[0]), layout.openingX + edge, na_y(layout, span[1]));
+                    });
+                });
+            });
+            horizontals.forEach(function (z) {
+                const cuts = verticals.map(function (x) { return [x - half, x + half]; });
+                na_open_spans(region.xMm, region.xMm + region.widthMm, cuts).forEach(function (span) {
+                    [z - half, z + half].forEach(function (edge) {
+                        na_svg_line(svg, layout.openingX + span[0], na_y(layout, edge), layout.openingX + span[1], na_y(layout, edge));
+                    });
+                });
+            });
+        }
+        // ---------------------------------------------------------------
+
+        // HELPER FUNCTION | The Parts of [start, end] Outside Every Cut (V2.5.3)
+        // ------------------------------------------------------------
+        function na_open_spans(start, end, cuts) {
+            const spans = [];
+            let cursor  = start;
+            cuts.slice().sort(function (a, b) { return a[0] - b[0]; }).forEach(function (cut) {
+                if (cut[0] > cursor) spans.push([cursor, Math.min(cut[0], end)]);
+                cursor = Math.max(cursor, cut[1]);
+            });
+            if (cursor < end) spans.push([cursor, end]);
+            return spans.filter(function (span) { return span[1] - span[0] > 0; });
+        }
+        // ---------------------------------------------------------------
+
+        // HELPER FUNCTION | One Plain Outline Segment (V2.5.3)
+        // ------------------------------------------------------------
+        function na_svg_line(svg, x1, y1, x2, y2) {
+            svg.appendChild(na_svg('line', {
+                x1: x1, y1: y1, x2: x2, y2: y2,
+                stroke: NA_STROKE,
+                'stroke-width': 1
+            }));
         }
         // ---------------------------------------------------------------
 
@@ -729,16 +803,19 @@ const Na__ExtDoorCommon__ElevationGenerator = (function () {
                     { strokeWidth: leaf.settings.outputMode === 'Linework' ? 1 : 3 }
                 );
                 if (leaf.settings.outputMode === 'ThreeDimensional' && leaf.settings.profile === 'RaisedBevelled') {
-                    const bevel = Math.min(leaf.settings.bevelMm, inset);
-                    na_rect(
-                        svg,
-                        layout.openingX + cell.xMm + bevel,
-                        na_y(layout, cell.zMm + cell.heightMm - bevel),
-                        cell.widthMm - 2 * bevel,
-                        cell.heightMm - 2 * bevel,
-                        'none',
-                        { strokeWidth: 1 }
-                    );
+                    const bevel  = Math.min(leaf.settings.bevelMm, inset);
+                    const margin = inset - bevel;                           // <-- V2.5.3 Where the bevel starts, as the 3D panel builds it
+                    if (margin > 0) {
+                        na_rect(
+                            svg,
+                            layout.openingX + cell.xMm + margin,
+                            na_y(layout, cell.zMm + cell.heightMm - margin),
+                            cell.widthMm - 2 * margin,
+                            cell.heightMm - 2 * margin,
+                            'none',
+                            { strokeWidth: 1 }
+                        );
+                    }
                 }
             });
 

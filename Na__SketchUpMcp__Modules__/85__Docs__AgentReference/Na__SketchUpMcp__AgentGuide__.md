@@ -69,22 +69,25 @@ How to drive a live SketchUp 2026 model through this server. It is written for a
 
 ## 5. Tool Map
 
-The server has 44 tools. Clients with tool limits can start it with `--toolset core`, which keeps the 22 tools marked ★.
+The server has 63 tools. Clients with tool limits can start it with `--toolset core`, which keeps the 22 tools marked ★.
 
 | Family | Tools | Use for |
 |---|---|---|
 | Status | `sketchup_status`★, `model_info`★ | Connection, versions, licence, edit context, model statistics, units, tags, scenes |
-| Model | `model_settings`, `model_file`, `model_purge` | Units and precision, description and location; save, save_as, save_copy, open, new, export, import; purging unused items |
+| Model | `model_settings`, `model_file`, `model_purge`, `sketchup_open_window`, `sketchup_close_window` | Units and precision, description and location; save, save_as, save_copy, open, new, export, import; purging unused items; another model in its own window (or a copy of it), and closing that window again |
 | Inspect | `entity_query`★, `entity_get`★, `outliner_tree`★, `collection_list`, `geometry_measure` | Finding ids; full detail (placement, geometry, attributes); the hierarchy; listing materials, tags, scenes, definitions, styles and environments; bounds, area, volume, length, counts and ray tests |
 | Selection | `selection_get`★, `selection_set`★, `context_set`★ | Reading and changing the user's selection; opening and closing groups for editing |
 | Create | `geometry_draw`★, `geometry_create_solid`★, `geometry_create_mesh`, `geometry_extrude`★ | Lines, rectangles, circles, arcs, polygons and faces with holes; nine manifold primitives; meshes of any size; push/pull and Follow Me |
-| Edit | `geometry_edit`, `solid_boolean`, `entity_transform`★, `entity_delete`★, `entity_set_properties` | Soften, harden, hide, reverse, intersect and merge faces; solid tools; move, rotate, scale, mirror and arrays; deleting; name, tag, hidden, locked, shadows |
+| Edit | `geometry_edit`, `solid_boolean`, `entity_transform`★, `entity_delete`★, `entity_set_properties`, `entity_reparent` | Soften, harden, hide, reverse, intersect and merge faces; solid tools; move, rotate, scale, mirror and arrays; deleting; name, tag, hidden, locked, shadows; moving groups and components into another group or a new one, in place |
 | Organise | `group_create`★, `component_place`★, `component_manage`, `attributes_get`, `attributes_set` | Grouping; placing definitions or .skp files; make_unique, replace, explode, rename, save; custom data |
-| Look | `material_manage`, `material_apply`★, `tag_manage`, `scene_manage` | Colours, textures and PBR maps; painting; tags and tag folders; scenes |
+| Look | `material_manage`, `material_apply`★, `tag_manage`, `scene_manage` | Colours, textures and PBR maps; painting; tags (Adam's Tags SSOT tags with `create_standard`) and tag folders; scenes |
+| TrueVision | `truevision_structure`, `truevision_export`, `truevision_export_edit`, `truevision_publish` | How the TrueVision GLB Builder reads the model: storey containers, element groups by tag, the GLB files, and everything it skips with the reason; every object listed for classifying, with face orientation and floor levels. Adam's GLB Builder itself (2.14.0): its status, export manifest, Project tab, site plan, scenes, point clouds, jobs, R2 inventory and logs; exports into a folder or the linked project, the project link, scheme folders, site plan stores, Scene Sync and point cloud settings; and, only when the user asks, pushes to the live site (R2) and the R2 purge, each with `confirm` = the project code |
 | Annotate | `annotation_create`, `image_place`, `section_plane` | Text, 3D text, dimensions and guides; images and textured faces; section cuts |
 | View | `view_get`, `view_set`★, `view_capture`★ | Camera, standard views, face style, x-ray, shadows, rendering options, styles; images of the model returned to you |
 | Escape hatches | `model_undo`★, `sketchup_send_action`, `ruby_eval`★, `ruby_api_lookup`★, `batch_execute`★ | Undo and redo; native commands (deprecated in SketchUp 2026.2, so prefer the tools); Ruby; the official API index; batches |
 | Library | `asset_library`, `asset_library_edit` | Adam's component library through his Component Editor Tools (Na Noble3d Modelling Tools): overview, browse, get, next free code, naming checks and audits; save, rename, move, update, archive, create folders, and apply or revert whole tidy plans |
+| Point clouds | `point_cloud_state`, `point_cloud_clip`, `point_cloud_view`, `point_cloud_slice`, `point_cloud_fit`, `point_cloud_check`, `point_cloud_heightmap` | Adam's Na Point Cloud Viewer (`view_capture` shows the clouds only with `include_point_cloud`): which clouds, their look, clip boxes and clip scenes, cache path; a clip box in mm, round entities or from a clip scene, one undo step; show, dot size, opacity, colour; exact counts, histograms with peaks and parallel images inside a box; slices, heightmaps and profiles at any angle (`frame`) |
+| Windows and doors | `entity_studio`, `entity_studio_edit` | Adam's Element Assembly Studio Pro (Entity Studio Pro): presets, handle assets, and a placed element's parts with each fielded panel's solid check; build and update exterior single and double doors from a preset and config values, save presets, redraw a preset's gallery picture, open the dialog, reload its code |
 
 ## 6. Recipes
 
@@ -106,6 +109,28 @@ Then use `entity_query` with filters to find things by name, tag, material, type
 ]}}
 ```
 `"$0.id"` is replaced by step 0's `id`. Any value in an earlier step's result can be referenced, e.g. `"$2.ids.0"`. Step 1 rotates about the box's own centre (the default), then moves it.
+
+**Nest objects into a storey container for TrueVision**
+```json
+{"tool": "truevision_structure", "arguments": {"analyse_faces": true, "save_path": "C:/Temp/Model__TrueVisionStructure.json"}}
+{"tool": "batch_execute", "arguments": {"operation_name": "TrueVision tags and storeys", "steps": [
+  {"tool": "tag_manage", "arguments": {"action": "create_standard", "names": ["90__Storey__GroundFloor", "21__ProposedBuilding__Walls"]}},
+  {"tool": "entity_set_properties", "arguments": {"ids": [1201, 1202], "tag": "21__ProposedBuilding__Walls"}},
+  {"tool": "entity_reparent", "arguments": {"ids": [1201, 1202], "new_group": {"name": "Ground Floor", "tag": "90__Storey__GroundFloor"}}}
+]}}
+```
+Tag first, then move: the tag travels with each object, and moved objects get new ids (`$2.ids`). Run `truevision_structure` again to see the files TrueVision will get.
+
+**Export a model into its TrueVision project, then publish it (only when the user asks)**
+```json
+{"tool": "truevision_export", "arguments": {"action": "status"}}
+{"tool": "truevision_export_edit", "arguments": {"action": "link_project", "project_code": "RB05"}}
+{"tool": "truevision_export_edit", "arguments": {"action": "export_project"}}
+{"tool": "truevision_publish", "arguments": {"action": "push_dry_run"}}
+{"tool": "truevision_export", "arguments": {"action": "job"}}
+{"tool": "truevision_publish", "arguments": {"action": "push", "confirm": "RB05"}}
+```
+`status` says whether the model is linked and where exports go; `link_project` makes the target the project's latest scheme (`set_target`, `create_scheme` choose another). `export_project` zips the previous export into `00__Archive` first. A push, the dry run, R2 fetches and point cloud renders run as the GLB Builder's job: the call answers at once, and `job` (about every 10 s) reports progress, then the report. A push uploads what changed AND deletes GLBs that are no longer in the project folder; `confirm` is the project code, passed only when the user has asked for that push. The GLB Builder's dialog, when open, shows everything the tools do.
 
 **A wall with a window opening (Pro)**
 ```json
@@ -147,6 +172,34 @@ The first makes a row of 10: the original plus 9 copies, each 600 further along.
 - Agree the folder, code and name with the user before `save`. Omit `code` to take the next free one.
 - Every edit is journaled with byte copies of what it rewrites, and `asset_library_edit {"action": "revert", "journal": "<id>"}` puts it back. Archiving zips a file into the set's `00__Archive` as `<name>__30-Sep-2026.zip`.
 - To tidy many files, send a whole plan to `apply_plan`. It runs as a dry run first (the default); then pass `dry_run: false`.
+
+**Measure from a point cloud**
+```json
+{"tool": "point_cloud_state", "arguments": {}}
+{"tool": "point_cloud_slice", "arguments": {"action": "histogram", "cloud": "pc_264338fa", "axis": "z", "bin": 50, "min": [16100, 12300, 0], "max": [16300, 14000, 3500]}}
+{"tool": "point_cloud_slice", "arguments": {"action": "histogram", "cloud": "pc_264338fa", "axis": "z", "bin": 2, "min": [16100, 12300, 150], "max": [16300, 14000, 250]}}
+{"tool": "point_cloud_slice", "arguments": {"action": "density", "view": "right", "resolution": 5, "grid": 100, "overlay_ids": [912345], "min": [16000, 12000, 0], "max": [16600, 15000, 3800]}}
+{"tool": "view_capture", "arguments": {"scene": "STAIRS-POINTCLOUD", "include_point_cloud": true, "width": 1280, "height": 800}}
+{"tool": "point_cloud_fit", "arguments": {"shape": "plane", "orientation": "horizontal", "min": [16550, 13240, 1150], "max": [17200, 13390, 1260]}}
+{"tool": "point_cloud_fit", "arguments": {"shape": "circle", "axis": "z", "max_radius": 250, "min": [16300, 12040, 80], "max": [16540, 12300, 160]}}
+{"tool": "point_cloud_check", "arguments": {"ids": [912345], "view": "right", "resolution": 5, "grid": 100}}
+{"tool": "point_cloud_heightmap", "arguments": {"min": [14500, 10500, -500], "max": [19000, 17000, 1500], "resolution": 50, "stats": ["p2", "p50", "p98"], "save_path": "D:/scan/ground.npz"}}
+{"tool": "point_cloud_heightmap", "arguments": {"action": "profile", "path": [[15000, 11000], [15000, 16000]], "width": 200, "stats": ["p10", "p50"]}}
+{"tool": "point_cloud_slice", "arguments": {"action": "histogram", "axis": "y", "bin": 2, "frame": {"origin": [16000, 12000, 0], "angle": 37}, "min": [0, -150, 0], "max": [3000, 260, 2400]}}
+{"tool": "point_cloud_slice", "arguments": {"action": "points", "limit": 2000000, "save_path": "C:/Temp/stair.npz", "min": [16000, 12000, 0], "max": [16600, 15000, 3800]}}
+```
+- No cloud point can be picked or snapped to, and `view_capture` shows the clouds only with `include_point_cloud: true`: measure with `point_cloud_slice`. `density` shows where the points are thick (planes, edges, a row of spindles); `image` shows the nearest point in each pixel.
+- Histograms find planes: z for treads, floors and rail tops; x or y for walls, risers and post faces; along a run for repeats such as spindles. Go coarse first (50 mm bins over the whole height), then fine (1 to 5 mm) round each peak. `peaks[].at` is finer than a bin.
+- A histogram is one pass over the whole cloud whatever the bins (up to 10,000), about 30 ms per 43 M points.
+- `points` are an even sample of the box (the viewer stores clouds shuffled): up to 1,500 in the reply, or up to 5,000,000 in a `.npz` (`p` model mm, `c` colour) for numpy or the skill's `pc_kit.py --pts`.
+- Images map exactly: model value at a pixel centre = `at_left_edge + (column + 0.5) * per_px`, the same for rows with `v`. `right` looks along -X with +Y to the right.
+- Check your model against the scan two ways: `overlay_ids` draws a group's edges in red on a slice (`overlay_clip: true` keeps only what is inside the box), and `view_capture include_point_cloud: true` draws the clouds on show over any capture, where they sit on screen.
+- `point_cloud_fit` turns a box of points into numbers: a level or wall plane, a rail line, a circle or cylinder, a post's box, each with rms, p95 and `inlier_share`. Box one thing tightly (look with `density` first). Where a curve runs into a straight piece at a tangent, end the box where the curve ends, or the circle comes out bigger.
+- After building, `point_cloud_check` says how well the model sits on the scan: rms and the share within tolerance overall and per part (worst first), the worst spots, and a heatmap (red: the scan is outside the faces, the model too small; blue: inside, the model proud). Fix the worst part first and check again.
+- A wall or a roof not square to the model: give `point_cloud_slice` or `point_cloud_heightmap` a `frame` (an origin and an `angle`, or `x_axis` and `y_axis`, or a group's `id`). The box, the view, `axis` and every position are then the frame's: a histogram along the frame's `y` finds a turned wall's faces, a `front` density is its elevation, a heightmap in a roof's frame reads its sag.
+- Fit directions (1.0.17): a line runs uphill (start is the low end) and a plane's normal points up, a wall's with its larger horizontal part positive; `azimuth_deg` is the way a line rises or a plane falls (a wall: the way it faces). Fitted lengths are full length. If a circle fit warns of two circles, the curve is not one arc: tighten the box and compare tolerances (3, 5 and 10 mm).
+- For ground, roofs, falls and kerbs, `point_cloud_heightmap`: per cell, p2 is the ground under grass and p98 the tops; its slope says which way a surface falls. A profile along a road, path or rail gives the rise, the gradient and the steepest metre. Save a `.npz` for the terrain kit (`pc_terrain.py`'s rasters layout).
+- `point_cloud_clip` changes the model (one "Point Cloud: ..." undo step): clip only when the user asked to work the cloud, and put their clip scene back (`action: "scene"`) when done. Slicing never needs a clip box.
 
 **Present the model**
 ```json

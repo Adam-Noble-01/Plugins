@@ -254,6 +254,32 @@ When children are nested inside a storey container (90-93), the following child 
 
 # ---------------------------------------------------------
 
+## MCP Operations: The GLB Builder For Agents (2.14.0)
+
+- Everything the dialog does is open to an agent working through Adam's **Na SketchUp MCP** (1.0.21 or
+  newer), as three tools split by risk, so a client's permissions can be set per tool:
+  - `truevision_export` reads: status, the export manifest, the Project tab, site plan, scenes, point
+    clouds, the running job, the R2 inventory, logs, Python and the export rules.
+  - `truevision_export_edit` changes this model and this computer only: exports into a folder or the
+    linked project, file toggles, the project link, scheme folders, site plan stores and export, Scene
+    Sync and point cloud settings and renders, Reload Scripts.
+  - `truevision_publish` reaches the live site: the dry run, pushes, the R2 purge, the build pipeline.
+- **The same code as the dialog.** The tab actions run their own handlers, handed a stand-in for the
+  dialog that reads the status lines and reports they push. While the dialog is open it is told
+  everything too, so it shows what the agent did and locks while a job runs.
+- **The same gates as the dialog.** Every push, and every deletion (a scheme folder, an R2 folder,
+  clearing an export without archiving it, older site plan files), needs the project code typed back.
+  Exports refuse while a group is open; anything that writes into the project waits for a running job.
+- **Never a message box.** Folders are given, not picked; the site plan's "delete the older files?" is
+  answered by a parameter; Reload Scripts runs quiet. Create Standardised Tags (always a message box)
+  is not offered: the MCP's `tag_manage` makes the same tags from the same SSOT.
+- **Jobs** (pushes, the dry run, R2 fetch and purge, point cloud renders) run as the dialog's own
+  CloudJob; the call answers at once and `truevision_export {action: "job"}` follows it to its report.
+- Logic handled by the `07__Plugin__McpOperations` folder (Main, Read, Edit, Publish), loaded by
+  `Na__TrueVision__GlbBuilder__Main__.rb` with `load`, so Reload Scripts refreshes it.
+
+# ---------------------------------------------------------
+
 ## Material and Texture Export System
 
 ### Material Export Modes

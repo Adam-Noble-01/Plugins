@@ -48,6 +48,28 @@ NA_PARTNER_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__Noble3dMod
                                '21__SourceCode__ComponentEditorTools')
 NA_PARTNER_CHECKED = [os.path.join('12__McpOperations', '*.rb'),
                       os.path.join('08__LibraryManager', 'Na__ComponentEditorTools__LibraryManager__SafeLoad__.rb')]
+
+# entity_studio / entity_studio_edit (1.0.8) call into Element Assembly Studio Pro the same way:
+# every def in its modules counts as defined, and its MCP seam is checked like the bridge.
+NA_STUDIO_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__ArchTools__ElementAssemblyStudioPro__Modules__', '02__Src__AppModules')
+NA_STUDIO_CHECKED = [os.path.join('60__System__McpOperations', '*.rb')]
+
+# point_cloud_state / _clip / _view / _slice (1.0.9) call into the Na Point Cloud Viewer the same way:
+# every def in its modules counts as defined, and its MCP seam is checked like the bridge.
+NA_VIEWER_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__PointCloudTools__PointCloudViewer__Modules__', '02__Src__AppModules')
+NA_VIEWER_CHECKED = [os.path.join('95__System__McpOperations', '*.rb')]
+
+# tag_manage create_standard (1.0.18) makes Tags SSOT tags through Adam's TagUtils (Na Noble3d
+# Modelling Tools), exactly as his own tool does: every def in it counts as defined. No MCP seam of
+# it runs, so nothing of it is checked like the bridge.
+NA_TAGUTILS_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__Noble3dModellingTools__Modules__', '10__PluginModules',
+                                '09__SourceCode__TagUtils')
+
+# truevision_export / _edit / _publish (1.0.21) call into Adam's TrueVision GLB Builder the same way:
+# every def in its modules counts as defined, and its MCP seam (07__Plugin__McpOperations) is checked
+# like the bridge. Its archived versions are left out, so a name only an old copy defines does not count.
+NA_GLB_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__TrueVision__GlbBuilderUtility__Modules__')
+NA_GLB_CHECKED = [os.path.join('07__Plugin__McpOperations', '*.rb')]
 NA_SKETCHUP_TOP_LEVEL = re.compile(r'\b(PAGE_[A-Z_]+|MF_[A-Z]+|TB_[A-Z_]+|IDOK|IDCANCEL|TextAlign[A-Za-z]+|SnapTo_[A-Za-z]+|IDENTITY|ORIGIN|[XYZ]_AXIS)\b')
 
 # Method names allowed although the index does not list them, each with its reason.
@@ -71,12 +93,14 @@ def na_ruby_files():
     return sorted(path for path in files if os.path.exists(path))
 
 
-def na_partner_files():
+def na_partner_files(root=None, patterns=None):
     """(every .rb of the partner module, the partner files checked like the bridge)."""
-    if not os.path.isdir(NA_PARTNER_ROOT):
+    root = root or NA_PARTNER_ROOT
+    patterns = patterns or NA_PARTNER_CHECKED
+    if not os.path.isdir(root):
         return [], []
-    all_files = sorted(glob.glob(os.path.join(NA_PARTNER_ROOT, '**', '*.rb'), recursive=True))
-    checked = sorted(path for pattern in NA_PARTNER_CHECKED for path in glob.glob(os.path.join(NA_PARTNER_ROOT, pattern)))
+    all_files = sorted(glob.glob(os.path.join(root, '**', '*.rb'), recursive=True))
+    checked = sorted(path for pattern in patterns for path in glob.glob(os.path.join(root, pattern)))
     return all_files, checked
 
 
@@ -116,7 +140,11 @@ def na_check_registry_api(api, registry_raw, failures):
 def na_check_method_calls(api, files, failures, defining_files=()):
     own_defs = set()
     for path in list(files) + list(defining_files):
-        own_defs.update(re.findall(r'\bdef\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_]*[?!=]?)', na_read(path)))
+        text = na_read(path)
+        own_defs.update(re.findall(r'\bdef\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_]*[?!=]?)', text))
+        # attr_accessor / attr_reader / attr_writer define methods too (the Point Cloud Viewer's slots, 1.0.9).
+        for names in re.findall(r'\battr_(?:accessor|reader|writer)\s+((?::[A-Za-z_]\w*\s*,\s*)*:[A-Za-z_]\w*)', text):
+            own_defs.update(re.findall(r':([A-Za-z_]\w*)', names))
     known = api.na_api_method_names | api.na_ruby_methods | own_defs | set(NA_ALLOWLIST)
     calls = 0
     for path in files:
@@ -237,9 +265,15 @@ def na_main():
     tool_count, registry_raw = na_check_registry_hygiene(api, failures)
     files = na_ruby_files()
     partner_all, partner_checked = na_partner_files()
+    studio_all, studio_checked = na_partner_files(NA_STUDIO_ROOT, NA_STUDIO_CHECKED)
+    viewer_all, viewer_checked = na_partner_files(NA_VIEWER_ROOT, NA_VIEWER_CHECKED)
+    tagutils_all = sorted(glob.glob(os.path.join(NA_TAGUTILS_ROOT, '**', '*.rb'), recursive=True)) if os.path.isdir(NA_TAGUTILS_ROOT) else []
+    glb_all, glb_checked = na_partner_files(NA_GLB_ROOT, NA_GLB_CHECKED)
+    glb_all = [path for path in glb_all if '00__ArchivedVersions' not in path]
     api_count = na_check_registry_api(api, registry_raw, failures)
-    call_count = na_check_method_calls(api, files + partner_checked, failures, partner_all)
-    constant_count = na_check_constants(api, files + partner_checked, failures)
+    call_count = na_check_method_calls(api, files + partner_checked + studio_checked + viewer_checked + glb_checked, failures,
+                                       partner_all + studio_all + viewer_all + tagutils_all + glb_all)
+    constant_count = na_check_constants(api, files + partner_checked + studio_checked + viewer_checked + glb_checked, failures)
     route_count = na_check_routes(registry_raw, files, failures)
 
     print('Registry: %d tools; %d API dependencies checked against %d SketchUp methods (%s).' % (
@@ -249,6 +283,22 @@ def na_main():
         print('Partner: %d Component Editor Tools files checked, %d defining.' % (len(partner_checked), len(partner_all)))
     else:
         print('Partner: Component Editor Tools not found at %s; asset_library calls into it are unchecked.' % NA_PARTNER_ROOT)
+    if studio_checked:
+        print('Partner: %d Element Assembly Studio seam file(s) checked, %d defining.' % (len(studio_checked), len(studio_all)))
+    else:
+        print('Partner: Element Assembly Studio not found at %s; entity_studio calls into it are unchecked.' % NA_STUDIO_ROOT)
+    if viewer_checked:
+        print('Partner: %d Point Cloud Viewer seam file(s) checked, %d defining.' % (len(viewer_checked), len(viewer_all)))
+    else:
+        print('Partner: Point Cloud Viewer not found at %s; point_cloud calls into it are unchecked.' % NA_VIEWER_ROOT)
+    if tagutils_all:
+        print('Partner: %d TagUtils file(s) defining (tag_manage create_standard).' % len(tagutils_all))
+    else:
+        print('Partner: TagUtils not found at %s; tag_manage create_standard calls into it are unchecked.' % NA_TAGUTILS_ROOT)
+    if glb_checked:
+        print('Partner: %d TrueVision GLB Builder seam file(s) checked, %d defining.' % (len(glb_checked), len(glb_all)))
+    else:
+        print('Partner: TrueVision GLB Builder seam not found at %s; truevision_export calls into it are unchecked.' % NA_GLB_ROOT)
     if failures:
         print('FAILED (%d):' % len(failures))
         for failure in failures:

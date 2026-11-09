@@ -3,6 +3,428 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.21 - 09-Nov-2026 - The TrueVision GLB Builder, From Status To Push
+
+- **What Adam asked for.** "It might be worth you building some MCP tools for TrueVision GLB Exporter, my plugin. Look in the plugins folder and build out an MCP folder in there with all of the MCP tools, so agents can access absolutely all of the tools available for pushing, handling, and checking statuses, etc."
+- **The seam lives in the GLB Builder** (2.14.0, its new `07__Plugin__McpOperations` folder), as Element Assembly Studio's and the Point Cloud Viewer's do. The new handler (`Handlers__TrueVisionExport__.rb`) only checks the action, drops keys sent as `null`, moves the seam's warnings onto the response and turns its refusals (`TrueVision3D::GlbBuilderUtility::Na__McpOperationsError`) into `Na__McpError`. Without the GLB Builder 2.14.0 all three tools refuse and name the fix.
+- **Three tools, split by risk, so a client's permissions can be set per tool:**
+  - `truevision_export` (read-only, the 61st): `status` (start here), `manifest`, `project`, `site_plan`, `scenes`, `point_clouds`, `job`, `r2_inventory`, `fetch_r2` (a job that lists the project's GLBs in R2; changes nothing there), `logs`, `python`, `config`.
+  - `truevision_export_edit` (the 62nd, 26 actions): this model and this computer only. Exports into any folder or into the linked project (the previous export archived first), file toggles, the project link and portal root, scheme folders (set, create, duplicate, delete), site plan stores and the site plan export, Scene Sync and point cloud settings and renders, `open_dialog`, `reload`.
+  - `truevision_publish` (the 63rd): `push_dry_run`, `push`, `export_and_push`, `write_scenes_and_push`, `export_point_clouds_and_push`, `purge_r2_folder`, `open_pipeline`.
+- **The dialog's own code and gates.** The tab actions run the dialog's handlers, handed a recording stand-in for the dialog (it reads their status lines and reports, and passes every script on to the real dialog when it is open). Every publish action but the dry run, and every deletion, needs `confirm` = the linked project's code, as the dialog's modals ask. Exports refuse while a group is open; anything that starts a job or writes into the project refuses while a job runs.
+- **Jobs.** R2 work and point cloud renders run as the GLB Builder's CloudJob (a Fiber on a UI timer). The call answers at once; `truevision_export {action: "job"}` follows the job to its report. Nothing waits inside a call: the bridge and the job share SketchUp's one thread.
+- **Undo and batches.** Edit and publish have `"operation": false`: the seam writes model settings as one "TrueVision: ..." step each, and the Scene Sync and point cloud settings open their own, so both tools are in `NA_BATCH_FORBIDDEN`.
+- **Fixed: `truevision_structure` was one file short** wherever a model has linetype linework (`02__Linetype__` tags with edges): SK02 showed 37 where the GLB Builder writes 38. With the GLB Builder loaded it now lists those files from the GLB Builder's own plan; without it, a model with such tags gets a warning naming `truevision_export manifest`.
+- **Fixed: `entity_reparent`'s summary** read "into inside ..." for a destination inside a group; it now reads "into ...".
+- **Found in the GLB Builder, not fixed (its owner's call).** Inside SketchUp 2026 a child process's stdout never reaches Ruby (`Open3.capture3` and a file redirect alike: `print("hello")` came back empty with exit 0). So the Point Cloud tab's Check Python button says "Python cannot write WebP yet" while Pillow writes WebP fine. `truevision_export python` has Python write its own answer file.
+- **Where the work is done.** `10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVisionExport__.rb` (new); `CommandRouter` (three routes, two batch refusals); `CoreAppLoaders` (one require); `ToolRegistry` (three tools, `server.version`); `AppConfig` (`bridge_version`); `Handlers__TrueVision__.rb` (linetype files); `ValidateApiUsage` (the GLB Builder as a checked partner, its archived versions left out). In the GLB Builder: the seam folder, and three keywords with the old behaviour as default (`BuildModelStatus prune:`, `Na__SitePlan__Write on_stale:`, `ReloadAllScripts quiet:`); see its DevLog, 2.14.0.
+- **Versions.** `bridge_version` and `server.version` are `1.0.21`. 63 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes: 63 tools; 4 GLB Builder seam files checked like the bridge. It caught the edit tool's first description at 2,182 characters (now 2,039) and a regex read as a method call.
+  - `RunRubyChecks`: 48 of 48 compile; `BridgeCore` passes 109, 12 of them new: the refusal without the GLB Builder, actions refused before the seam is asked, `null` keys dropped, warnings moved, routes and batch refusals, the registry's action lists equal to the handler's AND to the real seam's, a seam refusal carried through with its hint and details, a fault inside the GLB Builder answered as `glb_builder_error`, and an unconfirmed push refused before anything runs.
+  - `PythonServer` passes 50, 1 new: the three tools listed under 2,048 characters, scenes by name or id together, and the schemas refusing a bad type, an action of another tool and a stray key.
+  - The seam's own offline suite (SketchUp's Ruby, session scratchpad): 50 checks.
+  - Live on SK02 (pid 20528; the seam loaded with `ruby_eval load`, then Reload Plugin Data; calls through `su_bridge.py`, since this session's server predates the tools): every read action; a self-test CloudJob followed through `job` (1 s); `export_folder` wrote 38 GLBs and the log into a scratch folder in 9.8 s; `select_files` switched one file off as one undo step, and `model_undo` left no trace; ten refusals. SK02 is not linked to a project, so link, schemes, the site plan export, scene writes, point cloud renders, pushes and the purge were not run: each would change Adam's model, his project folders or the live site.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server lists 63 tools.
+- [ ] In each SketchUp window, Reload Plugin Data (1.0.21), and the GLB Builder's Reload Scripts (2.14.0).
+- [ ] Ask an agent for "the TrueVision status" of a linked project model.
+- [ ] Ask for a dry run of that project's push: `job` reports what would be uploaded and deleted, and nothing is.
+- [ ] Ask for the R2 inventory (`fetch_r2`, then `r2_inventory`) and compare it with the Project tab.
+
+## Na SketchUp MCP | Version 1.0.20 - 09-Nov-2026 - `view_set` and `view_capture`: a Key Sent as null Is Not Given
+
+- **What Adam asked for.** "Yes, fix both": the two faults the point cloud review found outside its own tools.
+- **The fault.** A key a client sends as `null` passes the schema check. The view handlers then read it as given and false:
+  - `view_set {xray: null}` switched X-ray off, and `show_hidden_geometry: null` hid hidden geometry;
+  - `section_display {planes: null}` hid section planes;
+  - `null` values in `rendering_options` or `shadows` were written into SketchUp as false (a `null` shadow `time` failed to parse);
+  - `camera: null` counted as a camera request, so `view_set` reported a camera change and `view_capture` took the restore path.
+- **The fix** (`Handlers__View__.rb`): presence is read with `Na__Params__Has`, nested keys included. `na_set_options` drops `null` values, and `na_shadow_changes` skips them. No `params.key?` is left in the View handler.
+- **Versions.** `bridge_version` and `server.version` are `1.0.20`. The tool count is unchanged (60).
+- **Validation.** `RunRubyChecks`: 47 of 47 compile; `BridgeCore` passes 97, with 1 new check covering:
+  - the camera check;
+  - `xray` and `show_hidden_geometry`;
+  - `section_display`'s keys;
+  - shadows with a `null` time;
+  - `na_set_options` leaving a setting untouched.
+  `ValidateApiUsage`, `PythonServer` (49), `--check` and `node --check` pass.
+
+### Validation Checklist
+
+- [ ] In each SketchUp window, Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.20).
+
+## Na SketchUp MCP | Version 1.0.19 - 09-Nov-2026 - Point Cloud Slices at Any Angle (`frame`)
+
+- **What Adam asked for.** Angled slices, once the point cloud tools were triple-checked (1.0.17).
+- **`frame`** on `point_cloud_slice` (every action) and `point_cloud_heightmap` (grid and profile), a new common schema:
+  - `origin` (a model point, default the model origin), then `angle` (degrees anticlockwise from +x about the vertical) or `x_axis` with an optional `y_axis`; or `id` alone, whose group or component gives its world origin and axes.
+  - With a frame, `min`, `max`, the view, `axis`, `path` and every position in and out are in the frame. `top` looks down the frame's z and `front` along its +y. The reply echoes the frame: origin, unit axes, and the rule back to the model.
+  - Uses: walls not square to the model (a histogram across a wall at 37 degrees finds its two faces); sections along or across such a wall; a roof's slope (a heightmap in the roof's frame reads its sag).
+  - A points `.npz` keeps model mm in `p` (the kit) and adds the frame's in `f`. `overlay_ids` edges are moved into the frame.
+- **Where the work is done.** The handler converts the origin's units and resolves `id` (`Na__Serializer__ToWorld`). Point Cloud Viewer 0.14.6 makes the frame and folds it into the cloud's local -> model transform, so the engine works in the frame unchanged. An older viewer refuses `frame` with `unsupported`, naming 0.14.6.
+- **A window not yet reloaded refuses `frame` instead of ignoring it.**
+  - Found live: the SK02 helper reopened as pid 49160 on bridge 1.0.18, which took a framed `point_cloud_slice`, ignored the frame and counted the box at the model origin: 0 points, no warning. Any parameter added to an existing tool had this hazard.
+  - Now the registry's top-level `property_since` lists each parameter added later and the bridge version it needs; for now `point_cloud_slice.frame` and `point_cloud_heightmap.frame`, both 1.0.19. Before a call that uses one, the server pings the window's bridge (the live version: a data reload never rewrote the connection file, and now does), and refuses an older bridge with the fix: Reload Plugin Data. Batch steps are checked the same way.
+  - Live on 49160 before its reload: refused, nothing sent.
+- **Versions.** `bridge_version` and `server.version` are `1.0.19`. The tool count is unchanged (60 with the TrueVision session's 1.0.18).
+- **Validation.**
+  - Offline: `ValidateApiUsage`, `RunRubyChecks` (`BridgeCore` with 2 new checks: an older viewer refused, units and id rules), `PythonServer`, `--check`, `node --check`. The viewer's seam suite has 9 frame checks against a stand-in engine that applies the transform as the real one does; its frame suite has 8.
+  - The real engine DLL against numpy (a wall at 37 degrees): counts and grids equal, points to 1e-12 mm.
+  - Offline after the guard: `PythonServer` 49 (2 new: an older bridge refused a frame, in a call and in a batch step, with nothing sent; a current one served), `BridgeCore` 96, 47 of 47 compile, `ValidateApiUsage`, `--check` (60 tools).
+  - Live, read-only:
+    - through the seam in 22360:
+      - the plumb wall at x 17,325 in a frame turned 90 degrees reads its face at -0.4 mm, with the same counts as the plain histogram;
+      - a 100 mm section at 37 degrees through the house: the renderer and the density grid agree on 99.9% of pixels.
+    - through the real server in 49160 after its reload:
+      - the same wall at -0.4 mm, 14,089 points in the peak bin;
+      - the 37 degree section returned inline (115,014 points);
+      - a heightmap in a turned frame;
+      - a points `.npz` with `p` (model, x averaging 17,324.8) and `f` (frame, y averaging 0.2);
+      - `frame {id}` from a group;
+      - a frame on `point_cloud_fit`, and an angle given with axes, both refused.
+
+### Validation Checklist
+
+- [ ] In each other window, run the viewer's Reload Plugin, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.19). 22360 is done.
+- [ ] In SK02, ask for `point_cloud_slice {action: "density", view: "front", resolution: 10, frame: {origin: [15000, 14000, 0], angle: 37}, min: [0, -50, 0], max: [6000, 50, 3000]}`: a section cut at 37 degrees through the house.
+
+## Na SketchUp MCP | Version 1.0.18 - 09-Nov-2026 - TrueVision Structure, Moving Into Groups, Windows Opened and Closed
+
+- **What Adam asked for.** A skill job that takes any model he is working on, classifies every object, tags it and nests it the way TrueVision reads a model, learned from the latest RB05, EB03 and NP03 models: "Physically open those models ... Build any MCP tools that are missing." Then: close the models once the data is in, because each open SketchUp uses a lot of memory.
+- **`sketchup_open_window`** (server-side, the 57th tool): opens a .skp in a NEW SketchUp window, so every window already open keeps its model and unsaved work (`model_file open` replaces the model in the window in use). `copy_to` (a folder or a .skp path) copies the file first and opens the copy, so the original is never open. It waits until that process's bridge answers with the model open, then selects it (`select: false` stays). A file already open in a window is used as it is. A copy over an existing file needs `overwrite`; a copy that is open in a window is refused. SketchUp.exe is the version whose Plugins folder the server runs from. Inside a Windows job the process breaks away when allowed.
+- **`sketchup_close_window`** (server-side, the 58th): closes a window the way File > Exit does: its own bridge runs `Sketchup.quit` on a timer, and the tool waits for the process to end. Unsaved changes are refused; `discard_unsaved_changes` (only with the user's agreement) runs `Model#close(true)` first.
+- **`truevision_structure`** (read-only, the 59th): reads the model as the TrueVision GLB Builder exports it. It reports:
+  - the storey containers (root groups on the 90-93 tags) and their element groups by tag;
+  - the flat files, and the GLB file names with the project prefix;
+  - everything TrueVision will never see, with the reason: untagged, skip-range or excluded tags at the root; children of a storey that are untagged or on a non-element tag; loose faces and edges directly in a storey (the exporter skips them silently);
+  - category tags nested inside exported elements (they export with the element);
+  - storeys split across containers with different transforms (the exporter uses the first one's);
+  - the files toggled off in the model's export selection.
+
+  The rules come from the GLB Builder's own `Na__ExportConfig__*` readers when it has loaded them (no network call is ever started from the bridge), else from the Tags SSOT file, read the way the exporter reads it. `include_objects` lists every object for classifying (name, definition, library code, ADR/AWN assembly, tag, storey, world bounds, faces, children, dictionaries). `analyse_faces` adds face area by orientation (up, down, vertical, sloped), the heights of upward faces (a stair's treads, `median_rise_mm`), the commonest materials, and the model's floor levels. `save_path` writes it all to JSON.
+- **`entity_reparent`** (the 60th): moves groups and components into another group or component, or a `new_group {name, tag}`, keeping each exactly where it is. SketchUp cannot move entities between contexts, so each is placed again from its definition (name, tag, material, hidden, locked, shadow flags and instance attributes copied) and the original erased; new ids come back in order.
+  - Measured on NP03: a group comes back as a `Group` carrying its definition's attribute dictionaries; a component keeps its definition; shift 0.0 mm.
+  - Refused: loose geometry, anything open, an id inside another id, a source inside a component used more than once (it would leave every copy), a destination inside what moves, a shared destination.
+  - It warns when a moved object was glued to a face (any opening it cut closes).
+- **`tag_manage action: "create_standard"`**: tags from the Tags SSOT, made by Adam's TagUtils (`na_create_or_update_tag`: SSOT line style, colour and TagUtils metadata), fed from the local SSOT files. A name not in the SSOT is refused with the SSOT tags of that number. Existing tags are left alone unless `update_existing`. Without TagUtils it applies the SSOT line style and colour and says so.
+- **Fixed: closed windows listed as live.** Five closed SK02 and JW02 windows showed `live: true` because their connection files named port 8385, which a running window had taken. Where several files claim one port, a file whose process has gone is live only when the bridge answering on that port is that process, checked by ping with the file's own token. Stale files are removed.
+- **Fixed: the server instructions were cut short.** At 2,390 characters they were truncated to 2,048, so clients lost the closing rules, from "discard unsaved work" on. Rewritten at 2,012 characters with every rule kept, plus one line for the new tools.
+- **Where the work is done.**
+  - `30__McpServer__Python/Na__SketchUpMcp__Server__WindowLauncher__.py`: open and close, with a CLI the skill can use before the server is restarted.
+  - `10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVision__.rb`: the structure.
+  - `Handlers__EntityEdit__.rb`: reparent. `Handlers__Tags__.rb`: create_standard.
+  - `ValidateApiUsage` counts TagUtils' definitions as a partner seam.
+- **First runs on Adam's models** (copies in a scratch folder, opened with the new launcher, then closed with the new close):
+  - RB05 main house 0.9.8 (28 MB): 3 storeys, 25 element groups, 55 files, 1,635 objects, 4.7 s.
+  - EB03 proposed: 37 element groups, 77 files, 10 s.
+  - EB03 existing: its ground floor is split over two storey containers with different transforms, so the greenhouse exports with the first container's transform. One existing door sits at the root and exports outside every storey.
+  - NP03 planning model: 53 files, 4.8 s.
+- **Versions.** `bridge_version` and `server.version` are `1.0.18`. 60 tools; AGENTS.md and the agent guide say so (guide table, and a recipe for nesting into a storey container).
+- **Validation.**
+  - `ValidateApiUsage` passes: 60 tools, TagUtils partner.
+  - `RunRubyChecks`: 47 of 47 files compile, and `BridgeCore` passes 94, 14 of them new: the export rules from the SSOT, reasons at the root and inside a storey, the file prefix and names, save_path checks.
+  - `PythonServer` passes 47, 10 of them new: tool count 60; the stale file on a taken port; open_window refusing a non-.skp, a missing file, an open copy and an existing copy, and using the window that already has the file; close_window refusing an unknown pid and unsaved changes, quitting a saved window through its own bridge, and discarding only when told. `--check` passes.
+  - Live through the real server and bridge (NP03 copy, rolled back): `create_standard` made `93__Storey__ThirdFloor`; `entity_reparent` moved a wall group and a window into a new storey group with 0.0 mm shift; `truevision_structure` then listed `Storey__ThirdFloor` with both elements and four more files. The model was unchanged after.
+  - The open and close code paths ran on four real windows through the launcher's CLI. The server-side tool route goes live when the MCP server restarts.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server loads 1.0.18: `sketchup_open_window` and `sketchup_close_window` answer on the server side.
+- [ ] In each SketchUp window, Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.18).
+- [ ] Ask "open a copy of NP03's planning model": a second window opens with the copy, and your own window keeps its model. Then ask to close it.
+- [ ] Ask for `truevision_structure` on a project model, and compare its file list with the last TrueVision export.
+- [ ] In a scratch copy, `entity_reparent` a wall into a new group: it should not move by a millimetre.
+
+## Na SketchUp MCP | Version 1.0.17 - 09-Nov-2026 - The Point Cloud Tools, Triple-Checked
+
+- **What Adam asked for.** "Triple-check the tools you've made already, and then, once happy they are robust enough, move on to angle slices."
+- **How they were checked.**
+  - Four reviewers read the code cold, each one layer: the engine's box queries and their bindings, the viewer's seam, the fitting, check and heightmap maths, and these handlers with their schemas and docs.
+  - Offline edge cases: units (mm, m, in, ft), empty and one-point boxes, all five views, paths that double back or are shorter than a step.
+  - Hostile live calls through the real server in the SK02 helper window (22360), read-only: about 20 bad calls, a 3 M-cell heightmap from 5 M points (18.6 s), a 50-point zigzag profile (4.4 s), the stair check on 100,000 points (9.8 s).
+  - The cloud drawn into a capture was checked the right way up against a density image of the same box: 0.57 correlation as drawn, 0.03 flipped.
+- **What this plugin fixes.**
+  - A key sent as `null` is not given: `point_cloud_view {shown: null}` no longer hides every cloud, and a `null` `save_path` or `image_path` no longer keeps a temp capture.
+  - Capture paths (`view_capture`, `point_cloud_slice` image and density, the check's heatmap) refuse a `save_path` whose extension is not the image's: `write_image` chose the encoder from the extension, so `shot.jpg` held JPEG bytes labelled PNG.
+  - `point_cloud_check` and the overlays leave out hidden groups, hidden faces and edges, and anything on a hidden tag or in a closed tag folder, as SketchUp draws them (`na_shown?`, `na_walk_shown`). An id that is itself hidden is measured, with a warning.
+  - The check's heatmap no longer refuses the whole check when its group has no visible edges, or too many; the edges are left off with a warning, naming `ids`, not `overlay_ids`.
+  - `view_capture include_point_cloud`:
+    - any error while drawing the clouds is a warning, never a lost capture;
+    - with `scene`, the viewer applies that scene's cloud look before drawing (its own timer ran 0.1 s too late), except inside `batch_execute`, where SketchUp cannot nest the viewer's undo step (a warning says so);
+    - captures over 12 MP keep no clouds, with a warning (the blend runs in Ruby).
+  - Registry: `point_cloud_fit`, `point_cloud_check`, `point_cloud_heightmap` and `view_capture` describe the new rules. Stale "view_capture never shows a cloud" lines are corrected in ServerInstructions, AgentGuide, AGENTS.md and the `point_cloud_state` description.
+- **What the viewer fixes (0.14.5).** Its DEVLOG has the detail:
+  - points on a box's faces counted by histograms and density images;
+  - model edges on a picture's right or bottom border drawn;
+  - per-pixel sizes, bins and chart scales returned exact;
+  - grid lines on the right pixel;
+  - two clouds with the same name refused;
+  - a transparent capture blended properly;
+  - an empty model check refused;
+  - fitted lengths full length (they were 2% short);
+  - one rule for line and plane directions;
+  - small circles fitted;
+  - fits refined until they stop changing, with a warning when a curve settles on two circles;
+  - the box fit's residuals;
+  - the right sign at sharp ridges;
+  - big sloping faces indexed fast;
+  - profiles sampled at one rate with the right number of stations;
+  - side views ranked by nearness;
+  - a failed clip scene write kept in step.
+- **Not fixed here (follow-ups):**
+  - the engine's `napc_cloud_destroy` does not take the render mutex: latent, needs a second Ruby thread, which nothing starts; it needs an engine build;
+  - `view_set` still treats `xray: null` and `show_hidden_geometry: null` as false (a base tool, out of this job);
+  - the skill's SKILL.md still says captures never show the cloud (lines 269 and 448).
+- **Versions.** `bridge_version` and `server.version` are `1.0.17`. Still 56 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes (5 viewer seam files). `RunRubyChecks`: 46 of 46 compile; `BridgeCore` 80 (6 new: visibility walk, capture extensions, null keys, the check's edges, save and image paths). `PythonServer` 37, `--check` and `node --check` pass.
+  - The viewer's suites: seam 72, heightmaps 15, fit 18, check 10, frames 8; its harness main 197, boxes 84, hotkeys 134, multi 96.
+  - On the real engine DLL, 600 points exactly on box faces: the histogram now counts 600 (it counted 444), density images 600 (326).
+  - Live in 22360 after both reloads, the clouds staying loaded: the hostile calls again; the stair check unchanged (rms 16.1, mean +7.8); a sampled diagonal profile reads one 44.3% share of every piece. The bullnose settles on 173.4 mm at a 10 mm tolerance, the same as an independent least-squares fit; at 3 mm it settles on two circles (145.8 and 164.1 mm) and says so.
+
+### Validation Checklist
+
+- [ ] In each other window, run the viewer's Reload Plugin, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.17). 22360 is done.
+- [ ] Ask for `point_cloud_fit {shape: "circle", axis: "z", tolerance: 3, max_radius: 250, min: [16300, 12040, 80], max: [16540, 12300, 160]}` in SK02: the reply warns that the bullnose settles on two circles.
+
+## Na SketchUp MCP | Version 1.0.16 - 09-Nov-2026 - `point_cloud_heightmap`: Heights per Cell and Along a Path
+
+- **What Adam asked for.** "Heightmaps next", the next tool on the list.
+- **`point_cloud_heightmap`** (read-only, the 56th tool):
+  - `action: "grid"` (default): the box `min`, `max` in cells `resolution` wide (default 50 mm), seen along `view` (default top). Each cell gets the `stats` asked for: min, max, mean, median or p<percent> (default p2, p50, p98; p2 finds the ground under grass, p98 the tops).
+  - Returns each statistic's range, the best plane's slope (percent, 1 in N, the way it falls, and from the top its azimuth), the cell mapping, the shown statistic inline up to 2,500 cells, and a picture: blue (low) to red (high), shaded, contoured, white where empty, `overlay_ids` in magenta.
+  - `save_path`: a `.npz` in the terrain kit's rasters.npz layout (the terrain session asked for it: x0, y1, res, W, H, count, z02 ... in model mm, NaN where empty; `colours` adds rgb_top and rgb_low), or from the top an `.asc` ESRI grid.
+  - `action: "profile"`: heights along `path` (2 to 50 points) in a corridor `width` wide (default 100 mm), stations `step` long (default 50 mm): start, end and rise, the least-squares slope, the steepest metre, the stations inline up to 1,000, and a picture (chainage across, height up, exaggerated to show falls). `save_path`: `.csv` or `.npz`.
+  - `image_path` keeps the picture. A grid-only key on a profile, or the reverse, is refused before the viewer is asked.
+- **Where the work is done.** The handler reads lengths, the path and file names (`na_save_path`, `na_image_path`). The rest is in Point Cloud Viewer 0.14.4 (`Na__McpHeight`, pure Ruby: a counting sort on an even sample, percentiles by pc_terrain.py's rank rule). The engine is unchanged. An older viewer refuses with `unsupported`.
+- **Checked against the kit.** The terrain kit agrees to the last digit: the same box of the SK02 GeoSLAM cloud (x 2,000 to 6,000, y 6,000 to 12,000 mm, 46,531 points, all of them) through `pc_terrain.py rasters --res 50` and through the heightmap gave the same 80 x 120 grid, the same counts, z02, z10, z50, z90 and z98 equal to 0.0 mm, and the same rgb_top and rgb_low.
+- **Versions.** `bridge_version` and `server.version` are `1.0.16`. 56 tools; AGENTS.md and the agent guide say so.
+- **Validation.**
+  - `ValidateApiUsage` passes (4 viewer seam files). `RunRubyChecks`: 46 of 46 files compile, and `BridgeCore` passes 77 (3 new: the other action's keys refused, save and image paths, an older viewer refused). `PythonServer` 37 (count 56), `--check` and `node --check` pass.
+  - The viewer's suites: heights 15, seam 62, fit 14, check 8; its harness main 197 and boxes 84.
+  - Live in the SK02 helper window (pid 22360), read-only, after both reloads, with the clouds staying loaded: 1,000,000 of 37.1 M points into 90 x 148 cells of 250 mm took 2.1 s; 5,000,000 into 224 x 368 cells of 100 mm, 10.7 s; a profile up the SK02 staircase (x 16,950, y 11,800 to 15,500, a 300 mm corridor, 20 mm stations): 185 stations from 181,054 points in 0.7 s, every tread a step, the soffit of the flight above as a grey diagonal; through the real server over stdio, 56 tools, a heightmap and a profile with their pictures inline, and a resolution on a profile refused.
+
+### Validation Checklist
+
+- [ ] In each other window, run the viewer's Reload Plugin, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.16). 22360 is done.
+- [ ] Ask for `point_cloud_heightmap {min: [1600, -3900, -1800], max: [24000, 32900, 8700], resolution: 100}` in SK02 with the GeoSLAM cloud: the house, the cars on the drive and the garden falling west should read at a glance.
+- [ ] Ask for `point_cloud_heightmap {action: "profile", path: [[16950, 11800], [16950, 15500]], width: 300, step: 20, stats: ["p10", "p50", "p98"]}`: every tread should show as a step.
+
+## Na SketchUp MCP | Version 1.0.15 - 09-Nov-2026 - `point_cloud_check`: How Well the Model Sits on the Scan
+
+- **What Adam asked for.** "Model-to-cloud check", the next tool on the list.
+- **`point_cloud_check`** (read-only, the 55th tool):
+  - Measures an even sample of the cloud round the groups, components or faces in `ids` against their faces. The box is their world bounds plus `margin` (default 100 mm), or `min` and `max`.
+  - Points within `reach` (default 50 mm) are measured; farther ones count as away.
+  - Returns overall rms, mean, p50, p95, max and the share within `tolerance` (default 10 mm); the same per part (each group or component directly inside an id, the worst first); the worst spots; and warnings.
+  - Sign: positive means the scan lies outside the faces (the model is too small there), negative inside (the model is proud).
+  - With `view` and `resolution` it adds a heatmap (green within tolerance, red outside, blue inside, pale grey away) with the model's edges, returned inline.
+- **Where the work is done.** The handler turns the faces into world triangles (`Face#mesh` through `Na__Serializer__ToWorld` and the face's world normal), labelled by part. The rest is in Point Cloud Viewer 0.14.3 (`Na__McpCheck`, pure Ruby: a grid of cells `reach` wide, exact nearest triangle). The engine is unchanged. An older viewer refuses with `unsupported`.
+- **First real run.** the SK02 staircase (`Staircase__MainStair__`, 1,420 faces, 14 parts) against the GeoSLAM cloud: 8,901 of 20,000 points within 50 mm, rms 16.1 mm, 53% within 10 mm, mean +7.8 mm (the scan outside the faces). The worst spots are the lower treads at +15 to +21 mm, the carpet the survey notes as reading 10 to 15 mm proud. The worst part is the landing base rail (rms 27), the closest the landing handrail (rms 10.2). 2.7 s.
+- **Versions.** `bridge_version` and `server.version` are `1.0.15`. 55 tools; AGENTS.md and the agent guide say so.
+- **Validation.**
+  - `ValidateApiUsage` passes (3 viewer seam files). It caught my registry dependency named `Sketchup::PolygonMesh`; that is `Geom::PolygonMesh#polygons`.
+  - `RunRubyChecks`: 46 of 46 files compile, and `BridgeCore` passes 74 (1 new: an older viewer refuses the tool). `PythonServer` 37 (count 55), `--check` and `node --check` pass.
+  - The viewer's suites: check 8, seam 53.
+  - Live in the SK02 helper window (pid 22360), read-only, after both reloads, with the clouds staying loaded:
+    - the staircase check above, and its heatmap looking along the stair;
+    - through the real server over stdio: 55 tools, a check with its heatmap inline, and a reach under tolerance refused;
+    - 5,000 points gave rms 15.9 and mean +7.6, against 16.1 and +7.8 at 20,000.
+
+### Validation Checklist
+
+- [ ] In each other window, run the viewer's Reload Plugin, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.15). 22360 is done.
+- [ ] Ask for `point_cloud_check {ids: [<staircase id>], view: "right", resolution: 8}` in SK02. The lower treads should read red (the carpet), and the landing base rail is the part to look at first.
+
+## Na SketchUp MCP | Version 1.0.14 - 09-Nov-2026 - `point_cloud_fit`: Shapes From the Points
+
+- **What Adam asked for.** "Shape fitting next", the second tool on the list after the overlays.
+- **`point_cloud_fit`** (read-only, the 54th tool): a plane (any, or held horizontal or vertical), a line, a circle or a cylinder along x, y or z, or a box turned about an axis (a post's width, depth and turn), fitted to the points of a box.
+  - Each comes with rms, p95 and `inlier_share`, in the call's units.
+  - Warnings when under 30% of the points fit, and when a circle covers under 60 degrees or sits near `max_radius`. Its default `max_radius` is the box's larger side.
+  - The rules and the maths are in Point Cloud Viewer 0.14.2 (`Na__McpFit`, pure Ruby, on an even sample from `napc_box_points`), so the engine is unchanged.
+  - A viewer before 0.14.2 refuses with `unsupported`.
+- **Checked on real data before shipping.** The SK02 GeoSLAM stair, offline through SketchUp's Ruby and then live:
+  - tread 5 level 1,197.1, where its histogram peaks;
+  - riser 5 at y 13,200.3;
+  - the wall plumb to 0.03 degrees;
+  - the bullnose, boxed to its curve: r 166.4 at (16,539.5, 12,274.2), rms 1.7. An independent scipy fit gave r 168.5 to 171.9.
+  - With its straight riser in the box the circle came out 398 mm over 45 degrees, so that case now warns. The skill's survey table says r 159 at (16,535, 12,267): worth a look.
+- **Docs.** AGENTS.md and the agent guide said 51 tools since 1.0.9; they now say 54.
+- **Versions.** `bridge_version` and `server.version` are `1.0.14`.
+- **Validation.**
+  - `ValidateApiUsage` passes (2 viewer seam files checked). `RunRubyChecks`: 46 of 46 files compile, and `BridgeCore` passes 73 (2 new: an older viewer refuses the tool, and an unknown shape is refused first). `PythonServer` 37 (count 54), `--check` (54 tools) and `node --check` pass.
+  - The viewer's suites: fitting 14, seam 49.
+  - Live in the SK02 helper window (pid 22360), at Adam's word, read-only. The MCP__Workshop__ test window had been closed. I reloaded the viewer (its clouds came back from cache within seconds) and then the MCP:
+    - six fits, 0.1 to 0.7 s each, equal to the offline ones;
+    - the tangent warning fired on the box with the riser and stayed quiet on the curve alone;
+    - through the real server over stdio: 54 tools, a fit, an unknown shape refused by the schema, and a fit inside a rollback trial.
+  - Nothing in the model changed, and its look and clip box are as they were.
+
+### Validation Checklist
+
+- [ ] In each other SketchUp window, run the viewer's Reload Plugin (Settings), then Extensions > Na SketchUp MCP > Reload Plugin Data. A window still on viewer 0.13 code also needs Reload All for its clouds. The SK02 helper (22360) is done.
+- [ ] Ask an agent for `point_cloud_fit {shape: "plane", orientation: "horizontal", min, max}` on a floor you know the level of. It should agree within a few millimetres.
+- [ ] Look at the bullnose radius: the scan says 166 to 172 mm on the carpet face, the survey table 159.
+
+## Na SketchUp MCP | Version 1.0.13 - 09-Nov-2026 - The Model and the Point Cloud in One Picture
+
+- **What Adam asked for.** Asked which tools would help agents most with the point clouds, he chose the first on the list: "Yes, overlay first". Until now an agent could not see the cloud and its model together, so every check against the scan went through the skill's `pc_kit.py` composites.
+- **`view_capture include_point_cloud: true`.** After `write_image`, while the capture's camera is still set, the Point Cloud Viewer's seam (0.14.1) draws the clouds on show over the file in place. It uses the live overlay's camera maths and each cloud's own look, clip box and point budget, so the clouds sit on the model exactly as on screen. Works for png and jpg, and for transparent captures. The result's `point_cloud` says what was drawn (clouds, points, pixels covered, ms).
+  - **Measured before relying on it.** SketchUp's `write_image` keeps the camera's vertical field of view for any image shape: three cubes captured at 1600 x 800 and 800 x 1000, perspective and parallel, landed within 1.2 px of the formula. Given float sizes, write_image ignores them and writes the screen's physical size. This handler always passes whole numbers.
+  - **A problem never costs the capture.** An older viewer, the overlay switched off, no cloud loaded or an engine error each come back as a warning, with the plain capture.
+- **`point_cloud_slice overlay_ids`** (image and density): every visible edge of those entities, at any depth, drawn in red over the slice, projected the same way. Soft and hidden edges are left out, and the coordinate rule stays in `Na__Serializer` / `Na__Coordinates`. `overlay_clip: true` keeps only the parts inside the box. The result's `overlay` says how many edges reached the picture. `overlay_ids` with count, histogram or points is refused, and so is a viewer before 0.14.1.
+- **Versions.** `bridge_version` and `server.version` are `1.0.13`. Still 53 tools. The viewer is 0.14.1, its engine unchanged.
+- **Validation.**
+  - `ValidateApiUsage` passes. `RunRubyChecks`: 46 of 46 files compile, and `BridgeCore` passes 71 (1 new: `overlay_ids` refused on count and by an older viewer). The stand-in `Geom::Point3d` in that suite gained `to_a`, which the real class has. `PythonServer` 37 and `--check` (53 tools) pass. The viewer seam's suite passes 43.
+  - Live in `MCP__Workshop__` (pid 23284) after both reloads, with `exterior_shell.las` imported and removed after. One rollback trial (7 steps, model unchanged) made a 12 x 8 x 6 m box on the fixture's walls:
+    - composites in perspective (1280 x 800) and parallel front (900 x 900), as png, jpg and transparent png. In the front view the cloud fills rows 150 to 750 and the box's edges are at rows 149 and 750;
+    - density, top, with the box's edges: the red rectangle sits on the walls, within the one pixel their noise spans at 20 mm a pixel; an image of the front wall slab with `overlay_clip` drew 8 of the 12 edges.
+    - Overlay off: the capture came back with the note and a warning. The real server over stdio: both options in the schemas, the composite returned inline, and `overlay_ids` on count refused.
+  - Not run: windows other than the workshop (each needs both reloads).
+
+### Validation Checklist
+
+- [ ] In each SketchUp window, run Point Cloud Viewer > Settings > Reload Plugin, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.13). A window still on 0.13 code needs Reload All for its clouds too (the 0.14.0 engine is new to it).
+- [ ] In SK02, `view_capture {scene: "STAIRS-POINTCLOUD", include_point_cloud: true}` should show the stair and the GeoSLAM points together, as on your screen.
+- [ ] `point_cloud_slice {action: "density", view: "right", resolution: 5, overlay_ids: [<balustrade id>], min, max}` should draw the balustrade's edges in red on the stair's density.
+
+## Na SketchUp MCP | Version 1.0.12 - 09-Nov-2026 - `point_cloud_slice`: Points, Density and One-Pass Histograms
+
+- **What Adam asked for.** The follow-up 1.0.9 proposed, "Point cloud viewer: native box points and density grid", done "here". He agreed: the viewer's engine moves to ABI 9; histograms in one pass; points in the reply or in a `.npz`; density on a log scale.
+- **The engine (Na Point Cloud Viewer 0.14.0).** Two native calls, `napc_box_points` and `napc_box_grid`, and the seam that uses them. The viewer's devlog and ARCHITECTURE section 29 have the details.
+- **`point_cloud_slice`, three changes:**
+  - `points`: `limit` points (default 1,000), an even sample of the box because the viewer stores clouds shuffled. Up to 1,500 come back in the reply, in the call's units (1,500 is about 36,000 characters, under the server's 45,000). With `save_path`, up to 5,000,000 go to a `.npz` (`p`: x, y, z in model mm, float64; `c`: colour) that numpy and the skill's `pc_kit.py --pts` read. `save_path` must be a `.npz` in a folder that exists, and is never replaced without `overwrite`.
+  - `density`: the same frame, grid and pixel-to-mm mapping as `image`, but each pixel counts the points behind it, darker = more. Log scale by default (`scale: "linear"` otherwise), clipped at the 99.5th percentile. It reports `max_per_pixel` and `p99_5_per_pixel`, and comes back inline like `image`.
+  - `histogram`: one pass over the cloud whatever the bins, up to 10,000 (was 200 at one pass per bin). The last bin keeps the box's far face, so the bins add up to what `count` gives.
+- **An older viewer.** With a viewer before 0.14.0, `points` and `density` refuse with `unsupported` and name the version to install. With 0.13.1 (the first seam) `count`, `histogram` (one pass per bin, at most 200) and `image` still work, as in 1.0.9.
+- **Versions.** `bridge_version` and `server.version` are `1.0.12`. Still 53 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes. `RunRubyChecks`: 46 of 46 files compile, `BridgeCore` passes 70 (2 new: the `.npz` path rules, and the refusal from an older viewer). One 1.0.9 check took `points` as its example of an unknown action; it now uses `cut`. `PythonServer` 37 and `--check` (53 tools) pass.
+  - The viewer's suites: native 39, seam 35, harness main 197, boxes 84, multi 96, hotkeys 134.
+  - Live in `MCP__Workshop__` (pid 23284) after both reloads, with `exterior_shell.las` imported and removed after:
+    - histograms: the same peaks and counts as 1.0.9's per-bin ones (walls at -5,993.1 and +6,007.7 with 1,426 and 1,462 points on 100 mm bins; 724 at +6,000.9 on 2 mm bins). 10,000 bins in one call add up to 240,000, the box's count; before the far-face fix they were 21 short, the points exactly on the box's top face;
+    - points: 5 inline; 2,000 inline refused, naming `save_path`; all 120,027 of the box to a `.npz`, equal to `pc_kit.py extract` from the same cache (same points, same order, within 0.0002 mm, same colours), and `pc_kit.py hist` reads it;
+    - density, top and front: the walls black where every point falls, the face-on walls a light speckle;
+    - the real server over stdio: the new enum and schema, the density PNG inline, 1,500 points in 35,829 characters, `limit` 5,000,001 and `scale` "cube" refused by the schema, a missing folder refused, and both new actions inside a rollback trial.
+  - Both SK02 windows (pids 13892 and 22360), still on viewer 0.13 code, refused the new DLL once and kept their engines and both clouds (checked read-only).
+  - Left behind: the workshop (not saved) still holds the empty viewer index record from 1.0.9. Nothing else.
+
+### Validation Checklist
+
+- [ ] In each SketchUp window, run Point Cloud Viewer > Settings > Reload Plugin, then Reload All for its clouds (the engine is new), then Extensions > Na SketchUp MCP > Reload Plugin Data. The status dialog should read 1.0.12.
+- [ ] In SK02, `point_cloud_slice {action: "density", view: "right", resolution: 5, grid: 100, min, max}` round the stair should show the treads, risers and spindle row darker than the walls behind.
+- [ ] `point_cloud_slice {action: "points", limit: 2000000, save_path: "<folder>/stair.npz", min, max}` writes a file that `pc_kit.py render --pts` draws.
+- [ ] When you're happy, commit the Plugins repo, including the rebuilt DLL, and pull it on the 2027 machine.
+
+## Na SketchUp MCP | Version 1.0.11 - 09-Nov-2026 - `geometry_create_lines`, `geometry_drape`, and Quad Edges
+
+- **What Adam asked for.** After the first SK02 terrain (regions cut into the mesh): "create a surface that's correctly contoured and smoother. Then create a separate group and drape edges (basically, project edges down), so we can create nice arcs and smooth Bezier's ... using soft black, dark grey, and mid grey, pick out the different features and actually draw them in 2D. Then project that onto the surface, but keep everything in a proper SketchUp group so everything doesn't stick to each other." He also asked for "a nice quadrilateral mesh", built as a solid block.
+- **`geometry_create_lines` (new).** Many polylines in one call. Each is welded into one curve by default (`Entities#add_curve`), painted with its own material (the SSOT edge greys), and put in a new group so nothing merges or splits. `geometry_draw` could only draw one unwelded polyline per call, and painted faces only.
+- **`geometry_drape` (new).** It projects edges straight down onto a surface, like Sandbox Drape, but writes new edges into their own group and imprints nothing.
+  - The surface is every upward face of `surface_ids`, at any depth, through `Face#mesh` in world space. Where faces overlap in plan the highest wins, so a solid's top is used and its bottom ignored.
+  - Each source segment is cut at every plan crossing with a triangle edge, and each piece takes the plane of its triangle, so it lies exactly on the surface.
+  - Each source curve, or chain of loose edges, becomes one welded curve and keeps its material. Source z is ignored, and parts off the surface are measured and left out.
+  - The plan maths is three pure functions (`SegmentCross`, `Barycentric`, `PlaneZ`), now checked offline.
+- **`geometry_create_mesh`: `smooth_edges` and `quad_edges`.** `smooth_edges` are drawn but shade smooth (soft off, smooth on): a visible quad grid on a smooth surface. `quad_edges` are QuadFace Tools' dividing edges (soft, smooth, `casts_shadows` false, per `TT_QuadFaceTools/entities.rb` `divider_props?`), so two triangles read as one quad there. Order of application: hard, smooth, soft, quad.
+- **Versions.** `bridge_version` and `server.version` are `1.0.11`. 53 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes. `RunRubyChecks`: 46 of 46 files compile, BridgeCore 68 passed (6 new: segment crossing, barycentric weights, plane height, a run split across two triangles, a run partly off the surface, the two routes). `PythonServer`: 37 tests OK (tool count 53). `--check`: 53 tools.
+  - Live in MCP__Workshop__ (pid 23284), after Reload Plugin Data, as zero-trace trials:
+    - a 4 x 4 bumpy quad grid with both lists: 16 quad dividers and 40 smooth visible grid edges, and QuadFace Tools recognised all 32 triangles;
+    - 3 polylines (1 welded curve, 1 unwelded, 1 two-point), draped onto the grid: 3 pieces, 16 edges, materials carried, every draped vertex on the surface (raytest 0.000 mm), and the 600 mm off the surface reported;
+    - a capture of hard and smooth-visible grids side by side: the second shades smoothly with its grid still drawn.
+
+### Validation Checklist
+
+- [ ] Reload Plugin Data in each open window: the status dialog should read 1.0.11.
+- [ ] New Claude session: `geometry_create_lines` and `geometry_drape` are listed.
+- [ ] Draw a few 2D lines over a terrain with `geometry_create_lines`, then `geometry_drape` them onto it: the draped group sits on the surface, and moving it shows the terrain untouched underneath.
+
+## Na SketchUp MCP | Version 1.0.10 - 09-Nov-2026 - `geometry_create_mesh` Softens and Hardens Single Edges
+
+- **What Adam asked for.** "Utilise MCP tools as much as possible, if any tools that you need at your disposal are missing. Build them", while asking for a sandbox-style terrain from his point clouds (SK02 Ascott Gardens). A sandbox terrain hides each grid square's triangle diagonal and keeps the grid lines. `smooth` / `smooth_angle` can't do that: on near-flat ground the diagonals and the grid lines meet at the same tiny angles.
+- **Two optional parameters.** `soft_edges` and `hard_edges` are lists of `[i, j]` vertex-index pairs. After `smooth`, `hard_edges` set soft and smooth off, then `soft_edges` set both on. Edges are matched by their end positions in the build frame, the same points the polygons were built from, so it works at any nesting and in world or local coords. `result.mesh` reports `hard_set`, `soft_set` and `pairs_not_found`. A pair that is not a polygon side (or whose faces were skipped) is counted, never guessed, and named in a warning.
+- **It also serves furniture.** Lesson L141 (pillows: "harden the seam ring and soften every other edge explicitly") needed exactly this: until now it took a separate `ruby_eval`.
+- **Where.** `Na__SketchUpMcp__Handlers__Geometry__.rb` (`na_edge_flags`), and the registry's description and schema (each list up to 400,000 pairs).
+- **Versions.** `bridge_version` and `server.version` are `1.0.10`. Still 51 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes. `RunRubyChecks`: 46 of 46 files compile, BridgeCore 62 passed. `PythonServer`: 37 tests OK. `--check` passes.
+  - Live in the MCP__Workshop__ window (pid 23284), after Reload Plugin Data (bridge 1.0.10): a zero-trace trial of a 2 x 2 sandbox grid with `smooth` 30 and both lists. Of 16 edges, `smooth` softened 8. `hard_edges` put one interior grid line back to hard, so 7 were soft, 4 of them the diagonals. A pair that is not an edge was counted and warned.
+  - The skill's terrain kit (`learning/generators/terrain/pc_terrain.py build --soften param`) writes these lists. For a bridge before 1.0.10 it uses `--soften ruby`: a rule-based `ruby_eval` step in the same batch, which is how SK02's terrain was built in the 0.4.2 window (bridge 1.0.7).
+
+### Validation Checklist
+
+- [ ] Reload Plugin Data in each open window: the status dialog should read 1.0.10.
+- [ ] Start a new Claude session: `sketchup_status` reports server 1.0.10, and `geometry_create_mesh` lists `soft_edges` and `hard_edges`.
+- [ ] Build a 2 x 2 grid with its 4 diagonals in `soft_edges`: with hidden geometry off, the grid lines show and the diagonals don't.
+
+## Na SketchUp MCP | Version 1.0.9 - 09-Nov-2026 - Point Cloud Tools: `point_cloud_state`, `point_cloud_clip`, `point_cloud_view`, `point_cloud_slice`
+
+- **What Adam asked for.** On the SK02 stair balustrade: "build MCP tools as you might require for manipulating the point cloud, clipping boxes, and what point is visible". That session built a kit in the modelling skill (`na_pc_kit.rb` through `ruby_eval`, `pc_kit.py` reading the viewer's `.napc` cache with numpy) and proved it live. This version turns it into four MCP tools, so any session can read the clouds, set clip boxes and measure without scripts of its own. Adam agreed the names and shape: four tools, the rules in the viewer, the viewer's DLL as it is.
+- **A thin seam, like the library and Element Assembly Studio.** The rules live in Na Point Cloud Viewer 0.13.1 (`02__Src__AppModules/95__System__McpOperations`, entry points `Na__PointCloudViewer__McpRead` and `...McpEdit`, refusals `Na__McpOperationsError`). `Na__SketchUpMcp__Handlers__PointCloud__.rb` reads lengths in the call's units, turns `ids` into world bounds, picks the capture path and passes `per_inch`, so results come back in the call's units. Without the viewer, every tool refuses with `unsupported` and names the version to install.
+- **`point_cloud_state`** (read-only): per cloud its id, name, colour, shown, loaded, points, file, source unit, look, bounds, clip box, the clip scene showing (and whether its box was changed since) and every clip scene. Also `cache` (the `.napc` path and whether it exists) and `local_to_model` (12 numbers, inches) for the skill's offline numpy kit; the terrain session asked for these two. Plus the overlay, the point budget and the active cloud.
+- **`point_cloud_clip`** (`"operation": false`, not allowed in `batch_execute`):
+  - `box`, `around` (entity ids, grown by the viewer's selection margin and rounded outwards onto its 5 mm grid, exactly as Clip Box Around Selection), `on`, `off`, and `scene` (a clip scene by id or name, or `full`).
+  - Each is ONE undo step of the viewer's own ("Point Cloud: MCP Clip Box", "Point Cloud: Clip On" and so on), reported as `undo_step`. A call that changes nothing leaves none.
+  - `box` and `around` switch those clouds and the overlay on, as Draw Clip Box does.
+- **`point_cloud_view`** (view settings only, no undo step): shown, point_size_px, opacity_percent, colour_mode, point_budget, overlay, and `reload` (the viewer's own Reload of the clouds that are not loaded). Values outside the viewer's limits are refused, not clamped.
+- **`point_cloud_slice`** (read-only), on the viewer's native engine as it is:
+  - `count`: every point in a box, exact (`napc_box_count`).
+  - `histogram`: points per bin along x, y or z; peaks with a weighted centre finer than a bin; percentiles p1 to p99. Each bin is one pass over the cloud: 28 ms a pass, measured read-only on SK02's 42.7 M-point RealityCapture cloud (pid 13892). So at most 200 bins, about 6 s on that cloud.
+  - `image`: the viewer's renderer (`napc_render_png`), parallel along a model axis, the box as its clip box, written as a greyscale PNG (white paper, black points, a grid with every fifth line darker), with `u` and `v` mappings from pixel to model. It comes back inline, as `view_capture` does. The nearest point wins each pixel, so it shows shape, not density.
+  - Not yet: the points themselves and density images. They need two native calls in the viewer's DLL (proposed: `napc_box_points`, `napc_box_grid`, ABI 9).
+- **Validation knows the viewer.** `ValidateApiUsage` counts every def in the viewer's modules as defined and checks its seam like the bridge. It now also counts `attr_accessor`, `attr_reader` and `attr_writer` names as defined, because the viewer's slots are plain attributes.
+- **Versions.** `bridge_version` and `server.version` are `1.0.9`. The registry has 51 tools. The viewer is 0.13.1 (its own devlog).
+- **Validation.**
+  - `ValidateApiUsage` passes: 51 tools, 195 API dependencies; 1 viewer seam file checked, 47 defining. `RunRubyChecks`: 46 of 46 files compile, and `BridgeCore` passes 62 (5 new: the refusal without the viewer, unknown actions, `per_inch`, the routes, the batch rule). `PythonServer` passes 37 (the tool count is now 51). `--check` and `node --check` pass.
+  - The viewer seam's own suite (`95__System__McpOperations/tests/mcp_operations_unit.rb.test`) passes 23. The viewer's harness passes on the changed tree: hotkeys 134, boxes 84, multi 96, main 197.
+  - Live in the `MCP__Workshop__` window (pid 23284, SketchUp 26.2.243) after both reloads. The viewer's fixture `exterior_shell.las` (240,000 points, 12 x 8 x 6 m) was imported for the trial and removed after:
+    - state on an empty model and on a loaded one; count: all 240,000, and 120,027 in one half;
+    - histogram along x: walls at -5,993 and +6,008 on 100 mm bins, and +6,000.9 on 2 mm bins (the fixture's wall is at 6,000);
+    - images, top and left: the walls fall on the pixels the mapping gives (x -6,000 at column 10 of a box from -6,200 at 20 mm a pixel);
+    - box; off; off again (no undo step); on; scene by name, by id, `full`, `full` again (no undo step); around with a 50 mm margin, the default and in metres. Three undos and three redos each restored the viewer's state. Refused as they should be: too thin a box, an unknown cloud, an unknown scene, and point_cloud_clip in a batch;
+    - view: look, shown, budget, overlay and reload changed; out-of-range values refused; the look put back;
+    - the real server over stdio: 51 tools, schemas expanded, point_size_px 11 refused by the schema, the image returned inline, and the read tools inside a rollback trial.
+  - Left behind by the trial: the workshop (not saved) holds an empty viewer index record (`Na__PointCloudViewer__Clouds`, no clouds). The fixture's point cache (4.8 MB) and the workshop's local backups are in the viewer's git-ignored folders. No project model was changed.
+  - Not run: a fresh Claude session listing the tools (a running server must restart), and the SketchUp 2027 copy (on the other machine: it gets this through git).
+
+### Validation Checklist
+
+- [ ] In each open SketchUp window, run the Point Cloud Viewer's Reload Plugin (Settings), then Extensions > Na SketchUp MCP > Reload Plugin Data. The status dialog should read 1.0.9.
+- [ ] Start a new Claude session in an SK02 model. `point_cloud_state` should list the GeoSLAM and RealityCapture clouds with your clip scenes.
+- [ ] `point_cloud_clip {action: "box", min: [...], max: [...]}` should clip the clouds on show, and one Ctrl+Z should put your box back. `point_cloud_clip {action: "scene", scene: "<your scene>"}` returns to your clip scene.
+- [ ] `point_cloud_slice {action: "image", view: "right", resolution: 5, grid: 100, min, max}` round the stair should match your STAIRS-POINTCLOUD scene.
+- [ ] When you're happy, commit the Plugins repo and pull it on the 2027 machine.
+
+## Na SketchUp MCP | Version 1.0.8 - 09-Nov-2026 - `entity_studio` and `entity_studio_edit`: Element Assembly Studio Pro From an Agent
+
+- **What Adam asked for.** "You will need to build MCP tools to be able to orchestrate the SketchUp plugin Entity Studio Pro", to make a preset for a common British front door and fix its fielded panels.
+- **Two tools, one thin seam,** the way `asset_library` reaches Component Editor Tools. The rules stay in Element Assembly Studio Pro 2.5.3 (`02__Src__AppModules/60__System__McpOperations`); `Na__SketchUpMcp__Handlers__EntityStudio__.rb` resolves `instance_id` and `position`, calls `Na__AssemblyStudio::Na__McpOperations`, swaps the instance it returns for its id and world bounds, and turns `Na__McpOperationsError` into `Na__McpError`. Without the plugin both tools refuse with `unsupported` and name the fix.
+- **`entity_studio`** (read-only): `status`, `list_presets` (filter family or text), `get_preset` (values, narrowed by `keys` or `prefix`), `list_handles` (asset keys as the dropdowns show them), `inspect` (every MOD part and every fielded panel cell of a placed element: solid, volume_mm3, faces, nested_groups; containers flagged).
+- **`entity_studio_edit`** (`"operation": false`, not allowed in `batch_execute`):
+  - `build` and `update`: exterior single and double doors from a preset and/or flat config `values`, through the door engines, which open and commit their own undo operation ("Create Exterior Single Door"), so `model_undo` steps 1 removes a build. `build` refuses inside an open group: the engines place at the model root.
+  - `save_preset`: through the Presets Store (next EASnnn code, file name, pretty writer).
+  - `refresh_preview`: the open dialog draws the gallery picture with its own SvgCapture and stores it through its existing `na_presetsUpdateConfig` callback. It lands a moment after the call; `get_preset` `has_preview` confirms it.
+  - `open_dialog`, `reload` (Adam's Reload Scripts). `reload` closes an open dialog first and opens a fresh one, because the dialog Reload Scripts reopens sent no callbacks back.
+  - `build` and `update` load the plugin's material library first. Without it every finish resolved to nothing, and the first EAS012 built this way had blank glass.
+  - Windows, sliding, bifold and interior doors are refused by build and update: their creation steps live in the dialog's callbacks.
+- **Validation also checks the new partner.** `ValidateApiUsage` counts every def in Element Assembly Studio's modules as defined and checks its seam like the bridge.
+- **Versions.** `bridge_version` and `server.version` are `1.0.8`. The registry has 47 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes: 47 tools, 187 API dependencies; 1 Element Assembly Studio seam file checked, 131 defining. `RunRubyChecks`: 45 of 45 files compile, `BridgeCore` passes 57. `PythonServer`: 37 pass (the tool count assertion is now 47). `--check` and `node --check` pass.
+  - Live in the SketchUp 2026 workshop window, bridge reloaded, every action called through the bridge: `status`, `list_presets`, `get_preset`, `inspect`, `build` (ADR003, 4 of 4 fielded panels solid), `update`, `reload`, `save_preset` (EAS012), `open_dialog`, `refresh_preview` (picture stored, `has_preview` true).
+  - Not run: a fresh client session listing the two tools. A running server must restart before its client sees them.
+
+### Validation Checklist
+
+- [ ] Run Extensions > Na SketchUp MCP > Reload Plugin Data (and Element Assembly Studio's Reload Scripts) in each open window. The status dialog should read 1.0.8.
+- [ ] Start a new Claude session: `sketchup_status` reports server 1.0.8, and `entity_studio {action: "status"}` names Element Assembly Studio Pro 2.5.3.
+- [ ] `entity_studio_edit {action: "build", preset: "EAS012", position: [0, 0, 0]}` places the British front door; one Ctrl+Z removes it.
+
 ## Na SketchUp MCP | Version 1.0.7 - 05-Nov-2026 - The Server Stays on Its Window
 
 - **What Adam asked for.** "Do this task here: Stop the MCP following the newest SketchUp window."

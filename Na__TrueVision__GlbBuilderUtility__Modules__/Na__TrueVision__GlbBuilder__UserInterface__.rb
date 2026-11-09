@@ -47,6 +47,11 @@
 #   (...SceneSyncActions__.rb) takes the scenesync_* actions, PushModelStatus
 #   pushes its status too, and its script is inlined at {{SCENE_SYNC_SCRIPT}}.
 #
+# 09-Nov-2026 - Version 2.14.0
+# - BuildModelStatus takes prune: (default true, as before). The MCP seam
+#   (07__Plugin__McpOperations) passes false, so reading the manifest never
+#   writes to the model.
+#
 # =============================================================================
 
 require 'json'
@@ -525,8 +530,10 @@ module TrueVision3D
         # ---------------------------------------------------------------
         # Mirrors the export planning that Na__ExportCore__PerformExport does, so
         # the manifest the user reads is the file set the exporter will write.
+        # prune: false reads without forgetting the toggles of files the model
+        # no longer makes (the MCP's read actions must not write to the model).
         # ---------------------------------------------------------------
-        def self.Na__UserInterface__BuildModelStatus
+        def self.Na__UserInterface__BuildModelStatus(prune: true)
             model = Sketchup.active_model
             return self.Na__UserInterface__EmptyModelStatus unless model
 
@@ -598,7 +605,7 @@ module TrueVision3D
             # Forget toggles for files this model no longer produces, so a renamed
             # tag cannot leave an invisible "off" behind.
             all_file_names = groups.flat_map { |group| Array(group[:rows]).map { |row| row[:name] } }
-            self.Na__ExportSelection__PruneToKnown(model, all_file_names)
+            self.Na__ExportSelection__PruneToKnown(model, all_file_names) if prune
 
             selected_files   = groups.sum { |group| Array(group[:rows]).count { |row| row[:selected] } }
             can_export_model = selected_files > 0

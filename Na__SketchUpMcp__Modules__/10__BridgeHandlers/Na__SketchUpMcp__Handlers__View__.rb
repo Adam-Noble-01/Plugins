@@ -150,8 +150,9 @@ module Na__SketchUpMcp
             { 'changed' => changed, 'camera' => self.Na__Handlers__View__CameraHash(model.active_view.camera, ctx[:unit]), 'units' => ctx[:unit] }
         end
 
+        # A key sent as null is not given (1.0.20): camera: null asks for no camera.
         def self.na_camera_requested?(params)
-            %w[camera standard_view zoom zoom_ids].any? { |key| params.key?(key) }
+            %w[camera standard_view zoom zoom_ids].any? { |key| Na__Params.Na__Params__Has(params, key) }
         end
 
         # camera {eye,target,up,perspective,fov,ortho_height}, standard_view, zoom, zoom_ids.
@@ -221,12 +222,13 @@ module Na__SketchUpMcp
 
         def self.na_rendering_changes(params)
             changes = (Na__Params.Na__Params__Hash(params, 'rendering_options', {}) || {}).dup
-            changes['ModelTransparency'] = params['xray'] ? true : false if params.key?('xray')
-            changes['DrawHidden'] = params['show_hidden_geometry'] ? true : false if params.key?('show_hidden_geometry')
+            # A key sent as null is not given (1.0.20): xray: null used to switch X-ray off.
+            changes['ModelTransparency'] = params['xray'] ? true : false if Na__Params.Na__Params__Has(params, 'xray')
+            changes['DrawHidden'] = params['show_hidden_geometry'] ? true : false if Na__Params.Na__Params__Has(params, 'show_hidden_geometry')
             section_display = Na__Params.Na__Params__Hash(params, 'section_display', nil)
             if section_display
-                changes['DisplaySectionPlanes'] = section_display['planes'] ? true : false if section_display.key?('planes')
-                changes['DisplaySectionCuts'] = section_display['cuts'] ? true : false if section_display.key?('cuts')
+                changes['DisplaySectionPlanes'] = section_display['planes'] ? true : false if Na__Params.Na__Params__Has(section_display, 'planes')
+                changes['DisplaySectionCuts'] = section_display['cuts'] ? true : false if Na__Params.Na__Params__Has(section_display, 'cuts')
             end
             changes
         end
@@ -237,6 +239,7 @@ module Na__SketchUpMcp
 
             changes = {}
             shadows.each do |key, value|
+                next if value.nil?   # 1.0.20: a key sent as null is not given
                 if key == 'time'
                     changes['ShadowTime'] = na_parse_time(value)
                 elsif NA_SHADOW_SHORTCUTS.key?(key)
@@ -256,6 +259,7 @@ module Na__SketchUpMcp
 
         # Sets validated keys; values coerced to the current value's type. Returns changed labels.
         def self.na_set_options(provider, changes, label)
+            changes = changes.reject { |_key, value| value.nil? }   # 1.0.20: a key sent as null is not given (it used to read as false)
             return [] if changes.empty?
 
             valid_keys = provider.keys
@@ -344,12 +348,22 @@ module Na__SketchUpMcp
                     compression: Na__Params.Na__Params__Number(params, 'jpeg_quality', 0.9, min: 0.1, max: 1.0),
                     transparent: format == 'png' && Na__Params.Na__Params__Boolean(params, 'transparent', false)
                 }
-                options[:scale_factor] = Na__Params.Na__Params__Number(params, 'line_scale', 1.0, min: 0.1, max: 10.0) if params.key?('line_scale')
+                options[:scale_factor] = Na__Params.Na__Params__Number(params, 'line_scale', 1.0, min: 0.1, max: 10.0) if Na__Params.Na__Params__Has(params, 'line_scale')
                 render_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
                 ok = view.write_image(options)
                 render_seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - render_started
                 raise Na__McpError.new('operation_failed', 'SketchUp could not write the image.', 'Try a smaller width/height.') unless ok && File.exist?(path)
 
+                if Na__Params.Na__Params__Boolean(params, 'include_point_cloud', false)
+                    follow = Na__Params.Na__Params__Has(params, 'scene')
+                    if follow && ctx[:in_operation]
+                        # The viewer writes a scene's cloud look in its own undo operation, and
+                        # SketchUp does not nest them: inside a batch it follows after the batch.
+                        follow = false
+                        ctx[:warnings] << "Inside batch_execute the clouds are drawn as they were before the scene changed; the viewer applies the scene's cloud look after the batch."
+                    end
+                    cloud = na_point_cloud_over(path, width, height, view, ctx, follow)
+                end
                 camera = self.Na__Handlers__View__CameraHash(view.camera, ctx[:unit])
             ensure
                 view.camera = saved_camera if overridden && Na__Params.Na__Params__Boolean(params, 'restore_view', true)
@@ -362,18 +376,60 @@ module Na__SketchUpMcp
                                   'in the style also slow rendering.'
             end
             bytes = File.size(path)
-            {
+            with_cloud = cloud && cloud['composited'] ? ", with #{cloud['names'].join(' and ')} drawn over it" : ''
+            result = {
                 'image_file' => path, 'mime_type' => format == 'png' ? 'image/png' : 'image/jpeg',
-                'keep_file'  => params.key?('save_path'), 'width' => width, 'height' => height,
+                'keep_file'  => Na__Params.Na__Params__Has(params, 'save_path'), 'width' => width, 'height' => height,
                 'bytes' => bytes, 'render_seconds' => render_seconds.round(2), 'camera' => camera, 'units' => ctx[:unit],
-                'summary' => "Captured #{width} x #{height} #{format} (#{(bytes / 1024.0).round} KB) in #{render_seconds.round(1)} s."
+                'summary' => "Captured #{width} x #{height} #{format} (#{(bytes / 1024.0).round} KB) in #{render_seconds.round(1)} s#{with_cloud}."
             }
+            result['point_cloud'] = cloud if cloud
+            result
         end
 
+        # include_point_cloud (1.0.13): the Point Cloud Viewer's seam draws the
+        # clouds on show over the capture, in place, for the camera it was just
+        # taken with (still set: this runs before the view is restored). A
+        # problem never costs the capture: it becomes a warning, whatever it is
+        # (1.0.17). follow_scene (1.0.17): the call activated a scene, so the
+        # viewer applies that scene's cloud look first; its own timer would do
+        # it 0.1 s later, after the capture (and then finds nothing to change).
+        def self.na_point_cloud_over(path, width, height, view, ctx, follow_scene = false)
+            operations = Na__Handlers__PointCloud.na_operations
+            unless operations.const_defined?(:NA_READ_ACTIONS) && operations::NA_READ_ACTIONS.include?('composite')
+                ctx[:warnings] << 'include_point_cloud needs Na Point Cloud Viewer 0.14.1 or newer (its Reload Plugin), so the capture has no point cloud.'
+                return { 'composited' => false }
+            end
+            result = Na__Handlers__PointCloud.na_forward(ctx) do
+                operations.Na__PointCloudViewer__McpRead('composite', 'camera_object' => view.camera, 'path' => path, 'width' => width, 'height' => height,
+                                                         'follow_scene' => follow_scene)
+            end
+            result.delete('units')
+            ctx[:warnings] << result['note'] if result['note']
+            result
+        rescue Na__McpError => error
+            ctx[:warnings] << "The point clouds were not drawn: #{error.message} #{error.na_hint}".strip
+            { 'composited' => false }
+        rescue StandardError => error
+            ctx[:warnings] << "The point clouds were not drawn (#{error.class}: #{error.message}); the image is SketchUp's own capture."
+            { 'composited' => false }
+        end
+
+        NA_CAPTURE_EXTENSIONS = { 'png' => %w[.png], 'jpg' => %w[.jpg .jpeg] }.freeze
+
+        # save_path (1.0.17: its extension must match the format, as
+        # write_image picks its encoder from the extension) or a capture the
+        # server deletes once it has returned it.
         def self.na_capture_path(params, format)
-            if params['save_path']
+            if Na__Params.Na__Params__Has(params, 'save_path')
                 path = File.expand_path(params['save_path'].to_s)
-                path += ".#{format}" if File.extname(path).empty?
+                extension = File.extname(path)
+                if extension.empty?
+                    path += ".#{format}"
+                elsif !NA_CAPTURE_EXTENSIONS.fetch(format, [".#{format}"]).any? { |allowed| extension.casecmp?(allowed) }
+                    raise Na__McpError.new('invalid_params', "save_path ends #{extension}, but the image is a #{format.upcase}.",
+                                           format == 'png' ? 'Give save_path a .png name (view_capture also saves .jpg with format: "jpg").' : 'Give save_path a .jpg name, or use format: "png".')
+                end
                 raise Na__McpError.new('file_error', "Folder does not exist: #{File.dirname(path)}.", nil) unless File.directory?(File.dirname(path))
                 if File.exist?(path) && !Na__Params.Na__Params__Boolean(params, 'overwrite', false)
                     raise Na__McpError.new('file_error', "#{path} already exists.", 'Pass overwrite: true or choose another save_path.')

@@ -1,11 +1,13 @@
-Live SketchUp 2026 model. Start with sketchup_status. Lengths are mm unless a call passes units; angles are degrees; ids are persistent ids from entity_query, outliner_tree or selection_get. Positions are world coordinates at every nesting depth, including inside open groups. Every model change is one undo step named "MCP: ..." (model_undo reverts it). After modelling, check the result with view_capture.
+Live SketchUp 2026 model. Start with sketchup_status. Lengths are mm unless a call passes units; angles degrees; ids are persistent ids (entity_query, outliner_tree, selection_get). Positions are world coordinates at any nesting depth. Each model change is one undo step "MCP: ..." (model_undo reverts it). Check modelling with view_capture.
 
-Workflow: inspect (outliner_tree, entity_query, selection_get, view_capture) -> plan -> act -> verify (geometry_measure, view_capture). For multi-step builds use batch_execute: one round trip, one undo step, and "$0.id" style references to earlier steps.
-Name everything you create (name: what the user would call it, in the model's own naming style, e.g. "Wall - North"): names are how the user finds your work in the Outliner. New geometry goes into its own group by default so it never merges with existing geometry. Face normals follow the right-hand rule of the points; a positive extrude goes along the normal.
-Editing inside a component changes every copy of it; pass make_unique when only one should change.
-solid_boolean needs SketchUp Pro and manifold groups sharing one parent; subtract keeps target_id and cuts tool_ids out of it.
-Before ruby_eval, confirm every SketchUp method with ruby_api_lookup; never invent API. Inside ruby_eval, lengths are inches (2400.mm) and angles radians (90.degrees).
-Component library (asset_library, asset_library_edit): check next_code and check_name, and agree the name with the user before saving. Every library change is journaled, and revert undoes it.
-Do not overwrite files, discard unsaved work or delete what the user did not ask for. If the bridge is read-only, report it rather than working around it.
-Errors say what to fix: read the hint and change the call instead of repeating it. A timed-out change is never retried automatically: check with entity_query before trying again.
+Inspect -> plan -> act -> verify (geometry_measure, view_capture). Multi-step builds: batch_execute, one undo step, "$0.id" references.
+Name what you create as the user would ("Wall - North", in the model's style): they find work by name in the Outliner. New geometry gets its own group. Face normals follow the right-hand rule; a positive extrude goes along the normal.
+Editing inside a component changes every copy: make_unique first if only one should change.
+solid_boolean: SketchUp Pro, manifold groups with one parent; subtract keeps target_id.
+Before ruby_eval, check every method with ruby_api_lookup; never invent API. In ruby_eval lengths are inches (2400.mm), angles radians.
+Point clouds show in view_capture only with include_point_cloud: true; nothing snaps to them. Measure with point_cloud_slice, point_cloud_fit, point_cloud_heightmap; grade with point_cloud_check. point_cloud_clip changes the model: clip only when asked, then restore the user's clip scene.
+Other models: sketchup_open_window (copy_to: a copy), then sketchup_close_window. entity_reparent moves objects into groups. TrueVision: truevision_structure (the model as exported), truevision_export (GLB Builder state, jobs); truevision_publish goes live: only when asked.
+Library (asset_library, asset_library_edit): check next_code and check_name; agree names with the user before saving; revert undoes journaled changes.
+Never overwrite files, discard unsaved work or delete what the user did not ask for. Read-only bridge: report it, never work round it.
+Errors say what to fix: read the hint, change the call. A timed-out change is never retried: check with entity_query first.
 Guide: resource sketchup://guide/agent.

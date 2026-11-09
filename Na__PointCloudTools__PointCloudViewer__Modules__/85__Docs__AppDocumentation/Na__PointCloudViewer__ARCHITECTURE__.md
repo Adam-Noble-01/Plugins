@@ -1840,3 +1840,308 @@ operation, as a drawn box does. Undet's "New By Selection" did the same, and Ada
   for the commands (each needs an icon).
 - Picking points of the cloud (out of scope, section 1); a box at an angle (section 26.10).
 - Next and previous clip scene keys.
+
+
+## 28. The agent seam for the Na SketchUp MCP (BUILT in v0.13.1)
+
+### 28.1 What it is for
+
+An agent working in SketchUp through Adam's Na SketchUp MCP cannot see a cloud: the overlay is never in
+`view_capture`, and no point can be picked. Four MCP tools (Na SketchUp MCP 1.0.9) read the clouds, set
+clip boxes, change the look and measure inside a box. Their rules live here, in
+`95__System__McpOperations/Na__PointCloudViewer__McpOperations__Main__.rb`; the MCP handler only reads
+lengths, turns entity ids into world bounds and picks a file name.
+
+### 28.2 The contract
+
+- `Na__McpOperations.Na__PointCloudViewer__McpRead(action, params)`: `state`, `count`, `histogram`,
+  `image`. `Na__PointCloudViewer__McpEdit(action, params)`: `clip_box` (min and max, or `around` with a
+  margin), `clip_on`, `clip_off`, `clip_scene` (id, name or `full`), `view`.
+- Params are string-keyed. Lengths arrive in model inches; every length returned is multiplied by
+  `per_inch` (25.4 when absent), so the MCP gets the call's units back.
+- A refusal raises `Na__PointCloudViewer::Na__McpOperationsError` with a code the MCP knows
+  (`invalid_params`, `not_found`, `operation_failed`, `unsupported`), a message and a hint.
+- Clouds are named by id or name. Clip changes default to the clouds on show (Draw Clip Box's rule);
+  measuring defaults to the only loaded cloud on show.
+
+### 28.3 What it reuses
+
+- Clip boxes: `Na__Clip__ApplyAreaBox` (as Draw Clip Box), `Na__Clip__SetEnabledOn` (as Clip On or Off),
+  `Na__Clip__SceneActivate`, `Na__Clip__GrowToGrid` (as Clip Box Around Selection). One undo step each,
+  named as the tools name them; a call that changes nothing writes nothing.
+- Show and look: `Na__Slots__SetVisible`, `Na__Render__ApplySettings` with the slot, as the dialog does;
+  the overlay switch and the shared budget the same way. Nothing is written to the model.
+- `count` and `histogram`: `Na__Native__BoxCount` with a Keep box and no Cut boxes (every point; the
+  Clean tab's Crop and Cut boxes are not applied).
+- `image`: `Na__Native__RenderPng`, parallel. The eye sits on the view axis only, so screen x and y are
+  signed model coordinates and the pixel edges fall on whole multiples of the resolution: the mapping
+  returned (`u`, `v`: the value at the left and top edges and per pixel) is exact. The engine's RGBA PNG
+  is read back (one IDAT, filter 0) and written as an 8-bit greyscale PNG with the grid.
+
+### 28.4 Limits
+
+- 4,000 px a side and 8 MP an image, 400 grid lines. In v0.13.1 at most 200 bins (one pass per bin);
+  from v0.14.0 a histogram is one pass, up to 10,000 bins (section 29).
+
+### 28.5 Native calls for points and density (proposed here, BUILT in v0.14.0: section 29)
+
+- `napc_box_points(cloud, boxes, max_points, out_xyz, out_bgra, cap)`: the first N stored points the
+  boxes keep, in model inches. Stored order is shuffled, so the first N are an even sample.
+- `napc_box_grid(cloud, boxes, view, resolution, out_counts, cap)`: point counts per pixel of a
+  parallel view: a density image, the histogram of every column at once.
+
+### 28.6 Tests (09-Nov-2026)
+
+- `95__System__McpOperations/tests/mcp_operations_unit.rb.test` (23 checks), with SketchUp's Ruby
+  through the MCP plugin's runner. A stand-in of the engine's parallel projection checks every view's
+  frame against the mapping the seam reports.
+- The harness suites on the changed tree: hotkeys 134, boxes 84, multi 96, main 197.
+- Live in SketchUp 26.2.243 with `exterior_shell.las` (Na SketchUp MCP devlog, 1.0.9).
+
+
+## 29. Native box queries: points and density (BUILT in v0.14.0, ABI 9)
+
+### 29.1 The calls
+
+- `napc_box_points(cloud, boxes, box_count, scale, out_xyz, out_bgra, cap, stats, stat_count)`: the first
+  `cap` stored points the boxes keep, times `scale`, as doubles, with colours (out_bgra may be null). Returns
+  how many were written. Stats (`Na__BoxStatIndex`): kept, written, time.
+- `napc_box_grid(cloud, boxes, box_count, grid, grid_count, out_counts, cap, stats, stat_count)`: a point
+  the boxes keep lands in column floor((u . p - u0) / su) and row floor((v1 - v . p) / sv) (`Na__GridIndex`;
+  p in model inches), counted as uint32 row by row from the top. Stats: kept, on the grid, the most in a
+  cell, time.
+- Both take the boxes exactly as `napc_box_count` (transform, then the box block) and use the same
+  Verdict(), so all three agree on what a box holds (its own faces included).
+
+### 29.2 How they run
+
+- On the render pool, under the render mutex. Workers never allocate and never throw.
+- Points: pass 1 counts what each worker's slice keeps; slices then take their share of `cap` in stored
+  order; pass 2 copies exactly the first `cap` and stops early. Memory is the output only.
+- Grid: u . p and v . p are taken from the stored local coordinates as (M^T u) . x + u . t, in double. A
+  grid of up to 4 M cells across all workers counts into one array per worker, summed after (a histogram's
+  few cells would thrash under atomics); a larger one into shared relaxed atomics.
+
+### 29.3 What the MCP seam makes of them (section 28)
+
+- `histogram`: a grid one cell wide across the box, one row per bin plus one, along the axis from min. The
+  extra row can only hold points on the far face; they join the last bin, so the bins add up to `count`.
+- `density`: the image frame (28.3) as a grid; grey = 1 - log(1 + n) / log(1 + top), top the 99.5th
+  percentile of the pixels holding any point (or linear: n / top).
+- `points`: the reply takes up to 1,500 in the call's units; a .npz (a stored zip of `p.npy`, float64
+  model mm, and `c.npy`, uint32 0xAARRGGBB) up to 5,000,000.
+
+### 29.4 Measured (09-Nov-2026, 42.7 M points)
+
+| Call | Time |
+|---|---|
+| `napc_box_count` | 42 ms |
+| histogram, 100 / 1,000 / 10,000 bins | 43 / 43 / 44 ms |
+| density 500 x 350 / 2,000 x 1,400 | 50 / 54 ms |
+| points 1,500 / all 297,000 in the box | 43 / 95 ms |
+
+### 29.5 Tests
+
+- `95__System__McpOperations/tests/native_box_queries_test.py` (39 checks against numpy).
+- `95__System__McpOperations/tests/mcp_operations_unit.rb.test` (35 checks).
+- The harness: main 197, boxes 84, multi 96, hotkeys 134.
+
+
+## 30. Overlays for the MCP: model edges on slices, clouds on captures (BUILT in v0.14.1)
+
+### 30.1 Model edges on a slice
+
+- The MCP handler collects every visible edge of the entities named (any depth) as world segments in
+  model inches, through its own coordinate helpers. The seam projects each one with the slice's frame
+  (column = (u . p - cx0) / pixel, row = (cy1 - v . p) / pixel) and draws one-pixel lines in red
+  (230, 20, 20) on RGB rows, after the grid. `overlay_clip` first clips each segment to the box
+  (Liang-Barsky); lines are clipped to the picture the same way. At most 200,000 edges.
+
+### 30.2 Clouds on a capture (`composite`)
+
+- Inputs: the capture's file, its width and height, and the `Sketchup::Camera` it was taken with (still set
+  on the view when the MCP calls).
+- The render is the live overlay's: `na_layers` (clouds on show, the Clean preview cloud when its tab
+  shows one), `na_camera_params(camera, width, height)`, each cloud's display, clip box and Crop and Cut
+  parameters, the session budget, one `napc_render_layers_png` call for the whole image (no crop).
+- `write_image` keeps the vertical field of view whatever the image's shape (measured, 30.3), which is
+  exactly what `na_camera_params` assumes when given the image's size in place of the viewport's.
+- The engine's RGBA (straight alpha) is blended over `ImageRep#data` (BGR or BGRA, top row first, row
+  padding honoured) and written back with `set_data` and `save_file`. Rows the clouds miss are skipped.
+
+### 30.3 Measured (09-Nov-2026, SketchUp 26.2.243)
+
+| Capture | Formula against SketchUp |
+|---|---|
+| perspective 1600 x 800 / 800 x 1000 | within 1.2 px (three 80 mm cubes) |
+| parallel 1600 x 800 / 800 x 1000 | within 1.0 px |
+| composite, parallel front 900 x 900 | the cloud fills rows 150 to 750; the model's edges are at 149 and 750 |
+
+Float widths are ignored by `write_image` (the screen's physical size is written instead), so the MCP
+always passes whole numbers.
+
+
+## 31. Shape fitting for the MCP (BUILT in v0.14.2)
+
+### 31.1 Where it runs
+
+- The seam's `fit` reads up to `sample` points (default 20,000) with `napc_box_points`: the first the box
+  keeps, an even sample because the store is shuffled. `Na__McpFit` (pure Ruby, model inches) fits them.
+- No native code: 20,000 points fit in 0.1 to 0.7 s, and the engine stays at ABI 9.
+
+### 31.2 The method
+
+- RANSAC: 300 rounds on a subsample of 2,000, each a minimal set (3 points for a plane, 2 for a line or an
+  upright plane, 1 for a level plane, 3 for a circle), scored by the points within tolerance.
+- Refinement: four rounds of least squares on every inlier of the whole sample, taking the inliers again
+  each round. Plane and line: the covariance's eigenvectors (Jacobi). Circle: Gauss-Newton on the distance to
+  the circle. A refined circle past max_radius (or under twice the tolerance) is not taken.
+- Residuals of the final inliers: rms and p95. Extents are the 1st to 99th percentiles, so a stray point does
+  not stretch them.
+- Box: the smallest trimmed rectangle over turns of 0 to 89 degrees (1 degree), then 0.05 degrees round the best.
+  On a scan's faces it finds the turn to about half a degree; points filling a solid would not.
+- Seeded random numbers: the same points give the same answer.
+
+### 31.3 Limits
+
+- A circle where an arc meets a straight piece at a tangent is pulled bigger (31.4); warnings name it.
+- One box, one thing: the fit measures everything in the box.
+- Cylinders and boxes are along a model axis only.
+
+### 31.4 Measured (09-Nov-2026, SK02 GeoSLAM)
+
+| Fit | Result |
+|---|---|
+| tread 5, horizontal | level 1,197.1, rms 2.7 (the z histogram peaks at 1,195 to 1,200) |
+| riser 5, vertical | y 13,200.3, rms 4.4 (riser line 13,205) |
+| bullnose, the curve alone | r 166.4 at (16,539.5, 12,274.2), rms 1.7, 96 degrees (scipy: r 168.5 to 171.9) |
+| bullnose with its riser | r 398 over 45 degrees: the tangent trap, now warned |
+| wall above the string | x 17,325.1, plumb to 0.03 degrees, rms 2.6 |
+
+
+## 32. Model-to-cloud check for the MCP (BUILT in v0.14.3)
+
+### 32.1 What goes in
+
+- From the MCP handler: every visible face under the ids as world triangles (`Face#mesh`, the handler's
+  coordinate helpers, the face's world normal), each with its part: a group or component directly inside an
+  id, or the id itself for its loose faces.
+- From the engine: an even sample of the box round them (`napc_box_points`, default 20,000).
+
+### 32.2 How a point is measured
+
+- A uniform grid of cells `reach` wide holds the triangles: each in every cell its bounding box touches, or,
+  when that is over 64 cells, only the cells whose centre is within half a cell's diagonal of its plane.
+  At most 2 M cells per triangle box and 4 M filled in all: a reach too fine for the model is refused.
+- A point within reach of a triangle has the nearest point of that triangle in its own cell or one of the 26
+  round it, so the search is exact. Stamps keep a triangle shared by several cells to one measurement.
+- Sign: (point - nearest) . the face's outward normal. Outside positive.
+
+### 32.3 What comes out
+
+- Overall and per part: rms, mean (signed), p50, p95, max, within_share. Parts sorted worst first; parts no
+  point reached are named in a warning.
+- Worst spots: points beyond tolerance in cells of 150 mm (or twice reach), the five fullest.
+- Heatmap: the sample in a slice frame (section 28.3), coloured by signed distance, the model's edges over it.
+
+### 32.4 Measured (09-Nov-2026)
+
+- the SK02 staircase (`Staircase__MainStair__`, 1,420 faces, 14 parts) against the GeoSLAM cloud: 8,901 of 20,000 points within 50 mm, rms 16.1 mm, 53% within 10 mm, mean +7.8 mm (the scan outside the faces). The worst spots are the lower treads at +15 to +21 mm, the carpet the survey notes as reading 10 to 15 mm proud. The worst part is the landing base rail (rms 27), the closest the landing handrail (rms 10.2). 2.7 s.
+
+## 33. Heightmaps and profiles for the MCP (BUILT in v0.14.4)
+
+### 33.1 What goes in
+
+- A grid: the box and a cell size; the view (top: z for each x, y cell; a side view: how far a wall stands out).
+  The frame is the slices' (section 28.3), so a heightmap lines up with a density image of the same box.
+- A profile: a path (its points projected onto the view's plane), a corridor width and a station length; min and
+  max, when given, trim each piece's box.
+- An even sample from the engine (`napc_box_points`, default 1 M points, at most 5 M).
+
+### 33.2 How the numbers are made
+
+- Each point's cell: column floor((u - left) / cell), row floor((top - v) / cell); a point on the box's far face
+  goes into the last cell.
+- A counting sort (counts, offsets, scatter), then each cell sorted once. Percentiles at rank floor(q x (n - 1)),
+  pc_terrain.py's rule, so a file from here and one from the kit's `rasters` agree cell for cell.
+- A profile reads one box a piece: a segment is cut into pieces about the corridor's width across (at most 64 in
+  all), so a diagonal does not read a square to keep a strip. A point counts on the piece it lies along and within
+  half the width of; round a bend a point can count on both segments, at both chainages.
+
+### 33.3 What comes out
+
+- A grid: each statistic's range, the plane's slope (percent, 1 in N, the way it falls; from the top, the azimuth),
+  the cell mapping, the shown statistic inline up to 2,500 cells, a picture (one cell up to 8 px), and a file:
+  `.npz` in rasters.npz layout (x0, y1, res, W, H for the top view; u0, du, v1, dv and axes for any view; count;
+  z02, z50 ... or h02, h50 ... from the side; rgb_top and rgb_low with colours) or `.asc` (top only).
+- A profile: start, end and rise of the shown statistic, its least-squares slope, the steepest stretch over a
+  metre, the stations inline up to 1,000, a picture (exaggeration 1, 2, 5 ... 100, picked to make the range about
+  300 px high, or given), and `.csv` or `.npz`.
+
+### 33.4 Measured (09-Nov-2026)
+
+- The terrain kit agrees to the last digit: the same box of the SK02 GeoSLAM cloud (x 2,000 to 6,000, y 6,000 to 12,000 mm, 46,531 points, all of them) through `pc_terrain.py rasters --res 50` and through the heightmap gave the same 80 x 120 grid, the same counts, z02, z10, z50, z90 and z98 equal to 0.0 mm, and the same rgb_top and rgb_low.
+- 1,000,000 of 37.1 M points into 90 x 148 cells of 250 mm took 2.1 s; 5,000,000 into 224 x 368 cells of 100 mm, 10.7 s.
+- A profile up the SK02 staircase (x 16,950, y 11,800 to 15,500, a 300 mm corridor, 20 mm stations): 185 stations from 181,054 points in 0.7 s, every tread a step, the soffit of the flight above as a grey diagonal.
+
+## 34. The seam's review rules (BUILT in v0.14.5)
+
+### 34.1 Faces and edges
+
+- A box keeps its own faces; every grid built on a box must too. Grids start NA_EDGE_INCHES (1e-6 in) before the box
+  (the engine works out a grid position in another order than its box test), density grids read one column and row
+  past their far edges and fold them back, and heightmap cells take a point a hair outside their edge.
+- A line on a picture's right or bottom border is drawn in the last column or row.
+
+### 34.2 Numbers
+
+- Measured values come back through `na_out` (0.1 mm, or 4 places); steps, mappings, scales and echoes of the call's own
+  numbers through `na_out_exact` (9 significant figures).
+
+### 34.3 Fits
+
+- Directions: `na_sign_up`. Up when the vector rises at all; within NA_LEVEL_SINE (0.02) of level, the larger horizontal
+  part positive. So azimuth_deg is the way a line rises, the way a plane falls, or (a wall) the way it faces.
+- Extents: the 1st and 99th percentiles widened by share / (1 - 2 share) of their span each way.
+- Refinement runs until the inlier set stops changing (at most NA_REFINE_ROUNDS, 20). A circle is settled twice, from
+  the best search and from the algebraic circle of every point; `other_radius` when they differ by more than twice the
+  rms or 2%.
+
+### 34.4 Nearness
+
+- Heightmaps and profiles bin toward x the model value (toward +1 when a larger value is nearer the viewer), so the
+  statistics rank from the farthest to the nearest in every view. Every value out is a model value again.
+
+### 34.5 Profiles sample at one rate
+
+- Each piece's box is counted (napc_box_count), and every piece then reads the same share of its box. Pieces overlap
+  where they meet, so points_in_boxes counts those places twice.
+
+## 35. Slices at any angle (BUILT in v0.14.6)
+
+### 35.1 Why the engine needs no change
+
+- The engine tests every point after local -> model, p = M l + t, against level boxes (BoxFilter.hpp Verdict), and
+  napc_box_points, napc_box_grid and the renderer all use that same p. Hand it the frame folded in, f = R (M l + t - O) =
+  (R M) l + R (t - O), R's rows the frame's axes and O its origin, and every query happens in the frame: a level box there is
+  a turned box in the model.
+
+### 35.2 The frame
+
+- From the call: origin (default the model origin) and angle (degrees anticlockwise from +x about the vertical: x along
+  it, y level to its left, z up), or x_axis with an optional y_axis (made square to x; without it, y level and to x's
+  left, or +y when x is vertical). z = x cross y. The MCP makes one from a group's or component's axes too.
+- Made by Na__McpFrame; refused with the fault named (no length, parallel axes, angle and axes together).
+
+### 35.3 What the frame changes
+
+- In: min, max, the view (top looks down the frame's z, front along its +y), a histogram's axis, a profile's path.
+- Out: every position, direction and azimuth; the reply echoes the frame (origin in the call's units, unit axes, and
+  the rule model point = origin + x x_axis + y y_axis + z z_axis).
+- Kept in the model: a points file's `p` (the kit reads model mm), with the frame's in `f`.
+- Overlay edges arrive as model segments and are moved into the frame before they are drawn.
+
+### 35.4 Measured (09-Nov-2026)
+
+- The plumb wall at x 17,325, sliced in a frame turned 90 degrees, reads its face at -0.4 mm (the plain histogram: x 17,325.4), with the same 14,089 points in the peak bin and the same 41,147 in the box.
+- A 100 mm section cut at 37 degrees through the house: the density grid kept 115,014 points, all on the image, and the renderer drew all 115,014. The two pictures agree on 99.9% of pixels (0.999 correlation; flipped 0.38, mirrored 0.07).

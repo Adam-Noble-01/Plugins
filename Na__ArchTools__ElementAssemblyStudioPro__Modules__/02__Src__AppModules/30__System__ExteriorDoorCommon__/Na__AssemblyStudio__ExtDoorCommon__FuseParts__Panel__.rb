@@ -69,19 +69,20 @@ module Na__FuseParts__Panel
         ctx = na_build_context(naming)
 
         na_collect_mod_groups(entities).each do |mod_group|
-            na_accumulate(result, na_fuse_leaf_joinery(mod_group, ctx))
-            na_accumulate(result, na_fuse_glaze_bars(mod_group, ctx))
-            na_accumulate(result, na_fuse_leaded_glass(mod_group, ctx))
-            na_accumulate(result, na_trim_glass(mod_group, ctx))
-
             # V2.3.0 The lower pane of a Glazed Over Glazed leaf goes through the
             # same steps under its own names, so its bars trim its own glass.
             lower_ctx = na_build_lower_pane_context(ctx)
-            next unless na_find_group(mod_group.entities, lower_ctx[:glass_name])
+            panes = [ctx]
+            panes << lower_ctx if na_find_group(mod_group.entities, lower_ctx[:glass_name])
+            panes.each do |pane|
+                na_accumulate(result, na_fuse_glaze_bars(mod_group, pane))
+                na_accumulate(result, na_fuse_leaded_glass(mod_group, pane))
+                na_accumulate(result, na_trim_glass(mod_group, pane))
+            end
 
-            na_accumulate(result, na_fuse_glaze_bars(mod_group, lower_ctx))
-            na_accumulate(result, na_fuse_leaded_glass(mod_group, lower_ctx))
-            na_accumulate(result, na_trim_glass(mod_group, lower_ctx))
+            # V2.5.3 Joinery goes last, after the bars have trimmed the glass, so
+            # bars flush with both leaf faces (muntins) can join it.
+            na_accumulate(result, na_fuse_leaf_joinery(mod_group, ctx, panes))
         end
         na_accumulate(result, na_fuse_outer_frame(entities))
 
@@ -140,7 +141,10 @@ module Na__FuseParts__Panel
 
     # HELPER FUNCTION | Fuse Structural Leaf Joinery Inside One MOD
     # ------------------------------------------------------------
-    def self.na_fuse_leaf_joinery(mod_group, ctx)
+    # V2.5.3 Glazing bars as deep as the leaf (Glazing Bar Inset 0) are
+    # muntins: part of the joinery, so they join it here, after they have
+    # trimmed the glass. Inset bars stay glazing bars with their own colour.
+    def self.na_fuse_leaf_joinery(mod_group, ctx, panes = [ctx])
         result = na_empty_result
         groups = mod_group.entities.to_a.grep(Sketchup::Group).select do |group|
             next false unless group.valid?
@@ -148,6 +152,7 @@ module Na__FuseParts__Panel
         end
         return na_skipped(result) if groups.length < 2
 
+        groups.concat(na_flush_bar_groups(mod_group, panes, groups))
         na_normalize_materials(groups)
         has_arched_rail = groups.any? { |group| ArchedHeader.na_arched_solid?(group) }     # <-- V2.5.2 Asked before the boolean consumes the groups
         fused = FuseShared.na_sequential_outer_shell(
@@ -163,12 +168,41 @@ module Na__FuseParts__Panel
     private_class_method :na_fuse_leaf_joinery
     # ---------------------------------------------------------------
 
+    # HELPER FUNCTION | Glazing Bars Flush With Both Leaf Faces (V2.5.3)
+    # ------------------------------------------------------------
+    # A bar is flush when its depth matches the joinery's (front and back
+    # faces on the leaf faces), which is what Glazing Bar Inset 0 builds.
+    # @return [Array<Sketchup::Group>] fused (or lone) bar groups to join
+    def self.na_flush_bar_groups(mod_group, panes, joinery)
+        reference = joinery.first.bounds
+        tolerance = 0.01.mm
+        panes.flat_map do |pane|
+            mod_group.entities.to_a.grep(Sketchup::Group).select do |group|
+                next false unless group.valid?
+                next false unless group.name == pane[:glaze_bars_fused] || group.name.start_with?(pane[:glaze_bar_prefix])
+
+                bounds = group.bounds
+                (bounds.min.y - reference.min.y).abs < tolerance && (bounds.max.y - reference.max.y).abs < tolerance
+            end
+        end.uniq
+    end
+    private_class_method :na_flush_bar_groups
+    # ---------------------------------------------------------------
+
     # HELPER FUNCTION | Fuse Glaze Bars Inside One MOD
     # ------------------------------------------------------------
     def self.na_fuse_glaze_bars(mod_group, ctx)
         result = na_empty_result
         groups = na_collect_groups_by_prefix(mod_group.entities, ctx[:glaze_bar_prefix])
-        return na_skipped(result) if groups.length < 2
+        return na_skipped(result) if groups.empty?
+
+        # V2.5.3 A lone bar (a muntin between two panes) has nothing to fuse
+        # with, but it still has to trim the glass: it takes the fused name
+        # so na_trim_glass finds it. Before this the glass ran through it.
+        if groups.length == 1
+            groups.first.name = ctx[:glaze_bars_fused]
+            return result.merge(:fused => 1)
+        end
 
         na_normalize_materials(groups)
         fused = FuseShared.na_sequential_outer_shell(

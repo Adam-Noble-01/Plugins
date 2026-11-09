@@ -37,7 +37,12 @@
 //               them (Result hides what they remove, Differences colours it),
 //               napc_box_count, and napc_box_export_start writes a NEW LAS without
 //               those points. A 48-number parameter block (ABI 7) still renders.
-#define NAPC_ABI_VERSION 8
+//   9 (v0.14.0): what is inside a box for an agent (the Na SketchUp MCP's
+//               point_cloud_slice): napc_box_points (the points the boxes keep,
+//               an even sample, in model units) and napc_box_grid (points per
+//               cell of a grid on a plane: density images, and histograms of any
+//               number of bins in one pass). Nothing older changed.
+#define NAPC_ABI_VERSION 9
 
 // The most clouds one frame can hold (the plugin allows 10 per model).
 #define NAPC_MAX_LAYERS 16
@@ -59,6 +64,29 @@ enum Na__BoxBlockIndex {
 // napc_box_count / napc_box_export_start take the cloud's local -> model
 // transform (12: row-major 3x3, then the translation) followed by the box block.
 #define NAPC_BOXES_COUNT (12 + NAPC_BOX_BLOCK_COUNT)
+
+// A grid on a plane through the model for napc_box_grid (ABI 9), doubles. A
+// point lands in column floor((u . p - u0) / su) and row floor((v1 - v . p) / sv),
+// p in MODEL inches: columns run along u from the left, rows run DOWN v from
+// the top, as an image does.
+enum Na__GridIndex {
+    NAPC_G_UX = 0, NAPC_G_UY, NAPC_G_UZ,   // the column axis (model, unit length)
+    NAPC_G_VX, NAPC_G_VY, NAPC_G_VZ,       // the row axis (model, unit length)
+    NAPC_G_U0,                              // u . p at the left edge of column 0
+    NAPC_G_V1,                              // v . p at the top edge of row 0
+    NAPC_G_SU, NAPC_G_SV,                   // cell size along u and along v (> 0)
+    NAPC_G_WIDTH, NAPC_G_HEIGHT,            // cells across and down (>= 1)
+    NAPC_G_COUNT
+};
+
+// Stats (doubles) written by napc_box_points and napc_box_grid (ABI 9).
+enum Na__BoxStatIndex {
+    NAPC_BS_KEPT = 0,       // points the boxes keep (every point when there is no box)
+    NAPC_BS_WRITTEN,        // points written (box_points) / points on the grid (box_grid)
+    NAPC_BS_MAX_CELL,       // box_grid: the most points in one cell
+    NAPC_BS_MS,             // time inside the engine
+    NAPC_BS_COUNT
+};
 
 // Render parameter layout (doubles), shared with the Ruby bridge.
 enum Na__RenderParamIndex {
@@ -289,6 +317,25 @@ NAPC_API int32_t     napc_box_count(void* cloud, const double* boxes, int32_t bo
 NAPC_API void*       napc_box_export_start(void* cloud, const char* source_utf8, const char* dest_utf8,
                                            const double* boxes, int32_t box_count, const double* origin,
                                            const char* provenance_json, const char* software);
+
+// --- What is inside a box (ABI 9) ------------------------------------------------------
+// The first `cap` stored points the boxes keep, multiplied by `scale` (1 = model
+// inches, 25.4 = model millimetres). The engine stores every cloud shuffled, so
+// these are an even sample of all the points in the boxes. boxes: as
+// napc_box_count. out_xyz: cap * 3 doubles; out_bgra: null, or cap uint32.
+// stats: null, or NAPC_BS_COUNT doubles. Returns how many were written (>= 0),
+// or < 0 (napc_last_error). Two passes at most: count, then copy.
+NAPC_API int64_t     napc_box_points(void* cloud, const double* boxes, int32_t box_count, double scale,
+                                     double* out_xyz, uint32_t* out_bgra, int64_t cap,
+                                     double* stats, int32_t stat_count);
+
+// How many of the points the boxes keep land in each cell of a grid
+// (Na__GridIndex). Points off the grid are not counted. out_counts: width *
+// height uint32, row by row from the top; cap >= width * height. One pass over
+// the cloud. Returns 0, or < 0 (napc_last_error).
+NAPC_API int32_t     napc_box_grid(void* cloud, const double* boxes, int32_t box_count,
+                                   const double* grid, int32_t grid_count, uint32_t* out_counts, int64_t cap,
+                                   double* stats, int32_t stat_count);
 
 // --- LAZ to LAS (LazConvert.hpp) ---------------------------------------------------
 // Decompresses source_utf8 (a .laz) into dest_utf8, a NEW uncompressed LAS (never

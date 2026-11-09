@@ -1,0 +1,118 @@
+# Unit tests for the seam's slice frames (Na__PointCloudViewer__McpOperations__Frame__.rb),
+# run with SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# The folded transform is checked by sending points through it the way the engine does
+# (BoxFilter.hpp: p = M l + t) and comparing with the frame's own conversion.
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+load File.expand_path('../Na__PointCloudViewer__McpOperations__Frame__.rb', __dir__)
+FR = Na__PointCloudViewer::Na__McpFrame
+RNG = Random.new(29)
+
+def close(a, b, tolerance = 1e-9) = a.zip(b).all? { |x, y| (x - y).abs < tolerance }
+def dot(a, b) = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+def refused(pattern)
+    yield
+    false
+rescue ArgumentError => error
+    error.message.include?(pattern)
+end
+
+# The engine's sum: p = M l + t (row-major M).
+def engine(transform, l)
+    m = transform[0, 9]
+    t = transform[9, 3]
+    (0..2).map { |i| m[3 * i] * l[0] + m[3 * i + 1] * l[1] + m[3 * i + 2] * l[2] + t[i] }
+end
+
+def right_handed_unit?(axes)
+    x, y, z = axes
+    [x, y, z].all? { |a| (dot(a, a) - 1).abs < 1e-12 } && dot(x, y).abs < 1e-12 && dot(y, z).abs < 1e-12 && dot(x, z).abs < 1e-12 &&
+        close(z, [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]], 1e-12)
+end
+
+check('angle: x along it, y level and to its left, z up') do
+    f = FR.Na__Frame__Make('origin' => [10.0, 20.0, 0.0], 'angle' => 90)
+    close(f['axes'][0], [0, 1, 0], 1e-12) && close(f['axes'][1], [-1, 0, 0], 1e-12) && close(f['axes'][2], [0, 0, 1], 1e-12) && f['origin'] == [10.0, 20.0, 0.0]
+end
+
+check('x_axis alone: y level and to its left; a vertical x gets +y; both right-handed and unit') do
+    a = FR.Na__Frame__Make('x_axis' => [3, 4, 5])
+    b = FR.Na__Frame__Make('x_axis' => [0, 0, -2])
+    a['axes'][1][2].abs < 1e-12 && dot(a['axes'][1], [-4, 3, 0]) > 0 && right_handed_unit?(a['axes']) &&
+        close(b['axes'][1], [0, 1, 0], 1e-12) && right_handed_unit?(b['axes'])
+end
+
+check('x_axis and y_axis: y made square to x, z = x cross y (a roof frame)') do
+    f = FR.Na__Frame__Make('x_axis' => [1, 0, 0], 'y_axis' => [0.3, 1, 0.7])   # along the eaves, up the slope
+    right_handed_unit?(f['axes']) && close(f['axes'][1], [0, 1 / Math.sqrt(1.49), 0.7 / Math.sqrt(1.49)], 1e-12) && f['axes'][2][2] > 0
+end
+
+check('no turn: the model axes moved to the origin') do
+    f = FR.Na__Frame__Make('origin' => [1, 2, 3])
+    f['axes'] == [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] && f['origin'] == [1.0, 2.0, 3.0]
+end
+
+check('refusals: angle with axes, y without x, zero or parallel axes, bad numbers, unknown keys') do
+    refused('not both') { FR.Na__Frame__Make('angle' => 10, 'x_axis' => [1, 0, 0]) } &&
+        refused('needs an x_axis') { FR.Na__Frame__Make('y_axis' => [0, 1, 0]) } &&
+        refused('no length') { FR.Na__Frame__Make('x_axis' => [0, 0, 0]) } &&
+        refused('square to x_axis') { FR.Na__Frame__Make('x_axis' => [1, 1, 0], 'y_axis' => [2, 2, 0]) } &&
+        refused('must be [x, y, z]') { FR.Na__Frame__Make('origin' => [1, 2]) } &&
+        refused('degrees') { FR.Na__Frame__Make('angle' => 'north') } &&
+        refused('does not take') { FR.Na__Frame__Make('normal' => [0, 0, 1]) } &&
+        refused('must be an object') { FR.Na__Frame__Make([1, 0, 0]) }
+end
+
+check('to the frame and back: 500 random points, random frames') do
+    (1..50).all? do
+        f = FR.Na__Frame__Make('origin' => Array.new(3) { RNG.rand * 2000 - 1000 }, 'x_axis' => Array.new(3) { RNG.rand - 0.5 },
+                               'y_axis' => Array.new(3) { RNG.rand - 0.5 })
+        (1..10).all? do
+            p = Array.new(3) { RNG.rand * 4000 - 2000 }
+            q = FR.Na__Frame__ToFrame(f, p)
+            close(FR.Na__Frame__ToModel(f, q), p, 1e-8) && (Math.sqrt(dot(q, q)) - Math.sqrt(dot(FR.na_sub(p, f['origin']), FR.na_sub(p, f['origin'])))).abs < 1e-8
+        end
+    end
+end
+
+check('fold: the engine sum with the folded transform equals the frame of the placed point') do
+    (1..40).all? do
+        angle = RNG.rand * 2 * Math::PI
+        k = 0.1 + RNG.rand
+        r0 = [Math.cos(angle), -Math.sin(angle), 0, Math.sin(angle), Math.cos(angle), 0, 0, 0, 1]
+        local_to_model = r0.map { |v| v * k } + Array.new(3) { RNG.rand * 1000 }
+        f = FR.Na__Frame__Make('origin' => Array.new(3) { RNG.rand * 500 }, 'angle' => RNG.rand * 360 - 180)
+        folded = FR.Na__Frame__Fold(f, local_to_model)
+        (1..10).all? do
+            l = Array.new(3) { RNG.rand * 3000 - 1500 }
+            close(engine(folded, l), FR.Na__Frame__ToFrame(f, engine(local_to_model, l)), 1e-8)
+        end
+    end
+end
+
+check('packed to the model: frame mm back to model mm, as numpy will read it') do
+    f = FR.Na__Frame__Make('origin' => [100.0, 200.0, 5.0], 'angle' => 30)
+    pts = Array.new(20) { Array.new(3) { RNG.rand * 100 } }
+    flat = pts.flat_map { |p| FR.Na__Frame__ToFrame(f, p).map { |v| v * 25.4 } }
+    back = FR.Na__Frame__PackedToModel(f, flat, 25.4).unpack('E*').each_slice(3).to_a
+    back.each_with_index.all? { |p, i| close(p, pts[i].map { |v| v * 25.4 }, 1e-8) }
+end
+
+puts "Point Cloud Viewer slice frames: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

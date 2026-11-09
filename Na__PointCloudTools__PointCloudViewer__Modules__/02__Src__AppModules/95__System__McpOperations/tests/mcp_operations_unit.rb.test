@@ -1,0 +1,1011 @@
+# Unit tests for the Point Cloud Viewer's MCP seam (95__System__McpOperations),
+# run with SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# The .rb.test extension keeps the viewer's Reload Plugin from ever loading it.
+# A software stand-in for napc_render_png projects points exactly as the
+# engine's Rasterizer does for a parallel camera (sx = cx * fx + half_w,
+# sy = half_h - cy * fy), so the image tests check the seam's frame against
+# the mapping it reports. Stand-ins for napc_box_grid and napc_box_points
+# (ABI 9) follow Api.h's definitions. The real engine is checked by
+# native_box_queries_test.py and live.
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+require 'json'
+require 'zlib'
+require 'tmpdir'
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+MM = 25.4
+
+# --- Fakes: just enough of the viewer -------------------------------------------
+
+module Na__PointCloudViewer
+    module Na__ImageRenderer
+        def self.Na__Image__ColourParams(_slot, _mode)
+            [1, 0, 0, 0]
+        end
+    end
+
+    module Na__ConfigLoader
+        def self.Na__Config__GetOr(fallback, *_keys)
+            fallback
+        end
+    end
+
+    module Na__NativeEngine
+        NA_BOX_BLOCK_COUNT = 128
+        NA_GRID_COUNT = 12
+
+        def self.na_in_keep(point, block)
+            (0..2).all? { |i| point[i] >= block[1 + i] && point[i] <= block[4 + i] }
+        end
+
+        # p = M l + t, as BoxFilter.hpp does (the stand-in clouds are stored in model inches, identity placement).
+        def self.na_place(transform, point)
+            (0..2).map { |r| transform[3 * r] * point[0] + transform[3 * r + 1] * point[1] + transform[3 * r + 2] * point[2] + transform[9 + r] }
+        end
+
+        def self.na_placed(transform)
+            @na_points.map { |point| self.na_place(transform, point) }
+        end
+
+        # Api.h napc_box_grid: column floor((u.p - u0) / su), row floor((v1 - v.p) / sv).
+        def self.Na__Native__BoxGrid(_cloud, transform, block, grid)
+            u = grid[0, 3]
+            v = grid[3, 3]
+            width = grid[10].to_i
+            height = grid[11].to_i
+            counts = Array.new(width * height, 0)
+            kept = 0
+            landed = 0
+            self.na_placed(transform).each do |point|
+                next unless self.na_in_keep(point, block)
+                kept += 1
+                column = ((u[0] * point[0] + u[1] * point[1] + u[2] * point[2] - grid[6]) / grid[8])
+                row = ((grid[7] - (v[0] * point[0] + v[1] * point[1] + v[2] * point[2])) / grid[9])
+                next unless column >= 0 && column < width && row >= 0 && row < height
+                counts[row.floor * width + column.floor] += 1
+                landed += 1
+            end
+            { 'kept' => kept, 'written' => landed, 'maxCell' => counts.max, 'nativeMs' => 0.0, 'counts' => counts.pack('V*') }
+        end
+
+        # Api.h napc_box_points: the first cap kept, in stored order, times scale.
+        def self.Na__Native__BoxPoints(_cloud, transform, block, cap, scale, colours)
+            kept = self.na_placed(transform).select { |point| self.na_in_keep(point, block) }
+            chosen = kept.first(cap)
+            {
+                'kept' => kept.length, 'written' => chosen.length, 'maxCell' => 0, 'nativeMs' => 0.0,
+                'xyz' => chosen.flatten.map { |value| value * scale }.pack('E*'),
+                'bgra' => colours ? chosen.each_index.map { |index| 0xFF000000 | index }.pack('V*') : nil
+            }
+        end
+
+        # Model-inch points (identity local -> model in the tests).
+        def self.na_points=(points)
+            @na_points = points
+        end
+
+        def self.Na__Native__RenderPng(_cloud, f, path)
+            raise 'a render block has 48 numbers' unless f.length == 48
+            width = f[15].to_i
+            height = f[16].to_i
+            fx = 0.5 * f[44] * f[13]
+            fy = 0.5 * f[45] * f[14]
+            half_w = 0.5 * f[44] - f[46]
+            half_h = 0.5 * f[45] - f[47]
+            eye = f[0, 3]
+            axes = [f[3, 3], f[6, 3]]
+            low = f[38, 3]
+            high = f[41, 3]
+            pixels = Array.new(height) { "\x00".b * (4 * width) }
+            drawn = 0
+            self.na_placed(f[25, 12]).each do |point|
+                next unless (0..2).all? { |i| point[i] >= low[i] && point[i] <= high[i] }
+                rel = (0..2).map { |i| point[i] - eye[i] }
+                cx = (0..2).sum { |i| axes[0][i] * rel[i] }
+                cy = (0..2).sum { |i| axes[1][i] * rel[i] }
+                px = (cx * fx + half_w).floor
+                py = (half_h - cy * fy).floor
+                next if px < 0 || py < 0 || px >= width || py >= height
+                pixels[py][4 * px, 4] = "\x00\x00\x00\xFF".b
+                drawn += 1
+            end
+            raw = pixels.map { |row| "\x00".b + row }.join
+            chunk = ->(type, body) { [body.bytesize].pack('N') + type + body + [Zlib.crc32(type + body)].pack('N') }
+            png = "\x89PNG\r\n\x1A\n".b + chunk.call('IHDR'.b, [width, height, 8, 6, 0, 0, 0].pack('NNCCCCC')) +
+                  chunk.call('IDAT'.b, Zlib::Deflate.deflate(raw)) + chunk.call('IEND'.b, ''.b)
+            File.binwrite(path, png)
+            { 'pointsOnScreen' => drawn }
+        end
+    end
+end
+
+load File.expand_path('../Na__PointCloudViewer__McpOperations__Main__.rb', __dir__)
+OPS = Na__PointCloudViewer::Na__McpOperations
+ERR = Na__PointCloudViewer::Na__McpOperationsError
+
+FakeCloud = Struct.new(:native_cloud, :total_points, :local_to_model)
+FakeSlot = Struct.new(:id, :name, :cloud, :visible)
+IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0].map(&:to_f)
+SLOT = FakeSlot.new('pc_test0001', 'Test Scan', FakeCloud.new(:native, 0, IDENTITY), true)
+
+def OPS.na_session
+    :session
+end
+
+def OPS.na_measured_slot(_session, params)
+    OPS.na_framed(SLOT, params)   # as the real one: in the call's frame when it has one (0.14.6)
+end
+
+# napc_box_count over the fake engine's points (whatever with_cloud has put there), placed by the slot's transform.
+def OPS.na_count_in(slot, min, max)
+    Na__PointCloudViewer::Na__NativeEngine.na_placed(slot.cloud.local_to_model).count { |point| (0..2).all? { |i| point[i] >= min[i] && point[i] <= max[i] } }
+end
+
+# A .npz written by the seam, read back: { name => [descr, shape text, data bytes] }.
+def read_npz(path)
+    bytes = File.binread(path)
+    arrays = {}
+    position = 0
+    while bytes.byteslice(position, 4).unpack1('V') == 0x04034b50
+        size = bytes.byteslice(position + 18, 4).unpack1('V')
+        name_length = bytes.byteslice(position + 26, 2).unpack1('v')
+        name = bytes.byteslice(position + 30, name_length)
+        body = bytes.byteslice(position + 30 + name_length, size)
+        crc_ok = Zlib.crc32(body) == bytes.byteslice(position + 14, 4).unpack1('V')
+        header_length = body.byteslice(8, 2).unpack1('v')
+        header = body.byteslice(10, header_length)
+        arrays[name] = [header[/'descr': '([^']+)'/, 1], header[/'shape': (\([^)]*\))/, 1], body.byteslice(10 + header_length, size), crc_ok,
+                        (10 + header_length) % 64]
+        position += 30 + name_length + size
+    end
+    arrays['eocd'] = bytes.byteslice(-22, 4).unpack1('V') == 0x06054b50
+    arrays
+end
+
+# Inside the box [1000, 2000, 0] .. [1200, 2300, 900] mm, then two outside.
+INSIDE_MM = [[1012, 2013, 17], [1102, 2152, 457], [1188, 2288, 883], [1052, 2202, 302], [1052, 2202, 307]].freeze
+OUTSIDE_MM = [[900, 2100, 300], [1100, 2400, 300]].freeze
+$na_cloud = (INSIDE_MM + OUTSIDE_MM).map { |point| point.map { |value| value / MM } }
+Na__PointCloudViewer::Na__NativeEngine.na_points = $na_cloud
+SLOT.cloud.total_points = $na_cloud.length
+BOX = { 'min' => [1000 / MM, 2000 / MM, 0.0], 'max' => [1200 / MM, 2300 / MM, 900 / MM] }.freeze
+
+def refusal(code)
+    yield
+    false
+rescue ERR => error
+    error.na_code == code
+end
+
+# --- Pure helpers -----------------------------------------------------------------
+
+check('peaks: two local maxima with their weighted centres, in order') do
+    peaks = OPS.na_peaks([0, 1, 5, 1, 0, 0, 8, 2, 0], 0.0, 10.0, 0.2)
+    peaks.length == 2 && (peaks[0][0] - 25.0).abs < 1e-9 && peaks[0][1] == 5 && (peaks[1][0] - 67.0).abs < 1e-9 && peaks[1][1] == 8
+end
+
+check('peaks: a bin below peak_share of the highest is not a peak') do
+    OPS.na_peaks([0, 1, 0, 0, 10, 0], 0.0, 1.0, 0.2).map { |peak| peak[2] } == [4]
+end
+
+check('percentiles: linear inside the bin where the share is reached') do
+    result = OPS.na_percentiles([10, 10, 10, 10], 0.0, 1.0, 4.0, 40)
+    (result['p50'] - 2.0).abs < 1e-9 && (result['p1'] - 0.04).abs < 1e-9 && (result['p99'] - 3.96).abs < 1e-9
+end
+
+check('percentiles: an empty box gives nil, not a number') do
+    OPS.na_percentiles([0, 0], 0.0, 1.0, 2.0, 0).values.all?(&:nil?)
+end
+
+check('grid: lines on multiples, every fifth darker, both directions') do
+    up = OPS.na_grid_positions(0.0, 2.0, 50, 10.0)
+    down = OPS.na_grid_positions(100.0, -2.0, 50, 10.0)
+    up.first == [0, OPS::NA_GRID_MAJOR_GREY] && up.include?([5, OPS::NA_GRID_MINOR_GREY]) && up.include?([25, OPS::NA_GRID_MAJOR_GREY]) &&
+        up.last == [49, OPS::NA_GRID_MAJOR_GREY] && down.include?([0, OPS::NA_GRID_MAJOR_GREY]) &&
+        down.include?([45, OPS::NA_GRID_MINOR_GREY]) && down.include?([25, OPS::NA_GRID_MAJOR_GREY]) && down.length == 11
+end
+
+check('grey row: black over white by alpha') do
+    OPS.na_grey_row([0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 128].pack('C*')).bytes == [0, 255, 127]
+end
+
+check('greyscale PNG: IHDR is colour type 0 and the rows come back') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_#{Process.pid}.png")
+    OPS.na_write_grey_png(path, 3, 2, ["\x00\x80\xFF".b, "\xFF\x00\x10".b])
+    bytes = File.binread(path)
+    File.delete(path)
+    width, height, depth, type = bytes.byteslice(16, 13).unpack('NNCC')
+    idat = bytes.byteslice(41, bytes.byteslice(33, 4).unpack1('N'))
+    raw = Zlib::Inflate.inflate(idat)
+    width == 3 && height == 2 && depth == 8 && type.zero? && raw == "\x00\x00\x80\xFF\x00\xFF\x00\x10".b
+end
+
+check('thousands separators') { OPS.na_thousands(37_512_004) == '37,512,004' && OPS.na_thousands(12) == '12' }
+
+check('lengths out: mm to 0.1, metres to 4 places') do
+    OPS.na_out(1.0, 'per_inch' => 25.4) == 25.4 && OPS.na_out(100.0, 'per_inch' => 0.0254) == 2.54
+end
+
+# --- Refusals ------------------------------------------------------------------------
+
+check('box: max not above min is refused') do
+    refusal('invalid_params') { OPS.na_box_in('min' => [0, 0, 5], 'max' => [1, 1, 5]) }
+end
+
+check('box: missing corner is refused') { refusal('invalid_params') { OPS.na_box_in('min' => [0, 0, 0]) } }
+
+check('unknown actions are refused with the list') do
+    refusal('invalid_params') { OPS.Na__PointCloudViewer__McpRead('points', {}) } &&
+        refusal('invalid_params') { OPS.Na__PointCloudViewer__McpEdit('delete', {}) }
+end
+
+check('histogram: more than NA_MAX_BINS bins is refused') do
+    refusal('invalid_params') { OPS.na_histogram(BOX.merge('axis' => 'z', 'bin' => 0.05 / MM)) }
+end
+
+check('points: more than the reply holds is refused, naming save_path') do
+    OPS.na_points(BOX.merge('limit' => OPS::NA_MAX_INLINE_POINTS + 1))
+    false
+rescue ERR => error
+    error.na_code == 'invalid_params' && error.na_hint.include?('save_path')
+end
+
+check('points: a fractional limit is refused') { refusal('invalid_params') { OPS.na_points(BOX.merge('limit' => 2.5)) } }
+
+check('density: an unknown scale is refused') do
+    refusal('invalid_params') { OPS.na_density(BOX.merge('view' => 'top', 'resolution' => 5 / MM, 'scale' => 'cubic', 'out_path' => 'x.png')) }
+end
+
+check('image: an image over the size limit is refused') do
+    refusal('invalid_params') { OPS.na_image(BOX.merge('view' => 'right', 'resolution' => 0.01 / MM, 'out_path' => 'x.png')) }
+end
+
+# --- histogram -------------------------------------------------------------------------
+
+check('histogram along z: every inside point counted once, the 302/307 pair is the peak') do
+    result = OPS.na_histogram(BOX.merge('axis' => 'z', 'bin' => 50 / MM))
+    peak = result['peaks'].max_by { |each| each['count'] }
+    result['counts'].length == 18 && result['points'] == INSIDE_MM.length && result['start'] == 0.0 &&
+        result['bin'] == 50.0 && peak['count'] == 2 && peak['at'] > 250 && peak['at'] < 350
+end
+
+check('histogram: one pass gives the same counts as one count per bin, along each axis') do
+    %w[x y z].each_with_index.all? do |axis, index|
+        result = OPS.na_histogram(BOX.merge('axis' => axis, 'bin' => 7 / MM))
+        bin = 7 / MM
+        min = BOX['min']
+        max = BOX['max']
+        per_bin = result['counts'].each_index.map do |i|
+            low = min.dup
+            high = max.dup
+            low[index] = min[index] + i * bin
+            high[index] = [min[index] + (i + 1) * bin, max[index]].min
+            $na_cloud.count { |point| (0..2).all? { |a| point[a] >= low[a] && (a == index ? point[a] < high[a] : point[a] <= high[a]) } }
+        end
+        result['counts'] == per_bin
+    end
+end
+
+check('histogram: a point on the box\'s far face lands in the last bin, so the bins add up to count') do
+    box = { 'min' => BOX['min'], 'max' => [BOX['max'][0], BOX['max'][1], 883 / MM] }   # a point sits at z 883
+    result = OPS.na_histogram(box.merge('axis' => 'z', 'bin' => 1 / MM))
+    result['counts'].length == 883 && result['counts'].last == 1 && result['points'] == OPS.na_count(box)['points']
+end
+
+check('histogram: 9,000 bins in one call') do
+    OPS.na_histogram(BOX.merge('axis' => 'z', 'bin' => 0.1 / MM))['counts'].length == 9000
+end
+
+# --- points --------------------------------------------------------------------------------
+
+check('points inline: the first of each kept, in the call units, an even-sample note') do
+    result = OPS.na_points(BOX.merge('limit' => 3, 'per_inch' => 25.4))
+    result['points_in_box'] == INSIDE_MM.length && result['returned'] == 3 && result['points'] == INSIDE_MM.first(3).map { |p| p.map(&:to_f) } &&
+        result['sample_percent'] == 60.0 && result['note'].include?('even sample') && !result.key?('file')
+end
+
+check('points inline in metres') do
+    OPS.na_points(BOX.merge('limit' => 1, 'per_inch' => 0.0254))['points'] == [[1.012, 2.013, 0.017]]
+end
+
+check('points to a .npz: numpy layout, model mm, colours, CRCs, 64-byte aligned headers') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_points_#{Process.pid}.npz")
+    result = OPS.na_points(BOX.merge('limit' => 4, 'per_inch' => 0.0254, 'out_path' => path))
+    arrays = read_npz(path)
+    File.delete(path)
+    p_descr, p_shape, p_data, p_crc, p_align = arrays['p.npy']
+    c_descr, c_shape, c_data, c_crc, c_align = arrays['c.npy']
+    p_descr == '<f8' && p_shape == '(4, 3)' && p_data.unpack('E*').zip(INSIDE_MM.first(4).flatten).all? { |a, b| (a - b).abs < 1e-9 } &&
+        c_descr == '<u4' && c_shape == '(4,)' && c_data.unpack('V*') == [0xFF000000, 0xFF000001, 0xFF000002, 0xFF000003] &&
+        p_crc && c_crc && p_align.zero? && c_align.zero? && arrays['eocd'] &&
+        result['file'] == path && result['returned'] == 4 && result['preview'].first == [1.012, 2.013, 0.017] && !result.key?('points')
+end
+
+check('points to a .npz: an empty box writes empty arrays') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_empty_#{Process.pid}.npz")
+    result = OPS.na_points('min' => [0.0, 0.0, 0.0], 'max' => [1.0, 1.0, 1.0], 'out_path' => path)
+    arrays = read_npz(path)
+    File.delete(path)
+    result['returned'].zero? && arrays['p.npy'][1] == '(0, 3)' && arrays['c.npy'][1] == '(0,)'
+end
+
+# --- density --------------------------------------------------------------------------------
+
+check('density top: the two points in one pixel are darker than one; the mapping is image\'s') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_density_#{Process.pid}.png")
+    result = OPS.na_density(BOX.merge('view' => 'top', 'resolution' => 5 / MM, 'out_path' => path))
+    bytes = File.binread(path)
+    File.delete(path)
+    raw = Zlib::Inflate.inflate(bytes.byteslice(41, bytes.byteslice(33, 4).unpack1('N')))
+    width = result['width']
+    grey_at = lambda do |point|
+        column = ((point[0] - result['u']['at_left_edge']) / result['u']['per_px']).floor
+        row = ((point[1] - result['v']['at_top_edge']) / result['v']['per_px']).floor
+        raw.getbyte(row * (width + 1) + 1 + column)
+    end
+    double = grey_at.call(INSIDE_MM[3])
+    single = grey_at.call(INSIDE_MM[0])
+    result['max_per_pixel'] == 2 && result['points_on_image'] == INSIDE_MM.length && result['points_in_box'] == INSIDE_MM.length &&
+        double.zero? && single > 0 && single < 255 && result['u']['at_left_edge'] == 1000.0 && result['scale'] == 'log'
+end
+
+check('density linear: a single point is half as dark as the pair') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_density_lin_#{Process.pid}.png")
+    result = OPS.na_density(BOX.merge('view' => 'top', 'resolution' => 5 / MM, 'scale' => 'linear', 'out_path' => path))
+    bytes = File.binread(path)
+    File.delete(path)
+    raw = Zlib::Inflate.inflate(bytes.byteslice(41, bytes.byteslice(33, 4).unpack1('N')))
+    column = ((INSIDE_MM[0][0] - result['u']['at_left_edge']) / result['u']['per_px']).floor
+    row = ((INSIDE_MM[0][1] - result['v']['at_top_edge']) / result['v']['per_px']).floor
+    raw.getbyte(row * (result['width'] + 1) + 1 + column) == 128
+end
+
+# --- image: the mapping the seam reports finds every point it drew ------------------
+
+%w[right left front back top].each do |view|
+    check("image #{view}: each point inside the box is black at its mapped pixel, and only those are drawn") do
+        path = File.join(Dir.tmpdir, "na_pcv_unit_#{view}_#{Process.pid}.png")
+        result = OPS.na_image(BOX.merge('view' => view, 'resolution' => 5 / MM, 'out_path' => path))
+        bytes = File.binread(path)
+        File.delete(path)
+        idat = bytes.byteslice(41, bytes.byteslice(33, 4).unpack1('N'))
+        raw = Zlib::Inflate.inflate(idat)
+        width = result['width']
+        u_axis = 'xyz'.index(result['u']['axis'][1])
+        v_axis = 'xyz'.index(result['v']['axis'][1])
+        hits = INSIDE_MM.map do |point|
+            column = ((point[u_axis] - result['u']['at_left_edge']) / result['u']['per_px']).floor
+            row = ((point[v_axis] - result['v']['at_top_edge']) / result['v']['per_px']).floor
+            raw.getbyte(row * (width + 1) + 1 + column)
+        end
+        black = raw.bytes.each_with_index.count { |byte, index| (index % (width + 1)) != 0 && byte.zero? }
+        hits.all?(&:zero?) && result['points_drawn'] == INSIDE_MM.length && black <= INSIDE_MM.length &&
+            File.exist?(path) == false && !File.exist?("#{path}.native.png")
+    end
+end
+
+check('image right: +Y runs right and +Z up, 5 mm a pixel, box edges on whole pixels') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_axes_#{Process.pid}.png")
+    result = OPS.na_image(BOX.merge('view' => 'right', 'resolution' => 5 / MM, 'out_path' => path))
+    File.delete(path)
+    result['u']['axis'] == '+y' && result['v']['axis'] == '+z' && result['u']['per_px'] == 5.0 && result['v']['per_px'] == -5.0 &&
+        result['u']['at_left_edge'] == 2000.0 && result['v']['at_top_edge'] == 900.0 && result['width'] == 60 && result['height'] == 180
+end
+
+check('image left: +Y runs left (u axis -y)') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_left_axes_#{Process.pid}.png")
+    result = OPS.na_image(BOX.merge('view' => 'left', 'resolution' => 5 / MM, 'out_path' => path))
+    File.delete(path)
+    result['u']['axis'] == '-y' && result['u']['at_left_edge'] == 2300.0 && result['u']['per_px'] == -5.0
+end
+
+check('image: a grid with too many lines is skipped with a note, not drawn') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_grid_#{Process.pid}.png")
+    result = OPS.na_image(BOX.merge('view' => 'top', 'resolution' => 1 / MM, 'grid' => 0.5 / MM, 'out_path' => path))
+    File.delete(path)
+    result['grid'].nil? && result['note'].to_s.include?('No grid')
+end
+
+# --- overlay (0.14.1): model edges in red on the slices --------------------------------------
+
+# An RGB PNG read back: [width, height, colour type, rows of RGB bytes].
+def read_rgb_png(path)
+    bytes = File.binread(path)
+    width, height, _depth, type = bytes.byteslice(16, 13).unpack('NNCC')
+    raw = Zlib::Inflate.inflate(bytes.byteslice(41, bytes.byteslice(33, 4).unpack1('N')))
+    stride = 1 + 3 * width
+    [width, height, type, Array.new(height) { |row| raw.byteslice(row * stride + 1, 3 * width) }]
+end
+
+def red?(rows, column, row)
+    rows[row].byteslice(3 * column, 3).bytes == OPS::NA_OVERLAY_RGB
+end
+
+check('clip: a segment through the box keeps only its part inside') do
+    piece = OPS.na_clip_segment([-5.0, 1.0, 1.0], [5.0, 1.0, 1.0], [0.0, 0.0, 0.0], [2.0, 2.0, 2.0])
+    piece == [[0.0, 1.0, 1.0], [2.0, 1.0, 1.0]] && OPS.na_clip_segment([3.0, 3.0, 3.0], [4.0, 4.0, 4.0], [0.0, 0.0, 0.0], [2.0, 2.0, 2.0]).nil?
+end
+
+check('line: drawn pixel by pixel, clipped to the picture') do
+    rows = Array.new(4) { "\x00".b * 30 }
+    hit = OPS.na_draw_line(rows, 10, 4, -5.0, 1.5, 4.5, 1.5)
+    miss = OPS.na_draw_line(rows, 10, 4, 20.0, 1.0, 30.0, 1.0)
+    hit && !miss && (0..4).all? { |c| red?(rows, c, 1) } && !red?(rows, 6, 1) && !red?(rows, 0, 0)
+end
+
+check('image right with an overlay: an edge at y 2100 mm, z 0 to 900 is a red column at its mapped pixel') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_overlay_#{Process.pid}.png")
+    edge = [[1100 / MM, 2101 / MM, 0.0], [1100 / MM, 2101 / MM, 900 / MM]]
+    result = OPS.na_image(BOX.merge('view' => 'right', 'resolution' => 5 / MM, 'out_path' => path, 'overlay_segments' => [edge, [[0, 0, 0], [1, 1, 1]]]))
+    width, height, type, rows = read_rgb_png(path)
+    File.delete(path)
+    column = ((2101 - result['u']['at_left_edge']) / result['u']['per_px']).floor
+    type == 2 && width == result['width'] && height == result['height'] && (5..170).all? { |row| red?(rows, column, row) } &&
+        result['overlay'] == { 'edges' => 2, 'edges_drawn' => 1, 'colour' => 'red', 'clipped_to_box' => false }
+end
+
+check('density with overlay_clip: only the part inside the box is drawn') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_overlay_clip_#{Process.pid}.png")
+    long = [[1100 / MM, 1500 / MM, 450 / MM], [1100 / MM, 2800 / MM, 450 / MM]]   # runs out of the box both ways along y
+    result = OPS.na_density(BOX.merge('view' => 'right', 'resolution' => 5 / MM, 'out_path' => path, 'overlay_segments' => [long], 'overlay_clip' => true))
+    _width, _height, _type, rows = read_rgb_png(path)
+    File.delete(path)
+    row = ((450 - result['v']['at_top_edge']) / result['v']['per_px']).floor
+    reds = (0...result['width']).count { |c| red?(rows, c, row) }
+    result['overlay']['clipped_to_box'] && reds == result['width']
+end
+
+check('overlay: an edge wholly outside the box with overlay_clip is not drawn') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_overlay_out_#{Process.pid}.png")
+    away = [[5000 / MM, 2100 / MM, 0.0], [5000 / MM, 2100 / MM, 900 / MM]]
+    result = OPS.na_image(BOX.merge('view' => 'right', 'resolution' => 5 / MM, 'out_path' => path, 'overlay_segments' => [away], 'overlay_clip' => true))
+    File.delete(path)
+    result['overlay']['edges_drawn'].zero?
+end
+
+check('overlay: too many edges is refused') do
+    many = Array.new(OPS::NA_MAX_OVERLAY_SEGMENTS + 1) { [[0, 0, 0], [1, 1, 1]] }
+    refusal('invalid_params') { OPS.na_image(BOX.merge('view' => 'top', 'resolution' => 5 / MM, 'out_path' => 'x.png', 'overlay_segments' => many)) }
+end
+
+# --- composite's blend (0.14.1) ----------------------------------------------------------------
+
+check('blend: opaque cloud pixels replace, translucent ones mix, empty rows are skipped (BGR picture)') do
+    data = ([10, 20, 30] * 4).pack('C*')                       # 2 x 2 BGR, every pixel B10 G20 R30
+    cloud = [[255, 0, 0, 255, 0, 0, 255, 128].pack('C*'), ("\x00" * 8).b]   # row 0: opaque red, then blue at alpha 128; row 1 empty
+    covered = OPS.na_blend(data, 6, 3, cloud, 2, 2)
+    bytes = data.bytes
+    covered == 2 && bytes[0, 3] == [0, 0, 255] && bytes[3, 3] == [(255 * 128 + 10 * 127) / 255, (20 * 127) / 255, (30 * 127) / 255] &&
+        bytes[6, 6] == [10, 20, 30, 10, 20, 30]
+end
+
+check('blend: a transparent capture (BGRA) gains the cloud pixel\'s alpha') do
+    data = [10, 20, 30, 0].pack('C*')
+    OPS.na_blend(data, 4, 4, [[1, 2, 3, 200].pack('C*')], 1, 1) == 1 && data.bytes[3] == 200
+end
+
+# --- fit (0.14.2): the seam's side of point_cloud_fit -------------------------------------------
+
+# A tread at z 600 mm with its riser, in place of the stand-in cloud for these checks.
+FIT_RNG = Random.new(11)
+TREAD = Array.new(1500) { [(1000 + FIT_RNG.rand * 600) / MM, (2000 + FIT_RNG.rand * 220) / MM, (600 + (FIT_RNG.rand - 0.5) * 6) / MM] } +
+        Array.new(600) { [(1000 + FIT_RNG.rand * 600) / MM, (2000 + (FIT_RNG.rand - 0.5) * 6) / MM, (420 + FIT_RNG.rand * 170) / MM] }
+FIT_BOX = { 'min' => [990 / MM, 1990 / MM, 400 / MM], 'max' => [1610 / MM, 2230 / MM, 620 / MM] }.freeze
+
+def with_cloud(points)
+    Na__PointCloudViewer::Na__NativeEngine.na_points = points
+    yield
+ensure
+    Na__PointCloudViewer::Na__NativeEngine.na_points = $na_cloud
+end
+
+check('fit plane horizontal: the tread level in mm, with its residuals and a summary') do
+    with_cloud(TREAD) do
+        result = OPS.na_fit(FIT_BOX.merge('shape' => 'plane', 'orientation' => 'horizontal', 'per_inch' => 25.4))
+        (result['fit']['offset'] - 600.0).abs < 0.5 && result['fit']['normal'] == [0.0, 0.0, 1.0] && result['points_used'] == 2100 &&
+            result['fit']['inliers'].between?(1450, 1550) && result['tolerance'] == 10.0 && result['summary'].include?('level 6') &&
+            result['warnings'].empty? && result['fit']['rms'] < 3
+    end
+end
+
+check('fit plane vertical: the riser face at y 2000 mm') do
+    with_cloud(TREAD) do
+        fit = OPS.na_fit(FIT_BOX.merge('shape' => 'plane', 'orientation' => 'vertical'))['fit']
+        fit['normal'][0].abs < 0.01 && (fit['normal'][1].abs - 1.0).abs < 1e-4 && fit['normal'][2] == 0.0 &&
+            (fit['point'][1] - 2000.0).abs < 0.5 && (fit['slope_deg'] - 90.0).abs < 0.01
+    end
+end
+
+check('fit: a box with more of something else than the shape warns about the share') do
+    with_cloud(TREAD) do
+        result = OPS.na_fit(FIT_BOX.merge('shape' => 'line', 'tolerance' => 3 / MM))
+        result['inlier_share'] < 0.3 && result['warnings'].any? { |text| text.include?('Tighten') }
+    end
+end
+
+check('fit circle: a radius close to max_radius warns about tangents') do
+    arc = Array.new(400) { a = FIT_RNG.rand * Math::PI / 2; [(1000 + 100 * Math.cos(a)) / MM, (2000 + 100 * Math.sin(a)) / MM, 0.1] }
+    with_cloud(arc) do
+        box = { 'min' => [995 / MM, 1995 / MM, 0.0], 'max' => [1102 / MM, 2102 / MM, 1.0] }
+        result = OPS.na_fit(box.merge('shape' => 'circle', 'tolerance' => 2 / MM))
+        (result['fit']['radius'] - 100.0).abs < 0.5 && result['warnings'].any? { |text| text.include?('max_radius') }
+    end
+end
+
+check('fit: an unknown shape, a sample out of range and too much trim are refused') do
+    refusal('invalid_params') { OPS.na_fit(FIT_BOX.merge('shape' => 'sphere')) } &&
+        refusal('invalid_params') { OPS.na_fit(FIT_BOX.merge('shape' => 'plane', 'sample' => 50)) } &&
+        refusal('invalid_params') { OPS.na_fit(FIT_BOX.merge('shape' => 'box', 'trim' => 30)) }
+end
+
+check('fit: too few points in the box is refused with the way out') do
+    with_cloud([[1.0, 1.0, 1.0]]) do
+        OPS.na_fit({ 'min' => [0.0, 0.0, 0.0], 'max' => [2.0, 2.0, 2.0], 'shape' => 'plane' })
+        false
+    end
+rescue ERR => error
+    error.na_code == 'operation_failed' && error.na_hint.include?('density')
+end
+
+# --- check (0.14.3): the seam's side of point_cloud_check -----------------------------------------
+
+# A 1000 mm cube of faces (part 0: the four walls, part 1: top and bottom) and a scan of it:
+# the +x wall 20 mm outside its face, the rest on the faces, plus points far away.
+CUBE_MM = 1000.0
+def cube_triangles
+    s = CUBE_MM / MM
+    v = [[0, 0, 0], [s, 0, 0], [s, s, 0], [0, s, 0], [0, 0, s], [s, 0, s], [s, s, s], [0, s, s]].map { |p| p.map(&:to_f) }
+    quads = [[[0, 3, 2, 1], 1], [[4, 5, 6, 7], 1], [[0, 1, 5, 4], 0], [[2, 3, 7, 6], 0], [[1, 2, 6, 5], 0], [[3, 0, 4, 7], 0]]
+    quads.flat_map do |q, part|
+        [[v[q[0]], v[q[1]], v[q[2]]], [v[q[0]], v[q[2]], v[q[3]]]].map do |a, b, c|
+            n = [(b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]),
+                 (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])]
+            l = Math.sqrt(n.sum { |x| x * x })
+            [a, b, c, n.map { |x| x / l }, part]
+        end
+    end
+end
+CHECK_RNG = Random.new(13)
+def on_face(axis, at)
+    p = [CHECK_RNG.rand * CUBE_MM, CHECK_RNG.rand * CUBE_MM, CHECK_RNG.rand * CUBE_MM]
+    p[axis] = at + (CHECK_RNG.rand - 0.5) * 4
+    p.map { |x| x / MM }
+end
+SCAN = Array.new(800) { on_face(0, CUBE_MM + 20) } + Array.new(800) { on_face(0, 0) } + Array.new(800) { on_face(1, 0) } +
+       Array.new(800) { on_face(2, CUBE_MM) } + Array.new(300) { [(3000 + CHECK_RNG.rand * 100) / MM, 0.5, 0.5] }
+CHECK_BOX = { 'min' => [-100 / MM, -100 / MM, -100 / MM], 'max' => [3200 / MM, 1100 / MM, 1100 / MM] }.freeze
+CHECK_ARGS = CHECK_BOX.merge('triangles' => cube_triangles, 'parts' => [{ 'name' => 'Walls', 'id' => 11 }, { 'name' => 'Top and bottom', 'id' => 12 }],
+                             'per_inch' => 25.4)
+
+check('check: near and away, the +x wall 20 mm outside, the rest on its faces, per part') do
+    with_cloud(SCAN) do
+        r = OPS.na_check(CHECK_ARGS)
+        walls = r['parts'].find { |row| row['name'] == 'Walls' }
+        top = r['parts'].find { |row| row['name'] == 'Top and bottom' }
+        r['near'] == 3200 && r['away'] == 300 && r['faces'] == 12 && (r['overall']['within_share'] - 0.75).abs < 0.01 &&
+            walls['points'] == 2400 && (walls['mean'] - 20.0 / 3).abs < 0.5 && top['points'] == 800 && top['rms'] < 2 &&
+            r['worst'].all? { |spot| (spot['centre'][0] - 1020).abs < 5 && (spot['mean'] - 20).abs < 2 } &&
+            r['parts'].first['name'] == 'Walls' && r['summary'].include?('3,200 of 3,500 points')
+    end
+end
+
+check('check: a scan 25 mm outside every face reads positive and warns of an offset model') do
+    bigger = Array.new(3000) do                     # points on the faces of a cube 25 mm bigger all round
+        p = [CHECK_RNG.rand * 1050 - 25, CHECK_RNG.rand * 1050 - 25, CHECK_RNG.rand * 1050 - 25]
+        axis = CHECK_RNG.rand(3)
+        p[axis] = CHECK_RNG.rand < 0.5 ? -25.0 : 1025.0
+        p.map { |x| x / MM }
+    end
+    with_cloud(bigger) do
+        r = OPS.na_check(CHECK_ARGS.merge('reach' => 80 / MM))
+        r['overall']['mean'] > 20 && r['overall']['p50'] > 20 && r['warnings'].any? { |text| text.include?('outside the faces') && text.include?('offset') }
+    end
+end
+
+check('check: a heatmap with the mapping, green on the faces, red outside, pale grey away, dark edges') do
+    path = File.join(Dir.tmpdir, "na_pcv_unit_check_#{Process.pid}.png")
+    with_cloud(SCAN) do
+        edge = [[[0.0, 0.0, 0.5], [0.0, 1000 / MM, 0.5]]]
+        r = OPS.na_check(CHECK_ARGS.merge('view' => 'top', 'resolution' => 10 / MM, 'out_path' => path, 'edges' => edge, 'point_size_px' => 1))
+        width, height, type, rows = read_rgb_png(path)
+        File.delete(path)
+        colour = lambda do |x_mm, y_mm|
+            c = ((x_mm - r['u']['at_left_edge']) / r['u']['per_px']).floor
+            w = ((y_mm - r['v']['at_top_edge']) / r['v']['per_px']).floor
+            rows[w].byteslice(3 * c, 3).bytes
+        end
+        reddish = rows.sum { |row| row.bytes.each_slice(3).count { |red, green, blue| red > green + 60 && red > blue + 60 } }
+        greys = rows.sum { |row| row.bytes.each_slice(3).count { |px| px == OPS::NA_CHECK_AWAY } }
+        type == 2 && width == r['width'] && height == r['height'] && reddish > 50 && greys >= 10 && r['edges_drawn'] == 1 &&
+            colour.call(5, 500) == OPS::NA_CHECK_EDGE && colour.call(1020, 500) != OPS::NA_CHECK_GREEN && r['colours'].include?('green')
+    end
+end
+
+check('check: no faces, reach under tolerance and a bad sample are refused') do
+    refusal('invalid_params') { OPS.na_check(CHECK_BOX.merge('triangles' => [])) } &&
+        refusal('invalid_params') { OPS.na_check(CHECK_ARGS.merge('tolerance' => 1.0, 'reach' => 0.5)) } &&
+        refusal('invalid_params') { OPS.na_check(CHECK_ARGS.merge('sample' => 10)) }
+end
+
+# --- heightmap and profile (0.14.4): the seam's side of point_cloud_heightmap ----------------------
+
+# Ground rising 2% along +x (z = 100 + 0.02 x mm) over x 0..2000, y 0..1000 mm, a sixth of it
+# grass up to 30 mm above; and a wall at y = 2000 + 0.01 z (leaning back as it rises).
+HEIGHT_RNG = Random.new(17)
+GROUND = Array.new(4000) { x = HEIGHT_RNG.rand * 2000; [x, HEIGHT_RNG.rand * 1000, 100 + 0.02 * x] } +
+         Array.new(800) { x = HEIGHT_RNG.rand * 2000; [x, HEIGHT_RNG.rand * 1000, 100 + 0.02 * x + HEIGHT_RNG.rand * 30] }
+TERRAIN = GROUND.map { |p| p.map { |v| v / MM } }
+TERRAIN_BOX = { 'min' => [0.0, 0.0, 0.0], 'max' => [2000 / MM, 1000 / MM, 500 / MM] }.freeze
+WALL = Array.new(3000) { z = HEIGHT_RNG.rand * 2000; [HEIGHT_RNG.rand * 1000, 2000 + 0.01 * z, z].map { |v| v / MM } }
+def height_path(name) = File.join(Dir.tmpdir, "na_pcv_unit_#{Process.pid}_#{name}")
+
+check('heightmap top: cells of 100 mm, the 2% fall toward -x, the values inline, the picture scaled up') do
+    with_cloud(TERRAIN) do
+        png = height_path('hm.png')
+        r = OPS.na_heightmap(TERRAIN_BOX.merge('resolution' => 100 / MM, 'out_path' => png, 'per_inch' => 25.4))
+        width, height, type, = read_rgb_png(png)
+        File.delete(png)
+        slope = r['slope']
+        near = (0...10).all? do |row|
+            (0...20).all? { |column| (r['values'][row][column] - (100 + 0.02 * (column * 100 + 50))).abs < 3 }
+        end
+        r['grid']['columns'] == 20 && r['grid']['rows'] == 10 && r['grid']['u']['at_left_edge'] == 0.0 && r['grid']['v']['at_top_edge'] == 1000.0 &&
+            r['grid']['v']['per_cell'] == -100.0 && (slope['percent'] - 2.0).abs < 0.1 && (slope['falls_toward'][0] + 1).abs < 1e-3 &&
+            (slope['falls_toward_azimuth_deg'].abs - 180).abs < 1 && near && r['show'] == 'p50' && r['stats'].keys == %w[p2 p50 p98] &&
+            r['pixels_per_cell'] == 8 && width == 160 && height == 80 && type == 2 && r['points_used'] == 4800 && r['cells_with_points'] == 200 &&
+            r['contour'] && r['contour'] > 0 && r['summary'].include?('falls 2.0') && r['warnings'].empty?
+    end
+end
+
+check('heightmap .npz: pc_terrain.py\'s rasters.npz layout, model mm, NaN where empty, colours') do
+    with_cloud(TERRAIN) do
+        png = height_path('hm2.png')
+        npz = height_path('hm2.npz')
+        box = TERRAIN_BOX.merge('max' => [2000 / MM, 1100 / MM, 500 / MM])   # a row of empty cells along the north edge
+        r = OPS.na_heightmap(box.merge('resolution' => 100 / MM, 'out_path' => png, 'file_path' => npz, 'colours' => true, 'stats' => %w[p2 median p98 mean]))
+        arrays = read_npz(npz).transform_keys { |key| key.delete_suffix('.npy') }
+        File.delete(png)
+        File.delete(npz)
+        z50 = arrays['z50'][2].unpack('e*')
+        count = arrays['count'][2].unpack('l<*')
+        arrays['eocd'] && arrays.values_at('res', 'x0', 'y1').map { |a| a[2].unpack1('E') } == [100.0, 0.0, 1100.0] &&
+            arrays['W'][2].unpack1('q<') == 20 && arrays['H'][2].unpack1('q<') == 11 && arrays['z50'][0] == '<f4' && arrays['z50'][1] == '(11, 20)' &&
+            z50.first(20).all?(&:nan?) && count.first(20).all?(&:zero?) && (z50[20] - 101.0).abs < 3 && arrays['zmean'] && arrays['rgb_top'][1] == '(11, 20, 3)' &&
+            arrays['rgb_top'][2].unpack('e3') == [255.0, 255.0, 255.0] && arrays.reject { |k, _| k == 'eocd' }.values.all? { |a| a[3] && a[4].zero? } &&
+            r['file_arrays'].include?('rasters.npz') && r['warnings'].empty? && r['filled_share'] < 0.95
+    end
+end
+
+check('heightmap .asc: an ESRI grid of the shown statistic, NODATA where empty, the south-west corner') do
+    with_cloud(TERRAIN) do
+        png = height_path('hm3.png')
+        asc = height_path('hm3.asc')
+        box = TERRAIN_BOX.merge('max' => [2000 / MM, 1100 / MM, 500 / MM])
+        OPS.na_heightmap(box.merge('resolution' => 100 / MM, 'out_path' => png, 'file_path' => asc, 'stats' => %w[p10]))
+        lines = File.read(asc).lines
+        File.delete(png)
+        File.delete(asc)
+        lines[0, 6].map(&:split) == [%w[ncols 20], %w[nrows 11], %w[xllcorner 0.0], %w[yllcorner 0.0], %w[cellsize 100.0], %w[NODATA_value -9999]] &&
+            lines[6].split.all? { |v| v == '-9999' } && (lines[7].split.first.to_f - 101.0).abs < 3 && lines.length == 17
+    end
+end
+
+check('heightmap front: a wall leaning 0.57 deg, heights along y, nearer the viewer is smaller') do
+    with_cloud(WALL) do
+        png = height_path('hm4.png')
+        box = { 'min' => [0.0, 1900 / MM, 0.0], 'max' => [1000 / MM, 2100 / MM, 2000 / MM] }
+        r = OPS.na_heightmap(box.merge('view' => 'front', 'resolution' => 200 / MM, 'out_path' => png, 'stats' => %w[p50]))
+        File.delete(png)
+        # 0.14.5: ranked by nearness, so from the front the surface seen is the smallest y, and it goes away
+        # from the viewer (falls) upward, as y grows with z.
+        (r['slope']['deg'] - 0.57).abs < 0.05 && (r['slope']['falls_toward'][2] - 1).abs < 1e-3 && r['value'].include?('model y') &&
+            r['value'].include?('the smallest y') && r['slope']['falls_toward_azimuth_deg'].nil? && r['summary'].include?('leans')
+    end
+end
+
+check('heightmap: model edges drawn in magenta over the picture') do
+    with_cloud(TERRAIN) do
+        png = height_path('hm5.png')
+        edge = [[[1000 / MM, 0.0, 150 / MM], [1000 / MM, 1000 / MM, 150 / MM]]]
+        r = OPS.na_heightmap(TERRAIN_BOX.merge('resolution' => 100 / MM, 'out_path' => png, 'overlay_segments' => edge))
+        _, _, _, rows = read_rgb_png(png)
+        File.delete(png)
+        r['overlay']['edges_drawn'] == 1 && rows[40].byteslice(3 * 80, 3).bytes == OPS::NA_HEIGHT_EDGE_RGB && r['colours'].include?('magenta')
+    end
+end
+
+check('heightmap: an .asc from the side, an unknown statistic, show not asked for and a bad sample are refused') do
+    with_cloud(TERRAIN) do
+        base = TERRAIN_BOX.merge('resolution' => 100 / MM, 'out_path' => height_path('x.png'))
+        refusal('invalid_params') { OPS.na_heightmap(base.merge('view' => 'front', 'file_path' => 'a.asc')) } &&
+            refusal('invalid_params') { OPS.na_heightmap(base.merge('stats' => %w[top])) } &&
+            refusal('invalid_params') { OPS.na_heightmap(base.merge('stats' => %w[p2], 'show' => 'p98')) } &&
+            refusal('invalid_params') { OPS.na_heightmap(base.merge('sample' => 10)) } &&
+            refusal('invalid_params') { OPS.na_heightmap(base.merge('file_path' => 'a.tif')) } &&
+            refusal('operation_failed') { OPS.na_heightmap(base.merge('min' => [5000 / MM, 0.0, 0.0], 'max' => [6000 / MM, 1000 / MM, 500 / MM])) }
+    end
+end
+
+check('profile along x: 18 stations of 100 mm, rising 34 mm (2%), the steepest metre, the table') do
+    with_cloud(TERRAIN) do
+        png = height_path('pr.png')
+        path = [[100 / MM, 500 / MM, 0.0], [1900 / MM, 500 / MM, 0.0]]
+        r = OPS.na_profile('path' => path, 'width' => 200 / MM, 'step' => 100 / MM, 'out_path' => png, 'stats' => %w[p10 p50], 'per_inch' => 25.4)
+        width, height, = read_rgb_png(png)
+        File.delete(png)
+        r['stations'] == 18 && r['pieces'] == 1 && (r['along']['rise'] - 34.0).abs < 3 && (r['line']['percent'] - 2.0).abs < 0.15 &&
+            (r['steepest']['percent'] - 2.0).abs < 0.5 && r['columns'] == %w[chainage x y count p10 p50] && r['table'][0][0, 3] == [50.0, 150.0, 500.0] &&
+            r['table'].all? { |row| row[3] > 0 } && width == r['width'] && height == r['height'] && r['exaggeration'] >= 5 &&
+            r['summary'].include?('2.0') && r['colours'].start_with?('p50 red, p10 blue') && r['corridor_width'] == 200.0 &&
+            r['summary'].include?('in a 200.0 corridor')
+    end
+end
+
+check('profile on a diagonal: cut into pieces, only the corridor kept, the fall along the path') do
+    with_cloud(TERRAIN) do
+        png = height_path('pr2.png')
+        csv = height_path('pr2.csv')
+        path = [[100 / MM, 100 / MM, 0.0], [1900 / MM, 900 / MM, 0.0]]
+        r = OPS.na_profile('path' => path, 'width' => 200 / MM, 'step' => 100 / MM, 'out_path' => png, 'file_path' => csv, 'stats' => %w[p50])
+        lines = File.read(csv).lines
+        File.delete(png)
+        File.delete(csv)
+        expected = 2.0 * 1800 / Math.sqrt(1800**2 + 800**2)
+        r['pieces'] > 1 && r['points_used'] < 4800 * 0.25 && (r['line']['percent'] - expected).abs < 0.2 &&
+            lines[0].strip == 'chainage,x,y,count,z50' && lines[1].split(',')[0, 2] == ['50.0', '145.7'] && lines.length == 21
+    end
+end
+
+check('profile: a single point, a repeated point, a path off the scan and a bad exaggeration are refused') do
+    with_cloud(TERRAIN) do
+        png = height_path('x.png')
+        refusal('invalid_params') { OPS.na_profile('path' => [[0.0, 0.0, 0.0]], 'out_path' => png) } &&
+            refusal('invalid_params') { OPS.na_profile('path' => [[1.0, 1.0, 0.0], [1.0, 1.0, 5.0]], 'out_path' => png) } &&
+            refusal('operation_failed') { OPS.na_profile('path' => [[5000 / MM, 0.0, 0.0], [6000 / MM, 0.0, 0.0]], 'out_path' => png) } &&
+            refusal('invalid_params') { OPS.na_profile('path' => [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]], 'out_path' => png, 'exaggeration' => 500) }
+    end
+end
+
+# --- found by the 0.14.5 review ----------------------------------------------------------------
+
+check('density: points on the far faces, where the frame lies on whole pixels, stay on the image') do
+    faces = [[1200 / MM, 2150 / MM, 300 / MM], [1100 / MM, 2000 / MM, 300 / MM], [1200 / MM, 2000 / MM, 300 / MM], [1000 / MM, 2300 / MM, 300 / MM]]
+    with_cloud(faces) do
+        path = height_path('den_faces.png')
+        r = OPS.na_density(BOX.merge('view' => 'top', 'resolution' => 10 / MM, 'out_path' => path))
+        File.delete(path)
+        r['points_in_box'] == 4 && r['points_on_image'] == 4 && r['max_per_pixel'] >= 1
+    end
+end
+
+check('overlay: an edge on the bottom border (a box face on a whole pixel) is drawn') do
+    path = height_path('border.png')
+    floor_edge = [[[1000 / MM, 2100 / MM, 0.0], [1000 / MM, 2250 / MM, 0.0]]]
+    r = OPS.na_image(BOX.merge('view' => 'right', 'resolution' => 10 / MM, 'out_path' => path, 'overlay_segments' => floor_edge))
+    _w, height, _t, rows = read_rgb_png(path)
+    File.delete(path)
+    red_bottom = rows[height - 1].bytes.each_slice(3).count { |px| px == OPS::NA_OVERLAY_RGB }
+    r['overlay']['edges_drawn'] == 1 && red_bottom >= 10
+end
+
+check('clouds named alike: a name two clouds share is refused with their ids; an id still works') do
+    twins = [FakeSlot.new('pc_aaaa0001', 'Interior', SLOT.cloud, true), FakeSlot.new('pc_aaaa0002', 'Interior', SLOT.cloud, true)]
+    Na__PointCloudViewer.const_set(:Na__CloudSet, Module.new) unless defined?(Na__PointCloudViewer::Na__CloudSet)
+    Na__PointCloudViewer::Na__CloudSet.define_singleton_method(:Na__Slots__All) { |_session| twins }
+    by_id = OPS.na_find_slot(:session, 'pc_aaaa0002')
+    begin
+        OPS.na_find_slot(:session, 'interior')
+        false
+    rescue ERR => error
+        by_id == twins[1] && error.na_code == 'invalid_params' && error.na_hint.include?('pc_aaaa0001') && error.na_hint.include?('pc_aaaa0002')
+    end
+end
+
+check('grid lines: x 14,900 mm on 5 mm pixels from 14,500 lands in column 80, every line on its own pixel') do
+    lines = OPS.na_grid_positions(14_500 / MM, 5 / MM, 900, 100 / MM)
+    lines.length == 46 && lines.include?([80, OPS::NA_GRID_MINOR_GREY]) && lines.map(&:first) == (0..45).map { |k| [20 * k, 899].min }
+end
+
+check('blend: half-opaque red over a transparent pixel is red at half alpha, whatever colour hid under it') do
+    white = [255, 255, 255, 0].pack('C*')
+    black = [0, 0, 0, 0].pack('C*')
+    cloud = [[255, 0, 0, 128].pack('C*')]
+    OPS.na_blend(white, 4, 4, cloud, 1, 1)
+    OPS.na_blend(black, 4, 4, cloud, 1, 1)
+    white.bytes == [0, 0, 255, 128] && black.bytes == [0, 0, 255, 128]
+end
+
+check('steps and mappings come back exact: 0.25 mm pixels, a 0.25 mm bin') do
+    path = height_path('quarter.png')
+    small = { 'min' => [1000 / MM, 2000 / MM, 0.0], 'max' => [1010 / MM, 2010 / MM, 900 / MM] }
+    r = OPS.na_density(small.merge('view' => 'top', 'resolution' => 0.25 / MM, 'out_path' => path, 'per_inch' => 25.4))
+    File.delete(path)
+    h = OPS.na_histogram(BOX.merge('axis' => 'z', 'bin' => 0.25 / MM, 'per_inch' => 25.4))
+    r['resolution'] == 0.25 && r['u']['per_px'] == 0.25 && r['v']['per_px'] == -0.25 && h['bin'] == 0.25
+end
+
+check('profile: a 1,650 mm path in 50 mm steps has 33 stations, not a 34th of no length') do
+    with_cloud(TERRAIN) do
+        path = height_path('pr33.png')
+        r = OPS.na_profile('path' => [[100 / MM, 500 / MM, 0.0], [1750 / MM, 500 / MM, 0.0]], 'step' => 50 / MM, 'out_path' => path, 'stats' => %w[p50])
+        File.delete(path)
+        r['stations'] == 33 && r['warnings'].none? { |text| text.include?('hold no points') }
+    end
+end
+
+check('check: an empty box round the model is refused, not reported as a perfect fit') do
+    with_cloud([]) do
+        refusal('operation_failed') { OPS.na_check(CHECK_ARGS) }
+    end
+end
+
+check('boxes: an infinite side is refused') do
+    refusal('invalid_params') { OPS.na_box_in('min' => [0.0, 0.0, 0.0], 'max' => [Float::INFINITY, 1.0, 1.0]) }
+end
+
+check('heightmap side views: p98 is the skin nearest the viewer from the front and from the back') do
+    skins = Array.new(400) { |i| [(1000 + (i % 20) * 0.5) / MM, (i.even? ? 2000.0 : 2050.0) / MM, (500 + (i / 20) * 0.5) / MM] }
+    box = { 'min' => [990 / MM, 1990 / MM, 490 / MM], 'max' => [1020 / MM, 2060 / MM, 520 / MM] }
+    with_cloud(skins) do
+        near = %w[front back].map do |view|
+            path = height_path("skins_#{view}.png")
+            r = OPS.na_heightmap(box.merge('view' => view, 'resolution' => 30 / MM, 'out_path' => path, 'stats' => %w[p2 p98], 'per_inch' => 25.4))
+            File.delete(path)
+            [r['stats']['p98']['low'], r['stats']['p2']['low']]
+        end
+        near == [[2000.0, 2050.0], [2050.0, 2000.0]]
+    end
+end
+
+# --- slices at any angle (0.14.6) -----------------------------------------------------------------
+
+# A wall 110 mm thick running at 37 degrees in plan from (2000, 1000) mm, 3 m long, 2.4 m high, both faces
+# scanned, with clutter; and a roof plane pitched 30 degrees, rising along +x.
+FRAME_RNG = Random.new(37)
+ALONG = [Math.cos(37 * Math::PI / 180), Math.sin(37 * Math::PI / 180), 0.0].freeze
+ACROSS = [-Math.sin(37 * Math::PI / 180), Math.cos(37 * Math::PI / 180), 0.0].freeze
+WALL37 = Array.new(4000) do
+    s = FRAME_RNG.rand * 3000
+    z = FRAME_RNG.rand * 2400
+    t = FRAME_RNG.rand < 0.5 ? 0.0 : 110.0
+    (0..2).map { |k| ([2000.0, 1000.0, 0.0][k] + s * ALONG[k] + t * ACROSS[k] + (k == 2 ? z : 0.0)) / MM }
+end + Array.new(500) { [(1000 + FRAME_RNG.rand * 4000) / MM, (FRAME_RNG.rand * 4000) / MM, (FRAME_RNG.rand * 2400) / MM] }
+WALL_FRAME = { 'origin' => [2000 / MM, 1000 / MM, 0.0], 'angle' => 37 }.freeze
+WALL_BOX = { 'min' => [0.0, -150 / MM, 0.0], 'max' => [3000 / MM, 260 / MM, 2400 / MM] }.freeze
+
+def frame_of(point, frame = WALL_FRAME)
+    o = frame['origin']
+    d = (0..2).map { |k| point[k] - o[k] }
+    [ALONG, ACROSS, [0.0, 0.0, 1.0]].map { |axis| axis[0] * d[0] + axis[1] * d[1] + axis[2] * d[2] }
+end
+
+def read(action, params)
+    OPS.Na__PointCloudViewer__McpRead(action, params.merge('per_inch' => 25.4))
+end
+
+check('frame count: the turned box keeps exactly the points inside it, by brute force') do
+    with_cloud(WALL37) do
+        r = read('count', WALL_BOX.merge('frame' => WALL_FRAME))
+        want = WALL37.count { |point| f = frame_of(point); (0..2).all? { |k| f[k] >= WALL_BOX['min'][k] && f[k] <= WALL_BOX['max'][k] } }
+        r['points'] == want && want > 3900 && (r['frame']['x_axis'][0] - ALONG[0]).abs < 1e-9 && r['frame']['origin'] == [2000.0, 1000.0, 0.0]
+    end
+end
+
+check('frame histogram across the wall: its two faces at 0 and 110 mm') do
+    with_cloud(WALL37) do
+        r = read('histogram', WALL_BOX.merge('frame' => WALL_FRAME, 'axis' => 'y', 'bin' => 2 / MM))
+        faces = r['peaks'].sort_by { |peak| -peak['count'] }.first(2).map { |peak| peak['at'] }.sort
+        (faces[0] - 0.0).abs < 2 && (faces[1] - 110.0).abs < 2 && r['start'] == -150.0
+    end
+end
+
+check('frame density from the front: an elevation of the wall, mapped in the frame') do
+    with_cloud(WALL37) do
+        path = height_path('frame_front.png')
+        box = WALL_BOX.merge('min' => [0.0, -20 / MM, 0.0], 'max' => [3000 / MM, 20 / MM, 2400 / MM])
+        r = read('density', box.merge('frame' => WALL_FRAME, 'view' => 'front', 'resolution' => 20 / MM, 'out_path' => path))
+        File.delete(path)
+        # The 40 mm slab holds the near face only, about half the wall's 4,000 points, every one on the image.
+        r['width'] == 150 && r['height'] == 120 && r['u']['axis'] == '+x' && r['v']['axis'] == '+z' && r['u']['at_left_edge'] == 0.0 &&
+            r['points_in_box'].between?(1900, 2150) && r['points_on_image'] == r['points_in_box'] && r['pixels_with_points'] > 1500
+    end
+end
+
+check('frame image: the renderer draws the turned box too') do
+    with_cloud(WALL37) do
+        path = height_path('frame_image.png')
+        r = read('image', WALL_BOX.merge('frame' => WALL_FRAME, 'view' => 'top', 'resolution' => 20 / MM, 'out_path' => path))
+        File.delete(path)
+        r['points_drawn'] > 3900 && r['width'] == 150 && r['height'] == 21
+    end
+end
+
+check('frame points: inline in the frame; a .npz keeps model mm in p and adds the frame in f') do
+    with_cloud(WALL37) do
+        inline = read('points', WALL_BOX.merge('frame' => WALL_FRAME, 'limit' => 200))
+        npz = height_path('frame_points.npz')
+        File.delete(npz) if File.exist?(npz)
+        filed = read('points', WALL_BOX.merge('frame' => WALL_FRAME, 'limit' => 50, 'out_path' => npz))
+        arrays = read_npz(npz).transform_keys { |key| key.delete_suffix('.npy') }
+        File.delete(npz)
+        model = arrays['p'][2].unpack('E*').each_slice(3).to_a
+        framed = arrays['f'][2].unpack('E*').each_slice(3).to_a
+        back = framed.each_with_index.all? do |f, i|
+            m = (0..2).map { |k| [2000.0, 1000.0, 0.0][k] + f[0] * ALONG[k] + f[1] * ACROSS[k] + (k == 2 ? f[2] : 0.0) }
+            (0..2).all? { |k| (m[k] - model[i][k]).abs < 1e-6 }
+        end
+        on_faces = inline['points'].count { |_x, y, _z| y.abs < 0.5 || (y - 110).abs < 0.5 }
+        on_faces > 180 && back && model.length == 50 && filed['file_arrays'].include?('f: x, y, z in the frame')
+    end
+end
+
+check('frame heightmap from the front: the near face is p98, at y 0, and plumb') do
+    with_cloud(WALL37) do
+        path = height_path('frame_hm.png')
+        box = WALL_BOX.merge('min' => [0.0, -20 / MM, 0.0], 'max' => [3000 / MM, 130 / MM, 2400 / MM])
+        r = read('heightmap', box.merge('frame' => WALL_FRAME, 'view' => 'front', 'resolution' => 300 / MM, 'out_path' => path, 'stats' => %w[p2 p98]))
+        File.delete(path)
+        r['stats']['p98']['high'].abs < 0.5 && (r['stats']['p2']['low'] - 110).abs < 0.5 && r['slope']['deg'] < 0.2
+    end
+end
+
+check('frame on a 30 degree roof: a heightmap and a profile in the roof frame read flat') do
+    pitch = 30 * Math::PI / 180
+    roof = Array.new(3000) do
+        a = FRAME_RNG.rand * 3000
+        b = FRAME_RNG.rand * 2000
+        [(5000 + a * Math.cos(pitch)) / MM, (b + 0.0) / MM, (3000 + a * Math.sin(pitch) + (FRAME_RNG.rand - 0.5) * 2) / MM]
+    end
+    frame = { 'origin' => [5000 / MM, 0.0, 3000 / MM], 'x_axis' => [Math.cos(pitch), 0.0, Math.sin(pitch)], 'y_axis' => [0.0, 1.0, 0.0] }
+    with_cloud(roof) do
+        box = { 'min' => [0.0, 0.0, -100 / MM], 'max' => [3000 / MM, 2000 / MM, 100 / MM] }
+        path = height_path('roof.png')
+        hm = read('heightmap', box.merge('frame' => frame, 'resolution' => 200 / MM, 'out_path' => path, 'stats' => %w[p50]))
+        pr = read('profile', { 'frame' => frame, 'path' => [[100 / MM, 1000 / MM, 0.0], [2900 / MM, 1000 / MM, 0.0]], 'width' => 200 / MM,
+                               'step' => 100 / MM, 'out_path' => path, 'stats' => %w[p50], 'min' => box['min'], 'max' => box['max'] })
+        File.delete(path)
+        hm['slope']['percent'].abs < 0.2 && hm['stats']['p50']['high'].abs < 1.5 && pr['along']['rise'].abs < 1.5 && pr['line']['percent'].abs < 0.1 &&
+            (hm['frame']['z_axis'][2] - Math.cos(pitch)).abs < 1e-9
+    end
+end
+
+check('frame overlay: a model edge along the wall face is drawn as a row of the front view, in the frame') do
+    with_cloud(WALL37) do
+        path = height_path('frame_overlay.png')
+        a = (0..2).map { |k| ([2000.0, 1000.0, 1210.0][k] + 300 * ALONG[k]) / MM }
+        b = (0..2).map { |k| ([2000.0, 1000.0, 1210.0][k] + 2700 * ALONG[k]) / MM }
+        box = WALL_BOX.merge('min' => [0.0, -20 / MM, 0.0], 'max' => [3000 / MM, 20 / MM, 2400 / MM])
+        r = read('density', box.merge('frame' => WALL_FRAME, 'view' => 'front', 'resolution' => 20 / MM, 'out_path' => path, 'overlay_segments' => [[a, b]]))
+        _w, _h, _t, rows = read_rgb_png(path)
+        File.delete(path)
+        row = ((2400 - 1210) / 20.0).floor
+        reds = rows[row].bytes.each_slice(3).count { |px| px == OPS::NA_OVERLAY_RGB }
+        r['overlay']['edges_drawn'] == 1 && reds.between?(115, 125)
+    end
+end
+
+check('frame refusals: not on fit or check; an angle with axes; a y axis along x') do
+    refusal('invalid_params') { read('fit', FIT_BOX.merge('shape' => 'plane', 'frame' => WALL_FRAME)) } &&
+        refusal('invalid_params') { read('count', BOX.merge('frame' => { 'angle' => 10, 'x_axis' => [1, 0, 0] })) } &&
+        refusal('invalid_params') { read('count', BOX.merge('frame' => { 'x_axis' => [1, 1, 0], 'y_axis' => [2, 2, 0] })) } &&
+        (OPS::NA_FEATURES.include?('frame'))
+end
+
+puts "Point Cloud Viewer MCP seam: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

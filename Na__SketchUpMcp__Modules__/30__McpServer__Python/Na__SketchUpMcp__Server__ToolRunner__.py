@@ -33,6 +33,7 @@ import sys
 
 import Na__SketchUpMcp__Server__BridgeClient__ as Na__BridgeClientModule
 import Na__SketchUpMcp__Server__SchemaValidator__ as Na__SchemaValidator
+import Na__SketchUpMcp__Server__WindowLauncher__ as Na__WindowLauncher
 
 NA_MAX_TEXT_CHARS = 45000
 NA_MAX_IMAGE_BYTES = 12 * 1024 * 1024
@@ -88,6 +89,10 @@ class Na__ToolRunner:
                 return self.na_status(tool, arguments)
             if name == 'ruby_api_lookup':
                 return self.na_api_lookup(arguments)
+            if name == 'sketchup_open_window':
+                return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Open(self.na_bridge, arguments))
+            if name == 'sketchup_close_window':
+                return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Close(self.na_bridge, arguments))
             if name == 'batch_execute':
                 return self.na_batch(tool, arguments)
             if name == 'model_file':
@@ -96,6 +101,9 @@ class Na__ToolRunner:
                     return problem
             if name == 'ruby_eval':
                 return self.na_ruby_eval(tool, arguments)
+            too_old = self.na_too_old([(name, arguments)])
+            if too_old:
+                return too_old
             return self.na_bridge_call(tool, arguments)
         except Na__BridgeClientModule.Na__BridgeError as error:
             return na_error_result(error.na_code, error.na_message, error.na_hint)
@@ -105,6 +113,36 @@ class Na__ToolRunner:
     def na_bridge_call(self, tool, arguments, timeout_s=None, extra=None):
         response = self.na_bridge.Na__BridgeClient__Request(tool['name'], arguments, timeout_s or tool.get('timeout_s', 60))
         return na_result_from_response(response, extra)
+
+    def na_too_old(self, calls):
+        """An error result when a call uses a parameter newer than the window's bridge (registry property_since):
+        that bridge would ignore it and answer as if it were not there. The version comes from a ping (what the
+        window runs now: a data reload does not rewrite its connection file). None when all is well or unknown."""
+        since = self.na_registry.Na__ToolRegistry__PropertySince()
+        needed = []
+        for name, arguments in calls:
+            for key in (arguments or {}):
+                version = since.get('%s.%s' % (name, key))
+                if version and na_version(version):
+                    needed.append(('%s %s' % (name, key), version))
+        if not needed:
+            return None
+        response = self.na_bridge.Na__BridgeClient__Request('ping', {}, 10)
+        result = (response or {}).get('result') or {}
+        have = result.get('bridge_version')
+        if not response.get('ok') or not na_version(have):
+            return None
+        older = [(what, version) for what, version in needed if na_version(have) < na_version(version)]
+        if not older:
+            return None
+        what, version = max(older, key=lambda item: na_version(item[1]))
+        point_cloud = what.startswith('point_cloud')
+        return na_error_result(
+            'unsupported',
+            "This SketchUp window (pid %s) runs bridge %s; %s needs %s, and an older bridge ignores it, so the answer would be wrong. "
+            'Nothing was sent.' % (result.get('pid'), have, what, version),
+            'In that window run Extensions > Na SketchUp MCP > Reload Plugin Data%s, then call again.'
+            % (" (and the Point Cloud Viewer's Reload Plugin first)" if point_cloud else ''))
 
     # --- sketchup_status -------------------------------------------------------------
 
@@ -207,6 +245,9 @@ class Na__ToolRunner:
             return na_error_result('invalid_params', 'The batch was not run:\n- %s' % '\n- '.join(problems[:20]),
                                    'Fix those steps and send the whole batch again.')
         extra = {'api_lint': lint_notes} if lint_notes else None
+        too_old = self.na_too_old([(step.get('tool'), step.get('arguments') or {}) for step in arguments.get('steps', [])])
+        if too_old:
+            return too_old
         return self.na_bridge_call(tool, arguments, timeout_s=min(max(total_timeout, 60), 1800), extra=extra)
 
     # --- model_file option check -----------------------------------------------------------
@@ -239,6 +280,14 @@ class Na__ToolRunner:
 # -----------------------------------------------------------------------------
 # REGION | Result Shaping
 # -----------------------------------------------------------------------------
+
+def na_version(text):
+    """'1.0.19' -> (1, 0, 19); anything else -> None."""
+    try:
+        return tuple(int(part) for part in str(text).split('.'))
+    except ValueError:
+        return None
+
 
 def na_result_from_response(response, extra=None):
     if response.get('ok'):

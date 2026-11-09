@@ -34,6 +34,12 @@
 #   EngineCore__LineworkModelHandling__ (BuildGltfFromEdgeData), Logging__, CoreExport__.
 #
 # DEVELOPMENT LOG:
+# 09-Nov-2026 - GLB Builder 2.14.0 (exporter output unchanged, still 1.4.1)
+# - Na__SitePlan__Write takes on_stale: :ask (the default: the message box, as
+#   before), :keep or :delete, so the MCP seam (07__Plugin__McpOperations)
+#   answers "delete the older files?" without a modal. It also returns
+#   stale_found: how many older site plan GLBs this export did not write.
+#
 # 19-Oct-2026 - GLB Builder 2.13.0 (exporter output unchanged, still 1.4.1)
 # - The site plan store is now chosen on the GLB Builder's own Site Plan tab,
 #   not the Project tab, so the "no store chosen" message sends you there. The
@@ -757,9 +763,12 @@ module TrueVision3D
 
         # FUNCTION | Write Every Layer, the Manifest, and Offer to Remove Old Files
         # ---------------------------------------------------------------
-        # Returns { layers:, files:, removed:, warnings:, log_path: }.
+        # Returns { layers:, files:, removed:, stale_found:, warnings:, log_path: }.
+        # on_stale: what happens to older site plan GLBs this export did not
+        # write: :ask (a Yes / No message box, the dialog's way), :keep or
+        # :delete (no message box, for the MCP seam).
         # ---------------------------------------------------------------
-        def self.Na__SitePlan__Write(model, scan, prefix, export_dir)
+        def self.Na__SitePlan__Write(model, scan, prefix, export_dir, on_stale: :ask)
             config   = scan[:config]
             written  = []
             records  = []
@@ -860,13 +869,18 @@ module TrueVision3D
                 end
 
                 unless stale.empty?
-                    listing = stale.first(12).map { |file_name| "  #{file_name}" }.join("\n")
-                    listing += "\n  ...and #{stale.length - 12} more" if stale.length > 12
-                    answer = UI.messagebox(
-                        "#{stale.length} older site plan GLB(s) in this folder were not written by this export:\n\n" \
-                        "#{listing}\n\nDelete them, so the pipeline stops publishing them?",
-                        MB_YESNO
-                    )
+                    answer = case on_stale
+                    when :delete then IDYES
+                    when :keep   then IDNO
+                    else
+                        listing = stale.first(12).map { |file_name| "  #{file_name}" }.join("\n")
+                        listing += "\n  ...and #{stale.length - 12} more" if stale.length > 12
+                        UI.messagebox(
+                            "#{stale.length} older site plan GLB(s) in this folder were not written by this export:\n\n" \
+                            "#{listing}\n\nDelete them, so the pipeline stops publishing them?",
+                            MB_YESNO
+                        )
+                    end
                     if answer == IDYES
                         stale.each do |file_name|
                             begin
@@ -883,7 +897,8 @@ module TrueVision3D
                 log_path = self.Na__Log__CloseSession
             end
 
-            { layers: records.length, files: written.length, removed: removed, warnings: warnings, log_path: log_path }
+            { layers: records.length, files: written.length, removed: removed, stale_found: Array(stale).length,
+              warnings: warnings, log_path: log_path }
         end
         # ---------------------------------------------------------------
 

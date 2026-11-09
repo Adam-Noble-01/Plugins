@@ -1,0 +1,168 @@
+# Unit tests for the seam's model-to-cloud check (Na__PointCloudViewer__McpOperations__Check__.rb),
+# run with SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# The grid search is checked against measuring every triangle, and the closest point against a
+# second method (project onto the plane, else the nearest of the three edges).
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+load File.expand_path('../Na__PointCloudViewer__McpOperations__Check__.rb', __dir__)
+CHK = Na__PointCloudViewer::Na__McpCheck
+RNG = Random.new(5)
+
+def sub(a, b) = [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+def dot(a, b) = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+def cross(a, b) = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+def unit(v)
+    length = Math.sqrt(dot(v, v))
+    v.map { |x| x / length }
+end
+
+def segment_closest(p, a, b)
+    ab = sub(b, a)
+    t = [[dot(sub(p, a), ab) / dot(ab, ab), 0.0].max, 1.0].min
+    [a[0] + ab[0] * t, a[1] + ab[1] * t, a[2] + ab[2] * t]
+end
+
+# The second method: inside the triangle's shadow, its plane; otherwise the nearest edge.
+def reference_closest(p, a, b, c)
+    n = unit(cross(sub(b, a), sub(c, a)))
+    q = sub(p, n.map { |x| x * dot(sub(p, a), n) })
+    inside = [[a, b], [b, c], [c, a]].all? { |u, v| dot(cross(sub(v, u), sub(q, u)), n) >= 0 }
+    return q if inside
+    [[a, b], [b, c], [c, a]].map { |u, v| segment_closest(p, u, v) }.min_by { |x| dot(sub(p, x), sub(p, x)) }
+end
+
+def triangle(n_scale)
+    a = Array.new(3) { RNG.rand * 100 }
+    [a, a.map { |x| x + (RNG.rand - 0.5) * n_scale }, a.map { |x| x + (RNG.rand - 0.5) * n_scale }]
+end
+
+def with_normal(tri, part = 0)
+    tri + [unit(cross(sub(tri[1], tri[0]), sub(tri[2], tri[0]))), part]
+end
+
+check('closest point: 3,000 random points and triangles agree with the second method') do
+    (1..3000).all? do
+        a, b, c = triangle(30)
+        p = Array.new(3) { RNG.rand * 120 - 10 }
+        mine = CHK.na_closest(p[0], p[1], p[2], a, b, c)
+        ref = reference_closest(p, a, b, c)
+        (Math.sqrt(dot(sub(p, mine), sub(p, mine))) - Math.sqrt(dot(sub(p, ref), sub(p, ref)))).abs < 1e-9
+    end
+end
+
+check('index: the nearest triangle within reach equals measuring all of them, small and big slanted faces') do
+    tris = Array.new(150) { with_normal(triangle(8)) } + Array.new(10) { with_normal(triangle(90)) }
+    reach = 3.0
+    index = CHK.Na__Check__Index(tris, reach)
+    (1..1500).all? do |n|
+        p = Array.new(3) { RNG.rand * 100 }
+        found = CHK.Na__Check__Nearest(index, p, n)
+        best = tris.map { |a, b, c| q = CHK.na_closest(p[0], p[1], p[2], a, b, c); Math.sqrt(dot(sub(p, q), sub(p, q))) }.min
+        best > reach ? found.nil? : (found && (found[0] - best).abs < 1e-9)
+    end
+end
+
+def cube(size)
+    s = size
+    v = [[0, 0, 0], [s, 0, 0], [s, s, 0], [0, s, 0], [0, 0, s], [s, 0, s], [s, s, s], [0, s, s]].map { |p| p.map(&:to_f) }
+    quads = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [3, 0, 4, 7]]   # outward, anticlockwise from outside
+    quads.flat_map { |q| [[v[q[0]], v[q[1]], v[q[2]]], [v[q[0]], v[q[2]], v[q[3]]]] }.map { |t| with_normal(t) }
+end
+
+check('sign: outside a closed box is positive, inside negative, at every face') do
+    index = CHK.Na__Check__Index(cube(10.0), 2.0)
+    outside = [[11.0, 5, 5], [-1.0, 5, 5], [5, 11.0, 5], [5, -1.0, 5], [5, 5, 11.0], [5, 5, -1.0]]
+    inside = [[9.0, 5, 5], [1.0, 5, 5], [5, 9.0, 5], [5, 1.0, 5], [5, 5, 9.0], [5, 5, 1.0]]
+    t = 0
+    outside.all? { |p| r = CHK.Na__Check__Nearest(index, p, t += 1); r && (r[1] - 1.0).abs < 1e-12 } &&
+        inside.all? { |p| r = CHK.Na__Check__Nearest(index, p, t += 1); r && (r[1] + 1.0).abs < 1e-12 } &&
+        CHK.Na__Check__Nearest(index, [5, 5, 5], t + 1).nil?
+end
+
+check('sign: just outside a corner is positive') do
+    index = CHK.Na__Check__Index(cube(10.0), 2.0)
+    r = CHK.Na__Check__Nearest(index, [10.5, 10.5, 10.5], 1)
+    r && r[1] > 0 && (r[0] - Math.sqrt(0.75)).abs < 1e-12
+end
+
+check('index: a degenerate triangle is left out, a bad reach refused') do
+    index = CHK.Na__Check__Index([[[0, 0, 0], [1, 1, 1], [2, 2, 2], [0, 0, 1], 0]] + cube(4.0), 1.0)
+    bad = begin
+        CHK.Na__Check__Index(cube(1.0), 0.0)
+        false
+    rescue ArgumentError
+        true
+    end
+    index['triangles'].length == 12 && bad
+end
+
+check('index: faces filling too many cells are refused with the way out') do
+    big = [with_normal([[0.0, 0.0, 0.0], [1000.0, 0.0, 1000.0], [0.0, 1000.0, 1000.0]])]
+    CHK.Na__Check__Index(big, 0.05)
+    false
+rescue ArgumentError => error
+    error.message.include?('raise reach')
+end
+
+check('summary: rms, mean, percentiles, max and the share within tolerance') do
+    s = CHK.Na__Check__Summary([1.0, -1.0, 2.0, -2.0, 4.0], 1.5)
+    s['points'] == 5 && (s['rms'] - Math.sqrt(26.0 / 5)).abs < 1e-12 && (s['mean'] - 0.8).abs < 1e-12 && s['max'] == 4.0 &&
+        (s['within'] - 0.4).abs < 1e-12 && (s['p50'] - 2.0).abs < 1e-12
+end
+
+check('spots: points beyond tolerance gathered by place, the fullest first') do
+    points = Array.new(30) { [10 + RNG.rand, 10 + RNG.rand, 0.5] } + Array.new(5) { [50 + RNG.rand, 50 + RNG.rand, 0.5] } + Array.new(40) { [RNG.rand * 90, RNG.rand * 90, 0.5] }
+    signed = [3.0] * 30 + [-4.0] * 5 + [0.1] * 40
+    spots = CHK.Na__Check__Spots(points, signed, 1.0, 5.0, 3)
+    spots.length == 2 && spots[0]['points'] == 30 && (spots[0]['centre'][0] - 10.5).abs < 0.3 && spots[0]['mean'] == 3.0 && spots[1]['mean'] == -4.0
+end
+
+# --- found by the 0.14.5 review --------------------------------------------------------------
+
+check('sign: a point just outside a 60 degree ridge reads outside, whichever slope is listed first') do
+    pitch = 60 * Math::PI / 180
+    run = 10.0
+    rise = run * Math.tan(pitch)
+    west = [[[-run, -20.0, 0.0], [0.0, -20.0, rise], [0.0, 20.0, rise]], [[-run, -20.0, 0.0], [0.0, 20.0, rise], [-run, 20.0, 0.0]]]
+    east = [[[0.0, -20.0, rise], [run, -20.0, 0.0], [run, 20.0, 0.0]], [[0.0, -20.0, rise], [run, 20.0, 0.0], [0.0, 20.0, rise]]]
+    faces = (west + east).map { |t| with_normal(t) }
+    probe = [-0.15, 0.0, rise + 0.1]
+    [faces, faces.reverse].all? do |list|
+        r = CHK.Na__Check__Nearest(CHK.Na__Check__Index(list, 2.0), probe, 1)
+        r && r[1] > 0
+    end
+end
+
+check('index: large sloping faces at a small reach build fast (cells near the plane only)') do
+    slopes = Array.new(10) do |n|
+        base = [n * 300.0, 0.0, 0.0]
+        with_normal([base, [base[0] + 250.0, 0.0, 180.0], [base[0], 250.0, 180.0]])
+    end
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    index = CHK.Na__Check__Index(slopes, 2.0)
+    took = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    p = [100.0, 60.0, 0.0]
+    p[2] = 180.0 * (p[0] / 250.0 + p[1] / 250.0) + 1.0
+    found = CHK.Na__Check__Nearest(index, p, 1)
+    puts "    10 sloping faces, 250 in across at 2 in: #{took.round(2)} s"
+    took < 8 && found && found[0] < 1.0
+end
+
+puts "Point Cloud Viewer model-to-cloud check: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

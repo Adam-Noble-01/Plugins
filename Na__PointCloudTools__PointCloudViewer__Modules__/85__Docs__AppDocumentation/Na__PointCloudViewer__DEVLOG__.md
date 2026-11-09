@@ -4,6 +4,351 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.14.6 - 09-Nov-2026 - Slices at Any Angle for the MCP (frame)
+
+### Summary
+Adam asked for angled slices once the tools were triple-checked: boxes, views and sections along a wall that is not square
+to the model, or along a roof's slope. The engine already tests and returns points in whatever coordinates its local ->
+model transform gives, so the frame is folded into that transform and the engine works in the frame: no engine change
+(ABI 9) and no reload of loaded clouds. ARCHITECTURE section 35.
+
+### Built
+- `Na__PointCloudViewer__McpOperations__Frame__.rb` (Na__McpFrame, written in 0.14.5):
+  - makes a frame from an origin and an angle, or x_axis with an optional y_axis;
+  - folds it into a transform;
+  - converts points both ways, and a whole points file back to model mm.
+- The seam (`Na__PointCloudViewer__McpRead`):
+  - takes `frame` for count, histogram, image, points, density, heightmap and profile, and refuses it elsewhere;
+  - wraps the measured slot (`Na__FramedSlot`, `Na__FramedCloud`) so every engine call gets the folded transform;
+  - moves overlay edges into the frame and echoes the frame in the reply.
+  - With a frame, min, max, the view, axis, a path and every position in and out are in the frame. A points file keeps
+    model mm in `p` and adds the frame's in `f`.
+  - `NA_FEATURES` lists 'frame', so the MCP can tell a viewer that has it.
+
+### Tested (09-Nov-2026)
+- `tests/mcp_operations_unit.rb.test`: 81 checks (9 new). The stand-in engine now applies the transform it is given, as
+  BoxFilter.hpp does. The new checks cover a wall at 37 degrees (count against brute force, its two faces 110 mm apart,
+  a front elevation, the renderer, inline points and a .npz with p and f, a heightmap reading the near face plumb), a
+  roof pitched 30 degrees (a heightmap and a profile in the roof frame read flat), a model edge drawn in the frame, and
+  refusals.
+- `tests/mcp_frame_unit.rb.test`: 8 checks.
+- The real engine DLL against numpy, a wall at 37 degrees on a cloud placed like a real scan: counts and grids equal,
+  points to 1e-12 mm.
+- Live in 22360, read-only through the seam:
+  - The plumb wall at x 17,325, sliced in a frame turned 90 degrees, reads its face at -0.4 mm (the plain histogram: x 17,325.4), with the same 14,089 points in the peak bin and the same 41,147 in the box.
+  - A 100 mm section cut at 37 degrees through the house: the density grid kept 115,014 points, all on the image, and the renderer drew all 115,014. The two pictures agree on 99.9% of pixels (0.999 correlation; flipped 0.38, mirrored 0.07).
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Na SketchUp MCP's Reload Plugin Data. The engine is unchanged, so the clouds stay loaded.
+
+## Point Cloud Viewer - v0.14.5 - 09-Nov-2026 - The MCP Seam, Triple-Checked
+
+### Summary
+Adam asked for the point cloud tools to be triple-checked before angled slices.
+- Four reviewers each read one layer cold: the engine's box queries, the seam, the maths, and the MCP handlers.
+- Offline edge cases, then hostile calls through the real MCP server in the SK02 helper window (22360).
+- Every finding was confirmed before it was fixed. The engine is unchanged (ABI 9). ARCHITECTURE section 34.
+
+### Fixed
+- **Faces and edges** (Main.rb):
+  - Histograms and density images count points exactly on a box's faces. The engine sums a grid position in another
+    order than its box test, so a low-face point could fall a hair outside the grid, and density frames on whole pixels
+    put far-face points one pixel past the edge. Fix: grids start NA_EDGE_INCHES early, density reads one extra column
+    and row (folded back), and heightmap cells take points a hair outside their edges.
+  - Model edges on a picture's right or bottom border are drawn; grid lines no longer land a pixel early.
+- **Numbers back exact**: pixel sizes, bins, mappings, the box echo and profile chart scales come back to 9 significant
+  figures (`na_out_exact`); 0.1 mm rounding had put a 0.25 mm pixel at 0.2.
+- **Clouds and edits**:
+  - a name two clouds share is refused with their ids (it took the first);
+  - an infinite box side is refused;
+  - a clip scene whose write raises is a refusal, and `Na__Clip__Save` puts the clip box back in step with the model on any
+    raise (ClipBox State);
+  - a scene named "Full" can be picked by name.
+- **Composite**: with `follow_scene` it applies the active scene's cloud look first (`Na__SceneFollow.Na__Follow__Apply`).
+  Captures over NA_MAX_COMPOSITE_PIXELS (12 MP) are refused (the MCP keeps the capture, with a warning), and a translucent
+  cloud over a transparent capture blends by the capture's own alpha.
+- **Fit** (Fit.rb):
+  - circles down to a tenth of the tolerance (the floor was twice it: a 25 mm baluster came back 40 mm across);
+  - extents widened by what the percentiles trim, so lengths are full, where they were 2% short;
+  - one direction rule: a line runs uphill and a normal points up, except within about 1 degree of level or plumb;
+  - refinement until the inliers stop changing;
+  - a circle settled from a second start, the least-squares circle of all the points, with `other_radius` when the two
+    differ;
+  - the box's residuals: each point's distance from its sides.
+  - The seam adds hints and warnings for small circles and for two circles.
+- **Check** (Check.rb):
+  - at an edge or corner shared by faces, their summed normals decide the side, so a point just outside a 60 degree ridge
+    reads outside;
+  - a big sloping face's cells are found column by column, so its cost follows those cells, not its whole box;
+  - an empty box round the model is refused (it read as rms 0).
+- **Heightmaps and profiles** (Height.rb, Main.rb):
+  - values ranked by nearness to the viewer in every view, so max, p98 and rgb_top are the surface seen, from the side too;
+  - a profile counts each piece's box first and reads one share of every piece;
+  - no zero-length last station;
+  - level slopes say "level", and too fine a grid says cells.
+- **Groundwork**: `Na__PointCloudViewer__McpOperations__Frame__.rb` (Na__McpFrame), the frame maths for angled slices
+  (0.14.6); its suite `tests/mcp_frame_unit.rb.test` passes 8.
+
+### Tested (09-Nov-2026)
+- Suites: seam 72 (10 new), heightmaps 15, fit 18 (4 new), check 10 (2 new), frames 8; the harness main 197, boxes 84,
+  hotkeys 134, multi 96.
+- The real engine DLL, 600 points exactly on box faces: histograms now count all 600 (they counted 444), density images
+  600 (326).
+- Live in 22360 through MCP 1.0.17:
+  - The stair check is unchanged (rms 16.1, mean +7.8).
+  - A sampled diagonal profile reads 44.3% of every piece.
+  - The bullnose settles on radius 173.4 mm at a 10 mm tolerance, as an independent least-squares fit does; 165.6 at 5 mm.
+  - At 3 mm it warns of two circles (145.8 and 164.1): this bullnose is not one arc.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Na SketchUp MCP's Reload Plugin Data. The engine is unchanged, so the clouds stay loaded.
+
+## Point Cloud Viewer - v0.14.4 - 09-Nov-2026 - Heightmaps and Profiles for the MCP (point_cloud_heightmap)
+
+### Summary
+Adam chose heightmaps next: heights per cell of a grid, and heights along a path, for ground, roofs, falls, kerbs
+and rails. Pure Ruby in the seam on an even sample (`napc_box_points`), so the engine is unchanged (ABI 9) and no
+window reloads its clouds. Files match the skill's terrain kit (`pc_terrain.py`'s rasters.npz). ARCHITECTURE section 33.
+
+### Built
+- `95__System__McpOperations/Na__PointCloudViewer__McpOperations__Height__.rb` (`Na__McpHeight`, no SketchUp API):
+  - each point gets a cell (or a station along a path) and its value along the view's axis; a counting sort puts each
+    cell's values together and each cell is sorted once;
+  - percentiles by pc_terrain.py's rule: the value at rank floor(q x (n - 1)) (min is p0, max p100); rgb_top and rgb_low
+    are the mean colours of a cell's highest tenth and lowest quarter, as the kit makes them;
+  - the best plane through the cells (its slope and which way it falls); a picture: blue (low) to red (high), shaded
+    from the top left, contours, white where empty;
+  - profiles: the path cut into pieces about the corridor's width across, so a diagonal path reads its own strip, one
+    box per piece; stations by chainage; the least-squares slope and the steepest metre; a picture with chainage across,
+    height up (exaggerated to show falls), the points grey and each statistic a line.
+- The seam's `heightmap` and `profile`: the values inline for small grids (2,500 cells) and profiles (1,000 stations),
+  a `.npz` (rasters.npz layout, model mm, NaN where empty) or `.asc` (ESRI grid, from the top) for grids, `.csv` or
+  `.npz` for profiles; the model's edges in magenta over a heightmap.
+
+### Tested (09-Nov-2026)
+- New `tests/mcp_height_unit.rb.test`: 15 checks. Statistics against sorting 20,000 points by hand in 300 cells; colour
+  bands; the tilt of a holed grid; the picture's colours and contours; pieces and stations against points placed at
+  known chainages round a bent path; slopes; the profile picture.
+- `mcp_operations_unit.rb.test`: 62 checks (9 new: a 2% fall with grass on it, the .npz and .asc files, a leaning wall
+  from the front, magenta edges, profiles along x and on a diagonal, refusals).
+- Live in the SK02 helper window (pid 22360), read-only: the terrain kit agrees to the last digit: the same box of the SK02 GeoSLAM cloud (x 2,000 to 6,000, y 6,000 to 12,000 mm, 46,531 points, all of them) through `pc_terrain.py rasters --res 50` and through the heightmap gave the same 80 x 120 grid, the same counts, z02, z10, z50, z90 and z98 equal to 0.0 mm, and the same rgb_top and rgb_low. 1,000,000 of 37.1 M points into 90 x 148 cells of 250 mm took 2.1 s; 5,000,000 into 224 x 368 cells of 100 mm, 10.7 s. A profile up the SK02 staircase (x 16,950, y 11,800 to 15,500, a 300 mm corridor, 20 mm stations): 185 stations from 181,054 points in 0.7 s, every tread a step, the soffit of the flight above as a grey diagonal.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Na SketchUp MCP's Reload Plugin Data. The engine is unchanged, so the clouds stay loaded.
+
+## Point Cloud Viewer - v0.14.3 - 09-Nov-2026 - Model-to-Cloud Check for the MCP (point_cloud_check)
+
+### Summary
+Adam chose the model-to-cloud check next: how far the scan sits from a built group's faces, overall, per part,
+where it is worst, and as a heatmap, so an agent can grade its own work against the survey. Pure Ruby in the
+seam on an even sample (`napc_box_points`), so the engine is unchanged (ABI 9). ARCHITECTURE section 32.
+
+### Built
+- `95__System__McpOperations/Na__PointCloudViewer__McpOperations__Check__.rb` (`Na__McpCheck`, no SketchUp API):
+  - triangles go into a grid of cells `reach` wide; a big slanted face only into the cells its plane passes through;
+  - a point looks in its own cell and the 26 round it; each triangle is measured once per point;
+  - closest point on a triangle after Ericson 5.1.5. The sign comes from the face's outward normal: positive means the
+    scan lies outside the face, so the model is too small there.
+- The seam's `check`: near points (within reach) are measured and the rest counted as away. Returns the summary
+  (rms, mean, p50, p95, max, the share within tolerance), the same per part (the worst first), the worst spots
+  (points beyond tolerance gathered into 150 mm cells), warnings (few points near, a whole-model offset, parts no
+  point reached), and a heatmap on request: green within tolerance, red outside, blue inside, deeper towards reach,
+  pale grey away, the model's edges dark over them.
+- `na_draw_line` and `na_draw_segments` take a colour (red by default, as before).
+
+### Tested (09-Nov-2026)
+- New `tests/mcp_check_unit.rb.test`: 8 checks. Closest points agree with a second method on 3,000 random cases,
+  and the grid's nearest triangle agrees with measuring every triangle on 1,500 points, big slanted faces included.
+  Signs inside and outside a closed box, a corner, degenerate faces, too many cells refused, summaries, spots.
+- `mcp_operations_unit.rb.test`: 53 checks (4 new: near and away, per part, an offset model, the heatmap).
+- Live in the SK02 helper window (pid 22360): the SK02 staircase (`Staircase__MainStair__`, 1,420 faces, 14 parts) against the GeoSLAM cloud: 8,901 of 20,000 points within 50 mm, rms 16.1 mm, 53% within 10 mm, mean +7.8 mm (the scan outside the faces). The worst spots are the lower treads at +15 to +21 mm, the carpet the survey notes as reading 10 to 15 mm proud. The worst part is the landing base rail (rms 27), the closest the landing handrail (rms 10.2). 2.7 s.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Na SketchUp MCP's Reload Plugin Data. The engine is unchanged, so the clouds stay loaded.
+
+## Point Cloud Viewer - v0.14.2 - 09-Nov-2026 - Shape Fitting for the MCP (point_cloud_fit)
+
+### Summary
+Adam chose shape fitting as the next tool for agents: a plane, a line, a circle, a cylinder or a post's box
+from the points in a box, with numbers and residuals, instead of reading histograms by eye. Pure Ruby in the
+seam, on an even sample the engine already hands over (`napc_box_points`), so the engine is unchanged (ABI 9)
+and no window needs Reload All for it. ARCHITECTURE section 31.
+
+### Built
+- `95__System__McpOperations/Na__PointCloudViewer__McpOperations__Fit__.rb` (`Na__McpFit`, no SketchUp API):
+  RANSAC on up to 2,000 of the points finds the dominant shape, then least squares on every inlier within
+  tolerance refines it, four rounds. Seeded, so the same points give the same answer.
+  - plane (any, or held horizontal or vertical): normal, point, offset (the level when horizontal),
+    slope_deg, azimuth_deg, extent in the plane;
+  - line: direction, start, end, length, slope_deg, azimuth_deg;
+  - circle (seen along x, y or z) and cylinder (plus its extent along the axis): centre, radius, the arc the
+    points cover. Geometric least squares (Gauss-Newton). max_radius holds in the search and the refinement;
+  - box (seen along an axis): the smallest rectangle round the points after trim percent off each side,
+    turned 0 to 90 degrees (1 degree, then 0.05): width, depth, rotation_deg, centre, from, to, corners.
+- The seam's `fit` action: the sample, the fit, lengths in the call's units, inlier_share, and warnings when
+  under 30% of the points fit, or when a circle covers under 60 degrees or sits near max_radius.
+
+### What real data taught it (the SK02 GeoSLAM stair, 09-Nov-2026)
+- A curve that runs into a straight piece at a tangent (a bullnose step and its riser) always holds more
+  points on a bigger, flatter circle: with the riser in the box the fit was 398 mm over 45 degrees. The short-arc
+  warning was added for that; boxed to the curve alone, the SK02 bullnose step, boxed to the curve (z 80 to 160): r 166.4 at (16,539.5, 12,274.2), rms 1.7 mm over 96 degrees; an independent scipy fit of the same points gave r 168.5 to 171.9 at about (16,540, 12,278).
+- The skill's survey table gives the bullnose carpet face as r 159 at (16,535, 12,267). The 7 to 13 mm difference
+  is worth a look before either is relied on.
+- A box holding a second object (the newel and something beside it) measures both: one side read 102.7 mm (the
+  survey's "about 102" for the 90 mm block), the other 116.7. Box one thing.
+
+### Tested (09-Nov-2026)
+- New `tests/mcp_fit_unit.rb.test`: 14 checks on shapes made from known numbers with seeded noise and
+  outliers (a tilted plane through 40% outliers within 0.3 degrees; a tread level within 0.02 in beside its
+  riser; a wall at 30 degrees; a rail at 42 degrees; a 145 mm bullnose within 1.5 mm; a pipe; a newel turned 20
+  degrees within 0.5 degrees and 2 mm).
+- `mcp_operations_unit.rb.test`: 49 checks (6 new for the seam's fit).
+- Offline on the SK02 GeoSLAM cache (37.5 M points), through SketchUp's own Ruby: the fits above, and the
+  tread 5 level at 1,197.1 where its z histogram peaks.
+- Live in the SK02 helper window (pid 22360), at Adam's word, after the viewer's and the MCP's reloads (its two
+  clouds reloaded from cache): the same answers through point_cloud_fit, 0.1 to 0.7 s each; the wall at x 17,325
+  plumb to 0.03 degrees.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Na SketchUp MCP's Reload Plugin Data. A window still on 0.13 code also
+   needs Reload All for its clouds (the 0.14.0 engine).
+
+## Point Cloud Viewer - v0.14.1 - 09-Nov-2026 - Overlays for the MCP: Model Edges on Slices, Clouds on Captures
+
+### Summary
+Adam asked what more would help agents use the point clouds, and chose the first idea: let an agent see its
+model and the scan in one picture. Two pieces, both in the MCP seam (Na SketchUp MCP 1.0.13). The engine
+is unchanged (ABI 9). ARCHITECTURE section 30.
+
+### Built
+- `image` and `density` take `overlay_segments` (model edges as world segments, which the MCP collects) and
+  draw them in red over the slice, projected the same way; `overlay_clip` keeps only the parts inside the
+  box. The picture is then an RGB PNG.
+- `composite`: the clouds on show drawn over a SketchUp capture, in place, with the live overlay's own
+  camera maths (`na_camera_params`), layers, looks, clip boxes, Crop and Cut view and point budget. Dot
+  sizes scale with the image against the viewport. The capture is read and written back with
+  `Sketchup::ImageRep` (24-bit BGR or 32-bit BGRA, rows from the top), so PNG and JPG both work.
+- Measured first: SketchUp's `write_image` keeps the camera's vertical field of view for any image shape.
+  Three cubes at known points, captured at 1600 x 800 and 800 x 1000, perspective and parallel, landed
+  within 1.2 px of the overlay's formula. Width and height must be whole numbers: given floats,
+  write_image ignores them and writes the screen's physical size.
+
+### Decisions (Adam may want them otherwise)
+- The clouds are drawn over everything, as on screen: the model's faces do not hide them.
+- Overlay edges leave out soft and hidden edges, as SketchUp's own view does.
+- With the overlay off, or no cloud on show and loaded, a capture comes back without clouds and says so.
+
+### Tested (09-Nov-2026)
+- `mcp_operations_unit.rb.test`: 43 checks (8 new: segment clipping, line drawing, an overlay at its
+  mapped pixel, clipped overlays, the blend for BGR and BGRA captures).
+- Live in the MCP__Workshop__ window with `exterior_shell.las` and a 12 x 8 x 6 m box on its walls (Na
+  SketchUp MCP devlog, 1.0.13).
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Na SketchUp MCP's Reload Plugin Data. The engine is the same, so the
+   clouds stay loaded.
+
+## Point Cloud Viewer - v0.14.0 - 09-Nov-2026 - Native Box Queries (ABI 9): Points and Density for the MCP
+
+### Summary
+v0.13.1 gave the Na SketchUp MCP four point cloud tools on the engine as it was, so an agent could count
+points in a box and see a nearest-point image, but could not have the points themselves or a density
+image, and paid one pass over the whole cloud for every histogram bin. Adam said to do the follow-up
+"here", and agreed four choices: bump the engine's ABI to 9; histograms in one pass; points back in the
+reply or in a .npz; density on a log scale. ARCHITECTURE section 29.
+
+### Built
+- Two native calls (Api.h, Api.cpp), on the render pool under the render mutex, using the box filter's
+  own Verdict():
+  - `napc_box_points`: the first `cap` stored points the boxes keep, times a scale (1 = model inches,
+    25.4 = mm), with colours. Pass 1 counts each worker's slice; pass 2 copies exactly the first N in
+    stored order and stops early. The store is shuffled, so they are an even sample. No index list is held.
+  - `napc_box_grid`: points per cell of a grid on a plane (column axis u, row axis v, cell sizes su and
+    sv, `Na__GridIndex`), from the stored coordinates in double precision. A small grid counts into one
+    array per worker; a large one into shared relaxed atomics, so memory never grows with threads.
+- The Ruby bridge expects ABI 9 and wraps both (`Na__Native__BoxPoints`, `Na__Native__BoxGrid`).
+- The MCP seam: `points` (up to 1,500 in the reply, up to 5,000,000 in a .npz numpy and the skill's
+  pc_kit.py read), `density` (the image frame and mapping, darker = more, log or linear, clipped at the
+  99.5th percentile), and `histogram` in one pass (a grid one cell wide), up to 10,000 bins. The last bin
+  keeps the box's far face, so the bins add up to what `count` gives.
+
+### Decisions (Adam may want them otherwise)
+- ABI 9, not 8 with optional calls: a window still running v0.13 code refuses the new DLL once and keeps
+  the engine and clouds it has (checked live in both SK02 windows). Each window takes the new engine at
+  its next Reload Plugin, which then needs Reload All for its clouds. A window that has not loaded an
+  engine yet cannot load one until it is reloaded.
+- Points in a .npz are float64 model millimetres (`p`) and 0xAARRGGBB colours (`c`).
+- No fallback for an ABI 8 engine: the new code never loads one.
+
+### Tested (09-Nov-2026)
+- New `95__System__McpOperations/tests/native_box_queries_test.py` (ctypes and numpy, any DLL path):
+  39 checks. A 300,000-point cloud placed at 27 degrees with a Keep and a Cut box. Points: the first N
+  kept, in stored order, to 1e-9, with colours, for five caps. Grids: every cell equal to numpy for a plan,
+  a 2,000 x 2,000 view (the shared path), axes at 45 degrees and a histogram. Refusals.
+- `mcp_operations_unit.rb.test`: 35 checks (12 new).
+- The harness on the staged and then the live tree: main 197, boxes 84, multi 96, hotkeys 134.
+- Timed on 42.7 M points: count 42 ms; a histogram 43-44 ms with 100, 1,000 or 10,000 bins; density
+  500 x 350 50 ms, 2,000 x 1,400 54 ms; points 43 ms (1,500) to 95 ms (all 297,000 in the box).
+- Live in the MCP__Workshop__ window with `exterior_shell.las` (imported and removed after): Na
+  SketchUp MCP devlog, 1.0.12.
+
+### Checklist for Adam (in SketchUp)
+1. In each window, Reload Plugin (Settings), then Reload All for its clouds (the engine is new), then
+   Extensions > Na SketchUp MCP > Reload Plugin Data.
+2. Until then a window keeps working on the old engine; its status line may say once that the build on
+   disk speaks ABI 9.
+
+## Point Cloud Viewer - v0.13.1 - 09-Nov-2026 - An Agent Seam for the Na SketchUp MCP
+
+### Summary
+The SK02 stair balustrade was modelled from the GeoSLAM cloud with a kit in the modelling skill that
+drove this viewer through `ruby_eval` and read its point cache with numpy. Adam asked for that kit as
+proper MCP tools (`point_cloud_state`, `point_cloud_clip`, `point_cloud_view`, `point_cloud_slice`,
+Na SketchUp MCP 1.0.9), with the rules here, in a seam the MCP calls, as Element Assembly Studio and
+Component Editor Tools have. Nothing the dialog does changed. ARCHITECTURE section 28.
+
+### Built
+- `95__System__McpOperations/Na__PointCloudViewer__McpOperations__Main__.rb`:
+  `Na__McpOperations.Na__PointCloudViewer__McpRead(action, params)` (state, count, histogram, image)
+  and `...McpEdit` (clip_box, clip_on, clip_off, clip_scene, view). Refusals raise
+  `Na__PointCloudViewer::Na__McpOperationsError` (code, message, hint).
+- Clip changes go through the viewer's own calls, ONE undo step each, named "Point Cloud: ...". Show
+  and look go through the same calls as the dialog's switches and sliders: never written to the model.
+- Counting uses `napc_box_count`. Images use `napc_render_png` with a parallel camera along a model
+  axis and the box as the clip box; Ruby then writes a greyscale PNG (white paper, black points, a grid
+  every fifth line darker) with zlib.
+- Two pieces became shared functions, so the seam uses the same rule as the tools:
+  - `Na__Clip__SetEnabledOn(session, slots, enabled)` (State): clipping on or off for several clouds
+    in one undo step. Clip On or Off now calls it.
+  - `Na__Clip__GrowToGrid(bounds, margin)` (DrawTool): grown by the margin and rounded outwards onto
+    the draw grid. Clip Box Around Selection now calls it.
+- AppCore Main requires the seam; Reload Plugin finds it on its own.
+
+### Decisions (Adam may want them otherwise)
+- The DLL is unchanged (ABI 8), as Adam chose. The points themselves and density images need two new
+  native calls, proposed for ABI 9: `napc_box_points` (the first N points inside the boxes in stored
+  order, which is shuffled, so an even sample, in model inches with colours) and `napc_box_grid`
+  (point counts per pixel of a parallel view). With them the skill's numpy kit would not be needed.
+- A histogram is one count per bin, and each count is one pass over the whole cloud: 28 ms per pass on
+  SK02's 42.7 M-point RealityCapture cloud, so at most 200 bins.
+- An image shows the nearest point in each pixel, in one dark colour on white: shape, not density.
+
+### Tested (09-Nov-2026)
+- New `95__System__McpOperations/tests/mcp_operations_unit.rb.test`: 23 checks with SketchUp's Ruby,
+  run through the MCP plugin's `RunRubyChecks` (peaks, percentiles, the grid, the PNG, refusals, and
+  each view's frame against a stand-in of the engine's parallel projection).
+- The harness in `D:/_ClaudeScratch/pcv_runners` on the changed tree: hotkeys 134, boxes 84, multi 96,
+  main 197, all pass.
+- Live in the MCP__Workshop__ window with the fixture `exterior_shell.las` (imported for the trial and
+  removed after): every action through the MCP (its devlog, 1.0.9), then Clip Box Around Selection
+  round a boiler (the same box as the MCP's `around`) and Clip On or Off twice.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Extensions > Na SketchUp MCP > Reload Plugin Data.
+2. Select a wall, then Extensions > Na__PointCloudViewer > Clip Box Around Selection: as before, 100 mm
+   past it. Ctrl+Z puts the old box back.
+3. Press the Clip On or Off key twice: clipping off, then on.
+
 ## Point Cloud Viewer - v0.13.0 - 26-Oct-2026 - Keyboard Shortcuts and Draw Clip Box
 
 ### Summary

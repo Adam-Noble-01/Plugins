@@ -111,6 +111,13 @@ begin
 rescue ScriptError, StandardError => e
     puts "✗ [GlbBuilder] Scene Sync module failed to load (model export unaffected): #{e.class}: #{e.message}"
 end
+begin
+    # The agent seam for Adam's Na SketchUp MCP (truevision_export, _edit, _publish).
+    # Loaded, not required, so Reload Scripts (which re-loads this file) refreshes it.
+    load File.join(__dir__, '07__Plugin__McpOperations', 'Na__TrueVision__GlbBuilder__McpOperations__Main__.rb')
+rescue ScriptError, StandardError => e
+    puts "✗ [GlbBuilder] MCP Operations failed to load (the dialog and exports unaffected): #{e.class}: #{e.message}"
+end
 require_relative '../Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CacheData__'
 
 module TrueVision3D

@@ -347,7 +347,7 @@ const Na__ExtDoorCommon__LeafConfigResolver = (function () {
                 horizontalBars       : horizontalBars,
                 verticalBars         : verticalBars,
                 glazeBarWidthMm      : na_clamp(na_value('glaze_bar_width_mm', config.glaze_bar_width_mm || 25), 5, 100),
-                glazeBarInsetMm      : na_clamp(na_value('glazebar_inset_mm', config.glazebar_inset_mm || 10), 0, 100),
+                glazeBarInsetMm      : na_clamp(na_value('glazebar_inset_mm', na_number(config.glazebar_inset_mm, 10)), 0, 100),   // <-- V2.5.3 An inset of 0 is a real value, not a missing one
                 marginEnabled        : na_boolean(na_value('glazebar_margin_enabled', config.glazebar_margin_enabled), false),
                 marginOffsetMm       : Math.max(0, na_number(
                     na_value('glazebar_margin_offset_mm', config.glazebar_margin_offset_mm || 120),

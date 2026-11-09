@@ -56,25 +56,30 @@ module TrueVision3D
         # Reloads all .rb files in the module directory and re-runs the loader
         # and menu registration. This enables rapid iteration and testing
         # during development without restarting SketchUp.
-        def self.Na__DynamicReloader__ReloadAllScripts
+        # quiet: true skips the closing message box (09-Nov-2026, 2.14.0: the
+        # MCP seam's reload action; a modal would stop the MCP bridge) and
+        # answers { loaded:, errors:, error_files: } either way.
+        def self.Na__DynamicReloader__ReloadAllScripts(quiet: false)
             puts "\n" + "=" * 60
             puts "TRUEVISION3D GLB BUILDER - RELOADING SCRIPTS"
             puts "=" * 60
-            
+
             reload_count = 0
             error_count = 0
-            
+            error_files = []
+
             # Get all .rb files in the module directory
             rb_files = Dir.glob(File.join(NA_PLUGIN_ROOT, "*.rb"))
-            
+
             rb_files.each do |file|
                 begin
                     load file
                     puts "  [OK] Loaded: #{File.basename(file)}"
                     reload_count += 1
-                rescue => e
+                rescue ScriptError, StandardError => e
                     puts "  [ERROR] #{File.basename(file)}: #{e.message}"
                     error_count += 1
+                    error_files << "#{File.basename(file)}: #{e.message}"
                 end
             end
             
@@ -120,7 +125,9 @@ module TrueVision3D
             end
             
             # Show success message
-            UI.messagebox("Scripts reloaded: #{reload_count} files, #{error_count} errors") if reload_count > 0
+            UI.messagebox("Scripts reloaded: #{reload_count} files, #{error_count} errors") if reload_count > 0 && !quiet
+
+            { loaded: reload_count, errors: error_count, error_files: error_files }
         end
         # ---------------------------------------------------------------
 

@@ -8,6 +8,85 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.14.0 - 09-Nov-2026
+#### The MCP Folder: Everything The Dialog Does, For Agents
+
+**What Adam asked for**
+- "It might be worth you building some MCP tools for TrueVision GLB Exporter, my plugin. Look in the plugins
+  folder and build out an MCP folder in there with all of the MCP tools, so agents can access absolutely all of
+  the tools available for pushing, handling, and checking statuses, etc." (09-Nov-2026)
+
+**Built**
+- `07__Plugin__McpOperations`, the agent seam for Adam's Na SketchUp MCP (its tools `truevision_export`,
+  `truevision_export_edit` and `truevision_publish`, MCP 1.0.21), on the pattern of Element Assembly Studio's and
+  the Point Cloud Viewer's seams. Entry points `Na__McpOperations.Na__GlbBuilder__McpRead / McpEdit /
+  McpPublish(action, params)`; refusals raise `Na__McpOperationsError` (code, message, hint, details).
+  - `__Main__`: the recording dialog, dispatch, guards, undo and job tracking.
+  - `__Read__` (12 actions): status, manifest, project, site_plan, scenes, point_clouds, job, r2_inventory,
+    fetch_r2, logs, python, config.
+  - `__Edit__` (26): export_folder, export_project, select_files, the project link and portal root, schemes
+    (set, create, duplicate, delete), site plan stores and export, Scene Sync (switch, type, detach, write),
+    point clouds (switch, select, settings, order, reload, export), open_dialog, reload.
+  - `__Publish__` (7): push_dry_run, push, export_and_push, write_scenes_and_push,
+    export_point_clouds_and_push, purge_r2_folder, open_pipeline.
+- **No second copy of any rule.** The tab actions run the dialog's own handlers (Export To Project, Push, Fetch
+  and Purge R2, the point cloud and Scene Sync jobs, link, scheme and site plan store actions), handed
+  `Na__McpDialog`: a stand-in that answers `execute_script`, reads the status lines, report panels and R2
+  reports out of the scripts, and passes every script on to the real dialog while it is open.
+- **The dialog's gates.** Every push but the dry run, and every deletion (delete_scheme, export_project with
+  existing "replace", export_site_plan with stale "delete", purge_r2_folder), needs `confirm` = the linked
+  project's code. Exports refuse while a group is open (the exporter reads `model.active_entities`). Anything
+  that starts a job or writes into the project refuses while a job runs.
+- **Jobs** run as the dialog's CloudJob; the call answers at once with the job, and `job` reports its progress
+  and, when it ends, its report. Nothing waits inside a call: the bridge and the job's timer share SketchUp's
+  one thread.
+- Model settings written by the seam (link, target, toggles, site plan store, portal root) are one undo step
+  each, "TrueVision: ...", aborted when the handler ends on an error or warning.
+
+**Changed in existing files** (each a keyword with the old behaviour as its default)
+- `Na__UserInterface__BuildModelStatus(prune: true)`: false reads the manifest without forgetting the toggles
+  of files the model no longer makes, so a read never writes to the model.
+- `Na__SitePlan__Write(..., on_stale: :ask)`: `:keep` or `:delete` answer "delete the older site plan files?"
+  without the message box; it also returns `stale_found`.
+- `Na__DynamicReloader__ReloadAllScripts(quiet: false)`: true skips the closing message box; it now returns
+  `{ loaded:, errors:, error_files: }`, and a file with a syntax error is reported instead of ending the reload
+  (`rescue ScriptError, StandardError`).
+- `Na__TrueVision__GlbBuilder__Main__.rb` loads the folder with `load` inside a guard, so Reload Scripts
+  refreshes it and a fault there never stops the plugin loading.
+
+**Found, not fixed**
+- Inside SketchUp 2026 a child process's stdout never reaches Ruby: `Open3.capture3` and a file redirect both
+  came back empty with exit 0 (even `print("hello")`). So the Point Cloud tab's **Check Python** reports
+  "Python cannot write WebP yet" while the same Python writes WebP fine from a shell ("Pillow ok, WebP True").
+  The seam's `python` check has Python write its own answer file; the dialog's button is unchanged.
+
+**Tested**
+- Offline (`su_ruby.py run`, SketchUp 2026's Ruby 3.2.2): 50 checks of the recorder against the real
+  PushStatus / PushReport scripts, parameters, guards, undo handling, dispatch faults and job tracking.
+  `su_ruby.py syntax`: the four seam files and the four changed files compile; `su_lint.py`: 0 hits.
+- Live on SK02 Ascott Gardens (survey model 0.4.3, SketchUp 2026, not linked to a project): every read action;
+  a self-test CloudJob followed through `job` to its report; `export_folder` wrote 38 GLBs (19 mesh, 18
+  linework, 1 linetype) and the log into a scratch folder in 9.8 s; `select_files` switched one file off as one
+  "TrueVision: Export File Selection" step, and undo removed it without a trace; ten refusals.
+- Not run: link, schemes, the site plan export into a project, scene writes, point cloud renders, pushes and the
+  purge. Each would change Adam's model, his project folders or the live site.
+
+**Files**
+- New: `07__Plugin__McpOperations/Na__TrueVision__GlbBuilder__McpOperations__Main__.rb`, `__Read__.rb`,
+  `__Edit__.rb`, `__Publish__.rb`.
+- Changed: `...__UserInterface__.rb`, `...__SitePlanExport__.rb`, `...__DynamicReloaderPluginUtil__.rb`,
+  `...__Main__.rb`, `...__Doc__ReadMe__.md` (MCP Operations section).
+
+**Testing checklist**
+- [ ] Reload Scripts (or restart SketchUp): the Ruby Console shows no "MCP Operations failed to load" line.
+- [ ] Reload Scripts from the dialog still ends with its "Scripts reloaded" message box.
+- [ ] Export Site Plan Data into a folder holding an older site plan GLB: the Yes / No question still shows.
+- [ ] With the Na SketchUp MCP restarted (1.0.21), ask an agent for "the TrueVision status" of a linked model.
+- [ ] Ask for a dry run of a project push: the job reports what would be uploaded and deleted, and nothing is.
+
+**Status:** IMPLEMENTED - TESTED IN SKETCHUP 2026 ON SK02 (READS, A SCRATCH EXPORT, ONE TOGGLE UNDONE); PUBLISHING NOT RUN
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.13.2 - 30-Oct-2026
 #### Camera-Follow Fallback Family No Longer Raises NameError
 

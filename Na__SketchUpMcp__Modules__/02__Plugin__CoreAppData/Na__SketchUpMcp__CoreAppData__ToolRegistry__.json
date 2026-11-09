@@ -11,6 +11,7 @@
             "api": "SketchUp Ruby API methods the tool cannot work without. Checked offline against the official stubs index and live at bridge start; a tool with a missing dependency is refused with that reason.",
             "toolsets": "core = the 22-tool set for clients with tool limits (--toolset core); every tool is in full.",
             "timeout_s": "How long the Python server waits for SketchUp before reporting 'status unknown' (never auto-retried).",
+            "property_since": "Top level: {\"tool.parameter\": \"x.y.z\"}, the bridge version a parameter added later needs. A SketchUp window whose bridge predates it would ignore the parameter and answer as if it were not there, so the server pings the window's bridge and refuses the call with the fix (Reload Plugin Data). List every parameter added to an existing tool here.",
             "$use": "Inside input_schema, {\"$use\": \"name\"} is replaced by common_schemas[name] (plus any sibling keys, e.g. a longer description) when the Python server loads this file."
         },
         "adding_a_tool": "Add an entry here, add a handler method in 10__BridgeHandlers, add its route in Na__CommandRouter, run 40__Tests__Validation, then Reload Plugin Data and restart the MCP server."
@@ -18,12 +19,28 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.7",
+        "version": "1.0.21",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
     },
+    "property_since": {
+        "point_cloud_slice.frame": "1.0.19",
+        "point_cloud_heightmap.frame": "1.0.19"
+    },
     "common_schemas": {
+        "frame": {
+            "type": "object",
+            "description": "Slice at any angle: min, max, view, axis, path and every position in and out are in this frame instead of the model's axes, and the reply echoes it (origin, unit axes, and the rule back to the model). Give origin (a model point, default [0, 0, 0]) and then angle (degrees anticlockwise from +x about the vertical: x along it, y level to its left, z up), or x_axis with an optional y_axis (made square to x; without it y is level, to x's left); or id alone: a group or component whose origin and axes make the frame. top looks down the frame's z, front along its +y. Needs Na Point Cloud Viewer 0.14.6.",
+            "properties": {
+                "origin": {"$use": "point", "description": "The frame's origin, a model point (default [0, 0, 0])."},
+                "angle": {"type": "number", "description": "Degrees anticlockwise from +x about the vertical: x along it, y level to its left, z up."},
+                "x_axis": {"$use": "direction", "description": "The frame's x (any length): along a wall, up a roof's slope."},
+                "y_axis": {"$use": "direction", "description": "Optional: made square to x_axis (default level, to x's left)."},
+                "id": {"$use": "id", "description": "A group or component whose origin and axes make the frame (with nothing else)."}
+            },
+            "additionalProperties": false
+        },
         "units": {"type": "string", "enum": ["mm", "cm", "m", "in", "ft", "yd", "model"], "description": "Unit for every length in this call's input AND output. Default mm. 'model' = the model's own display unit."},
         "id": {"type": "integer", "description": "Persistent id of an entity (the 'id' returned by entity_query, outliner_tree, selection_get)."},
         "ids": {"type": "array", "items": {"type": "integer"}, "minItems": 1, "description": "Persistent ids of entities (from entity_query, outliner_tree, selection_get)."},
@@ -159,6 +176,50 @@
                     "selection_only": {"type": "boolean", "description": "Export only the current selection (sets selectionset_only)."}
                 },
                 "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "sketchup_open_window",
+            "title": "Open in New Window",
+            "runs_on": "server",
+            "handler_key": "sketchup_open_window",
+            "mutates": false,
+            "timeout_s": 900,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": [],
+            "description": "Open a .skp in a NEW SketchUp window, so every window already open keeps its model and its unsaved work (model_file open replaces the model in the window in use). copy_to (a folder, or a .skp path) copies the file first and opens the copy, so the original is never open and can never be saved over: use it whenever you only need to read a project model or try something on it. Waits until the new window's bridge answers with that model open, then switches this server to it (select:false to stay where you are). A file already open in a running window is used as it is. Windows only; starts the SketchUp version this server belongs to.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Absolute path of the .skp to open."},
+                    "copy_to": {"type": "string", "description": "Open a copy instead: a folder (the copy keeps the file name) or a .skp path."},
+                    "overwrite": {"type": "boolean", "description": "With copy_to: replace an existing copy (default false)."},
+                    "select": {"type": "boolean", "description": "Switch this server to the new window (default true)."},
+                    "timeout_s": {"type": "integer", "minimum": 10, "maximum": 900, "description": "Seconds to wait for the new window's bridge (default 240)."}
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "sketchup_close_window",
+            "title": "Close Window",
+            "runs_on": "server",
+            "handler_key": "sketchup_close_window",
+            "mutates": false,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": [],
+            "description": "Close a SketchUp window (pid from sketchup_status) the way File > Exit does, and wait until it has gone. Close the windows you opened with sketchup_open_window as soon as you have what you need: every open SketchUp holds a lot of memory. A model with unsaved changes is refused and left open; discard_unsaved_changes:true throws those changes away, so pass it only when the user has agreed. If it was the window this server used, choose another with sketchup_status select_pid.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "pid": {"type": "integer", "description": "The window's pid (sketchup_status instances)."},
+                    "discard_unsaved_changes": {"type": "boolean", "description": "Close even with unsaved changes, losing them (default false). Only with the user's explicit agreement."},
+                    "timeout_s": {"type": "integer", "minimum": 5, "maximum": 300, "description": "Seconds to wait for it to close (default 60)."}
+                },
+                "required": ["pid"],
                 "additionalProperties": false
             }
         },
@@ -504,7 +565,7 @@
             "timeout_s": 300,
             "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
             "api": ["Sketchup::Entities#add_face", "Sketchup::Entities#add_group"],
-            "description": "Build arbitrary geometry fast from a vertex list and polygons (indices into vertices, 3+ each, counter-clockwise seen from outside). Uses SketchUp's EntitiesBuilder (2022+): vertices and edges are shared, nothing merges with existing geometry. Non-planar polygons are split into triangles automatically. smooth:true softens edges between faces meeting at less than smooth_angle (default 30 degrees). Up to 50,000 polygons per call; wrapped in a new group by default. Always pass name: it is how the user finds it in the Outliner. Faces are made consistent and closed shells are turned outward, so a closed mesh is a real solid whatever the winding; the result reports open shells.",
+            "description": "Build arbitrary geometry fast from a vertex list and polygons (indices into vertices, 3+ each, counter-clockwise seen from outside). Uses SketchUp's EntitiesBuilder (2022+): vertices and edges are shared, nothing merges with existing geometry. Non-planar polygons are split into triangles automatically. smooth:true softens edges between faces meeting at less than smooth_angle (default 30 degrees). soft_edges / hard_edges / smooth_edges / quad_edges set single edges by their two vertex indices [i, j], after smooth, in that order: hard_edges hard; smooth_edges drawn but shaded smooth; soft_edges soft and smooth (hidden); quad_edges are QuadFace Tools dividing edges (soft, smooth, no shadow), so two triangles read as one quad. The result counts them. Up to 50,000 polygons per call; wrapped in a new group by default. Always pass name: it is how the user finds it in the Outliner. Faces are made consistent and closed shells are turned outward, so a closed mesh is a real solid whatever the winding; the result reports open shells.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -512,6 +573,10 @@
                     "polygons": {"type": "array", "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 3}},
                     "smooth": {"type": "boolean"},
                     "smooth_angle": {"type": "number", "minimum": 0, "maximum": 180},
+                    "soft_edges": {"type": "array", "maxItems": 400000, "description": "Edges to soften and smooth, each [i, j]: two vertex indices of an edge of the polygons. Applied after smooth.", "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2}},
+                    "hard_edges": {"type": "array", "maxItems": 400000, "description": "Edges to keep hard (not soft, not smooth), each [i, j]. Applied after smooth, before soft_edges.", "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2}},
+                    "smooth_edges": {"type": "array", "maxItems": 400000, "description": "Edges drawn but shaded smooth (soft off, smooth on), each [i, j]: a visible quad grid on a smooth surface.", "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2}},
+                    "quad_edges": {"type": "array", "maxItems": 400000, "description": "QuadFace Tools dividing edges (soft, smooth, casting no shadow), each [i, j]: the diagonal of a quad split into two triangles.", "items": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2, "maxItems": 2}},
                     "parent_id": {"$use": "parent_id"},
                     "path": {"$use": "path"},
                     "coords": {"$use": "coords"},
@@ -523,6 +588,67 @@
                     "units": {"$use": "units"}
                 },
                 "required": ["vertices", "polygons"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_create_lines",
+            "title": "Create Lines",
+            "runs_on": "bridge",
+            "handler_key": "geometry_create_lines",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_curve", "Sketchup::Entities#add_edges", "Sketchup::Entities#add_group"],
+            "description": "Draw many polylines in one call, each as connected edges welded into one curve (selects as one, like a Bezier or freehand line) and painted with its own material: 2D site linework, traced outlines, boundaries, in Adam's edge colours (MTE102 SoftBlack L20, MTE103 DarkGrey L40, MTE104 MidGrey L60). polylines: [{points, closed, material, weld}]; weld defaults to true, closed joins the last point to the first. Lines never fill faces. Wrapped in a new group by default, so they never split or merge with other geometry (wrap_in none puts them straight into the parent, where they can split its coplanar faces). Polylines that meet end to end share their vertices. Materials must exist (material_manage) or be \"#RRGGBB\". Always pass name. Up to 20,000 polylines and 400,000 points per call.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "polylines": {"type": "array", "minItems": 1, "maxItems": 20000, "items": {"type": "object", "properties": {
+                        "points": {"$use": "points"},
+                        "closed": {"type": "boolean"},
+                        "weld": {"type": "boolean"},
+                        "material": {"$use": "material"}
+                    }, "required": ["points"], "additionalProperties": false}},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "coords": {"$use": "coords"},
+                    "wrap_in": {"type": "string", "enum": ["group", "component", "none"]},
+                    "name": {"$use": "name"},
+                    "definition_name": {"type": "string"},
+                    "tag": {"$use": "tag"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["polylines"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_drape",
+            "title": "Drape Edges",
+            "runs_on": "bridge",
+            "handler_key": "geometry_drape",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Face#mesh", "Geom::PolygonMesh#count_polygons", "Geom::PolygonMesh#polygon_points_at", "Sketchup::Entities#add_curve", "Sketchup::Entities#add_edges", "Sketchup::Entities#add_group", "Sketchup::Edge#curve", "Sketchup::Curve#vertices"],
+            "description": "Drape (project) edges straight down onto a surface, like Sandbox Drape but nothing is imprinted: the draped lines are new edges in their own group, so they never stick to the surface. ids: the edges to drape, or groups/components whose edges are used at every depth (2D linework drawn at any height: its z is ignored). surface_ids: the groups/components (or faces) forming the surface. Only faces facing up are used, and where several overlap in plan the highest wins, so a terrain solid's top is used, not its bottom. Each source edge is split wherever it crosses a surface edge in plan, so every piece lies exactly on one face; lift raises them (e.g. 5) if lines flicker over the faces. Each source curve (arc, Bezier, welded polyline) or chain of loose edges becomes one welded curve and keeps its material (edge colour) unless material is given. Parts off the surface are left out and reported. Re-drape after editing the 2D lines: delete the old draped group first.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids", "description": "Edges to drape, or groups/components holding them (all their edges, at every depth)."},
+                    "surface_ids": {"$use": "ids", "description": "Groups/components (or faces) forming the surface to drape onto."},
+                    "lift": {"type": "number", "description": "Height above the surface for the draped lines (default 0)."},
+                    "weld": {"type": "boolean"},
+                    "material": {"$use": "material"},
+                    "parent_id": {"$use": "parent_id"},
+                    "path": {"$use": "path"},
+                    "wrap_in": {"type": "string", "enum": ["group", "component", "none"]},
+                    "name": {"$use": "name"},
+                    "tag": {"$use": "tag"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["ids", "surface_ids"],
                 "additionalProperties": false
             }
         },
@@ -894,6 +1020,151 @@
             }
         },
         {
+            "name": "entity_reparent",
+            "title": "Move Into Group",
+            "runs_on": "bridge",
+            "handler_key": "entity_reparent",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#add_instance", "Sketchup::Entities#add_group", "Sketchup::Drawingelement#erase!", "Sketchup::ComponentInstance#glued_to"],
+            "description": "Move groups and components into another group or component (parent_id; 0 = model root), or into a new group (new_group {name, tag}: made at the root unless parent_id says where), keeping each exactly where it is in the world, with its name, tag, material, hidden, locked, shadow flags and instance attributes. SketchUp cannot move entities between contexts, so each is placed again from its own definition and the original erased: moved objects get new ids, returned in order as ids (a group keeps its geometry and its definition's data). Refused: loose geometry (group it first with group_create), anything open for editing, an id inside another id, a source inside a component used more than once, a destination inside what moves, a shared destination component. Use it to nest elements into storey containers. Tag first, then move: tags travel with the object.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids"},
+                    "parent_id": {"type": "integer", "description": "Destination: 0 = model root, else a group or component id. With new_group: where the new group is made (default root)."},
+                    "path": {"$use": "path"},
+                    "new_group": {
+                        "type": "object",
+                        "description": "Make a new group and move the ids into it, e.g. {\"name\": \"Ground Floor\", \"tag\": \"90__Storey__GroundFloor\"}.",
+                        "properties": {"name": {"type": "string"}, "tag": {"$use": "tag"}},
+                        "required": ["name"],
+                        "additionalProperties": false
+                    }
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "truevision_structure",
+            "title": "TrueVision Structure",
+            "runs_on": "bridge",
+            "handler_key": "truevision_structure",
+            "mutates": false,
+            "timeout_s": 180,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Face#area", "Sketchup::ComponentDefinition#instances", "Sketchup::Model#get_attribute"],
+            "description": "Read the model the way the TrueVision GLB Builder exports it, and say what TrueVision will never see. Reports the storey containers (root groups/components on the 90-93 storey tags) with their element groups by tag (walls 21/11, floors 22/12, roofs 23/13, windows 24/14, doors 25/15, stairs 26/16, fixtures 27/17, furniture 28/18, decor 29/19, landscape 07-09, entourage 60-61), the flat files from other root objects, and the GLB file names it will write. Lists every object it skips, with the reason: untagged, helper or excluded tags, a tag that is not an element tag inside a storey, or loose faces and edges directly in a storey. Also lists category tags nested inside exported elements (they export with the element). The rules come from the GLB Builder itself when it is loaded, else from the Tags SSOT file. include_objects lists every object for classifying (name, definition, library code, ADR/AWN assembly, tag, storey, world bounds, faces); analyse_faces adds each object's face area by orientation (up, down, vertical, sloped) and the model's floor levels (the heights with the most upward face area). save_path writes it all to a JSON file. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "include_objects": {"type": "boolean", "description": "List every object (paged with limit/offset): root objects, storey children, and objects inside plain container groups."},
+                    "analyse_faces": {"type": "boolean", "description": "Add face area by orientation per object and the model's floor levels (slower on big models)."},
+                    "expand_depth": {"type": "integer", "minimum": 0, "maximum": 8, "description": "Levels listed inside plain container groups (default 2)."},
+                    "max_names": {"type": "integer", "minimum": 0, "maximum": 200, "description": "Names listed per group in the report (default 8)."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Objects per page (default 40)."},
+                    "offset": {"type": "integer", "minimum": 0},
+                    "save_path": {"type": "string", "description": "Absolute .json path: write the whole report with every object, for scripts."},
+                    "overwrite": {"type": "boolean", "description": "Replace an existing save_path file (default false)."},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "truevision_export",
+            "title": "TrueVision Export",
+            "runs_on": "bridge",
+            "handler_key": "truevision_export",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": false, "openWorldHint": true},
+            "api": ["Sketchup::Model#active_path", "Sketchup::Model#get_attribute", "Sketchup::Page#persistent_id"],
+            "description": "Read Adam's TrueVision GLB Builder, the plugin that exports a model to TrueVision: everything its dialog shows, nothing changed. action: status (start here: version, model, project link and target scheme, file counts, point cloud and Scene Sync switches, the running job), manifest (every GLB file an export writes, by storey, with its on/off toggle; filter narrows it), project (the link, the portal, every scheme folder with its GLB count and date, the phases with their next folder name, the site plan stores; include_structure adds the project's folder tree), site_plan (the layers on the 71-75 site plan tags with line and face counts, unused tags, checks, and the store it would write into), scenes (Scene Sync: every SketchUp scene, on or off, its type and how it stands against the project), point_clouds (the Point Cloud tab: viewer, scenes, selection, store; check_python adds the Pillow WebP check), job (the last job started through these tools: running, its status line, and its report once it ends; poll about every 10 s, never in a tight loop), fetch_r2 (starts a job that lists the project's GLBs in Cloudflare R2; changes nothing there), r2_inventory (that listing against the scheme folders here: only in R2, not pushed yet, or a different count; folder lists one folder's files), logs (the cloud sync logs and the last export; file shows a log's tail), python (the Python the pipeline uses, and whether Pillow writes WebP), config (the export rules, folder names, design phases and pipeline names the GLB Builder works to). Needs the GLB Builder 2.14.0 or newer.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["status", "manifest", "project", "site_plan", "scenes", "point_clouds", "job", "r2_inventory", "fetch_r2", "logs", "python", "config"]},
+                    "filter": {"type": "string", "description": "manifest: only files or storeys whose name contains this text."},
+                    "include_structure": {"type": "boolean", "description": "project: add the project's TrueVision folder tree."},
+                    "check_python": {"type": "boolean", "description": "point_clouds: also check that Python's Pillow writes WebP."},
+                    "folder": {"type": "string", "description": "r2_inventory: a cloud folder name; lists its files."},
+                    "file": {"type": "string", "description": "logs: a file name from cloud_logs, or \"last_export\"; shows its tail."},
+                    "tail_lines": {"type": "integer", "minimum": 1, "maximum": 400, "description": "logs: lines of the file's tail (default 80)."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "logs: how many cloud logs to list, newest first (default 10)."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "truevision_export_edit",
+            "title": "TrueVision Export Edit",
+            "runs_on": "bridge",
+            "handler_key": "truevision_export_edit",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 600,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Model#start_operation", "Sketchup::Model#abort_operation", "Sketchup::Model#active_path"],
+            "description": "Change the TrueVision GLB Builder's exports and settings on this model and this computer; nothing reaches Cloudflare R2 (truevision_publish does). action: export_folder (the GLBs into path, any absolute folder), export_project (into the linked project's target scheme folder: the previous export is zipped into 00__Archive first, or cleared with existing: \"replace\" and confirm; then the switched-on scenes are written, and with Export Point Clouds on the point clouds render as a job), select_files (files from manifest, or all: true; on), link_project (project_code, e.g. \"RB05\"; the target becomes its latest scheme), unlink_project, dismiss_link_prompt, set_portal_root (path; \"\" clears), set_target (folder: a scheme folder), create_scheme (phase_id: the phase's next scheme folder, which becomes the target), duplicate_scheme (folder, copied into the next number, which becomes the target), delete_scheme (folder and confirm; moved into 00__Archive, or for good with permanent: true), set_site_plan_store (folder: SitePlan__DrawingData__Existing or __Proposed), create_site_plan_store (variant), export_site_plan (the 71-75 site plan layers into the chosen store, or path; older site plan files are kept unless stale: \"delete\" with confirm), switch_scenes (scenes: names or ids, on), set_scene_type (scene, type), detach_scene (scene: TrueVision keeps its last sync for good), write_scenes (the Scene Sync manifest into the project), switch_point_clouds (on), select_point_cloud_scenes (scene_ids, on), set_point_cloud_scene (scene_id, values), order_point_cloud_scenes (scene_ids, top to bottom), reload_point_cloud, export_point_clouds (render the selected point cloud scenes into the project, as a job), open_dialog, reload (Reload Scripts, no message box). Exports refuse while a group is open; whatever writes into the project refuses while a job runs. confirm is the linked project's code: pass it only when the user asked for that deletion. Each model setting is one undo step, 'TrueVision: ...'. Not allowed in batch_execute.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["export_folder", "export_project", "select_files", "link_project", "unlink_project", "dismiss_link_prompt", "set_portal_root", "set_target", "create_scheme", "duplicate_scheme", "delete_scheme", "set_site_plan_store", "create_site_plan_store", "export_site_plan", "switch_scenes", "set_scene_type", "detach_scene", "write_scenes", "switch_point_clouds", "select_point_cloud_scenes", "set_point_cloud_scene", "order_point_cloud_scenes", "reload_point_cloud", "export_point_clouds", "open_dialog", "reload"]},
+                    "path": {"type": "string", "description": "export_folder, export_site_plan: an absolute folder. set_portal_root: the na-project-portal folder, or \"\" to clear."},
+                    "existing": {"type": "string", "enum": ["archive", "replace"], "description": "export_project: the previous export is zipped into 00__Archive (default), or cleared (needs confirm)."},
+                    "material_mode": {"type": "string", "enum": ["no_materials", "all_materials", "indexed_only"], "description": "export_folder, export_project: materials in the GLBs (default no_materials, the whitecard)."},
+                    "downscale_textures": {"type": "boolean", "description": "export_folder, export_project: shrink textures over 1024 px."},
+                    "files": {"type": "array", "items": {"type": "string"}, "description": "select_files: file names from truevision_export manifest."},
+                    "all": {"type": "boolean", "description": "select_files: every file."},
+                    "on": {"type": "boolean", "description": "select_files, switch_scenes, select_point_cloud_scenes (default true); switch_point_clouds (required)."},
+                    "project_code": {"type": "string", "description": "link_project: two letters and two digits, e.g. \"RB05\"."},
+                    "folder": {"type": "string", "description": "set_target, duplicate_scheme, delete_scheme: a scheme folder name. set_site_plan_store: a site plan store name."},
+                    "phase_id": {"type": "string", "description": "create_scheme: a phase_id from truevision_export project (phases)."},
+                    "permanent": {"type": "boolean", "description": "delete_scheme: delete for good instead of moving into 00__Archive."},
+                    "confirm": {"type": "string", "description": "The linked project's code, for delete_scheme, existing: \"replace\" and stale: \"delete\" (an unlinked export_site_plan takes the folder's name). Only when the user asked for it."},
+                    "variant": {"type": "string", "enum": ["existing", "proposed"], "description": "create_site_plan_store."},
+                    "stale": {"type": "string", "enum": ["keep", "delete"], "description": "export_site_plan: older site plan GLBs this export did not write (default keep; delete needs confirm)."},
+                    "scenes": {"type": "array", "items": {"type": ["string", "integer"]}, "description": "switch_scenes: scene names or persistent ids."},
+                    "scene": {"type": ["string", "integer"], "description": "set_scene_type, detach_scene: a scene name or persistent id."},
+                    "type": {"type": "string", "enum": ["plan", "elevation", "section", "view3d", "auto"], "description": "set_scene_type: what the scene is in TrueVision (auto: from its camera)."},
+                    "scene_ids": {"type": "array", "items": {"type": "string"}, "description": "select_point_cloud_scenes, order_point_cloud_scenes: point cloud scene ids."},
+                    "scene_id": {"type": "string", "description": "set_point_cloud_scene: a point cloud scene id."},
+                    "values": {"type": "object", "description": "set_point_cloud_scene: any of viewType, scale (the 1:N denominator), imageWidthPx (500-30000), pointSizePx (null for Auto)."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "truevision_publish",
+            "title": "TrueVision Publish",
+            "runs_on": "bridge",
+            "handler_key": "truevision_publish",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 600,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true},
+            "api": ["Sketchup::Model#active_path", "UI.start_timer"],
+            "description": "Publish a TrueVision project to the live site through the TrueVision GLB Builder. Each action runs as a job and answers at once; follow it with truevision_export {action: \"job\"}. action: push_dry_run (runs the ProjectVision build, which regenerates the master index and EVERY project's data files in the website repo on this computer and drops keys it does not know, then lists what a push would upload and delete in Cloudflare R2; uploads nothing), push (the build, then the R2 sync of the project's TrueVision content: it uploads what changed AND deletes GLBs that are no longer here), export_and_push (export_project, then push), write_scenes_and_push (write_scenes, then push), export_point_clouds_and_push (render the point clouds, then push), purge_r2_folder (delete one scheme folder's GLBs from R2 for good: cloud_folder from a fresh fetch_r2 inventory; refused if R2 changed since), open_pipeline (open the build pipeline console for this project, which syncs it to R2 when run there). Every action but push_dry_run needs confirm set to the linked project's code: pass it only when the user asked for exactly this push or purge in this conversation. Refuses while another job runs. Not allowed in batch_execute.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["push_dry_run", "push", "export_and_push", "write_scenes_and_push", "export_point_clouds_and_push", "purge_r2_folder", "open_pipeline"]},
+                    "confirm": {"type": "string", "description": "The linked project's code, e.g. \"RB05\": every action but push_dry_run. Only when the user asked for it."},
+                    "cloud_folder": {"type": "string", "description": "purge_r2_folder: a cloud folder from truevision_export r2_inventory."},
+                    "existing": {"type": "string", "enum": ["archive", "replace"], "description": "export_and_push: the previous export is zipped into 00__Archive (default), or cleared."},
+                    "material_mode": {"type": "string", "enum": ["no_materials", "all_materials", "indexed_only"], "description": "export_and_push: materials in the GLBs (default no_materials)."},
+                    "downscale_textures": {"type": "boolean", "description": "export_and_push: shrink textures over 1024 px."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
             "name": "attributes_get",
             "title": "Get Attributes",
             "runs_on": "bridge",
@@ -1004,11 +1275,11 @@
             "timeout_s": 60,
             "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
             "api": ["Sketchup::Layers#add", "Sketchup::Layers#remove", "Sketchup::Layer#visible=", "Sketchup::Layer#color=", "Sketchup::Layer#name=", "Sketchup::Model#active_layer="],
-            "description": "Tags (layers). action: create (name or names; optional visible, color, line_style, folder), update (name + new_name / visible / color / line_style / folder, \"\" folder = top level), delete (name or names; contents move to Untagged unless delete_contents:true), set_active, isolate (show only these tags), show_all, create_folder / delete_folder (folder path like \"Site/Existing\"; deleting keeps its tags). Untagged cannot be renamed, deleted or hidden. To tag entities use entity_set_properties tag.",
+            "description": "Tags (layers). action: create (name or names; optional visible, color, line_style, folder), create_standard (name or names from Adam's Tags SSOT, made by his TagUtils with the SSOT line style, colour and metadata; a name not in the SSOT is refused; existing tags are left as they are unless update_existing), update (name + new_name / visible / color / line_style / folder, \"\" folder = top level), delete (name or names; contents move to Untagged unless delete_contents:true), set_active, isolate (show only these tags), show_all, create_folder / delete_folder (folder path like \"Site/Existing\"; deleting keeps its tags). Untagged cannot be renamed, deleted or hidden. To tag entities use entity_set_properties tag.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["create", "update", "delete", "set_active", "isolate", "show_all", "create_folder", "delete_folder"]},
+                    "action": {"type": "string", "enum": ["create", "create_standard", "update", "delete", "set_active", "isolate", "show_all", "create_folder", "delete_folder"]},
                     "name": {"type": "string"},
                     "names": {"type": "array", "items": {"type": "string"}},
                     "new_name": {"type": "string"},
@@ -1016,7 +1287,8 @@
                     "color": {"type": "string", "description": "\"#RRGGBB\"."},
                     "line_style": {"type": "string", "description": "Line style name (collection_list line_styles)."},
                     "folder": {"type": "string", "description": "Folder path, e.g. \"Site/Existing\"."},
-                    "delete_contents": {"type": "boolean"}
+                    "delete_contents": {"type": "boolean"},
+                    "update_existing": {"type": "boolean", "description": "create_standard: re-apply the SSOT style to tags already in the model (TagUtils also turns them visible)."}
                 },
                 "required": ["action"],
                 "additionalProperties": false
@@ -1122,7 +1394,7 @@
             "timeout_s": 120,
             "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
             "api": ["Sketchup::View#write_image", "Sketchup::View#camera="],
-            "description": "See the model: renders the view to an image and returns it to you. Use it to check your work after modelling, and before describing a model. Default 1280 x 800 PNG (smaller costs fewer tokens). Optional camera / standard_view / zoom / zoom_ids aim the shot and the user's view is restored afterwards (restore_view:false leaves it); scene activates that scene first (it stays active). save_path also saves the file (overwrite to replace). transparent background (png), line_scale for thicker lines in large images.",
+            "description": "See the model: renders the view to an image and returns it to you. Use it to check your work after modelling, and before describing a model. Default 1280 x 800 PNG (smaller costs fewer tokens). Optional camera / standard_view / zoom / zoom_ids aim the shot and the user's view is restored afterwards (restore_view:false leaves it); scene activates that scene first (it stays active). save_path also saves the file (overwrite to replace). transparent background (png), line_scale for thicker lines in large images. include_point_cloud: true also draws Adam's point clouds on show over the image, each with its own look and clip box, exactly where they sit on screen (Na Point Cloud Viewer 0.14.1; the result's point_cloud says what was drawn), so you can check your model against the scan.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1139,6 +1411,7 @@
                     "zoom_ids": {"$use": "ids"},
                     "scene": {"type": "string"},
                     "restore_view": {"type": "boolean"},
+                    "include_point_cloud": {"type": "boolean", "description": "Also draw the point clouds on show over the image (Na Point Cloud Viewer 0.14.1+; from 0.14.5 a scene's cloud look is applied first, and captures over 12 MP keep no clouds, with a warning)."},
                     "save_path": {"type": "string"},
                     "overwrite": {"type": "boolean"},
                     "units": {"$use": "units"}
@@ -1288,6 +1561,271 @@
                     "time_budget_s": {"type": "number", "minimum": 5, "maximum": 240, "description": "apply_plan: stop between steps after this long (default 45)."}
                 },
                 "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_studio",
+            "title": "Entity Studio",
+            "runs_on": "bridge",
+            "handler_key": "entity_studio",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Group#manifold?", "Sketchup::Group#volume"],
+            "description": "Read Adam's Element Assembly Studio Pro (also called Entity Studio Pro), the plugin that builds his windows and doors (needs it loaded, 2.5.3 or newer). action: status (version, folders, preset count, dialog open, what build can make), list_presets (code, name, family, type, file, has_preview; filter family Window / ExteriorDoor / InteriorDoor / Cabinet, or query text), get_preset (code: its card and config values; keys or prefix narrow the values, e.g. prefix \"single_door_\"), list_handles (door handle asset keys and names, for single_door_handle_asset_key and the like), inspect (instance_id of a placed ADR element: every MOD leaf group's parts and every fielded panel cell, each with solid, volume_mm3, faces and nested_groups, so you can prove the panels are closed solids). Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["status", "list_presets", "get_preset", "list_handles", "inspect"]},
+                    "code": {"type": "string", "description": "get_preset: the preset code, e.g. \"EAS008\"."},
+                    "family": {"type": "string", "description": "list_presets: Window, ExteriorDoor, InteriorDoor or Cabinet."},
+                    "query": {"type": "string", "description": "list_presets: text in the code, name, description or keywords."},
+                    "keys": {"type": "array", "items": {"type": "string"}, "description": "get_preset: only these config keys."},
+                    "prefix": {"type": "string", "description": "get_preset: only config keys starting with this, e.g. \"single_door_\"."},
+                    "instance_id": {"$use": "id", "description": "inspect: a placed element (its ADR component)."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "entity_studio_edit",
+            "title": "Entity Studio Edit",
+            "runs_on": "bridge",
+            "handler_key": "entity_studio_edit",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 180,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Model#active_path", "Sketchup::Entities#add_instance", "UI::HtmlDialog#execute_script"],
+            "description": "Drive Element Assembly Studio Pro (Entity Studio Pro) through its own door engines and presets store. action: build (an exterior single or double door from preset and/or values, at position [x, y, z] at the model root; returns instance_id, bounds, definition and whether every fielded panel is a solid; one undo step of the plugin's own, e.g. 'Create Exterior Single Door', so model_undo steps 1 removes it), update (rebuild a placed door, instance_id, with values merged onto its stored config, or onto preset), save_preset (a new preset file: name, description, keywords, from preset and/or instance_id plus values; the next free EASnnn code and the file name come from the plugin; when the dialog is open it is asked to draw the gallery picture), refresh_preview (code: the open dialog redraws and stores a preset's picture with its own SvgCapture; it lands a moment later, so confirm with entity_studio get_preset), open_dialog, reload (Adam's Reload Scripts: code from disk and fresh material palettes; it reopens an open dialog). values are the dialog's flat config keys, e.g. single_door_panel_preset or single_door_mid_rail_width_mm: read a preset with entity_studio get_preset to see them. Windows, sliding, bifold and interior doors are refused by build and update: use the dialog for those. Not allowed in batch_execute. Agree a new preset's name with the user before saving it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["build", "update", "save_preset", "refresh_preview", "open_dialog", "reload"]},
+                    "preset": {"type": "string", "description": "build / update / save_preset: start from this preset's values, e.g. \"EAS008\"."},
+                    "values": {"type": "object", "description": "Config keys to set on top of the preset or the placed element's stored config."},
+                    "position": {"$use": "point", "description": "build: where the element's origin goes, at the model root (default [0, 0, 0])."},
+                    "instance_id": {"$use": "id", "description": "update: the placed door. save_preset: start from its stored config."},
+                    "code": {"type": "string", "description": "refresh_preview: the preset code."},
+                    "name": {"type": "string", "description": "save_preset: the gallery name, e.g. \"Traditional | Four Panel Half Glazed\"."},
+                    "description": {"type": "string", "description": "save_preset: one or two plain sentences for the card."},
+                    "keywords": {"type": "array", "items": {"type": "string"}, "description": "save_preset: search words."}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_state",
+            "title": "Point Cloud State",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_state",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays", "Sketchup::Overlay#enabled?"],
+            "description": "Read the model's point clouds in Adam's Na Point Cloud Viewer (needs it loaded, 0.13.1 or newer). The viewer draws clouds as an overlay: view_capture shows them only with include_point_cloud, and no point can be picked or snapped to, so measure with point_cloud_slice, point_cloud_fit and point_cloud_heightmap. Per cloud: id (pc_xxxxxxxx), name, colour, shown, loaded, points, file, source_unit, look (point_size_px, opacity_percent, colour_mode), bounds, clip (enabled, min, max, size), clip_scene (the one showing, and whether its box was changed since) and clip_scenes (id, name, box), every length in the call's units; cache (path and exists: the viewer's .napc point cache, for the skill's offline numpy kit) and local_to_model (12 numbers in model INCHES, R*k row-major then t; null when not loaded). Also overlay_on, point_budget and active_cloud. clouds narrows it to some clouds (ids or names). Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "clouds": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 16, "description": "Only these clouds: ids (pc_264338fa) or names."},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_clip",
+            "title": "Point Cloud Clip",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_clip",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 60,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays", "Sketchup::Model#start_operation", "Sketchup::Model#set_attribute"],
+            "description": "Set or switch a point cloud's clip box through Adam's Na Point Cloud Viewer. A clip box is axis-aligned in model coordinates, one per cloud, saved in the cloud's record in the model: each change is ONE undo step of the viewer's own, named \"Point Cloud: ...\", so model_undo steps 1 reverts it. Clip only when the user asked to work the cloud, and put their clip scene back when done (action scene). action: box (min, max), around (ids: their world bounds grown by margin, default the viewer's selection margin of 100 mm, rounded outwards onto its 5 mm grid, as Clip Box Around Selection does), on and off (clipping on or off, the box kept), scene (cloud, and scene: a clip scene id or name from point_cloud_state, or \"full\" for the whole cloud). box and around also show those clouds and switch the overlay on. clouds: ids or names; default every cloud on show (the active cloud when none is), as Draw Clip Box does. label names the undo step (default \"MCP Clip Box\"). Not allowed in batch_execute.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["box", "around", "on", "off", "scene"]},
+                    "min": {"$use": "point", "description": "box: the low corner [x, y, z], model axes."},
+                    "max": {"$use": "point", "description": "box: the high corner [x, y, z], model axes."},
+                    "ids": {"$use": "ids", "description": "around: entities to fit the box round, at any depth."},
+                    "margin": {"type": "number", "minimum": 0, "description": "around: how far the box reaches past them (default the viewer's selection margin, 100 mm)."},
+                    "clouds": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 16, "description": "box, around, on, off: these clouds (ids or names); default every cloud on show."},
+                    "cloud": {"type": "string", "description": "scene: the cloud (id or name); default the only cloud on show."},
+                    "scene": {"type": "string", "description": "scene: a clip scene id or name, or \"full\"."},
+                    "label": {"type": "string", "description": "Names the undo step \"Point Cloud: <label>\" (default \"MCP Clip Box\")."},
+                    "units": {"$use": "units"}
+                },
+                "required": ["action"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_view",
+            "title": "Point Cloud View",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_view",
+            "mutates": false,
+            "timeout_s": 30,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays", "Sketchup::Overlay#enabled="],
+            "description": "Change how Adam's point clouds are drawn: view settings only, never written to the model and no undo step (a batch rollback does not undo them either). The viewer remembers each cloud's look on this computer, as its sliders do. clouds: ids or names (default every cloud). shown (each cloud's Show switch), point_size_px (1 to 10), opacity_percent (5 to 100), colour_mode (rgb; black, best over the model; primary, each cloud in its own colour), point_budget (points drawn per frame, shared by every cloud on show, 10,000 to 50,000,000), overlay (SketchUp's overlay switch, every cloud), reload: true starts the viewer's own Reload of every cloud that is not loaded (it loads in the background: check point_cloud_state). Values outside the viewer's limits are refused. Note what you change and set it back if the user's view should stay as it was.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "clouds": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 16, "description": "These clouds (ids or names); default every cloud."},
+                    "shown": {"type": "boolean"},
+                    "point_size_px": {"type": "integer", "minimum": 1, "maximum": 10},
+                    "opacity_percent": {"type": "integer", "minimum": 5, "maximum": 100},
+                    "colour_mode": {"type": "string", "enum": ["rgb", "black", "primary"]},
+                    "point_budget": {"type": "integer", "minimum": 10000, "maximum": 50000000},
+                    "overlay": {"type": "boolean"},
+                    "reload": {"type": "boolean"},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_slice",
+            "title": "Point Cloud Slice",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_slice",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays"],
+            "description": "Measure a point cloud inside a box at the speed of the viewer's native engine, without Python (points and density need Point Cloud Viewer 0.14.0). Every action takes min and max (the box, model axes, the call's units) and cloud (id or name; default the only loaded cloud on show). action: count (every point in the box, exact); histogram (axis x, y or z and bin: points per bin along that axis, one pass over the cloud whatever the bins, up to 10,000; peaks (local maxima holding at least peak_share, default 0.2, of the highest bin; 'at' is their weighted centre, finer than a bin) and percentiles p1 to p99. Levels from z (treads, floors, rail tops), faces from x or y (walls, risers, post faces), repeats along a run (spindle rhythm)); points (limit points, default 1,000: an even sample of the points in the box, as the viewer stores clouds shuffled; up to 1,500 come back in the reply in the call's units, and with save_path up to 5,000,000 go to a .npz (p: model mm, c: colour) that numpy and the skill's pc_kit.py read); image (view and resolution per pixel: the viewer's renderer draws the box looking along a model axis, black points on white, the nearest point winning each pixel: shape); density (the same frame, darker = more points behind each pixel, log scale unless scale linear, with max_per_pixel and p99_5_per_pixel: planes and edges stand out, as pc_kit.py render). image and density take grid (a line every grid length, every fifth darker) and overlay_ids (the model's edges in red over the slice, overlay_clip to keep only what is inside the box; viewer 0.14.1), and return the PNG with u and v: the model value at its left and top edges and per pixel. right looks along -X with +Y to the right, left along +X, front along +Y, back along -Y, top down with +X right. save_path keeps the PNG, or the points' .npz. frame (viewer 0.14.6) turns the box, the view and every position to any angle: along a wall not square to the model, up a roof. The cloud must be loaded (point_cloud_state). Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["count", "histogram", "points", "image", "density"]},
+                    "cloud": {"type": "string", "description": "The cloud to measure (id or name); default the only loaded cloud on show."},
+                    "min": {"$use": "point", "description": "The box's low corner [x, y, z], model axes."},
+                    "max": {"$use": "point", "description": "The box's high corner [x, y, z], model axes."},
+                    "axis": {"type": "string", "enum": ["x", "y", "z"], "description": "histogram: the axis to count along."},
+                    "bin": {"type": "number", "minimum": 0, "description": "histogram: bin length, e.g. 5 (mm)."},
+                    "peak_share": {"type": "number", "minimum": 0, "maximum": 1, "description": "histogram: a peak holds at least this share of the highest bin (default 0.2)."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 5000000, "description": "points: how many (default 1,000; at most 1,500 without save_path)."},
+                    "view": {"type": "string", "enum": ["top", "front", "back", "left", "right"], "description": "image, density: the direction it looks."},
+                    "resolution": {"type": "number", "minimum": 0, "description": "image, density: model length per pixel, e.g. 2 (mm)."},
+                    "grid": {"type": "number", "minimum": 0, "description": "image, density: a grid line every this length, every fifth darker (default none)."},
+                    "scale": {"type": "string", "enum": ["log", "linear"], "description": "density: how counts turn grey (default log)."},
+                    "point_size_px": {"type": "integer", "minimum": 1, "maximum": 10, "description": "image: dot size in pixels (default 1)."},
+                    "overlay_ids": {"$use": "ids", "description": "image, density: draw every edge of these entities (any depth) in red over the slice, projected the same way."},
+                    "overlay_clip": {"type": "boolean", "description": "image, density with overlay_ids: draw only the parts of edges inside the box (default false: all of them, projected)."},
+                    "frame": {"$use": "frame"},
+                    "save_path": {"type": "string", "description": "image, density: also keep the PNG here. points: write a .npz here (up to 5,000,000 points)."},
+                    "overwrite": {"type": "boolean"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["action", "min", "max"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_fit",
+            "title": "Point Cloud Fit",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_fit",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays"],
+            "description": "Fit a shape to the points of a point cloud inside a box, so you read its numbers instead of guessing them from a histogram (Na Point Cloud Viewer 0.14.2; the rules below from 0.14.5). shape: plane (normal, pointing up, or for a wall within about 1 degree of plumb its larger horizontal part positive; a point, offset, slope_deg from level, azimuth_deg of the normal: the way the plane falls, or the way a wall faces; its extent; orientation horizontal for a floor or tread, when offset is the level, vertical for a wall, riser or post face, or any); line (direction uphill, so start is the low end, end, length, slope_deg above level, azimuth_deg the way it rises: a rail, an edge, a kerb); circle (seen along axis x, y or z: centre, radius, the arc the points cover: a bullnose step or a round post in plan, a pipe in section; max_radius, default the box's larger side, stops a straight piece passing for a huge circle; when the points settle on two different circles, a curve that is not one arc, a warning gives both); cylinder (a circle along axis plus from, to and length); box (seen along axis: width, depth, rotation_deg, centre, from, to, corners, with trim percent, default 1, taken off each side, its rms and p95 each point's distance from the sides: a post, a newel, a pier). The fit is robust (RANSAC on an even sample of the box, then least squares on the points within tolerance, default 10 mm, until they stop changing), extents run the full length (the 1st to 99th percentiles widened by what they trim), and every answer reports rms, p95 and inlier_share, with warnings when few points fit. For a small round thing set tolerance to the scan's noise (2 to 3 mm). Results are only as good as the box: look first with point_cloud_slice density, box one thing tightly, and where an arc runs into a straight piece at a tangent end the box where the curve ends. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "shape": {"type": "string", "enum": ["plane", "line", "circle", "cylinder", "box"]},
+                    "cloud": {"type": "string", "description": "The cloud (id or name); default the only loaded cloud on show."},
+                    "min": {"$use": "point", "description": "The box's low corner [x, y, z], model axes."},
+                    "max": {"$use": "point", "description": "The box's high corner [x, y, z], model axes."},
+                    "tolerance": {"type": "number", "minimum": 0, "description": "How far a point may sit from the shape and still count (default 10 mm)."},
+                    "orientation": {"type": "string", "enum": ["any", "horizontal", "vertical"], "description": "plane: held level (horizontal) or upright (vertical); default any."},
+                    "axis": {"type": "string", "enum": ["x", "y", "z"], "description": "circle, cylinder, box: the axis it is seen along (default z)."},
+                    "max_radius": {"type": "number", "minimum": 0, "description": "circle, cylinder: the largest radius allowed (default the box's larger side across the axis)."},
+                    "trim": {"type": "number", "minimum": 0, "maximum": 20, "description": "box: percent of points taken off each side before measuring (default 1)."},
+                    "sample": {"type": "integer", "minimum": 100, "maximum": 200000, "description": "How many points of the box to fit (default 20,000, an even sample)."},
+                    "units": {"$use": "units"}
+                },
+                "required": ["shape", "min", "max"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_check",
+            "title": "Point Cloud Check",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_check",
+            "mutates": false,
+            "timeout_s": 180,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays", "Sketchup::Face#mesh", "Geom::PolygonMesh#polygons"],
+            "description": "Check a built model against the point cloud: how far the scan sits from every face shown in the groups, components or faces in ids (Na Point Cloud Viewer 0.14.3; hidden groups, faces and tags inside them are left out from MCP 1.0.17). An even sample of the cloud in the box round them (their world bounds grown by margin, default 100 mm, or min and max) is measured to the nearest face within reach (default 50 mm); farther points belong to other things and count as away. Returns overall rms, mean, p50, p95, max and within_share (the share within tolerance, default 10 mm); the same for each part (each group or component shown directly inside an id, the worst first); the worst spots (where points beyond tolerance gather); and warnings when few points reach the model or it sits offset as a whole. Sign: positive means the scan lies outside the faces (the model is too small there), negative inside (the model is proud). With view (top, front, back, left, right) and resolution, a heatmap of the sample: green within tolerance, red outside, blue inside, pale grey away, with the model's edges; grid and point_size_px as for point_cloud_slice; save_path keeps it. sample: points measured (default 20,000, up to 100,000). Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids", "description": "The model to check: groups, components or faces, at any depth."},
+                    "cloud": {"type": "string", "description": "The cloud (id or name); default the only loaded cloud on show."},
+                    "margin": {"type": "number", "minimum": 0, "description": "How far the box reaches past the model's bounds (default 100 mm)."},
+                    "min": {"$use": "point", "description": "Instead of margin: the box's low corner [x, y, z]."},
+                    "max": {"$use": "point", "description": "Instead of margin: the box's high corner [x, y, z]."},
+                    "tolerance": {"type": "number", "minimum": 0, "description": "A point this close to a face counts as on it (default 10 mm)."},
+                    "reach": {"type": "number", "minimum": 0, "description": "Points farther than this from every face are away (default 50 mm)."},
+                    "sample": {"type": "integer", "minimum": 100, "maximum": 100000, "description": "How many points of the box to measure (default 20,000, an even sample)."},
+                    "view": {"type": "string", "enum": ["top", "front", "back", "left", "right"], "description": "A heatmap looking this way."},
+                    "resolution": {"type": "number", "minimum": 0, "description": "Heatmap: model length per pixel, e.g. 5 (mm)."},
+                    "grid": {"type": "number", "minimum": 0, "description": "Heatmap: a grid line every this length (default none)."},
+                    "point_size_px": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Heatmap: dot size (default 2)."},
+                    "save_path": {"type": "string", "description": "Heatmap: also keep the PNG here."},
+                    "overwrite": {"type": "boolean"},
+                    "units": {"$use": "units"}
+                },
+                "required": ["ids"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_heightmap",
+            "title": "Point Cloud Heightmap",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_heightmap",
+            "mutates": false,
+            "timeout_s": 180,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#overlays"],
+            "description": "Heights from the point cloud, per cell of a grid or along a path (Na Point Cloud Viewer 0.14.4). An even sample of the points (sample, default 1,000,000, about 2 s; up to 5,000,000) gives each cell or station the stats asked for: min, max, mean, median or p<percent> (default p2, p50, p98). A percentile is the value at rank floor(q x (n - 1)), so p2 finds the ground under grass and p98 the tops of walls, kerbs and rails. view (default top: z for each x, y cell; front, back, left or right: how far a wall stands out along y or x; in every view a cell's values are ranked by nearness to the viewer, so max and p98 are the surface seen). action grid (default): the box min, max in cells resolution wide (default 50 mm). Returns each statistic's range, the best plane's slope (percent, 1 in N, the way it falls and, from the top, its azimuth: degrees anticlockwise from +x), the cell mapping, the values of show (default p50) inline up to 2,500 cells, and a picture: show from blue (low) to red (high), shaded, contours every contour (default picked; 0 none), white where empty, overlay_ids' edges in magenta (overlay_clip as for point_cloud_slice). save_path: a .npz in pc_terrain.py's rasters.npz layout (x0, y1, res, W, H, count, z02, z50, z98 ..., model mm, NaN where empty; colours adds rgb_top and rgb_low), or from the top an .asc ESRI grid of show. action profile: path (2 to 50 points; from the top z is ignored), a corridor width wide (default 100 mm), stations step long (default 50 mm). Returns show's start, end and rise, its least-squares slope, the steepest metre, a table of stations (chainage, position, count, stats) up to 1,000, and a picture: chainage across, height up (exaggeration picked to show falls, or given), the corridor's points grey, each statistic a line. min and max, if given, trim the corridor (e.g. under a tree). save_path: .csv or .npz. frame (viewer 0.14.6) turns the box, view and path to any angle (a roof slope, a wall off the model axes). image_path keeps the picture. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["grid", "profile"], "description": "grid (default): heights per cell in the box; profile: heights along path."},
+                    "cloud": {"type": "string", "description": "The cloud (id or name); default the only loaded cloud on show."},
+                    "min": {"$use": "point", "description": "grid: the box's low corner (required). profile: trims the corridor."},
+                    "max": {"$use": "point", "description": "grid: the box's high corner (required). profile: trims the corridor."},
+                    "view": {"type": "string", "enum": ["top", "front", "back", "left", "right"], "description": "The way it looks (default top); heights run along it."},
+                    "resolution": {"type": "number", "minimum": 0, "description": "grid: cell size (default 50 mm)."},
+                    "stats": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 8, "description": "Per cell or station: min, max, mean, median or p<percent> (default [\"p2\", \"p50\", \"p98\"])."},
+                    "show": {"type": "string", "description": "The statistic the picture and an .asc show (default p50 if asked for, else the first)."},
+                    "contour": {"type": "number", "minimum": 0, "description": "grid: a contour line every this length (default picked from the range; 0 none)."},
+                    "colours": {"type": "boolean", "description": "grid, .npz: also rgb_top and rgb_low, the mean colour of each cell's highest tenth and lowest quarter."},
+                    "path": {"$use": "points", "description": "profile: 2 to 50 points [x, y, z] along the line to read; from the top z is ignored."},
+                    "width": {"type": "number", "minimum": 0, "description": "profile: the corridor's width (default 100 mm)."},
+                    "step": {"type": "number", "minimum": 0, "description": "profile: station length (default 50 mm)."},
+                    "exaggeration": {"type": "number", "minimum": 0.1, "maximum": 100, "description": "profile: the picture's vertical exaggeration (default picked to show falls)."},
+                    "sample": {"type": "integer", "minimum": 1000, "maximum": 5000000, "description": "Points read (default 1,000,000, an even sample)."},
+                    "overlay_ids": {"$use": "ids", "description": "grid: draw every edge of these entities in magenta over the picture."},
+                    "overlay_clip": {"type": "boolean", "description": "grid with overlay_ids: only the parts of edges inside the box (default false)."},
+                    "frame": {"$use": "frame"},
+                    "save_path": {"type": "string", "description": "grid: .npz (pc_terrain.py's rasters.npz layout) or .asc (from the top). profile: .csv or .npz. Model mm."},
+                    "image_path": {"type": "string", "description": "Also keep the picture here (.png)."},
+                    "overwrite": {"type": "boolean"},
+                    "units": {"$use": "units"}
+                },
                 "additionalProperties": false
             }
         },

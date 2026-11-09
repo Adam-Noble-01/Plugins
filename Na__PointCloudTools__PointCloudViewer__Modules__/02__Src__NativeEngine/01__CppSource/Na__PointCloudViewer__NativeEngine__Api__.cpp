@@ -29,7 +29,9 @@
 #include "Na__PointCloudViewer__NativeEngine__ThreadPool__.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -297,6 +299,212 @@ NAPC_API int32_t napc_box_count(void* cloud_handle, const double* boxes, int32_t
         return Na__Fail("Not enough memory to count the points.", -4);
     } catch (...) {
         return Na__Fail("Counting the points failed unexpectedly.", -5);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// REGION | What is inside a box (ABI 9): the points, and points per grid cell
+// -----------------------------------------------------------------------------
+
+// Both use the box filter's own Verdict(), so a box here keeps exactly what
+// napc_box_count counts, and both run on the render pool under the render
+// mutex. Workers never allocate and never throw: every buffer is made first.
+
+namespace {
+
+    double Na__MsSinceStart(std::chrono::steady_clock::time_point start) {
+        return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    }
+
+    // [begin, end) of one worker's slice of `count` points.
+    void Na__Slice(int64_t count, unsigned worker, unsigned total, int64_t& begin, int64_t& end) {
+        const int64_t chunk = (count + total - 1) / total;
+        begin = std::min<int64_t>(count, chunk * worker);
+        end   = std::min<int64_t>(count, begin + chunk);
+    }
+
+    void Na__WriteStats(double* stats, int32_t stat_count, double kept, double written, double max_cell, double ms) {
+        if (!stats || stat_count < NAPC_BS_COUNT) return;
+        stats[NAPC_BS_KEPT]     = kept;
+        stats[NAPC_BS_WRITTEN]  = written;
+        stats[NAPC_BS_MAX_CELL] = max_cell;
+        stats[NAPC_BS_MS]       = ms;
+    }
+
+} // namespace
+
+// Pass 1 counts what each worker's slice keeps; slices are then given their
+// share of `cap` in stored order, so pass 2 copies exactly the FIRST cap kept
+// points (an even sample: the store is shuffled) and stops early. No index
+// list is ever held, so memory stays at the output buffers.
+NAPC_API int64_t napc_box_points(void* cloud_handle, const double* boxes, int32_t box_count, double scale,
+                                 double* out_xyz, uint32_t* out_bgra, int64_t cap,
+                                 double* stats, int32_t stat_count) {
+    const Na__PointCloud* cloud = static_cast<const Na__PointCloud*>(cloud_handle);
+    if (!cloud || !cloud->points) return Na__Fail("No point cloud is loaded in the native engine.", -1);
+    if (!boxes || box_count < NAPC_BOXES_COUNT || cap < 0 || (cap > 0 && !out_xyz)) return Na__Fail("The point request is missing arguments.", -2);
+    if (!(std::isfinite(scale) && scale > 0.0)) return Na__Fail("The point scale must be a positive number.", -2);
+    Na__BoxFilter filter;
+    if (!Na__BoxFilter__Read(boxes, boxes + 12, filter)) return Na__Fail("A box is not a valid box.", -3);
+    std::lock_guard<std::mutex> lock(g_render_mutex);
+    try {
+        const auto started = std::chrono::steady_clock::now();
+        const Na__CloudPoints& points = *cloud->points;
+        const int64_t count = points.count;
+        const float* xyz = points.xyz.data();
+        const uint32_t* bgra = points.bgra.size() == static_cast<size_t>(count) ? points.bgra.data() : nullptr;
+        const bool active = filter.Active();
+        Na__ThreadPool& pool = Na__Pool();
+        const unsigned workers = pool.Size();
+        std::vector<int64_t> kept(workers, 0), quota(workers, 0), offset(workers, 0);
+        pool.Run([&](unsigned worker, unsigned total) {
+            int64_t begin = 0, end = 0;
+            Na__Slice(count, worker, total, begin, end);
+            int64_t k = 0;
+            if (!active) {
+                k = end - begin;
+            } else {
+                for (int64_t i = begin; i < end; ++i) {
+                    if (filter.Verdict(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]) == NA_BOX_KEPT) ++k;
+                }
+            }
+            kept[worker] = k;
+        });
+        int64_t all_kept = 0, left = cap, at = 0;
+        for (unsigned w = 0; w < workers; ++w) {
+            all_kept += kept[w];
+            quota[w] = std::min<int64_t>(kept[w], left);
+            offset[w] = at;
+            at += quota[w];
+            left -= quota[w];
+        }
+        const int64_t written = at;
+        if (written > 0) {
+            const double* m = filter.m;
+            const double* t = filter.t;
+            pool.Run([&](unsigned worker, unsigned total) {
+                int64_t want = quota[worker];
+                if (want <= 0) return;
+                int64_t begin = 0, end = 0;
+                Na__Slice(count, worker, total, begin, end);
+                int64_t o = offset[worker];
+                for (int64_t i = begin; i < end && want > 0; ++i) {
+                    const float lx = xyz[i * 3], ly = xyz[i * 3 + 1], lz = xyz[i * 3 + 2];
+                    if (active && filter.Verdict(lx, ly, lz) != NA_BOX_KEPT) continue;
+                    const double x = lx, y = ly, z = lz;
+                    out_xyz[o * 3]     = (m[0] * x + m[1] * y + m[2] * z + t[0]) * scale;
+                    out_xyz[o * 3 + 1] = (m[3] * x + m[4] * y + m[5] * z + t[1]) * scale;
+                    out_xyz[o * 3 + 2] = (m[6] * x + m[7] * y + m[8] * z + t[2]) * scale;
+                    if (out_bgra) out_bgra[o] = bgra ? bgra[i] : 0xFF000000u;
+                    ++o;
+                    --want;
+                }
+            });
+        }
+        Na__WriteStats(stats, stat_count, static_cast<double>(all_kept), static_cast<double>(written), 0.0, Na__MsSinceStart(started));
+        return written;
+    } catch (const std::bad_alloc&) {
+        return Na__Fail("Not enough memory to read the points.", -4);
+    } catch (...) {
+        return Na__Fail("Reading the points failed unexpectedly.", -5);
+    }
+}
+
+// u . p and v . p are taken straight from the stored (local) coordinates:
+// u . (M x + t) = (M^T u) . x + u . t, in double precision. A small grid (a
+// histogram, a thin strip) gets one count array per worker, summed after; a
+// large one (an image) is shared through relaxed atomic increments, so memory
+// never grows with the number of threads.
+NAPC_API int32_t napc_box_grid(void* cloud_handle, const double* boxes, int32_t box_count,
+                               const double* grid, int32_t grid_count, uint32_t* out_counts, int64_t cap,
+                               double* stats, int32_t stat_count) {
+    const Na__PointCloud* cloud = static_cast<const Na__PointCloud*>(cloud_handle);
+    if (!cloud || !cloud->points) return Na__Fail("No point cloud is loaded in the native engine.", -1);
+    if (!boxes || box_count < NAPC_BOXES_COUNT || !grid || grid_count < NAPC_G_COUNT || !out_counts) {
+        return Na__Fail("The grid request is missing arguments.", -2);
+    }
+    for (int k = 0; k < NAPC_G_COUNT; ++k) {
+        if (!std::isfinite(grid[k])) return Na__Fail("A grid number is not a number.", -2);
+    }
+    const double su = grid[NAPC_G_SU], sv = grid[NAPC_G_SV];
+    const double w_in = grid[NAPC_G_WIDTH], h_in = grid[NAPC_G_HEIGHT];
+    if (!(su > 0.0 && sv > 0.0)) return Na__Fail("A grid cell must have a positive size.", -2);
+    if (!(w_in >= 1.0 && h_in >= 1.0 && w_in <= 1.0e6 && h_in <= 1.0e6)) return Na__Fail("A grid must be 1 to 1,000,000 cells each way.", -2);
+    const int64_t width = static_cast<int64_t>(w_in), height = static_cast<int64_t>(h_in);
+    const int64_t cells = width * height;
+    if (cells > cap || cells > 200000000LL) return Na__Fail("The grid has more cells than the output can hold.", -2);
+    Na__BoxFilter filter;
+    if (!Na__BoxFilter__Read(boxes, boxes + 12, filter)) return Na__Fail("A box is not a valid box.", -3);
+    std::lock_guard<std::mutex> lock(g_render_mutex);
+    try {
+        const auto started = std::chrono::steady_clock::now();
+        const Na__CloudPoints& points = *cloud->points;
+        const int64_t count = points.count;
+        const float* xyz = points.xyz.data();
+        const bool active = filter.Active();
+        const double* m = filter.m;
+        const double* t = filter.t;
+        const double u[3] = { grid[NAPC_G_UX], grid[NAPC_G_UY], grid[NAPC_G_UZ] };
+        const double v[3] = { grid[NAPC_G_VX], grid[NAPC_G_VY], grid[NAPC_G_VZ] };
+        // M^T u and M^T v (M row-major), then the translation's part.
+        const double au[3] = { m[0] * u[0] + m[3] * u[1] + m[6] * u[2], m[1] * u[0] + m[4] * u[1] + m[7] * u[2],
+                               m[2] * u[0] + m[5] * u[1] + m[8] * u[2] };
+        const double av[3] = { m[0] * v[0] + m[3] * v[1] + m[6] * v[2], m[1] * v[0] + m[4] * v[1] + m[7] * v[2],
+                               m[2] * v[0] + m[5] * v[1] + m[8] * v[2] };
+        const double bu = u[0] * t[0] + u[1] * t[1] + u[2] * t[2] - grid[NAPC_G_U0];
+        const double bv = grid[NAPC_G_V1] - (v[0] * t[0] + v[1] * t[1] + v[2] * t[2]);
+        const double wd = static_cast<double>(width), hd = static_cast<double>(height);
+        Na__ThreadPool& pool = Na__Pool();
+        const unsigned workers = pool.Size();
+        std::vector<int64_t> kept(workers, 0), landed(workers, 0);
+        const bool per_worker = cells * static_cast<int64_t>(workers) <= 4000000LL;
+        std::vector<uint32_t> partial(per_worker ? static_cast<size_t>(cells * workers) : 0, 0u);
+        std::unique_ptr<std::atomic<uint32_t>[]> shared;
+        if (!per_worker) {
+            shared.reset(new std::atomic<uint32_t>[static_cast<size_t>(cells)]);
+            for (int64_t c = 0; c < cells; ++c) shared[c].store(0u, std::memory_order_relaxed);
+        }
+        pool.Run([&](unsigned worker, unsigned total) {
+            int64_t begin = 0, end = 0;
+            Na__Slice(count, worker, total, begin, end);
+            uint32_t* mine = per_worker ? partial.data() + static_cast<size_t>(cells) * worker : nullptr;
+            int64_t k = 0, l = 0;
+            for (int64_t i = begin; i < end; ++i) {
+                const float lx = xyz[i * 3], ly = xyz[i * 3 + 1], lz = xyz[i * 3 + 2];
+                if (active && filter.Verdict(lx, ly, lz) != NA_BOX_KEPT) continue;
+                ++k;
+                const double x = lx, y = ly, z = lz;
+                const double cf = (au[0] * x + au[1] * y + au[2] * z + bu) / su;
+                const double rf = (bv - (av[0] * x + av[1] * y + av[2] * z)) / sv;
+                if (!(cf >= 0.0 && cf < wd && rf >= 0.0 && rf < hd)) continue;
+                const int64_t cell = static_cast<int64_t>(rf) * width + static_cast<int64_t>(cf);
+                if (mine) ++mine[cell];
+                else shared[cell].fetch_add(1u, std::memory_order_relaxed);
+                ++l;
+            }
+            kept[worker] = k;
+            landed[worker] = l;
+        });
+        int64_t all_kept = 0, all_landed = 0;
+        for (unsigned w = 0; w < workers; ++w) { all_kept += kept[w]; all_landed += landed[w]; }
+        uint32_t most = 0;
+        for (int64_t c = 0; c < cells; ++c) {
+            uint32_t sum = 0;
+            if (per_worker) {
+                for (unsigned w = 0; w < workers; ++w) sum += partial[static_cast<size_t>(cells) * w + c];
+            } else {
+                sum = shared[c].load(std::memory_order_relaxed);
+            }
+            out_counts[c] = sum;
+            most = std::max(most, sum);
+        }
+        Na__WriteStats(stats, stat_count, static_cast<double>(all_kept), static_cast<double>(all_landed),
+                       static_cast<double>(most), Na__MsSinceStart(started));
+        return 0;
+    } catch (const std::bad_alloc&) {
+        return Na__Fail("Not enough memory for the grid.", -4);
+    } catch (...) {
+        return Na__Fail("Counting the grid failed unexpectedly.", -5);
     }
 }
 

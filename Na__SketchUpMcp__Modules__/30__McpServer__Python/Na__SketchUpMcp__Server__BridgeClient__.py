@@ -31,6 +31,7 @@
 #
 # =============================================================================
 
+import collections
 import ctypes
 import glob
 import json
@@ -137,7 +138,7 @@ class Na__BridgeClient:
 
     def Na__BridgeClient__Instances(self, clean_stale=True):
         """Every connection file, newest first, each marked live or not."""
-        instances = []
+        found = []
         for path in glob.glob(os.path.join(self.na_connections_dir, 'Na__SketchUpMcp__Connection__*.json')):
             try:
                 with open(path, encoding='utf-8') as handle:
@@ -146,14 +147,27 @@ class Na__BridgeClient:
                 continue
             data['file'] = path
             data['live'] = na_port_open(data.get('host', '127.0.0.1'), data.get('port', 0))
-            if not data['live'] and clean_stale and not na_pid_running(data.get('pid')):
-                self.na_log('Removing stale connection file for pid %s' % data.get('pid'))
+            found.append(data)
+
+        # A closed window's file can name a port another window has taken since (1.0.18: five closed
+        # windows listed live on 8385). Where files share a port, a file whose process is gone is live
+        # only if the bridge answering on that port is that process.
+        claims = collections.Counter((item.get('host', '127.0.0.1'), item.get('port')) for item in found if item['live'])
+        for item in found:
+            shared = claims[(item.get('host', '127.0.0.1'), item.get('port'))] > 1
+            if item['live'] and shared and item.get('pid') is not None and not na_pid_running(item.get('pid')):
+                item['live'] = self.na_answering_pid(item) == item.get('pid')
+
+        instances = []
+        for item in found:
+            if not item['live'] and clean_stale and not na_pid_running(item.get('pid')):
+                self.na_log('Removing stale connection file for pid %s' % item.get('pid'))
                 try:
-                    os.remove(path)
+                    os.remove(item['file'])
                 except OSError:
                     pass
                 continue
-            instances.append(data)
+            instances.append(item)
         instances.sort(key=lambda item: item.get('started_at', ''), reverse=True)
         return instances
 
@@ -176,6 +190,16 @@ class Na__BridgeClient:
         if isinstance(result, dict) and 'model_title' in result:
             item['model_title'] = result.get('model_title')
             item['model_path'] = result.get('model_path', item.get('model_path'))
+
+    def na_answering_pid(self, item):
+        """The pid of the bridge answering on a connection file's port, with that file's token; None if it does not answer."""
+        payload = {'id': uuid.uuid4().hex, 'token': item.get('token', ''), 'command': 'ping', 'params': {}}
+        try:
+            response = self.na_round_trip(item, payload, NA_MODEL_READ_TIMEOUT_S)
+        except (Na__BridgeError, OSError, KeyError):
+            return None
+        result = response.get('result') if response.get('ok') else None
+        return result.get('pid') if isinstance(result, dict) else None
 
     def Na__BridgeClient__Select(self, pid):
         with self.na_lock:

@@ -1,0 +1,231 @@
+# Unit tests for the seam's shape fitting (Na__PointCloudViewer__McpOperations__Fit__.rb),
+# run with SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# Every shape is made from known numbers with seeded noise and seeded outliers,
+# in inches as the seam passes them, and the fit is checked against them.
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+load File.expand_path('../Na__PointCloudViewer__McpOperations__Fit__.rb', __dir__)
+FIT = Na__PointCloudViewer::Na__McpFit
+MM = 25.4
+RNG = Random.new(7)
+
+def noise(size)
+    (RNG.rand - 0.5) * 2.0 * size
+end
+
+def angle_between(a, b)
+    dot = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]).abs
+    Math.acos([dot, 1.0].min) * 180.0 / Math::PI
+end
+
+def unit(v)
+    length = Math.sqrt(v.sum { |x| x * x })
+    v.map { |x| x / length }
+end
+
+def outliers(count, low, high)
+    Array.new(count) { (0..2).map { |i| low[i] + RNG.rand * (high[i] - low[i]) } }
+end
+
+# --- the maths underneath -----------------------------------------------------------------
+
+check('eigen: a rotated diagonal matrix gives back its values and axes') do
+    c = Math.cos(0.4)
+    s = Math.sin(0.4)
+    r = [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]
+    d = [1.0, 4.0, 9.0]
+    m = (0..2).map { |i| (0..2).map { |j| (0..2).sum { |k| r[i][k] * d[k] * r[j][k] } } }
+    values, vectors = FIT.na_eigen(m)
+    values.zip([1.0, 4.0, 9.0]).all? { |a, b| (a - b).abs < 1e-9 } && angle_between(vectors[0], [c, s, 0.0]) < 1e-6 &&
+        angle_between(vectors[2], [0.0, 0.0, 1.0]) < 1e-6
+end
+
+check('circle through three points') do
+    cx, cy, r = FIT.na_circle_through([1.0, 0.0], [0.0, 1.0], [-1.0, 0.0])
+    cx.abs < 1e-12 && cy.abs < 1e-12 && (r - 1.0).abs < 1e-12 && FIT.na_circle_through([0, 0], [1, 1], [2, 2]).nil?
+end
+
+check('arc: the widest gap is left out') do
+    arc = FIT.na_arc([350.0, 10.0, 30.0, 80.0])
+    (arc['start_deg'] - 350.0).abs < 1e-9 && (arc['end_deg'] - 80.0).abs < 1e-9 && (arc['span_deg'] - 90.0).abs < 1e-9
+end
+
+# --- plane ----------------------------------------------------------------------------------
+
+check('plane, any: a tilted plane through 40% outliers, normal within 0.3 degrees, offset within 0.5 mm') do
+    normal = unit([0.2, -0.3, 0.93])
+    seed = [0.3, 0.2, 0.0]
+    along = normal.zip(seed).sum { |x, y| x * y }
+    a = unit((0..2).map { |i| seed[i] - normal[i] * along })                  # in the plane
+    b = [normal[1] * a[2] - normal[2] * a[1], normal[2] * a[0] - normal[0] * a[2], normal[0] * a[1] - normal[1] * a[0]]
+    base = normal.map { |x| x * 50.0 }
+    on = Array.new(3000) do
+        s = RNG.rand * 100 - 50
+        t = RNG.rand * 60 - 30
+        e = noise(0.15)
+        (0..2).map { |i| base[i] + a[i] * s + b[i] * t + normal[i] * e }
+    end
+    fit = FIT.Na__Fit__Plane(on + outliers(2000, [-80, -80, -30], [80, 80, 130]), 0.3, 'any')
+    angle_between(fit['normal'], normal) < 0.3 && (fit['offset'] - 50.0).abs < 0.5 / MM &&
+        fit['inliers'] >= 3000 && fit['rms'] < 0.12 && (fit['slope_deg'] - Math.acos(normal[2]) * 180 / Math::PI).abs < 0.3
+end
+
+check('plane, horizontal: a tread at z 10 beside its riser, level within 0.02') do
+    tread = Array.new(2000) { [RNG.rand * 40, RNG.rand * 9, 10.0 + noise(0.2)] }
+    riser = Array.new(1500) { [RNG.rand * 40, 9.0 + noise(0.2), 2.5 + RNG.rand * 7.5] }
+    fit = FIT.Na__Fit__Plane(tread + riser, 0.3, 'horizontal')
+    fit['normal'] == [0.0, 0.0, 1.0] && (fit['offset'] - 10.0).abs < 0.02 && fit['slope_deg'].abs < 1e-9 && fit['inliers'].between?(1990, 2100)
+end
+
+check('plane, vertical: a wall at 30 degrees, normal level, azimuth within 0.2 degrees') do
+    dir = [Math.cos(Math::PI / 6), Math.sin(Math::PI / 6), 0.0]
+    normal = [-dir[1], dir[0], 0.0]
+    wall = Array.new(2500) { s = RNG.rand * 120; h = RNG.rand * 100; e = noise(0.2); [dir[0] * s + normal[0] * (20 + e), dir[1] * s + normal[1] * (20 + e), h] }
+    floor = Array.new(1500) { [RNG.rand * 100 - 20, RNG.rand * 80, noise(0.2)] }
+    fit = FIT.Na__Fit__Plane(wall + floor, 0.4, 'vertical')
+    fit['normal'][2] == 0.0 && angle_between(fit['normal'], normal) < 0.2 && (fit['offset'].abs - 20.0).abs < 0.05 &&
+        (fit['slope_deg'] - 90.0).abs < 1e-6
+end
+
+check('plane: the same points give the same answer twice') do
+    points = Array.new(500) { [RNG.rand * 10, RNG.rand * 10, noise(0.1)] }
+    FIT.Na__Fit__Plane(points, 0.2) == FIT.Na__Fit__Plane(points, 0.2)
+end
+
+check('plane: two points are refused') do
+    begin
+        FIT.Na__Fit__Plane([[0, 0, 0], [1, 1, 1]], 0.1)
+        false
+    rescue ArgumentError
+        true
+    end
+end
+
+# --- line -------------------------------------------------------------------------------------
+
+check('line: a rail rising at 42 degrees through outliers, direction within 0.3 degrees, length within 1 in') do
+    dir = unit([0.0, 1.0, 0.9])
+    rail = Array.new(1500) { s = RNG.rand * 120; [5.0 + noise(0.1), 3.0 + dir[1] * s + noise(0.1), 30.0 + dir[2] * s + noise(0.1)] }
+    fit = FIT.Na__Fit__Line(rail + outliers(1000, [0, 0, 0], [10, 100, 120]), 0.3)
+    angle_between(fit['direction'], dir) < 0.3 && (fit['slope_deg'] - Math.atan(0.9) * 180 / Math::PI).abs < 0.3 &&
+        (fit['length'] - 120.0).abs < 1.0 && fit['direction'][2] > 0 && fit['rms'] < 0.12   # 0.14.5: the true length, not 2% short
+end
+
+# --- circle and cylinder ------------------------------------------------------------------------
+
+check('circle along z: a 90 degree bullnose of 145 mm meeting its riser at a tangent, within 1.5 mm') do
+    r = 145 / MM
+    cx = 16_530 / MM
+    cy = 12_270 / MM
+    arc = Array.new(1200) { a = (180 + RNG.rand * 90) * Math::PI / 180; d = r + noise(2 / MM); [cx + d * Math.cos(a), cy + d * Math.sin(a), 8.0 + RNG.rand * 0.3] }
+    riser = Array.new(800) { [cx + RNG.rand * 40, cy - r + noise(2 / MM), 8.0 + RNG.rand * 0.3] }
+    fit = FIT.Na__Fit__Circle(arc + riser, 4 / MM, 'z', 30.0)
+    # The riser's points near the tangent sit within the tolerance of the circle too, and pull it about 1 mm.
+    (fit['centre'][0] - cx).abs * MM < 1.5 && (fit['centre'][1] - cy).abs * MM < 1.5 && (fit['radius'] - r).abs * MM < 1.5 &&
+        (fit['arc']['span_deg'] - 90.0).abs < 20.0 && fit['axis'] == 'z' && fit['rms'] * MM < 1.5
+end
+
+check('circle: a wall alone cannot pass for a huge circle when max_radius holds it') do
+    wall = Array.new(500) { [RNG.rand * 100, noise(0.05), 0.0] }
+    begin
+        fit = FIT.Na__Fit__Circle(wall, 0.1, 'z', 5.0)
+        fit['inliers'] < 100
+    rescue ArgumentError
+        true
+    end
+end
+
+check('cylinder along x: a pipe, radius and length') do
+    pipe = Array.new(2000) { a = RNG.rand * 2 * Math::PI; [RNG.rand * 50, 4.0 + 1.5 * Math.cos(a) + noise(0.02), 9.0 + 1.5 * Math.sin(a) + noise(0.02)] }
+    fit = FIT.Na__Fit__Circle(pipe, 0.06, 'x', 20.0, true)
+    (fit['radius'] - 1.5).abs < 0.01 && (fit['centre'][1] - 4.0).abs < 0.01 && (fit['centre'][2] - 9.0).abs < 0.01 &&
+        fit['length'].between?(48.5, 50.0) && (fit['arc']['span_deg'] - 360.0).abs < 2.0
+end
+
+# --- box --------------------------------------------------------------------------------------
+
+check('box along z: a 90 mm newel turned 20 degrees, size within 2 mm, turn within 0.5 degrees') do
+    half = 45 / MM
+    turn = 20 * Math::PI / 180
+    faces = Array.new(4000) do
+        side = RNG.rand(4)
+        t = (RNG.rand * 2 - 1) * half
+        a, b = [[half, t], [-half, t], [t, half], [t, -half]][side]
+        a += noise(1 / MM)
+        b += noise(1 / MM)
+        [600 + a * Math.cos(turn) - b * Math.sin(turn), 480 + a * Math.sin(turn) + b * Math.cos(turn), RNG.rand * 40]
+    end
+    fit = FIT.Na__Fit__Box(faces, 'z', 1.0)
+    (fit['width'] * MM - 90).abs < 2 && (fit['depth'] * MM - 90).abs < 2 && (fit['rotation_deg'] - 20.0).abs < 0.5 &&
+        (fit['centre'][0] - 600).abs < 0.05 && (fit['centre'][1] - 480).abs < 0.05 && fit['height'].between?(38.5, 40.0) &&
+        fit['corners'].length == 4
+end
+
+check('box along y: a 100 x 50 timber seen along y, scanned on its four faces') do
+    timber = Array.new(3000) do
+        a, b = [[RNG.rand * 100, 0], [RNG.rand * 100, 50], [0, RNG.rand * 50], [100, RNG.rand * 50]][RNG.rand(4)]
+        [10 + (a + noise(1)) / MM, RNG.rand * 30, 20 + (b + noise(1)) / MM]
+    end
+    fit = FIT.Na__Fit__Box(timber, 'y', 0.5)
+    sizes = [fit['width'], fit['depth']].map { |x| x * MM }.sort
+    (sizes[0] - 50).abs < 2 && (sizes[1] - 100).abs < 2 && (fit['rotation_deg'] % 90 < 1.0 || fit['rotation_deg'] % 90 > 89.0)
+end
+
+# --- found by the 0.14.5 review --------------------------------------------------------------
+
+check('circle: a 25 mm baluster with the default 10 mm tolerance is 12.5 mm in radius, not the 20 mm floor') do
+    r = 12.5 / MM
+    ring = Array.new(800) { a = RNG.rand * 2 * Math::PI; d = r + noise(1 / MM); [100 + d * Math.cos(a), 50 + d * Math.sin(a), RNG.rand * 30] }
+    fit = FIT.Na__Fit__Circle(ring, 10 / MM, 'z', 60 / MM)
+    (fit['radius'] * MM - 12.5).abs < 1.0 && (fit['centre'][0] - 100).abs < 0.04 && (fit['centre'][1] - 50).abs < 0.04
+end
+
+check('extents: a 3000 mm rail and a 2000 mm cylinder come out full length (not 2% short)') do
+    rail = Array.new(2000) { s = RNG.rand * 3000 / MM; [s, 10.0 + noise(0.05), 30.0 + noise(0.05)] }
+    pipe = Array.new(2000) { a = RNG.rand * 2 * Math::PI; [5 + 2 * Math.cos(a), 5 + 2 * Math.sin(a), RNG.rand * 2000 / MM] }
+    line = FIT.Na__Fit__Line(rail, 0.2)
+    cylinder = FIT.Na__Fit__Circle(pipe, 0.1, 'z', 10.0, true)
+    # The ends of 2,000 even points wander about 6 mm (one sd); the old bias was 60 and 40 mm short.
+    (line['length'] * MM - 3000).abs < 25 && (cylinder['length'] * MM - 2000).abs < 20
+end
+
+check('directions: a line runs uphill and a plane normal points up at every steepness; azimuths agree') do
+    ramp = Array.new(800) { s = RNG.rand * 100; [-s * Math.cos(5 * Math::PI / 180), 20.0 + noise(0.02), s * Math.sin(5 * Math::PI / 180)] }   # rises toward -x
+    line = FIT.Na__Fit__Line(ramp, 0.2)
+    planes = [30, 70].map do |pitch|
+        t = Math.tan(pitch * Math::PI / 180)
+        pts = Array.new(1500) { x = RNG.rand * 40; [x, RNG.rand * 40, 100 + x * t + noise(0.01)] }   # rises toward +x: falls toward -x
+        FIT.Na__Fit__Plane(pts, 0.1)
+    end
+    line['direction'][2] > 0 && (line['azimuth_deg'].abs - 180).abs < 1 && line['start'][2] < line['end'][2] &&
+        planes.all? { |plane| plane['normal'][2] > 0 && (plane['azimuth_deg'].abs - 180).abs < 1 }
+end
+
+check('box: residuals from the sides, rms about the noise, nearly every point within tolerance') do
+    half = 45 / MM
+    faces = Array.new(3000) do
+        t = (RNG.rand * 2 - 1) * half
+        a, b = [[half, t], [-half, t], [t, half], [t, -half]][RNG.rand(4)]
+        [a + noise(1 / MM), b + noise(1 / MM), RNG.rand * 40]
+    end
+    fit = FIT.Na__Fit__Box(faces, 'z', 1.0, 5 / MM)
+    fit['rms'] * MM < 1.5 && fit['p95'] * MM < 3.0 && fit['inliers'] > 0.97 * faces.length
+end
+
+puts "Point Cloud Viewer shape fitting: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

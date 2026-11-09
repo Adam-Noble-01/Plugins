@@ -35,6 +35,11 @@
 #   grows from 48 to 184 numbers (the boxes and how to show them); a 48-number
 #   block still renders, so every caller is padded here. napc_box_count counts
 #   what the boxes remove; napc_box_export_start writes a NEW LAS without it.
+# ABI 9 (v0.14.0): what is inside a box, for an agent (the Na SketchUp MCP's
+#   point_cloud_slice): napc_box_points (the points the boxes keep, an even
+#   sample) and napc_box_grid (points per cell of a grid: density images and
+#   one-pass histograms). Nothing older changed; a window still running ABI 8
+#   code refuses this build once and keeps the engine it has.
 #
 # A BUILD THIS CODE CANNOT USE (v0.11.0): a DLL on disk with another ABI is
 #   checked BEFORE the running engine is touched. If the running engine is the
@@ -56,12 +61,15 @@ module Na__PointCloudViewer
     # -------------------------------------------------------------------------
 
         NA_DLL_NAME         = 'Na__PointCloudViewer__NativeEngine.dll'.freeze
-        NA_EXPECTED_ABI     = 8
+        NA_EXPECTED_ABI     = 9
         NA_PARAM_COUNT      = 48                                  # a cloud's render block without boxes (the ABI 7 layout)
         NA_MAX_CUT_BOXES    = 20                                  # Api.h NAPC_MAX_CUT_BOXES
         NA_BOX_BLOCK_COUNT  = 8 + 6 * NA_MAX_CUT_BOXES            # 128: keep flag + box, cut count + boxes
         NA_BOXES_COUNT      = 12 + NA_BOX_BLOCK_COUNT             # 140: local -> model, then the box block
         NA_RENDER_PARAM_COUNT = NA_PARAM_COUNT + 8 + NA_BOX_BLOCK_COUNT   # 184: + view mode, removed colour, tint, share
+        NA_GRID_COUNT       = 12                                  # Api.h Na__GridIndex (ABI 9)
+        NA_BOX_STAT_KEYS    = %w[kept written maxCell nativeMs].freeze   # Api.h Na__BoxStatIndex (ABI 9)
+        NA_BOX_STAT_COUNT   = NA_BOX_STAT_KEYS.length
         NA_STAT_COUNT       = 10
         NA_STAT_KEYS        = %w[pointsTested pointsOnScreen threads clearMs rasterMs resolveMs encodeMs writeMs nativeTotalMs pngBytes].freeze
         NA_LAYER_STAT_KEYS  = %w[demand share tested onScreen].freeze
@@ -236,6 +244,8 @@ module Na__PointCloudViewer
                 export_destroy:       fn.('napc_clean_export_destroy', [voidp], void),
                 box_count:            fn.('napc_box_count', [voidp, voidp, int, voidp, int], int),
                 box_export_start:     fn.('napc_box_export_start', [voidp, voidp, voidp, voidp, int, voidp, voidp, voidp], voidp),
+                box_points:           fn.('napc_box_points', [voidp, voidp, int, double, voidp, voidp, int64, voidp, int], int64),
+                box_grid:             fn.('napc_box_grid', [voidp, voidp, int, voidp, int, voidp, int64, voidp, int], int),
                 laz_start:            fn.('napc_laz_convert_start', [voidp, voidp], voidp),
                 laz_poll:             fn.('napc_laz_convert_poll', [voidp, voidp, int], int),
                 laz_error:            fn.('napc_laz_convert_error', [voidp, voidp, int], int),
@@ -641,6 +651,61 @@ module Na__PointCloudViewer
             pointer = Fiddle::Pointer.new(raw.to_i, 0, @na_functions[:export_destroy])
             @na_live_jobs[pointer] = true
             pointer
+        end
+
+        # ABI 9. The first `cap` points the boxes keep, times `scale` (1 = model
+        # inches, 25.4 = millimetres). The store is shuffled, so they are an even
+        # sample of every point in the boxes. Returns { 'kept', 'written',
+        # 'nativeMs', 'xyz' => written * 3 little-endian doubles, packed,
+        # 'bgra' => written little-endian uint32, packed, or nil }.
+        def self.Na__Native__BoxPoints(cloud_pointer, transform, block, cap, scale = 1.0, colours = false)
+            raise self.na_unavailable_error unless @na_functions
+            raise 'The point cloud is not loaded in the native engine.' unless self.Na__Native__CloudLive?(cloud_pointer)
+            cap = Integer(cap)
+            raise 'The number of points must be 0 or more.' if cap < 0
+            packed = self.na_boxes_packed(transform, block)
+            xyz    = Fiddle::Pointer.malloc([cap, 1].max * 24, self.na_ruby_free)
+            bgra   = colours ? Fiddle::Pointer.malloc([cap, 1].max * 4, self.na_ruby_free) : Fiddle::Pointer.new(0)
+            stats  = Fiddle::Pointer.malloc(8 * NA_BOX_STAT_COUNT, self.na_ruby_free)
+            written = @na_functions[:box_points].call(cloud_pointer, Fiddle::Pointer[packed], NA_BOXES_COUNT, scale.to_f,
+                                                      xyz, bgra, cap, stats, NA_BOX_STAT_COUNT)
+            raise "The points could not be read: #{self.na_last_error}" if written < 0
+            result = self.na_box_stats(stats)
+            result['xyz']  = written > 0 ? xyz.to_s(written * 24) : ''.b
+            result['bgra'] = colours ? (written > 0 ? bgra.to_s(written * 4) : ''.b) : nil
+            result
+        end
+
+        # ABI 9. Points per cell of a grid (grid: NA_GRID_COUNT numbers, Api.h
+        # Na__GridIndex). Returns { 'kept', 'written' (on the grid), 'maxCell',
+        # 'nativeMs', 'counts' => width * height little-endian uint32, packed,
+        # row by row from the top }.
+        def self.Na__Native__BoxGrid(cloud_pointer, transform, block, grid)
+            raise self.na_unavailable_error unless @na_functions
+            raise 'The point cloud is not loaded in the native engine.' unless self.Na__Native__CloudLive?(cloud_pointer)
+            raise "A grid has #{NA_GRID_COUNT} numbers." unless grid.length == NA_GRID_COUNT
+            width  = grid[10].to_i
+            height = grid[11].to_i
+            raise 'A grid is at least one cell each way.' unless width >= 1 && height >= 1
+            cells  = width * height
+            packed = self.na_boxes_packed(transform, block)
+            grid_packed = grid.map(&:to_f).pack('d*')
+            counts = Fiddle::Pointer.malloc(cells * 4, self.na_ruby_free)
+            stats  = Fiddle::Pointer.malloc(8 * NA_BOX_STAT_COUNT, self.na_ruby_free)
+            code = @na_functions[:box_grid].call(cloud_pointer, Fiddle::Pointer[packed], NA_BOXES_COUNT,
+                                                 Fiddle::Pointer[grid_packed], NA_GRID_COUNT, counts, cells, stats, NA_BOX_STAT_COUNT)
+            raise "The grid could not be counted: #{self.na_last_error}" if code < 0
+            result = self.na_box_stats(stats)
+            result['counts'] = counts.to_s(cells * 4)
+            result
+        end
+
+        def self.na_box_stats(stats)
+            values = stats.to_s(8 * NA_BOX_STAT_COUNT).unpack('d*')
+            result = NA_BOX_STAT_KEYS.each_with_index.to_h { |key, index| [key, values[index]] }
+            %w[kept written maxCell].each { |key| result[key] = result[key].to_i }
+            result['nativeMs'] = result['nativeMs'].round(1)
+            result
         end
 
         def self.na_boxes_packed(transform, block)

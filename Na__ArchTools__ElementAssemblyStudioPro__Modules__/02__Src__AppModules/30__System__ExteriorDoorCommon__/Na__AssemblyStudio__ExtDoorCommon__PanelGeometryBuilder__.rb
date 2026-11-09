@@ -14,15 +14,29 @@
 # DESCRIPTION:
 # - Extracted verbatim from the Exterior Double Door System, parameterized by a
 #   `naming` hash so the container / field-cell group names carry each system's
-#   prefix (naming[:container]). Internal box names are group-scoped so they
-#   remain constant across systems.
+#   prefix (naming[:container]).
+# - V2.5.3 Each field cell is ONE closed solid, built in one pass from its
+#   section profile and lofted round the cell. It was four ring boxes, eight
+#   loose bevel faces and a centre box that nothing ever joined, so a panel was
+#   never a solid and could not be fused, measured or cut cleanly. A Recessed
+#   Shaker panel was only its inset centre, leaving a see-through gap the width
+#   of the inset all round it.
+#
+# THE PROFILE:
+# - A list of [inset_from_cell_edge_mm, y_mm] points, from the back face round
+#   the panel's edge to the front face. Each point becomes a rectangle inset
+#   from the cell by that much at that depth; neighbouring rectangles are
+#   joined by four planar quads, and the first and last are capped.
+# - Raised Bevelled: field flush with both leaf faces, bevel down to a flat
+#   margin sunk by Panel Depth, margin out to the cell edge.
+# - Recessed Shaker: margin flush with both leaf faces from the cell edge to
+#   the Panel Inset, centre sunk by Panel Depth on both faces.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
 #
 # =============================================================================
 
-require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Box__'
 require_relative 'Na__AssemblyStudio__ExtDoorCommon__GeometryHelpers__'
 
 module Na__AssemblyStudio
@@ -34,7 +48,22 @@ module Na__PanelGeometryBuilder
 # -----------------------------------------------------------------------------
 
     GeometryHelpers = Na__AssemblyStudio::Na__ExteriorDoorCommon::Na__GeometryHelpers
-    Box             = Na__AssemblyStudio::Na__GeometryHelpers::Na__Box
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Module Constants
+# -----------------------------------------------------------------------------
+
+    # Cell sides in ring-corner order (corner k to k + 1) with each side's
+    # outward direction in the leaf plane.
+    NA_SIDE_DIRECTIONS = [
+        [0.0, 0.0, -1.0],                                                       # <-- Bottom
+        [1.0, 0.0, 0.0],                                                        # <-- Right
+        [0.0, 0.0, 1.0],                                                        # <-- Top
+        [-1.0, 0.0, 0.0]                                                        # <-- Left
+    ].freeze
+    NA_PROFILE_TOLERANCE_MM = 0.001
 
 # endregion -------------------------------------------------------------------
 
@@ -59,6 +88,35 @@ module Na__PanelGeometryBuilder
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | The Section Profile of One Field Cell (V2.5.3)
+    # ------------------------------------------------------------
+    # Public so the specs and the MCP inspection can check a profile without
+    # building it.
+    # @return [Array<Array(Float, Float)>, nil] [[inset_mm, y_mm], ...] back to front
+    def self.na_profile(leaf, cell, layout)
+        safe = na_safe_profile_dimensions(cell, leaf, layout)
+        return nil unless safe
+
+        front = leaf[:origin_y_mm].to_f
+        back = front + leaf[:thickness_mm].to_f
+        depth = safe[:depth]
+        inset = safe[:inset]
+        points = if layout[:profile] == 'RecessedShaker'
+                     [
+                         [inset, back - depth], [inset, back], [0.0, back],
+                         [0.0, front], [inset, front], [inset, front + depth]
+                     ]
+                 else
+                     margin = [inset - safe[:bevel], 0.0].max
+                     [
+                         [inset, back], [margin, back - depth], [0.0, back - depth],
+                         [0.0, front + depth], [margin, front + depth], [inset, front]
+                     ]
+                 end
+        na_dedupe_profile(points)
+    end
+    # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -74,19 +132,13 @@ module Na__PanelGeometryBuilder
     private_class_method :na_container_prefix
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Build One Fielded Panel Cell Into Its Own Group
+    # HELPER FUNCTION | Build One Fielded Panel Cell as One Solid Group
     # ------------------------------------------------------------
     def self.na_build_cell(entities, leaf, layout, cell, index, material, container_prefix)
         group = entities.add_group
         group.name = format("#{container_prefix}__Field__%03d", index)
-        safe = na_safe_profile_dimensions(cell, leaf, layout)
-        return group unless safe
-
-        if layout[:profile] == 'RecessedShaker'
-            na_build_recessed_shaker(group.entities, leaf, cell, safe, material, index)
-        else
-            na_build_raised_bevelled(group.entities, leaf, cell, safe, material, index)
-        end
+        profile = na_profile(leaf, cell, layout)
+        na_build_profile_solid(group.entities, cell, profile, material) if profile
         group
     end
     private_class_method :na_build_cell
@@ -105,152 +157,110 @@ module Na__PanelGeometryBuilder
             layout[:panel_bevel_width_mm], 2, [cell[:width_mm], cell[:height_mm]].min / 4.0
         )
         return nil if cell[:width_mm] <= 2 * inset || cell[:height_mm] <= 2 * inset
-        { :inset => inset, :depth => depth, :bevel => [bevel, inset].min }
+        { :inset => inset.to_f, :depth => depth.to_f, :bevel => [bevel, inset].min.to_f }
     end
     private_class_method :na_safe_profile_dimensions
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Drop Repeated Profile Points
+    # ------------------------------------------------------------
+    # A bevel as wide as the inset leaves no flat margin, so its two margin
+    # points land on the cell edge points.
+    def self.na_dedupe_profile(points)
+        points.each_with_object([]) do |point, kept|
+            last = kept.last
+            same = last &&
+                   (last[0] - point[0]).abs < NA_PROFILE_TOLERANCE_MM &&
+                   (last[1] - point[1]).abs < NA_PROFILE_TOLERANCE_MM
+            kept << point unless same
+        end
+    end
+    private_class_method :na_dedupe_profile
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Internal Helpers - Profile Builders
+# REGION | Internal Helpers - Profile Solid
 # -----------------------------------------------------------------------------
 
-    # HELPER FUNCTION | Build a Recessed-Shaker Field Centre Panel
+    # HELPER FUNCTION | Loft a Section Profile Round the Cell Into One Solid
     # ------------------------------------------------------------
-    def self.na_build_recessed_shaker(entities, leaf, cell, safe, material, index)
-        panel_depth = [leaf[:thickness_mm] - 2.0 * safe[:depth], 1.0].max
-        inset_panel = na_inset_rect(cell, safe[:inset])
-        na_box(
-            entities, "Na__Field__#{index}__RecessedCentre",
-            inset_panel[:x_mm], leaf[:origin_y_mm] + safe[:depth], inset_panel[:z_mm],
-            inset_panel[:width_mm], panel_depth, inset_panel[:height_mm], material
-        )
+    # Every face is oriented outward from the profile's own winding, so the
+    # result is a closed, correctly faced solid without any boolean. Mitre
+    # edges left between coplanar pieces of a flat margin are erased, which
+    # merges each margin into one face.
+    def self.na_build_profile_solid(entities, cell, profile, material)
+        rings = profile.map { |inset, y| na_ring_points(cell, inset, y) }
+        winding = na_profile_winding(cell, profile)
+        y_mid = profile.sum { |point| point[1] } / profile.length.to_f
+
+        na_add_oriented_face(entities, rings.first, [0.0, profile.first[1] <=> y_mid, 0.0], material)
+        rings.each_cons(2).with_index do |(ring_a, ring_b), index|
+            delta_inset = profile[index + 1][0] - profile[index][0]
+            delta_y = profile[index + 1][1] - profile[index][1]
+            normal_inset = winding * delta_y                                    # <-- Outward normal of the profile edge
+            normal_y = -winding * delta_inset
+            NA_SIDE_DIRECTIONS.each_with_index do |side, k|
+                following = (k + 1) % 4
+                expected = side.map { |component| -normal_inset * component }    # <-- Inset grows away from the side
+                expected[1] += normal_y
+                quad = [ring_a[k], ring_a[following], ring_b[following], ring_b[k]]
+                na_add_oriented_face(entities, quad, expected, material)
+            end
+        end
+        na_add_oriented_face(entities, rings.last, [0.0, profile.last[1] <=> y_mid, 0.0], material)
+        na_merge_coplanar_faces(entities)
     end
-    private_class_method :na_build_recessed_shaker
+    private_class_method :na_build_profile_solid
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Build a Raised-Bevelled Field (Edge + Bevel + Centre)
+    # HELPER FUNCTION | Winding of the Profile Closed Through the Cell Centre
     # ------------------------------------------------------------
-    def self.na_build_raised_bevelled(entities, leaf, cell, safe, material, index)
-        bevel_start_inset = [safe[:inset] - safe[:bevel], 0.0].max
-        bevel_rect = na_inset_rect(cell, bevel_start_inset)
-        centre = na_inset_rect(cell, safe[:inset])
-        edge_depth = [leaf[:thickness_mm] - 2.0 * safe[:depth], 1.0].max
-
-        na_build_ring(
-            entities,
-            cell,
-            bevel_rect,
-            leaf[:origin_y_mm] + safe[:depth],
-            edge_depth,
-            material,
-            "#{index}__RaisedEdge"
-        )
-        na_build_two_sided_bevel_faces(
-            entities,
-            leaf,
-            bevel_rect,
-            centre,
-            safe[:depth],
-            material
-        )
-        na_box(
-            entities, "Na__Field__#{index}__RaisedCentre",
-            centre[:x_mm], leaf[:origin_y_mm], centre[:z_mm],
-            centre[:width_mm], leaf[:thickness_mm], centre[:height_mm], material
-        )
+    # @return [Float] 1.0 counter-clockwise in (inset, y), -1.0 clockwise
+    def self.na_profile_winding(cell, profile)
+        centre = [cell[:width_mm], cell[:height_mm]].min / 2.0
+        closed = profile + [[centre, profile.last[1]], [centre, profile.first[1]]]
+        area = 0.0
+        closed.each_with_index do |point, index|
+            following = closed[(index + 1) % closed.length]
+            area += point[0] * following[1] - following[0] * point[1]
+        end
+        area >= 0.0 ? 1.0 : -1.0
     end
-    private_class_method :na_build_raised_bevelled
+    private_class_method :na_profile_winding
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Build Front and Back Bevel Face Sets
+    # HELPER FUNCTION | Add One Face and Turn It to Face the Expected Way
     # ------------------------------------------------------------
-    def self.na_build_two_sided_bevel_faces(entities, leaf, outer, inner, inset_depth, material)
-        front_inner_y = leaf[:origin_y_mm]
-        front_outer_y = front_inner_y + inset_depth
-        back_outer_y = leaf[:origin_y_mm] + leaf[:thickness_mm]
-        back_inner_y = back_outer_y
-        back_outer_y -= inset_depth
+    def self.na_add_oriented_face(entities, points, expected, material)
+        face = entities.add_face(points)
+        return nil unless face
 
-        na_build_bevel_faces(entities, outer, inner, front_outer_y, front_inner_y, material, -1.0)
-        na_build_bevel_faces(entities, outer, inner, back_outer_y, back_inner_y, material, 1.0)
+        face.reverse! if face.normal.dot(Geom::Vector3d.new(*expected)) < 0
+        if material
+            face.material = material
+            face.back_material = material
+        end
+        face
     end
-    private_class_method :na_build_two_sided_bevel_faces
+    private_class_method :na_add_oriented_face
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Build Four Bevel Quads for One Face Side
+    # HELPER FUNCTION | Erase Edges That Only Split One Flat Surface
     # ------------------------------------------------------------
-    def self.na_build_bevel_faces(entities, outer, inner, outer_y, inner_y, material, desired_y_sign)
-        outer_left = outer[:x_mm]
-        outer_right = outer[:x_mm] + outer[:width_mm]
-        outer_bottom = outer[:z_mm]
-        outer_top = outer[:z_mm] + outer[:height_mm]
-        inner_left = inner[:x_mm]
-        inner_right = inner[:x_mm] + inner[:width_mm]
-        inner_bottom = inner[:z_mm]
-        inner_top = inner[:z_mm] + inner[:height_mm]
+    # Two faces that share an edge and face the same way lie in one plane.
+    def self.na_merge_coplanar_faces(entities)
+        entities.grep(Sketchup::Edge).each do |edge|
+            next unless edge.valid?
+            faces = edge.faces
+            next unless faces.length == 2
+            next unless faces[0].normal.samedirection?(faces[1].normal)
 
-        quads = [
-            [
-                na_point(outer_left, outer_y, outer_bottom),
-                na_point(inner_left, inner_y, inner_bottom),
-                na_point(inner_left, inner_y, inner_top),
-                na_point(outer_left, outer_y, outer_top)
-            ],
-            [
-                na_point(inner_right, inner_y, inner_bottom),
-                na_point(outer_right, outer_y, outer_bottom),
-                na_point(outer_right, outer_y, outer_top),
-                na_point(inner_right, inner_y, inner_top)
-            ],
-            [
-                na_point(outer_left, outer_y, outer_bottom),
-                na_point(outer_right, outer_y, outer_bottom),
-                na_point(inner_right, inner_y, inner_bottom),
-                na_point(inner_left, inner_y, inner_bottom)
-            ],
-            [
-                na_point(inner_left, inner_y, inner_top),
-                na_point(inner_right, inner_y, inner_top),
-                na_point(outer_right, outer_y, outer_top),
-                na_point(outer_left, outer_y, outer_top)
-            ]
-        ]
-
-        target_normals = [
-            Geom::Vector3d.new(-1.0, desired_y_sign, 0.0),
-            Geom::Vector3d.new(1.0, desired_y_sign, 0.0),
-            Geom::Vector3d.new(0.0, desired_y_sign, -1.0),
-            Geom::Vector3d.new(0.0, desired_y_sign, 1.0)
-        ]
-
-        quads.each_with_index do |points, index|
-            face = entities.add_face(points)
-            next unless face
-            face.reverse! if face.normal.dot(target_normals[index]) < 0
-            face.material = material if material
-            face.back_material = material if material
+            edge.erase!
         end
     end
-    private_class_method :na_build_bevel_faces
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Build a Rectangular Ring of Boxes Around an Inner Rect
-    # ------------------------------------------------------------
-    def self.na_build_ring(entities, outer, inner, y_mm, depth, material, token)
-        left_width = inner[:x_mm] - outer[:x_mm]
-        bottom_height = inner[:z_mm] - outer[:z_mm]
-        na_box(entities, "Na__FieldRing__#{token}__Left", outer[:x_mm], y_mm, outer[:z_mm],
-               left_width, depth, outer[:height_mm], material)
-        na_box(entities, "Na__FieldRing__#{token}__Right", inner[:x_mm] + inner[:width_mm], y_mm, outer[:z_mm],
-               left_width, depth, outer[:height_mm], material)
-        na_box(entities, "Na__FieldRing__#{token}__Bottom", inner[:x_mm], y_mm, outer[:z_mm],
-               inner[:width_mm], depth, bottom_height, material)
-        na_box(entities, "Na__FieldRing__#{token}__Top", inner[:x_mm], y_mm, inner[:z_mm] + inner[:height_mm],
-               inner[:width_mm], depth, bottom_height, material)
-    end
-    private_class_method :na_build_ring
+    private_class_method :na_merge_coplanar_faces
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -259,35 +269,23 @@ module Na__PanelGeometryBuilder
 # REGION | Internal Helpers - Geometry Primitives
 # -----------------------------------------------------------------------------
 
-    # HELPER FUNCTION | Inset a Rect Uniformly on All Four Sides
+    # HELPER FUNCTION | Four Corners of the Cell Inset by an Amount, at a Depth
     # ------------------------------------------------------------
-    def self.na_inset_rect(rect, inset)
-        {
-            :x_mm => rect[:x_mm] + inset,
-            :z_mm => rect[:z_mm] + inset,
-            :width_mm => rect[:width_mm] - 2.0 * inset,
-            :height_mm => rect[:height_mm] - 2.0 * inset
-        }
+    # Corner order matches NA_SIDE_DIRECTIONS: bottom-left, bottom-right,
+    # top-right, top-left.
+    def self.na_ring_points(cell, inset, y_mm)
+        x0 = cell[:x_mm] + inset
+        x1 = cell[:x_mm] + cell[:width_mm] - inset
+        z0 = cell[:z_mm] + inset
+        z1 = cell[:z_mm] + cell[:height_mm] - inset
+        [
+            na_point(x0, y_mm, z0),
+            na_point(x1, y_mm, z0),
+            na_point(x1, y_mm, z1),
+            na_point(x0, y_mm, z1)
+        ]
     end
-    private_class_method :na_inset_rect
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Create a Grouped Box From Millimetre Dimensions
-    # ------------------------------------------------------------
-    def self.na_box(entities, name, x, y, z, width, depth, height, material)
-        return nil if width <= 0 || depth <= 0 || height <= 0
-        Box.na_create_grouped_box(
-            entities, name,
-            GeometryHelpers.na_mm_to_inch(x),
-            GeometryHelpers.na_mm_to_inch(y),
-            GeometryHelpers.na_mm_to_inch(z),
-            GeometryHelpers.na_mm_to_inch(width),
-            GeometryHelpers.na_mm_to_inch(depth),
-            GeometryHelpers.na_mm_to_inch(height),
-            material
-        )
-    end
-    private_class_method :na_box
+    private_class_method :na_ring_points
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Build a Geom::Point3d From Millimetre Coordinates

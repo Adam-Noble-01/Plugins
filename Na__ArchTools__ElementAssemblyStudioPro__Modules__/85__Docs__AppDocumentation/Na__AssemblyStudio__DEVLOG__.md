@@ -3,6 +3,58 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.5.3 - 09-Nov-2026 - Fielded Panels Built as Solids, a British Front Door Preset and an MCP Seam
+
+### Context
+Adam, with a photo of a common British front door (two tall glazed panes over two raised and fielded panels, chrome lever on a long plate): make a preset for this style, fix how the fielded panels are made ("it's not actually fusing the parts to create the fielded panels correctly"), test in SketchUp, and build MCP tools so an agent can drive the plugin.
+
+### Fixes
+- **A fielded panel is now one closed solid.** `ExtDoorCommon::Na__PanelGeometryBuilder` built each Raised Bevelled cell as four ring boxes, eight loose bevel faces and a centre box, all in one `Field__NNN` group that nothing ever joined. Fuse Parts never touched it, so the panel was never a solid: it could not be measured, cut or fused, and its hidden faces crossed inside it. Measured in SketchUp: five nested groups and eight loose faces per cell, `manifold?` false.
+- **Recessed Shaker no longer leaves a gap.** Only the centre inside the Panel Inset was built, so light passed through the door all round each panel, the width of the inset. Measured with ray tests through the closed leaf.
+- **How it works now.** Each cell is lofted from its section profile in one pass: a list of points (inset from the cell edge, depth), each a rectangle round the cell, joined by four planar quads and capped at each end. Faces are turned outward from the profile's own winding, so no boolean is needed, and mitre edges left on a flat margin are erased so the margin is one face.
+  - Raised Bevelled: the field flush with both leaf faces, the bevel down to a flat margin sunk by Panel Depth, the margin out to the cell edge.
+  - Recessed Shaker: the margin flush with both leaf faces out to the Panel Inset, the centre sunk by Panel Depth on both faces, as the preview draws it.
+  - Same names (`<container>__PanelGeometry`, `<container>__Field__NNN`), so the edge painter and Fuse Parts treat them as before. Every exterior door type uses this builder: single, double, sliding and bifold.
+- **One glazing bar now trims the glass.** Fuse Parts skipped glazing bars unless there were two or more, so a single muntin between two panes left the glass running through it. A lone bar now takes the fused name, and the glass is trimmed round it as with more bars.
+- **The preview draws the bevel where the 3D builds it.** The door elevation drew the bevel's outer line at Panel Bevel Width from the cell edge; the 3D bevel starts at Panel Inset less Panel Bevel Width. It now draws at the same place, and draws nothing when the bevel takes the whole inset.
+- **A flush glazing bar is a muntin, fused into the leaf joinery.** Adam's second round, on EAS012 built from the dialog: the bar between the two panes "hasn't fused". A bar with Glazing Bar Inset 0 is as deep as the leaf, but it stayed its own group, with joint lines where it met the top rail and mid rail. Fuse Parts now trims the glass with the bars first and fuses the leaf joinery last, taking in any bar whose depth matches the joinery's. Inset bars stay glazing bars with their own edge colour; every preset before EAS012 uses a 10 inset, so none of them changes.
+- **The preview draws a flush bar as joinery:** no line across its ends, side lines broken where two flush bars cross. The hinged door resolver also read an inset of 0 as 10 (`|| 10` in JS), so the preview could not tell a flush bar at all.
+- **Glass with no material (MCP builds only).** EAS012's glass was blank in Adam's screenshot because that door was built through the MCP seam before the dialog had ever opened, so the material library was not loaded and every finish resolved to nothing. The seam now loads the library the way opening the dialog does before it builds or updates. Doors created from the dialog were not affected.
+- **Reload Scripts and the open dialog.** The dialog that Reload Scripts reopens sent no callbacks back to Ruby on 09-Nov-2026 (no preset, create or library call arrived) until it was closed and opened again. The MCP `reload` now closes the dialog first and opens a fresh one. Adam's own Reload Scripts button is unchanged: close and reopen the dialog after it.
+
+### New
+- **Preset EAS012, "Traditional | Two Glazed Two Panel Front Door"** (exterior single door): two glazed panes split by a 95 mm muntin over two raised and fielded panels, lever on long plate, chrome. Set out on a 920 x 2085 mm door set with a 60 mm frame and 20 mm threshold, so an 800 x 2005 leaf, 44 thick: stiles 110, top rail 120, bottom rail 160, mid rail 170, lower section 560, panel inset 45, depth 10, bevel 30, handle at 1040 with a 55 mm backset, hinged left seen from inside, opening in. Proportions measured off the photo, corrected for perspective; the door set size is assumed.
+- **`60__System__McpOperations/Na__AssemblyStudio__McpOperations__Main__.rb`**: the seam Na SketchUp MCP 1.0.8 calls for its `entity_studio` and `entity_studio_edit` tools. Read: status, list_presets, get_preset, list_handles, inspect (every MOD part and fielded panel with solid, volume and face count). Edit: build and update exterior single and double doors through their own engines (each its own undo step), save_preset through the Presets Store, refresh_preview through the dialog's own SvgCapture and its existing `na_presetsUpdateConfig` callback, open_dialog, reload (Reload Scripts). Refusals raise `Na__McpOperationsError` with the fix named.
+
+### Known Limits
+- **The gap between fielded panels follows the mid rail.** It is 0.55 x the mid rail width (min 30) in Ruby and JS. The photo's door has a muntin of about 110 between the panels and a mid rail of about 140; EAS012 uses a 170 mid rail so the lower muntin (93.5) matches the 95 glazing bar, which puts the glass about 30 higher than the photo.
+- **No panel mouldings.** The photo's door has a raised moulding round each pane and panel. Exterior doors have no moulding option.
+- The MCP seam builds and updates hinged exterior doors only. Windows, sliding and bifold doors need steps that live in the dialog's callbacks.
+- Flush bars fuse into the joinery on hinged doors (single, double). Sliding and bifold doors have their own Fuse Parts and keep flush bars separate. The DXF exporters still draw a flush bar's ends.
+
+### Files Changed
+- `30__System__ExteriorDoorCommon__/...__PanelGeometryBuilder__.rb`: profile loft, one solid per cell; `na_profile` is public for specs and inspection.
+- `30__System__ExteriorDoorCommon__/...__FuseParts__Panel__.rb`: a lone glazing bar trims the glass; bars and glass first, joinery last, flush bars joined into it (`na_flush_bar_groups`).
+- `30__System__ExteriorDoorCommon__/...__Viewport__ElevationGenerator__.js`: bevel line position; flush bars drawn as joinery (`na_draw_flush_bars`, `na_open_spans`, `na_svg_line`).
+- `30__System__ExteriorDoorCommon__/...__UiSystem__LeafConfigResolver__.js`: an inset of 0 is kept.
+- `60__System__McpOperations/Na__AssemblyStudio__McpOperations__Main__.rb` **(new)**, required from `01__AppCore/...__AppCore__Main__.rb`.
+- `05__Data__PresetsLibrary/Na__EAS012__ExteriorDoorPreset__TraditionalTwoGlazedTwoPanelFrontDoor__.json` **(new)**, written by the Store, preview drawn by the dialog.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.5.3.
+
+### How to Test
+All 15 specs in `65__Dev__DevTools` pass (`node <spec>`), unchanged.
+
+Run in SketchUp 2026 (26.2.243), workshop model, through the real engines:
+- Single door, Two Vertical, Raised Bevelled: both cells `manifold?` true, 16 faces, 36 edges, no nested groups; volume 3,175,060 mm3 by SketchUp, by the face-orientation sum and by hand. Recessed Shaker: 2,430,563 mm3, the same three ways. 1,805 rays through each closed leaf's lower section: none passes through.
+- Double door (EAS003, Four Panel): 8 of 8 cells solid. Bifold (EAS006, Glazed Over Fielded): 8 of 8 solid.
+- EAS012 built, inspected and rebuilt through the MCP tools: 4 of 4 cells solid; the glass is two panes, its volume down by the muntin's share (7,431,655 mm3).
+- EAS012 through the dialog itself: the preset applied by the gallery's own `na_apply_window_family_preset` (inset 0, one 95 bar, mid rail 170 read back from the page), then created by the page's own Insert at Measured Point handler at a measured point. The MOD holds `PanelGeometry`, `Glass__Trimmed` (two panes, `MAT101__Glass__ClearDefault`) and `LeafJoinery__Fused` only; the joinery grew by exactly the muntin (33,196,240 + 4,159,100 = 37,355,340 mm3). Close-ups at both muntin ends, shaded and with hidden geometry, show no joint.
+- An MCP build with the material library cleared reloads it: glass `MAT101__Glass__ClearDefault`, handles `MAT615` chrome.
+- EAS012's gallery picture redrawn by a fresh dialog: no line across the muntin's ends.
+
+In SketchUp, after Reload Scripts close and reopen the dialog. Then open the Presets gallery, place EAS012, and check: the muntin runs into the top and mid rails with no joint, the glass is tinted, and each `Field__NNN` shows Solid Group in Entity Info.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.5.2 - 03-Nov-2026 - Arched Header Rails on Windows and Exterior Doors
 
 ### Context

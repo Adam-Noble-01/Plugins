@@ -5,7 +5,7 @@
 # FILE       : Na__SketchUpMcp__Handlers__EntityEdit__.rb
 # NAMESPACE  : Na__SketchUpMcp::Na__Handlers__EntityEdit
 # PURPOSE    : entity_transform (move, rotate, scale, mirror, copy, array),
-#              entity_delete, entity_set_properties
+#              entity_delete, entity_set_properties, entity_reparent (1.0.18)
 # CREATED    : 2026
 #
 # ONE WORLD TRANSFORM, CARRIED INTO EACH CONTAINER:
@@ -321,6 +321,173 @@ module Na__SketchUpMcp
                 entity.smooth = value ? true : false
             end
             true
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | entity_reparent (1.0.18)
+# -----------------------------------------------------------------------------
+#
+# SketchUp has no call that moves an entity between contexts. Each group or
+# component is placed again from its own definition in the destination, at the
+# same world placement, given its name, tag, material, flags and instance
+# attributes, and the original is erased. Measured on NP03 (09-Nov-2026): a
+# group comes back as a Group (its definition, and that definition's
+# attributes, carried over), a component keeps its definition, 0.0 mm shift.
+#
+# Refused: loose geometry (group it first), anything open for editing, an id
+# inside another id, a source inside a component used more than once (moving
+# it would take it out of every copy), a destination inside what moves, and a
+# shared destination component.
+#
+# -----------------------------------------------------------------------------
+
+        def self.Na__Handlers__EntityEdit__Reparent(params, ctx)
+            model = ctx[:model]
+            entities = Na__EntityResolver.Na__EntityResolver__RequireEntities(model, Na__Params.Na__Params__IdArray(params, 'ids'))
+            new_group = Na__Params.Na__Params__Hash(params, 'new_group', nil)
+            unless params.key?('parent_id') || new_group
+                raise Na__McpError.new('invalid_params', 'Say where they go: parent_id (0 = model root, else a group or component) or new_group.',
+                                       'new_group {name, tag} makes a group (at the root unless parent_id says otherwise) and moves them into it.')
+            end
+
+            na_reparent_check_sources(model, entities)
+            parent_id = params.key?('parent_id') ? params['parent_id'] : 0
+            container = Na__Coordinates.Na__Coordinates__ResolveContainer(model, parent_id, params['path'], ctx[:warnings])
+            na_reparent_check_destination(container[:owner], entities)
+
+            destination = na_reparent_destination(model, container, new_group, ctx)
+            moved = []
+            unchanged = []
+            worst_shift = 0.0
+            entities.each do |entity|
+                if entity.parent.respond_to?(:entities) && entity.parent.entities == destination[:entities]
+                    unchanged << entity.persistent_id
+                    next
+                end
+
+                result = na_reparent_one(model, entity, destination, ctx)
+                worst_shift = [worst_shift, result.delete(:shift_mm)].max
+                moved << result
+            end
+
+            if moved.any? { |entry| entry['type'] == 'Group' }
+                ctx[:warnings] << 'Moved groups are new entities with new ids. Dimensions or text attached to points inside them, and scenes that hid them one by one, no longer refer to them.'
+            end
+            ctx[:warnings] << "Already in the destination, left as they were: #{unchanged.join(', ')}." unless unchanged.empty?
+            if worst_shift > 0.01
+                ctx[:warnings] << "Largest change in world placement: #{worst_shift.round(3)} mm (expected 0). Check the moved objects."
+            end
+
+            where = destination[:label].sub(/\Ainside /, '')
+            result = { 'moved' => moved, 'ids' => moved.map { |entry| entry['id'] }, 'parent' => destination[:label],
+                       'max_shift_mm' => worst_shift.round(4),
+                       'summary' => "Moved #{moved.length} object(s) into #{where}#{unchanged.empty? ? '' : " (#{unchanged.length} already there)"}." }
+            result['new_group_id'] = destination[:group].persistent_id if destination[:group]
+            result
+        end
+
+        def self.na_reparent_check_sources(model, entities)
+            loose = entities.reject { |entity| Na__EntityResolver.Na__EntityResolver__IsInstance(entity) }
+            unless loose.empty?
+                types = loose.map { |entity| Na__EntityResolver.Na__EntityResolver__TypeName(entity) }.uniq.join(', ')
+                raise Na__McpError.new('wrong_type', "Only groups and components can be moved; #{loose.length} id(s) are #{types}.",
+                                       'Wrap loose faces and edges in a group first (group_create, in their own context), then move the group.')
+            end
+
+            open = entities.find { |entity| Na__Coordinates.Na__Coordinates__InstanceIsOpen(model, entity) }
+            raise Na__McpError.new('context_error', "Id #{open.persistent_id} is open for editing.", 'Close it with context_set first.') if open
+
+            definitions = entities.map(&:definition)
+            entities.each do |entity|
+                parent = entity.parent
+                next unless parent.is_a?(Sketchup::ComponentDefinition)
+
+                if !parent.group? && parent.instances.length > 1
+                    raise Na__McpError.new('shared_parent', "Id #{entity.persistent_id} is inside component '#{parent.name}', used #{parent.instances.length} times: moving it would take it out of every copy.",
+                                           'Make that component unique first (component_manage make_unique), or move the whole component.')
+                end
+                if na_reparent_ancestors(parent).any? { |definition| definitions.include?(definition) }
+                    raise Na__McpError.new('invalid_params', "Id #{entity.persistent_id} is inside another id in this call.",
+                                           'Move the outer one only: what is inside it moves with it.')
+                end
+            end
+        end
+
+        def self.na_reparent_check_destination(owner, entities)
+            return unless owner
+
+            if entities.include?(owner) || entities.any? { |entity| entity.definition == owner.definition }
+                raise Na__McpError.new('invalid_params', 'The destination is one of the objects being moved.', 'Choose another parent_id.')
+            end
+            if na_reparent_ancestors(owner.parent).any? { |definition| entities.map(&:definition).include?(definition) }
+                raise Na__McpError.new('invalid_params', 'The destination is inside one of the objects being moved.', 'Choose a parent outside them.')
+            end
+            return if owner.definition.group? || owner.definition.instances.length <= 1
+
+            raise Na__McpError.new('shared_parent', "The destination component '#{owner.definition.name}' is used #{owner.definition.instances.length} times: everything moved in would appear in every copy.",
+                                   'Make it unique first (component_manage make_unique), or move into a group.')
+        end
+
+        # Every definition the given definition sits inside, through all of its instances.
+        def self.na_reparent_ancestors(start, depth = 0, seen = {})
+            return [] unless start.is_a?(Sketchup::ComponentDefinition) && depth < 64 && !seen[start]
+
+            seen[start] = true
+            found = [start]
+            start.instances.each do |instance|
+                found.concat(na_reparent_ancestors(instance.parent, depth + 1, seen))
+            end
+            found
+        end
+
+        def self.na_reparent_destination(model, container, new_group, ctx)
+            return { entities: container[:entities], path: container[:path], to_world: container[:to_world], label: container[:label], group: nil } unless new_group
+
+            name = new_group['name'].to_s.strip
+            raise Na__McpError.new('invalid_params', 'new_group needs a name.', 'For example {"name": "Ground Floor", "tag": "90__Storey__GroundFloor"}.') if name.empty?
+
+            group = container[:entities].add_group
+            Na__Coordinates.Na__Coordinates__PinGroupToIdentity(group)
+            group.name = name
+            group.layer = Na__EntityResolver.Na__EntityResolver__ResolveTag(model, new_group['tag'], true, ctx[:warnings]) if new_group['tag']
+            path = container[:path] + [group]
+            { entities: group.entities, path: path, to_world: Na__Coordinates.Na__Coordinates__ReportedToWorld(model, path),
+              label: "new group #{name.inspect} (id #{group.persistent_id}) in #{container[:label]}", group: group }
+        end
+
+        def self.na_reparent_one(model, entity, destination, ctx)
+            source_path = Na__Coordinates.Na__Coordinates__ContainerPathForEntity(model, entity, ctx[:warnings])
+            world = Na__Coordinates.Na__Coordinates__InstanceWorldPlacement(model, source_path, entity)
+            instance = destination[:entities].add_instance(entity.definition, destination[:to_world].inverse * world)
+            na_reparent_copy_properties(entity, instance)
+            if entity.respond_to?(:glued_to) && entity.glued_to
+                ctx[:warnings] << "#{Na__EntityResolver.Na__EntityResolver__DisplayName(entity)} (id #{entity.persistent_id}) was glued to a face; it no longer is, and any opening it cut is closed."
+            end
+            after = Na__Coordinates.Na__Coordinates__InstanceWorldPlacement(model, destination[:path], instance).to_a
+            before = world.to_a
+            shift_mm = (12..14).map { |index| (before[index].to_f - after[index].to_f).abs * 25.4 }.max     # Transformation#to_a: translation at 12-14 (inches)
+            if (0..11).any? { |index| (before[index].to_f - after[index].to_f).abs > 1.0e-6 }
+                ctx[:warnings] << "#{Na__EntityResolver.Na__EntityResolver__DisplayName(entity)} (id #{entity.persistent_id}): its rotation or scale changed in the move. Check it."
+            end
+            old_id = entity.persistent_id
+            entity.erase!
+            { 'from' => old_id, 'id' => instance.persistent_id, 'type' => Na__EntityResolver.Na__EntityResolver__TypeName(instance),
+              'name' => Na__EntityResolver.Na__EntityResolver__DisplayName(instance), shift_mm: shift_mm.to_f }
+        end
+
+        def self.na_reparent_copy_properties(source, target)
+            target.name = source.name.to_s
+            target.layer = source.layer
+            target.material = source.material
+            target.hidden = source.hidden?
+            target.casts_shadows = source.casts_shadows?
+            target.receives_shadows = source.receives_shadows?
+            (source.attribute_dictionaries || []).each do |dictionary|
+                dictionary.each_pair { |key, value| target.set_attribute(dictionary.name, key, value) }
+            end
+            target.locked = source.locked?
         end
 
 # endregion -------------------------------------------------------------------

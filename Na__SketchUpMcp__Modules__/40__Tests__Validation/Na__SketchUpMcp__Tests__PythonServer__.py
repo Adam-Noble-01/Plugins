@@ -48,13 +48,17 @@ NA_PNG_1X1 = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAD
 class NaFakeBridge:
     """A stand-in for the Ruby bridge: same framing, same token check, canned answers."""
 
-    def __init__(self, connections_dir, token='test-token-0001', pid=None, started_at='2026-09-30T10:00:00Z', file_title='Fake Model', live_title=None):
+    def __init__(self, connections_dir, token='test-token-0001', pid=None, started_at='2026-09-30T10:00:00Z', file_title='Fake Model', live_title=None, model_path='',
+                 modified=False, bridge_version=None):
+        self.bridge_version = bridge_version        # what ping reports (None: not reported)
         self.connections_dir = connections_dir
         self.token = token
         self.pid = os.getpid() if pid is None else pid
         self.started_at = started_at
         self.file_title = file_title        # what the connection file says
         self.live_title = file_title if live_title is None else live_title      # what SketchUp has open now
+        self.model_path = model_path        # the open model's file (sketchup_open_window looks for it)
+        self.modified = modified            # unsaved changes (sketchup_close_window refuses them)
         self.requests = []
         self.reject_next_as_unauthorized = False
         self.delay_seconds = 0.0
@@ -107,9 +111,12 @@ class NaFakeBridge:
         command = request['command']
         params = request.get('params', {})
         if command == 'ping':
-            return {'id': rid, 'ok': True, 'result': {'pong': True, 'pid': self.pid, 'model_title': self.live_title, 'model_path': ''}}
+            pong = {'pong': True, 'pid': self.pid, 'model_title': self.live_title, 'model_path': self.model_path}
+            if self.bridge_version:
+                pong['bridge_version'] = self.bridge_version
+            return {'id': rid, 'ok': True, 'result': pong}
         if command == 'sketchup_status':
-            return {'id': rid, 'ok': True, 'result': {'sketchup': {'version': '26.2.243'}, 'model': {'title': self.live_title}}}
+            return {'id': rid, 'ok': True, 'result': {'sketchup': {'version': '26.2.243'}, 'model': {'title': self.live_title, 'modified': self.modified}}}
         if command == 'view_capture':
             path = os.path.join(self.connections_dir, 'capture.png')
             with open(path, 'wb') as handle:
@@ -212,11 +219,33 @@ class NaMcpServerTests(unittest.TestCase):
 
     def test_tools_list(self):
         tools = self.session.request('tools/list')['result']['tools']
-        self.assertEqual(len(tools), 45)
+        self.assertEqual(len(tools), 63)
         for tool in tools:
             self.assertEqual(tool['inputSchema']['type'], 'object')
             self.assertNotIn('$use', json.dumps(tool['inputSchema']))
             self.assertIn('readOnlyHint', tool['annotations'])
+
+    def test_truevision_glb_builder_tools(self):
+        tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
+        for name in ('truevision_export', 'truevision_export_edit', 'truevision_publish'):
+            self.assertIn(name, tools)
+            self.assertLessEqual(len(tools[name]['description']), 2048)
+        self.assertTrue(tools['truevision_export']['annotations']['readOnlyHint'])
+        self.assertTrue(tools['truevision_publish']['annotations']['openWorldHint'])
+        self.assertIn('confirm', tools['truevision_publish']['description'])
+        # Scenes go by name or persistent id, mixed in one list, and reach the bridge as sent.
+        sent = self.session.call('truevision_export_edit', {'action': 'switch_scenes', 'scenes': ['Front', 1234], 'on': True})
+        self.assertFalse(sent['result']['isError'])
+        self.assertEqual(json.loads(self.text(sent))['echo_params']['scenes'], ['Front', 1234])
+        # The server refuses what the schemas do not allow before SketchUp is asked.
+        bad_type = self.session.call('truevision_export_edit', {'action': 'set_scene_type', 'scene': 'Front', 'type': 'perspective'})
+        self.assertTrue(bad_type['result']['isError'])
+        self.assertIn("'perspective'", self.text(bad_type))
+        bad_action = self.session.call('truevision_publish', {'action': 'export_project', 'confirm': 'SK02'})
+        self.assertTrue(bad_action['result']['isError'])
+        stray = self.session.call('truevision_publish', {'action': 'push', 'confirm': 'SK02', 'force': True})
+        self.assertTrue(stray['result']['isError'])
+        self.assertIn('force', self.text(stray))
 
     def test_core_toolset(self):
         session = NaMcpSession(self.env, ['--toolset', 'core'])
@@ -376,6 +405,50 @@ class NaBridgeClientTests(unittest.TestCase):
             os.remove(os.path.join(self.temp_dir, name))
         with self.assertRaises(Na__BridgeClientModule.Na__BridgeUnavailable):
             self.client.Na__BridgeClient__Request('ping', {}, 1)
+
+
+class NaBridgeVersionTests(unittest.TestCase):
+    """A parameter added later (registry property_since) is refused on a window whose bridge predates it (1.0.19)."""
+
+    def start(self, version):
+        self.temp_dir = tempfile.mkdtemp(prefix='na_mcp_version_')
+        self.bridge = NaFakeBridge(self.temp_dir, bridge_version=version)
+        env = dict(os.environ, NA_SKETCHUP_MCP_CONNECTIONS_DIR=self.temp_dir, PYTHONUTF8='1')
+        env.pop('NA_SKETCHUP_MCP_PORT', None)
+        env.pop('NA_SKETCHUP_MCP_PID', None)
+        self.session = NaMcpSession(env)
+        self.session.request('initialize', {'protocolVersion': '2025-11-25', 'capabilities': {}, 'clientInfo': {'name': 'tests', 'version': '1'}})
+        self.session.send({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+
+    def tearDown(self):
+        self.session.close()
+        self.bridge.stop()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def work(self):
+        return [request['command'] for request in self.bridge.requests if request['command'] != 'ping']
+
+    FRAMED = {'action': 'count', 'min': [0, 0, 0], 'max': [1, 1, 1], 'frame': {'angle': 30}}
+
+    def test_an_older_bridge_is_refused_a_frame_and_nothing_is_sent(self):
+        self.start('1.0.18')
+        response = self.session.call('point_cloud_slice', self.FRAMED)
+        text = response['result']['content'][0]['text']
+        self.assertTrue(response['result']['isError'])
+        self.assertIn('needs 1.0.19', text)
+        self.assertIn('Reload Plugin Data', text)
+        batch = self.session.call('batch_execute', {'steps': [{'tool': 'point_cloud_slice', 'arguments': self.FRAMED}]})
+        self.assertTrue(batch['result']['isError'])
+        self.assertEqual(self.work(), [])
+        plain = self.session.call('point_cloud_slice', {'action': 'count', 'min': [0, 0, 0], 'max': [1, 1, 1]})
+        self.assertFalse(plain['result']['isError'])
+        self.assertEqual(self.work(), ['point_cloud_slice'])
+
+    def test_a_current_bridge_takes_the_frame(self):
+        self.start('1.0.19')
+        response = self.session.call('point_cloud_slice', self.FRAMED)
+        self.assertFalse(response['result']['isError'])
+        self.assertEqual(self.work(), ['point_cloud_slice'])
 
 
 class NaWindowChoiceTests(unittest.TestCase):
@@ -559,6 +632,101 @@ class NaWindowChoiceTests(unittest.TestCase):
         status = self.status(session, select_pid=self.SECOND)
         self.assertTrue(status['connected'])
         self.assertEqual(status['model']['title'], 'Second Model')
+
+    # --- 1.0.18: a closed window's file on a port another window took ---------------------
+
+    def test_a_stale_file_on_a_port_another_window_took_is_not_live(self):
+        stale = os.path.join(self.temp_dir, 'Na__SketchUpMcp__Connection__%d.json' % self.THIRD)
+        with open(stale, 'w', encoding='utf-8') as handle:
+            json.dump({'pid': self.THIRD, 'host': '127.0.0.1', 'port': self.first.port, 'token': 'an-old-token',
+                       'model_title': 'Closed Long Ago', 'started_at': '2026-11-05T12:00:00Z'}, handle)
+        live = {item['pid']: item['live'] for item in self.client.Na__BridgeClient__Instances()}
+        self.assertEqual(live, {self.FIRST: True})
+        self.assertFalse(os.path.exists(stale))
+
+    # --- 1.0.18: sketchup_open_window (never launches SketchUp here) ----------------------
+
+    def open_window(self, session, **arguments):
+        return session.call('sketchup_open_window', arguments)['result']
+
+    def test_open_window_refuses_what_is_not_a_skp(self):
+        result = self.open_window(self.session(), path=os.path.join(self.temp_dir, 'notes.txt'))
+        self.assertTrue(result['isError'])
+        self.assertIn('invalid_params', result['content'][0]['text'])
+
+    def test_open_window_refuses_a_missing_file(self):
+        result = self.open_window(self.session(), path=os.path.join(self.temp_dir, 'Missing__Model.skp'))
+        self.assertTrue(result['isError'])
+        self.assertIn('not_found', result['content'][0]['text'])
+
+    def test_open_window_uses_the_window_that_has_it_open(self):
+        model = os.path.join(self.temp_dir, 'RB05__Model.skp')
+        with open(model, 'wb') as handle:
+            handle.write(b'skp')
+        self.window(self.SECOND, '10', 'RB05__Model', model_path=model)
+        session = self.session()
+        result = self.open_window(session, path=model)
+        self.assertFalse(result['isError'])
+        payload = json.loads(result['content'][0]['text'])
+        self.assertTrue(payload['already_open'])
+        self.assertEqual(payload['pid'], self.SECOND)
+        self.assertEqual(self.status(session)['selected_pid'], self.SECOND)
+
+    def test_open_window_never_copies_over_a_copy_that_is_open(self):
+        source = os.path.join(self.temp_dir, 'NP03__Model.skp')
+        copy_dir = os.path.join(self.temp_dir, 'survey')
+        os.makedirs(copy_dir)
+        for path in (source, os.path.join(copy_dir, 'NP03__Model.skp')):
+            with open(path, 'wb') as handle:
+                handle.write(b'skp')
+        self.window(self.SECOND, '10', 'NP03__Model', model_path=os.path.join(copy_dir, 'NP03__Model.skp'))
+        result = self.open_window(self.session(), path=source, copy_to=copy_dir, overwrite=True)
+        self.assertTrue(result['isError'])
+        self.assertIn('in_use', result['content'][0]['text'])
+
+    def test_open_window_never_replaces_an_existing_copy_unasked(self):
+        source = os.path.join(self.temp_dir, 'EB03__Model.skp')
+        target = os.path.join(self.temp_dir, 'EB03__Copy.skp')
+        for path in (source, target):
+            with open(path, 'wb') as handle:
+                handle.write(b'skp')
+        result = self.open_window(self.session(), path=source, copy_to=target)
+        self.assertTrue(result['isError'])
+        self.assertIn('already_exists', result['content'][0]['text'])
+
+    # --- 1.0.18: sketchup_close_window ----------------------------------------------------
+
+    def close_window(self, session, **arguments):
+        return session.call('sketchup_close_window', arguments)['result']
+
+    def test_close_window_refuses_an_unknown_pid(self):
+        result = self.close_window(self.session(), pid=self.THIRD)
+        self.assertTrue(result['isError'])
+        self.assertIn('not_found', result['content'][0]['text'])
+
+    def test_close_window_refuses_unsaved_changes(self):
+        second = self.window(self.SECOND, '10', 'Changed Model', modified=True)
+        result = self.close_window(self.session(), pid=self.SECOND)
+        self.assertTrue(result['isError'])
+        self.assertIn('unsaved_changes', result['content'][0]['text'])
+        self.assertNotIn('ruby_eval', self.commands(second))
+
+    def test_close_window_quits_a_saved_window_through_its_own_bridge(self):
+        second = self.window(self.SECOND, '10', 'Saved Model')
+        result = self.close_window(self.session(), pid=self.SECOND)
+        self.assertFalse(result['isError'])
+        self.assertTrue(json.loads(result['content'][0]['text'])['closed'])
+        quit_calls = [request for request in second.requests if request['command'] == 'ruby_eval']
+        self.assertEqual(len(quit_calls), 1)
+        self.assertIn('Sketchup.quit', quit_calls[0]['params']['code'])
+        self.assertNotIn('close(true)', quit_calls[0]['params']['code'])
+
+    def test_close_window_discards_only_when_told(self):
+        second = self.window(self.SECOND, '10', 'Changed Model', modified=True)
+        result = self.close_window(self.session(), pid=self.SECOND, discard_unsaved_changes=True)
+        self.assertFalse(result['isError'])
+        quit_calls = [request for request in second.requests if request['command'] == 'ruby_eval']
+        self.assertIn('close(true)', quit_calls[0]['params']['code'])
 
 # endregion -------------------------------------------------------------------
 

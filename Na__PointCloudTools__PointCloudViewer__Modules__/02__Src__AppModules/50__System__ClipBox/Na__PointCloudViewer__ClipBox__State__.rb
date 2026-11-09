@@ -122,8 +122,15 @@ module Na__PointCloudViewer
         # Returns nil, or why nothing was written (the box then goes back to
         # what the model holds, so memory never runs ahead of the model).
         def self.Na__Clip__Save(slot, operation_name)
-            problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, [slot], operation_name) do |_slot, record|
-                record.merge!(self.Na__Clip__Part(slot))
+            begin
+                problem = Na__CloudStore.Na__Store__WriteSlots(slot.session, [slot], operation_name) do |_slot, record|
+                    record.merge!(self.Na__Clip__Part(slot))
+                end
+            rescue StandardError
+                # The operation was aborted, so the model kept the old box: put the
+                # cloud back in step with it before passing the error on (0.14.5).
+                self.Na__Clip__Load(slot)
+                raise
             end
             if problem
                 self.Na__Clip__Load(slot)
@@ -303,23 +310,38 @@ module Na__PointCloudViewer
             turning_on = clipping.empty?
             changing = turning_on ? slots.select(&:clip) : clipping
             return ['No cloud on show has a clip box yet. Draw Clip Box makes one.', nil] if changing.empty?
-            changing.each { |slot| slot.clip['enabled'] = turning_on }
-            begin
-                problem = Na__CloudStore.Na__Store__WriteSlots(session, changing, self.na_op_for(changing, turning_on ? 'Clip On' : 'Clip Off')) do |slot, record|
-                    record.merge!(self.Na__Clip__Part(slot))
-                end
-            rescue StandardError
-                changing.each { |slot| slot.clip['enabled'] = !turning_on }
-                raise
-            end
-            if problem
-                changing.each { |slot| slot.clip['enabled'] = !turning_on }
-                return [problem, nil]
-            end
-            changing.each { |slot| Na__CleanPreview.Na__Clean__Changed(slot) } if defined?(Na__CleanPreview)
+            problem, changing = self.Na__Clip__SetEnabledOn(session, changing, turning_on)
+            return [problem, nil] if problem
             names = Na__CloudSet.Na__Slots__Multi?(session) ? " for #{self.Na__Clip__Names(changing)}" : ''
             note = turning_on ? "Clipping on#{names}." : "Clipping off#{names}: the whole cloud is shown. The box is kept for when clipping comes back on."
             [nil, note]
+        end
+
+        # Clipping on or off for every slot in `slots` that has a box and is not
+        # already that way, in ONE undoable operation ("Point Cloud: Clip On").
+        # v0.13.1: the Clip On or Off shortcut and the MCP seam both use it.
+        # Returns [problem, the slots that changed]; on a problem every box
+        # stays as the model holds it.
+        def self.Na__Clip__SetEnabledOn(session, slots, enabled)
+            enabled = enabled ? true : false
+            slots.each { |slot| self.Na__Clip__Ensure(slot) }
+            changing = slots.select { |slot| slot.clip && (slot.clip['enabled'] ? true : false) != enabled }
+            return [nil, []] if changing.empty?
+            changing.each { |slot| slot.clip['enabled'] = enabled }
+            begin
+                problem = Na__CloudStore.Na__Store__WriteSlots(session, changing, self.na_op_for(changing, enabled ? 'Clip On' : 'Clip Off')) do |slot, record|
+                    record.merge!(self.Na__Clip__Part(slot))
+                end
+            rescue StandardError
+                changing.each { |slot| slot.clip['enabled'] = !enabled }
+                raise
+            end
+            if problem
+                changing.each { |slot| slot.clip['enabled'] = !enabled }
+                return [problem, []]
+            end
+            changing.each { |slot| Na__CleanPreview.Na__Clean__Changed(slot) } if defined?(Na__CleanPreview)
+            [nil, changing]
         end
 
         # "Point Cloud: Draw Clip Box", with the cloud's name once the model has

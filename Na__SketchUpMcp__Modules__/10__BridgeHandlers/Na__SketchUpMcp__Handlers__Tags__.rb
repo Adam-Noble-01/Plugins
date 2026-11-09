@@ -4,7 +4,8 @@
 #
 # FILE       : Na__SketchUpMcp__Handlers__Tags__.rb
 # NAMESPACE  : Na__SketchUpMcp::Na__Handlers__Tags
-# PURPOSE    : tag_manage: create, update, delete, set_active, isolate,
+# PURPOSE    : tag_manage: create, create_standard (1.0.18: from the Tags
+#              SSOT, through TagUtils), update, delete, set_active, isolate,
 #              show_all, create_folder, delete_folder
 # CREATED    : 2026
 #
@@ -28,7 +29,10 @@ module Na__SketchUpMcp
 # REGION | Constants
 # -----------------------------------------------------------------------------
 
-        NA_ACTIONS = %w[create update delete set_active isolate show_all create_folder delete_folder].freeze
+        NA_ACTIONS = %w[create create_standard update delete set_active isolate show_all create_folder delete_folder].freeze
+        NA_DATALIB_FOLDER = File.expand_path('../../Na__Common__DataLib__CoreSuEntityStandards', __dir__).freeze
+        NA_SSOT_TAGS_FILE = File.join(NA_DATALIB_FOLDER, 'Na__DataLib__CoreIndex__Tags__.json').freeze
+        NA_SSOT_EDGES_FILE = File.join(NA_DATALIB_FOLDER, 'Na__DataLib__CoreIndex__EdgeMaterials__.json').freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -41,6 +45,7 @@ module Na__SketchUpMcp
             action = Na__Params.Na__Params__Enum(params, 'action', NA_ACTIONS, nil, required: true)
             case action
             when 'create'        then na_create(model, params, ctx)
+            when 'create_standard' then na_create_standard(model, params, ctx)
             when 'update'        then na_update(model, params, ctx)
             when 'delete'        then na_delete(model, params)
             when 'set_active'    then na_set_active(model, params)
@@ -92,6 +97,82 @@ module Na__SketchUpMcp
             end
             ctx[:warnings] << "Already existed (settings applied): #{existing.join(', ')}." unless existing.empty?
             { 'created' => created, 'existing' => existing, 'summary' => "Created #{created.length} tag(s)." }
+        end
+
+        # Tags from Adam's Tags SSOT (Na__Common__DataLib__CoreSuEntityStandards), made the way his
+        # TagUtils makes them: SSOT line style, tag colour and Na__Noble3dModellingTools__TagUtils
+        # metadata. Read from the local files only: no network call from the bridge. A tag that
+        # already exists is left as it is unless update_existing (TagUtils also turns it visible).
+        def self.na_create_standard(model, params, ctx)
+            names = na_names(params)
+            payload = JSON.parse(File.read(NA_SSOT_TAGS_FILE, encoding: 'UTF-8'))
+            entries = na_ssot_tag_entries(payload['Na__DataLib__CoreIndex__Tags'])
+            unknown = names.reject { |name| entries.key?(name) }
+            unless unknown.empty?
+                hints = unknown.map do |name|
+                    number = name[/\A\d{2}__/]
+                    similar = number ? entries.keys.select { |key| key.start_with?(number) }.first(6) : []
+                    "#{name}#{similar.empty? ? '' : " (SSOT tags starting #{number}: #{similar.join(', ')})"}"
+                end
+                raise Na__McpError.new('not_found', "Not in the Tags SSOT: #{hints.join('; ')}.",
+                                       "Use an SSOT name exactly (#{File.basename(NA_SSOT_TAGS_FILE)}). A new tag is agreed with Adam and added to the SSOT first.")
+            end
+
+            edge_root = File.exist?(NA_SSOT_EDGES_FILE) ? JSON.parse(File.read(NA_SSOT_EDGES_FILE, encoding: 'UTF-8'))['Na__DataLib__CoreIndex__EdgeMaterials'] : nil
+            tag_utils = defined?(::Na__Noble3dModellingTools::Na__TagUtils) && ::Na__Noble3dModellingTools::Na__TagUtils.respond_to?(:na_create_or_update_tag) ? ::Na__Noble3dModellingTools::Na__TagUtils : nil
+            update_existing = Na__Params.Na__Params__Boolean(params, 'update_existing', false)
+            created = []
+            existing = []
+            updated = []
+            names.each do |name|
+                is_new = model.layers[name].nil?
+                unless is_new || update_existing
+                    existing << name
+                    next
+                end
+
+                key, data = entries[name]
+                if tag_utils
+                    outcome = tag_utils.na_create_or_update_tag(model, key, name, data, payload['meta'], edge_root)
+                    raise Na__McpError.new('operation_failed', "TagUtils could not make #{name}: #{outcome[:reason]}", nil) if outcome.is_a?(Hash) && outcome[:status] == :failed
+
+                    ctx[:warnings] << outcome[:warning] if outcome.is_a?(Hash) && outcome[:warning]
+                else
+                    na_style_from_ssot(model, model.layers[name] || model.layers.add(name), data, ctx)
+                end
+                (is_new ? created : updated) << name
+            end
+            ctx[:warnings] << 'Na Noble3d Modelling Tools (TagUtils) is not loaded: tags took the SSOT line style and colour only, without its metadata.' unless tag_utils
+            { 'created' => created, 'updated' => updated, 'existing' => existing, 'ssot_version' => (payload['meta'] || {})['version'],
+              'summary' => "Created #{created.length} SSOT tag(s)#{updated.empty? ? '' : ", updated #{updated.length}"}#{existing.empty? ? '' : "; #{existing.length} already in the model, left as they are"}." }
+        end
+
+        # { 'Tag__SketchUpName' => [entry key, entry data] } for every entry at any depth.
+        def self.na_ssot_tag_entries(node, found = {})
+            return found unless node.is_a?(Hash)
+
+            node.each do |key, value|
+                next unless value.is_a?(Hash)
+
+                name = value['Tag__SketchUpName']
+                found[name] ||= [key.to_s, value] if name.is_a?(String) && !name.empty?
+                na_ssot_tag_entries(value, found)
+            end
+            found
+        end
+
+        def self.na_style_from_ssot(model, layer, data, ctx)
+            style_name = data['Layout__LineStyleName'].to_s
+            unless style_name.empty?
+                style = model.line_styles[style_name]
+                if style
+                    layer.line_style = style
+                else
+                    ctx[:warnings] << "Line style '#{style_name}' not found for #{layer.name}."
+                end
+            end
+            rgb = data['Layout__EdgeColourRGB']
+            layer.color = Sketchup::Color.new(*rgb.first(3).map(&:to_i)) if rgb.is_a?(Array) && rgb.length >= 3
         end
 
         def self.na_update(model, params, _ctx)

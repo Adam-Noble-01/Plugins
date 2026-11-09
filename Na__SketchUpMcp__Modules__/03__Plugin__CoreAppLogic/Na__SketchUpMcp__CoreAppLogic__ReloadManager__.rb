@@ -51,6 +51,7 @@ module Na__SketchUpMcp
             end
 
             Na__ConfigLoader.Na__ConfigLoader__InvalidateCache
+            Na__ConnectionFile.Na__ConnectionFile__Refresh   # 1.0.19: the file carries the bridge_version now running
             Na__ApiSelfTest.Na__ApiSelfTest__Run
             Na__DialogManager.Na__DialogManager__ResetDialog
             message = "Reloaded #{loaded} Ruby file(s), #{errors.length} error(s). Bridge #{Na__SocketServer.Na__SocketServer__Running ? 'still running' : 'stopped'}."

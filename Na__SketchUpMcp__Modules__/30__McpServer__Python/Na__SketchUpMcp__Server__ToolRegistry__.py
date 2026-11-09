@@ -123,6 +123,10 @@ class Na__ToolRegistry:
     def Na__ToolRegistry__Server(self):
         return self.na_raw.get('server', {})
 
+    def Na__ToolRegistry__PropertySince(self):
+        """{'tool.parameter': 'x.y.z'}: the bridge version each parameter added later needs (1.0.19)."""
+        return self.na_raw.get('property_since', {}) or {}
+
     def Na__ToolRegistry__McpTools(self):
         """Tool definitions in MCP tools/list shape, in registry order (stable for prompt caching)."""
         definitions = []

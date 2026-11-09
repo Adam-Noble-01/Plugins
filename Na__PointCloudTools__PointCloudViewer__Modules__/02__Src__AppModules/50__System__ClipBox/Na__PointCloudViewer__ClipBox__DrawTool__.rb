@@ -214,7 +214,19 @@ module Na__PointCloudViewer
             bounds = self.na_selection_bounds(model)
             return ['Select something first (a wall, a room, a few edges), then Clip Box Around Selection fits the clip box round it.', nil] unless bounds
             margin_mm = self.Na__Clip__SelectionMarginMm
-            margin = margin_mm / 25.4
+            min, max = self.Na__Clip__GrowToGrid(bounds, margin_mm / 25.4)
+            problem = self.Na__Clip__ApplyAreaBox(session, slots, min, max, 'Clip Box Around Selection')
+            return [problem, nil] if problem
+            note = self.Na__Clip__AreaMessage('Clip box round the selection', slots, min, max)
+            note += " It reaches #{self.na_mm_text(margin_mm)} mm past what is selected." if margin_mm > 0
+            [nil, note]
+        end
+
+        # bounds ([min, max], model inches) grown by margin (inches) and rounded
+        # OUTWARDS onto the draw grid; a side thinner than a clip box allows is
+        # widened round its centre. v0.13.1: Clip Box Around Selection and the
+        # MCP seam (point_cloud_clip around entities) both use it.
+        def self.Na__Clip__GrowToGrid(bounds, margin)
             step = self.Na__Clip__DrawGridInches
             min = bounds[0].map { |value| ((value - margin) / step + 1e-9).floor * step }
             max = bounds[1].map { |value| ((value + margin) / step - 1e-9).ceil * step }
@@ -224,11 +236,7 @@ module Na__PointCloudViewer
                 min[axis] = ((centre - NA_MIN_GAP_INCHES / 2.0) / step).floor * step
                 max[axis] = ((centre + NA_MIN_GAP_INCHES / 2.0) / step).ceil * step
             end
-            problem = self.Na__Clip__ApplyAreaBox(session, slots, min, max, 'Clip Box Around Selection')
-            return [problem, nil] if problem
-            note = self.Na__Clip__AreaMessage('Clip box round the selection', slots, min, max)
-            note += " It reaches #{self.na_mm_text(margin_mm)} mm past what is selected." if margin_mm > 0
-            [nil, note]
+            [min, max]
         end
 
         # [min, max] (model inches) round everything selected, or nil. Bounds

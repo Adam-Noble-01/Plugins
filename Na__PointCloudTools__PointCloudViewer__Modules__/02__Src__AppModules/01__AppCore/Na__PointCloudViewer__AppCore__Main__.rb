@@ -126,6 +126,7 @@ require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__ImageExpor
 require_relative '../90__System__Scenes/Na__PointCloudViewer__Scenes__PublicApi__'
 require_relative '../15__System__Hotkeys/Na__PointCloudViewer__Hotkeys__Commands__'
 require_relative '../15__System__Hotkeys/Na__PointCloudViewer__Hotkeys__Manager__'
+require_relative '../95__System__McpOperations/Na__PointCloudViewer__McpOperations__Main__'   # v0.13.1 agent seam for Na SketchUp MCP
 
 # -----------------------------------------------------------------------------
 # REGION | AppCore - Dialog (must load last - depends on all systems above)

@@ -97,6 +97,10 @@ module Geom
             @y = y.to_f
             @z = z.to_f
         end
+
+        def to_a
+            [@x, @y, @z]
+        end
     end
 
     class Vector3d < Point3d; end
@@ -127,6 +131,11 @@ NA_ROOT = $NA_MODULES_ROOT
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__SocketServer__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__Status__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__PointCloud__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__View__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__Geometry__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVision__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVisionExport__.rb
 ].each { |relative| load File.join(NA_ROOT, relative) }
 
 # Keep test connection files and settings out of the real 91__UserConfig__LocalOnly.
@@ -423,6 +432,436 @@ na_check('solid: an open box is made consistent but not called closed') do
     faces = na_cube(reverse: [2], drop: [1])
     report = SH.Na__SolidHealth__OrientShells(faces)
     report['closed_shells'].zero? && report['shells'] == 1 && report['faces_flipped'] == 1
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Point Cloud Seam (1.0.9; the Point Cloud Viewer is not loaded here)
+# -----------------------------------------------------------------------------
+
+PC = Na__SketchUpMcp::Na__Handlers__PointCloud
+PC_CTX = { model: nil, unit: 'mm', warnings: [] }.freeze
+
+na_check('point cloud: without the viewer every tool refuses as unsupported') do
+    na_refuses('unsupported') { PC.Na__Handlers__PointCloud__State({}, PC_CTX.dup) } &&
+        na_refuses('unsupported') { PC.Na__Handlers__PointCloud__View({ 'shown' => true }, PC_CTX.dup) } &&
+        na_refuses('unsupported') { PC.Na__Handlers__PointCloud__Clip({ 'action' => 'on' }, PC_CTX.dup) } &&
+        na_refuses('unsupported') { PC.Na__Handlers__PointCloud__Slice({ 'action' => 'count', 'min' => [0, 0, 0], 'max' => [1, 1, 1] }, PC_CTX.dup) }
+end
+
+na_check('point cloud: the refusal names the viewer version to install') do
+    PC.na_operations
+    false
+rescue Na__SketchUpMcp::Na__McpError => error
+    error.message.include?('0.13.1') && error.na_hint.to_s.include?('Reload')
+end
+
+na_check('point cloud: an unknown action is refused before the viewer is asked') do
+    na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Clip({ 'action' => 'delete' }, PC_CTX.dup) } &&
+        na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Slice({ 'action' => 'cut' }, PC_CTX.dup) }
+end
+
+na_check('point cloud: per_inch follows the call units') do
+    na_close(PC.na_arguments(unit: 'mm')['per_inch'], 25.4) && na_close(PC.na_arguments(unit: 'm')['per_inch'], 0.0254) &&
+        na_close(PC.na_arguments(unit: 'in')['per_inch'], 1.0)
+end
+
+na_check('router: the four point cloud tools are routed; only point_cloud_clip is kept out of batches') do
+    routes = Na__SketchUpMcp::Na__CommandRouter::NA_HANDLER_ROUTES
+    forbidden = Na__SketchUpMcp::Na__CommandRouter::NA_BATCH_FORBIDDEN
+    %w[point_cloud_state point_cloud_clip point_cloud_view point_cloud_slice point_cloud_fit point_cloud_check point_cloud_heightmap].all? { |name| routes[name] && routes[name][0] == :Na__Handlers__PointCloud } &&
+        forbidden.key?('point_cloud_clip') && %w[point_cloud_state point_cloud_view point_cloud_slice point_cloud_fit point_cloud_check point_cloud_heightmap].none? { |name| forbidden.key?(name) }
+end
+
+na_check('point cloud: point_cloud_heightmap refuses the other action\'s keys before asking the viewer (1.0.16)') do
+    na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Heightmap({ 'action' => 'profile', 'path' => [[0, 0], [1, 0]], 'resolution' => 50 }, PC_CTX.dup) } &&
+        na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Heightmap({ 'min' => [0, 0, 0], 'max' => [1, 1, 1], 'step' => 50 }, PC_CTX.dup) } &&
+        na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Heightmap({ 'action' => 'slice' }, PC_CTX.dup) }
+end
+
+na_check('point cloud: heightmap save_path takes the action\'s extensions, the first by default (1.0.16)') do
+    folder = Dir.mktmpdir('na_mcp_height_')
+    taken = File.join(folder, 'taken.asc')
+    File.binwrite(taken, 'x')
+    ok = PC.na_save_path({ 'save_path' => File.join(folder, 'ground') }, %w[.npz .asc]).end_with?('ground.npz') &&
+         PC.na_save_path({ 'save_path' => File.join(folder, 'ground.ASC') }, %w[.npz .asc]).end_with?('ground.ASC') &&
+         na_refuses('invalid_params') { PC.na_save_path({ 'save_path' => File.join(folder, 'ground.tif') }, %w[.npz .asc]) } &&
+         na_refuses('file_error') { PC.na_save_path({ 'save_path' => taken }, %w[.npz .asc]) } &&
+         na_refuses('invalid_params') { PC.na_image_path('image_path' => File.join(folder, 'ground.jpg')) }
+    FileUtils.rm_rf(folder)
+    ok
+end
+
+na_check('point cloud: points save_path must be a .npz in a folder that exists (1.0.12)') do
+    folder = Dir.mktmpdir('na_mcp_npz_')
+    plain = PC.na_npz_path('save_path' => File.join(folder, 'stair'))
+    taken = File.join(folder, 'taken.npz')
+    File.binwrite(taken, 'x')
+    ok = plain.end_with?('stair.npz') &&
+         na_refuses('invalid_params') { PC.na_npz_path('save_path' => File.join(folder, 'stair.csv')) } &&
+         na_refuses('file_error') { PC.na_npz_path('save_path' => File.join(folder, 'missing', 'a.npz')) } &&
+         na_refuses('file_error') { PC.na_npz_path('save_path' => taken) } &&
+         PC.na_npz_path('save_path' => taken, 'overwrite' => true) == File.expand_path(taken)
+    FileUtils.rm_rf(folder)
+    ok
+end
+
+# Shown as SketchUp draws it (1.0.17): hidden, on a hidden tag or in a hidden tag folder is left out.
+NaTestTag = Struct.new(:visible, :folder) do
+    def visible? = visible
+end
+
+class NaShownFace < Sketchup::Face
+    attr_reader :layer
+
+    def initialize(hidden, layer)
+        @hidden = hidden
+        @layer = layer
+    end
+
+    def hidden? = @hidden
+end
+
+class NaShownGroup < Sketchup::Group
+    attr_reader :layer, :definition
+
+    def initialize(hidden, layer, children)
+        @hidden = hidden
+        @layer = layer
+        @definition = Struct.new(:entities).new(children)
+    end
+
+    def hidden? = @hidden
+end
+
+na_check('point cloud: the check and overlays skip hidden groups, hidden faces, hidden tags and closed tag folders (1.0.17)') do
+    on = NaTestTag.new(true, nil)
+    off = NaTestTag.new(false, nil)
+    in_closed = NaTestTag.new(true, NaTestTag.new(true, NaTestTag.new(false, nil)))
+    keep_top = NaShownFace.new(false, on)
+    keep_inner = NaShownFace.new(false, nil)
+    dropped = [NaShownFace.new(true, on), NaShownFace.new(false, off), NaShownFace.new(false, in_closed)]
+    tree = [keep_top, NaShownGroup.new(true, on, [NaShownFace.new(false, on)]), NaShownGroup.new(false, off, [NaShownFace.new(false, on)]),
+            NaShownGroup.new(false, on, [keep_inner] + dropped)]
+    seen = []
+    PC.na_walk_shown(tree, [], { remaining: 100, visited: 0, truncated: false }) { |entity, _path| seen << entity if entity.is_a?(Sketchup::Face) }
+    seen == [keep_top, keep_inner] && PC.na_shown?(keep_top) && !PC.na_shown?(dropped[2]) && !PC.na_shown?(dropped[1])
+end
+
+na_check('capture paths: a save_path extension must match the image, else invalid_params (1.0.17)') do
+    folder = Dir.mktmpdir('na_mcp_capture_')
+    view = Na__SketchUpMcp::Na__Handlers__View
+    ok = view.na_capture_path({ 'save_path' => File.join(folder, 'shot') }, 'png').end_with?('shot.png') &&
+         view.na_capture_path({ 'save_path' => File.join(folder, 'shot.PNG') }, 'png').end_with?('shot.PNG') &&
+         view.na_capture_path({ 'save_path' => File.join(folder, 'shot.jpeg') }, 'jpg').end_with?('shot.jpeg') &&
+         na_refuses('invalid_params') { view.na_capture_path({ 'save_path' => File.join(folder, 'shot.jpg') }, 'png') } &&
+         na_refuses('invalid_params') { view.na_capture_path({ 'save_path' => File.join(folder, 'shot.png') }, 'jpg') } &&
+         na_refuses('invalid_params') { PC.na_image_path('image_path' => File.join(folder, 'map.tif')) }
+    FileUtils.rm_rf(folder)
+    ok
+end
+
+na_check('view_set and view_capture: a key sent as null is not given; false and true still are (1.0.20)') do
+    view = Na__SketchUpMcp::Na__Handlers__View
+    camera_ok = !view.na_camera_requested?('camera' => nil, 'standard_view' => nil, 'zoom' => nil, 'zoom_ids' => nil) &&
+                view.na_camera_requested?('zoom' => 'extents')
+    nulls = view.na_rendering_changes('xray' => nil, 'show_hidden_geometry' => nil, 'section_display' => { 'planes' => nil, 'cuts' => true })
+    given = view.na_rendering_changes('xray' => true, 'show_hidden_geometry' => false)
+    shadows = view.na_shadow_changes('shadows' => { 'time' => nil, 'on' => nil, 'light' => 60 })
+    settings = { 'DrawHidden' => true, 'ModelTransparency' => false }
+    touched = view.na_set_options(settings, { 'DrawHidden' => nil }, 'rendering_options')
+    camera_ok && nulls == { 'DisplaySectionCuts' => true } && given == { 'ModelTransparency' => true, 'DrawHidden' => false } &&
+        shadows == { 'Light' => 60 } && touched == [] && settings['DrawHidden'] == true
+end
+
+# A viewer from before 0.14.0: points and density are refused, naming the version to install.
+module Na__PointCloudViewer
+    module Na__McpOperations
+        NA_READ_ACTIONS = %w[state count histogram image].freeze
+
+        def self.Na__PointCloudViewer__McpRead(_action, _params)
+            {}
+        end
+    end
+end
+
+na_check('point cloud: an older viewer refuses points and density as unsupported, naming 0.14.0 (1.0.12)') do
+    %w[points density].all? do |action|
+        PC.Na__Handlers__PointCloud__Slice({ 'action' => action, 'min' => [0, 0, 0], 'max' => [1, 1, 1], 'view' => 'top', 'resolution' => 5 }, PC_CTX.dup)
+        false
+    rescue Na__SketchUpMcp::Na__McpError => error
+        error.na_code == 'unsupported' && error.message.include?('0.14.0')
+    end
+end
+na_check('point cloud: overlay_ids is refused on count, and refused by a viewer before 0.14.1 (1.0.13)') do
+    base = { 'min' => [0, 0, 0], 'max' => [1, 1, 1], 'view' => 'top', 'resolution' => 5, 'overlay_ids' => [1] }
+    na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Slice(base.merge('action' => 'count'), PC_CTX.dup) } &&
+        begin
+            PC.Na__Handlers__PointCloud__Slice(base.merge('action' => 'image'), PC_CTX.dup)
+            false
+        rescue Na__SketchUpMcp::Na__McpError => error
+            error.na_code == 'unsupported' && error.message.include?('0.14.1')
+        end
+end
+na_check('point cloud: point_cloud_fit is refused by a viewer before 0.14.2, naming it (1.0.14)') do
+    PC.Na__Handlers__PointCloud__Fit({ 'shape' => 'plane', 'min' => [0, 0, 0], 'max' => [1, 1, 1] }, PC_CTX.dup)
+    false
+rescue Na__SketchUpMcp::Na__McpError => error
+    error.na_code == 'unsupported' && error.message.include?('0.14.2')
+end
+
+na_check('point cloud: point_cloud_fit refuses an unknown shape before asking the viewer (1.0.14)') do
+    na_refuses('invalid_params') { PC.Na__Handlers__PointCloud__Fit({ 'shape' => 'sphere', 'min' => [0, 0, 0], 'max' => [1, 1, 1] }, PC_CTX.dup) }
+end
+na_check('point cloud: point_cloud_check is refused by a viewer before 0.14.3, naming it (1.0.15)') do
+    PC.Na__Handlers__PointCloud__Check({ 'ids' => [1] }, PC_CTX.dup)
+    false
+rescue Na__SketchUpMcp::Na__McpError => error
+    error.na_code == 'unsupported' && error.message.include?('0.14.3')
+end
+na_check('point cloud: point_cloud_heightmap is refused by a viewer before 0.14.4, naming it (1.0.16)') do
+    PC.Na__Handlers__PointCloud__Heightmap({ 'min' => [0, 0, 0], 'max' => [1, 1, 1] }, PC_CTX.dup)
+    false
+rescue Na__SketchUpMcp::Na__McpError => error
+    error.na_code == 'unsupported' && error.message.include?('0.14.4')
+end
+na_check('point cloud: a key sent as null is not given: shown: null leaves the clouds alone (1.0.17)') do
+    sent = nil
+    Na__PointCloudViewer::Na__McpOperations.define_singleton_method(:Na__PointCloudViewer__McpEdit) do |_action, arguments|
+        sent = arguments
+        {}
+    end
+    PC.Na__Handlers__PointCloud__View({ 'overlay' => true, 'shown' => nil, 'colour_mode' => nil, 'point_size_px' => 3, 'reload' => nil }, PC_CTX.dup)
+    sent && sent['overlay'] == true && sent['point_size_px'] == 3 && !sent.key?('shown') && !sent.key?('colour_mode') && !sent.key?('reload')
+end
+na_check('point cloud: frame is refused by a viewer before 0.14.6, naming it (1.0.19)') do
+    PC.Na__Handlers__PointCloud__Slice({ 'action' => 'count', 'min' => [0, 0, 0], 'max' => [1, 1, 1], 'frame' => { 'angle' => 30 } }, PC_CTX.dup)
+    false
+rescue Na__SketchUpMcp::Na__McpError => error
+    error.na_code == 'unsupported' && error.message.include?('0.14.6')
+end
+
+na_check('point cloud: a frame origin comes in from the call\'s units; angle and axes pass as given; id is alone (1.0.19)') do
+    Na__PointCloudViewer::Na__McpOperations.const_set(:NA_FEATURES, %w[frame].freeze) unless Na__PointCloudViewer::Na__McpOperations.const_defined?(:NA_FEATURES)
+    ops = Na__PointCloudViewer::Na__McpOperations
+    metres = PC.na_frame({ 'frame' => { 'origin' => [2.54, 0, 0], 'angle' => 30 } }, { model: nil, unit: 'm', warnings: [] }, ops)
+    axes = PC.na_frame({ 'frame' => { 'x_axis' => [1, 1, 0], 'y_axis' => [0, 0, 1] } }, PC_CTX.dup, ops)
+    na_close(metres['origin'][0], 100.0) && metres['angle'] == 30 && axes == { 'x_axis' => [1, 1, 0], 'y_axis' => [0, 0, 1] } &&
+        na_refuses('invalid_params') { PC.na_frame({ 'frame' => { 'id' => 5, 'angle' => 10 } }, PC_CTX.dup, ops) }
+end
+Object.send(:remove_const, :Na__PointCloudViewer)
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Drape Plan Maths (1.0.11)
+# -----------------------------------------------------------------------------
+
+GE = Na__SketchUpMcp::Na__Handlers__Geometry
+TRI = [0.0, 0.0, 0.0, 10.0, 0.0, 10.0, 0.0, 10.0, 20.0].freeze   # z = x + 2y
+
+na_check('drape: a segment crossing an edge reports t; parallel, touching-the-end and missing segments do not') do
+    hit = GE.Na__Handlers__Geometry__SegmentCross(-5.0, 5.0, 10.0, 0.0, 0.0, 0.0, 0.0, 10.0)
+    na_close(hit, 0.5) &&
+        GE.Na__Handlers__Geometry__SegmentCross(0.0, 1.0, 10.0, 0.0, 0.0, 0.0, 10.0, 0.0).nil? &&
+        GE.Na__Handlers__Geometry__SegmentCross(-5.0, 5.0, 5.0, 0.0, 0.0, 0.0, 0.0, 10.0).nil? &&
+        GE.Na__Handlers__Geometry__SegmentCross(-5.0, 20.0, 10.0, 0.0, 0.0, 0.0, 0.0, 10.0).nil?
+end
+
+na_check('drape: barycentric weights sum to 1 and are negative outside') do
+    inside = GE.Na__Handlers__Geometry__Barycentric(TRI, 2.0, 3.0)
+    outside = GE.Na__Handlers__Geometry__Barycentric(TRI, 9.0, 9.0)
+    na_close(inside.sum, 1.0) && inside.min > 0 && outside.min < 0 &&
+        GE.Na__Handlers__Geometry__Barycentric([0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 2.0, 2.0, 0.0], 1.0, 1.0).nil?
+end
+
+na_check('drape: a point takes the height of its triangle plane, corners and inside') do
+    na_close(GE.Na__Handlers__Geometry__PlaneZ(TRI, 2.0, 3.0), 8.0) &&
+        na_close(GE.Na__Handlers__Geometry__PlaneZ(TRI, 10.0, 0.0), 10.0) &&
+        na_close(GE.Na__Handlers__Geometry__PlaneZ(TRI, 0.0, 10.0), 20.0)
+end
+
+na_check('drape: a run over two triangles splits at the shared edge and stays on both planes') do
+    tris = [TRI, [10.0, 0.0, 10.0, 10.0, 10.0, 0.0, 0.0, 10.0, 20.0]]   # second: z = 30 - x - 2y + ... at its corners
+    grid = GE.na_drape_index(tris)
+    pieces, off = GE.na_drape_run([[1.0, 1.0, 99.0], [9.0, 8.0, 99.0]], tris, grid, 0.0)
+    piece = pieces.first
+    pieces.length == 1 && off.abs < 1.0e-9 && piece.length == 3 &&
+        na_close(piece[0][2], GE.Na__Handlers__Geometry__PlaneZ(TRI, 1.0, 1.0)) &&
+        na_close(piece[1][0] + piece[1][1], 10.0)
+end
+
+na_check('drape: the part of a run off the surface is measured and left out') do
+    grid = GE.na_drape_index([TRI])
+    pieces, off = GE.na_drape_run([[-4.0, 1.0, 0.0], [4.0, 1.0, 0.0]], [TRI], grid, 0.0)
+    pieces.length == 1 && na_close(off, 4.0, 1.0e-6) && na_close(pieces.first.first[0], 0.0, 1.0e-9)
+end
+
+na_check('router: geometry_create_lines and geometry_drape are routed and allowed in batches') do
+    routes = Na__SketchUpMcp::Na__CommandRouter::NA_HANDLER_ROUTES
+    forbidden = Na__SketchUpMcp::Na__CommandRouter::NA_BATCH_FORBIDDEN
+    %w[geometry_create_lines geometry_drape].all? { |name| routes[name] && routes[name][0] == :Na__Handlers__Geometry && !forbidden.key?(name) }
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | TrueVision Export Rules (1.0.18, truevision_structure; the real Tags SSOT file)
+# -----------------------------------------------------------------------------
+
+TV = Na__SketchUpMcp::Na__Handlers__TrueVision
+tv_ctx = { warnings: [] }
+tv_config = TV.na_config(tv_ctx)
+na_check('truevision: rules read from the Tags SSOT file when the GLB Builder is not loaded') { tv_config && tv_config[:source].include?('Tags SSOT') }
+na_check('truevision: storey containers 90-93') do
+    tv_config[:storey_map][90] == 'Storey__GroundFloor' && tv_config[:storey_map][93] == 'Storey__ThirdFloor' && (tv_config[:storey_range] & [90, 91, 92, 93]).length == 4
+end
+na_check('truevision: element map walls, stairs, landscape') do
+    map = tv_config[:element_map]
+    map[21] == 'ProposedWalls' && map[11] == 'ExistingWalls' && map[26] == 'ProposedStairs' && map[16] == 'ExistingStairs' && map[7] == 'LandscapeEnvironment'
+end
+na_check('truevision: 01 exports as the orbit cube, 05 is skipped') do
+    tv_config[:tag_ranges].include?(['01__OrbitHelperCube', [1]]) && tv_config[:skip].include?(5) && !tv_config[:skip].include?(1)
+end
+
+TvLayer = Struct.new(:name)
+tv_untagged = TvLayer.new('Layer0')
+tv_layers = Object.new
+tv_layers.define_singleton_method(:[]) { |index| index.zero? ? tv_untagged : nil }
+tv_model = Object.new
+tv_model.define_singleton_method(:layers) { tv_layers }
+tv_state = { model: tv_model, config: tv_config, tag_cache: {} }
+tv_info = ->(name) { TV.na_tag_info(name == 'Layer0' ? tv_untagged : TvLayer.new(name), tv_state) }
+na_check('truevision: a walls tag is a storey element and a flat file') do
+    info = tv_info.call('21__ProposedBuilding__Walls')
+    info[:element] == 'ProposedWalls' && info[:stem] == 'TrueVision__MainBuildingModel__ProposedWalls' && !info[:excluded] && !info[:untagged]
+end
+na_check('truevision: a storey tag names its storey') { tv_info.call('91__Storey__FirstFloor')[:storey] == 'Storey__FirstFloor' }
+na_check('truevision: linetype tags are excluded') { tv_info.call('02__Linetype__DashedLines')[:excluded] }
+na_check('truevision: site plan tags are excluded') { tv_info.call('72__SitePlan__Boundary__RedLine')[:excluded] }
+na_check('truevision: Untagged is untagged, never excluded') { info = tv_info.call('Layer0'); info[:untagged] && !info[:excluded] }
+
+na_check('truevision: root reasons') do
+    TV.na_root_reason({ untagged: true }, true) == 'untagged' &&
+        TV.na_root_reason({ number: 5, skip: true }, true).start_with?('skip range 05') &&
+        TV.na_root_reason({ number: 80 }, true) == 'no export file for tag number 80' &&
+        TV.na_root_reason({ number: 90, storey: 'Storey__GroundFloor' }, false).start_with?('storey tag on loose geometry') &&
+        TV.na_root_reason({ number: 21, stem: 'TrueVision__MainBuildingModel__ProposedWalls' }, true).nil?
+end
+na_check('truevision: reasons inside a storey') do
+    TV.na_child_reason({ untagged: true }) == 'untagged' &&
+        TV.na_child_reason({ number: 91, storey: 'Storey__FirstFloor' }).start_with?('storey tag inside a storey') &&
+        TV.na_child_reason({ number: 30 }) == 'tag 30 is not a storey element tag' &&
+        TV.na_child_reason({ number: 24, element: 'ProposedWindows' }).nil?
+end
+
+tv_path_model = ->(path) { model = Object.new; model.define_singleton_method(:path) { path }; model }
+na_check('truevision: file prefix is the name up to the first "__" when it has no "_"') do
+    TV.na_prefix(tv_path_model.call('D:/Jobs/NP03__AshnessClose__ConceptModel__2.1.0__.skp')) == 'NP03__' &&
+        TV.na_prefix(tv_path_model.call('D:/Jobs/RB05_T02_M01__PreApp__MainHouse__0.9.8__.skp')) == '' &&
+        TV.na_prefix(tv_path_model.call('')) == ''
+end
+na_check('truevision: export file names, the orbit cube without linework') do
+    files = TV.na_export_files(tv_path_model.call('D:/NP03__Model.skp'), { '01__OrbitHelperCube' => [1], 'TrueVision__LandscapeEnvironment' => [1] },
+                               [{ name: 'Storey__GroundFloor', elements: { 'ProposedWalls' => [1] } }])
+    files == ['NP03__01__OrbitHelperCube__MeshModel__.glb', 'NP03__TrueVision__LandscapeEnvironment__MeshModel__.glb',
+              'NP03__TrueVision__LandscapeEnvironment__LineworkModel__.glb', 'NP03__Storey__GroundFloor__ProposedWalls__MeshModel__.glb',
+              'NP03__Storey__GroundFloor__ProposedWalls__LineworkModel__.glb']
+end
+na_check('truevision: save_path must be an absolute .json path') do
+    na_refuses('invalid_params') { TV.na_options({ 'save_path' => 'relative/structure.json' }) } &&
+        na_refuses('invalid_params') { TV.na_options({ 'save_path' => 'C:/Temp/structure.txt' }) }
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | TrueVision GLB Builder Seam (1.0.21: truevision_export, _edit, _publish)
+# -----------------------------------------------------------------------------
+
+TVX = Na__SketchUpMcp::Na__Handlers__TrueVisionExport
+TVX_CTX = { model: nil, unit: 'mm', warnings: [] }.freeze
+
+na_check('glb builder: without the GLB Builder every tool refuses as unsupported, naming 2.14.0') do
+    na_refuses('unsupported') { TVX.Na__Handlers__TrueVisionExport__Read({ 'action' => 'status' }, TVX_CTX.dup) } &&
+        na_refuses('unsupported') { TVX.Na__Handlers__TrueVisionExport__Edit({ 'action' => 'export_project' }, TVX_CTX.dup) } &&
+        na_refuses('unsupported') { TVX.Na__Handlers__TrueVisionExport__Publish({ 'action' => 'push', 'confirm' => 'SK02' }, TVX_CTX.dup) } &&
+        begin
+            TVX.na_operations
+            false
+        rescue Na__SketchUpMcp::Na__McpError => error
+            error.message.include?('2.14.0') && error.na_hint.to_s.include?('Reload Scripts')
+        end
+end
+
+na_check('glb builder: an unknown or missing action is refused before the GLB Builder is asked') do
+    na_refuses('invalid_params') { TVX.Na__Handlers__TrueVisionExport__Read({ 'action' => 'delete_everything' }, TVX_CTX.dup) } &&
+        na_refuses('invalid_params') { TVX.Na__Handlers__TrueVisionExport__Publish({ 'action' => 'export_project' }, TVX_CTX.dup) } &&
+        na_refuses('invalid_params') { TVX.Na__Handlers__TrueVisionExport__Edit({}, TVX_CTX.dup) }
+end
+
+na_check('glb builder: the seam gets the arguments without action and without keys sent as null') do
+    TVX.na_arguments({ 'action' => 'export_folder', 'path' => 'D:/X', 'confirm' => nil, 'on' => false }) == { 'path' => 'D:/X', 'on' => false }
+end
+
+na_check('glb builder: the seam\'s warnings move onto the response') do
+    ctx = { warnings: [] }
+    result = TVX.na_forward(ctx) { { 'summary' => 'ok', 'warnings' => ['kept older files'] } }
+    result == { 'summary' => 'ok' } && ctx[:warnings] == ['kept older files']
+end
+
+na_check('router: the three GLB Builder tools are routed; edit and publish are kept out of batches') do
+    routes = Na__SketchUpMcp::Na__CommandRouter::NA_HANDLER_ROUTES
+    forbidden = Na__SketchUpMcp::Na__CommandRouter::NA_BATCH_FORBIDDEN
+    { 'truevision_export' => :Na__Handlers__TrueVisionExport__Read, 'truevision_export_edit' => :Na__Handlers__TrueVisionExport__Edit,
+      'truevision_publish' => :Na__Handlers__TrueVisionExport__Publish }.all? { |name, method| routes[name] == [:Na__Handlers__TrueVisionExport, method] } &&
+        forbidden.key?('truevision_export_edit') && forbidden.key?('truevision_publish') && !forbidden.key?('truevision_export')
+end
+
+tvx_registry = JSON.parse(File.read(File.join(NA_ROOT, '02__Plugin__CoreAppData', 'Na__SketchUpMcp__CoreAppData__ToolRegistry__.json'), encoding: 'UTF-8'))
+tvx_enum = ->(name) { tvx_registry['tools'].find { |tool| tool['name'] == name }['input_schema']['properties']['action']['enum'] }
+na_check('glb builder: the registry offers exactly the handler\'s actions') do
+    tvx_enum.call('truevision_export') == TVX::NA_READ_ACTIONS && tvx_enum.call('truevision_export_edit') == TVX::NA_EDIT_ACTIONS &&
+        tvx_enum.call('truevision_publish') == TVX::NA_PUBLISH_ACTIONS
+end
+na_check('glb builder: edit and publish manage their own undo, and only publish reaches the world') do
+    tools = tvx_registry['tools'].each_with_object({}) { |tool, hash| hash[tool['name']] = tool }
+    tools['truevision_export']['mutates'] == false && tools['truevision_export_edit']['operation'] == false &&
+        tools['truevision_publish']['operation'] == false && tools['truevision_publish']['annotations']['openWorldHint'] == true &&
+        tools['truevision_export_edit']['annotations']['openWorldHint'] == false
+end
+
+# The real seam from the GLB Builder beside this plugin: its actions must be the handler's, one for one.
+tvx_seam = File.join(File.dirname(NA_ROOT), 'Na__TrueVision__GlbBuilderUtility__Modules__', '07__Plugin__McpOperations',
+                     'Na__TrueVision__GlbBuilder__McpOperations__Main__.rb')
+if File.exist?(tvx_seam)
+    load tvx_seam
+    seam = ::TrueVision3D::GlbBuilderUtility::Na__McpOperations
+    na_check('glb builder: the GLB Builder\'s seam answers exactly the handler\'s actions') do
+        actions = seam.Na__GlbBuilder__McpActions
+        actions['read'] == TVX::NA_READ_ACTIONS && actions['edit'] == TVX::NA_EDIT_ACTIONS && actions['publish'] == TVX::NA_PUBLISH_ACTIONS
+    end
+    na_check('glb builder: with the seam loaded, the handler finds it') { TVX.na_operations.equal?(seam) }
+    na_check('glb builder: a seam refusal becomes an MCP error with its code, hint and details') do
+        TVX.na_forward({ warnings: [] }) do
+            raise ::TrueVision3D::GlbBuilderUtility::Na__McpOperationsError.new('confirmation_required', 'Pushing needs confirm.', 'Pass confirm: "SK02".', { 'a' => 1 })
+        end
+        false
+    rescue Na__SketchUpMcp::Na__McpError => error
+        error.na_code == 'confirmation_required' && error.na_hint == 'Pass confirm: "SK02".' && error.na_details == { 'a' => 1 }
+    end
+    na_check('glb builder: a fault inside the GLB Builder comes back as glb_builder_error, not a crash') do
+        na_refuses('glb_builder_error') { TVX.Na__Handlers__TrueVisionExport__Read({ 'action' => 'status' }, TVX_CTX.dup) }
+    end
+    na_check('glb builder: publish refuses an unconfirmed push before anything runs') do
+        seam.define_singleton_method(:na_publish_ready) { |_why| { project_code: 'SK02', linked: true } }
+        refused = na_refuses('confirmation_required') { TVX.Na__Handlers__TrueVisionExport__Publish({ 'action' => 'push', 'confirm' => 'RB05' }, TVX_CTX.dup) }
+        seam.singleton_class.send(:remove_method, :na_publish_ready)
+        refused
+    end
+else
+    na_check("glb builder: the GLB Builder seam was not found at #{tvx_seam}") { false }
 end
 
 # endregion -------------------------------------------------------------------

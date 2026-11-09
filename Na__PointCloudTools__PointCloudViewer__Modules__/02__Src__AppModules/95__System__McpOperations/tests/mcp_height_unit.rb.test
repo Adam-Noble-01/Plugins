@@ -1,0 +1,210 @@
+# Unit tests for the seam's heightmaps and profiles (Na__PointCloudViewer__McpOperations__Height__.rb),
+# run with SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# Statistics are checked against sorting each cell by hand with pc_terrain.py's rank rule,
+# profile stations against points placed at known chainages.
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+load File.expand_path('../Na__PointCloudViewer__McpOperations__Height__.rb', __dir__)
+HT = Na__PointCloudViewer::Na__McpHeight
+RNG = Random.new(7)
+
+def refused(pattern)
+    yield
+    false
+rescue ArgumentError => error
+    error.message.include?(pattern)
+end
+
+TOP = { 'u' => [0, 1], 'v' => [1, 1], 'h' => 2 }.freeze
+
+check('specs: plain names, median is p50, repeats dropped, bad and too many refused') do
+    specs = HT.Na__Height__Specs(['P2', 'median', 'p50', 'mean', 'max', 'p99.5', 'min'])
+    specs.map(&:first) == %w[p2 p50 mean max p99.5 min] && specs[0][1] == 0.02 && specs[2][1] == :mean && specs[4][1] == 0.995 &&
+        refused('not a statistic') { HT.Na__Height__Specs(['top']) } && refused('over p100') { HT.Na__Height__Specs(['p101']) } &&
+        refused('At most') { HT.Na__Height__Specs((1..9).map { |n| "p#{n}" }) } && refused('empty') { HT.Na__Height__Specs([]) }
+end
+
+check('file names: the pc_terrain.py layout (z02, z50, z98) and the rest') do
+    [['p2', 'z02'], ['p50', 'z50'], ['p98', 'z98'], ['p99.5', 'z99_5'], ['p100', 'z100'], ['min', 'zmin'], ['mean', 'hmean']].all? do |name, want|
+        HT.Na__Height__FileName(name, want[0]) == want
+    end
+end
+
+check('grid cells: columns from the left, rows down from the top, off the grid -1, the far faces kept') do
+    grid = TOP.merge('left' => 10.0, 'top' => 50.0, 'cell' => 5.0, 'width' => 4, 'height' => 3)
+    xyz = [10.0, 49.9, 1.0,   29.9, 35.1, 2.0,   30.0, 35.0, 3.0,   9.9, 40.0, 4.0,   12.0, 35.0, 5.0,   20.0, 50.1, 6.0,   12.0, 34.9, 7.0]
+    cells, values = HT.Na__Height__GridCells(xyz, grid)
+    cells == [0, 2 * 4 + 3, 2 * 4 + 3, -1, 2 * 4 + 0, -1, -1] && values == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+end
+
+check('grid cells: a back view (screen right is -x) and a front view (heights along y)') do
+    back = { 'u' => [0, -1], 'v' => [2, 1], 'h' => 1, 'left' => -100.0, 'top' => 20.0, 'cell' => 10.0, 'width' => 10, 'height' => 2 }
+    cells, values = HT.Na__Height__GridCells([95.0, 7.0, 15.0, 5.0, -3.0, 1.0], back)
+    cells == [0, 10 + 9] && values == [7.0, -3.0]
+end
+
+def by_hand(values, q)
+    sorted = values.sort
+    q == :mean ? values.sum / values.length : sorted[(q * (sorted.length - 1) + 1e-9).floor]
+end
+
+check('bin: a cell of five values, an empty cell, the counts') do
+    specs = HT.Na__Height__Specs(%w[min p25 median max mean])
+    out = HT.Na__Height__Bin([1, 1, 1, 1, 1, -1, 3], [5.0, 1.0, 3.0, 2.0, 4.0, 99.0, 7.0], 4, specs)
+    s = out['stats']
+    out['count'] == [0, 5, 0, 1] && out['binned'] == 6 && s['min'][1] == 1.0 && s['p25'][1] == 2.0 && s['p50'][1] == 3.0 &&
+        s['max'][1] == 5.0 && s['mean'][1] == 3.0 && s['p50'][0].nil? && s['p50'][3] == 7.0 && s['max'][3] == 7.0
+end
+
+check('bin: 20,000 random points in 300 cells agree with sorting each cell by hand') do
+    specs = HT.Na__Height__Specs(%w[p2 p10 p50 p90 p98 mean min max])
+    cells = Array.new(20_000) { RNG.rand(330) - 30 }   # some off the grid
+    values = Array.new(20_000) { RNG.rand * 1000 - 200 }
+    out = HT.Na__Height__Bin(cells, values, 300, specs)
+    groups = Hash.new { |hash, key| hash[key] = [] }
+    cells.each_with_index { |cell, i| groups[cell] << values[i] if cell >= 0 }
+    (0...300).all? do |cell|
+        list = groups[cell]
+        specs.all? do |name, q|
+            got = out['stats'][name][cell]
+            list.empty? ? got.nil? : (got - by_hand(list, q)).abs < 1e-9
+        end && out['count'][cell] == list.length
+    end
+end
+
+check('bin: colours of the highest tenth and the lowest quarter, as pc_terrain.py averages them') do
+    heights = (1..10).map(&:to_f).shuffle(random: RNG)
+    colours = heights.map { |h| ((h * 10).round << 16) | (h.round << 8) | 7 }   # red 10 x height, green the height
+    out = HT.Na__Height__Bin([0] * 10, heights, 1, HT.Na__Height__Specs(['p50']), colours)
+    top = out['rgb_top'][0]
+    low = out['rgb_low'][0]
+    # ranks floor(0.9 x 9) = 8 to 9: heights 9 and 10; ranks 0 to floor(0.25 x 9) = 2: heights 1 to 3
+    top == [95.0, 9.5, 7.0] && low == [20.0, 2.0, 7.0] && out['stats']['p50'][0] == 5.0
+end
+
+check('plane: a tilted grid with holes gives its tilt back; one row of cells gives none') do
+    width = 30
+    height = 20
+    cell = 2.0
+    values = Array.new(width * height) do |k|
+        row, column = k.divmod(width)
+        next nil if RNG.rand < 0.2
+        0.02 * (column + 0.5) * cell - 0.01 * (-(row + 0.5) * cell) + 5.0
+    end
+    plane = HT.Na__Height__Plane(values, width, height, cell)
+    line = HT.Na__Height__Plane([1.0, 2.0, 3.0, 4.0], 4, 1, 1.0)
+    (plane['a'] - 0.02).abs < 1e-12 && (plane['b'] + 0.01).abs < 1e-12 && (plane['c'] - 5.0).abs < 1e-9 && plane['rms'] < 1e-9 && line.nil?
+end
+
+check('percentile and nice steps') do
+    HT.Na__Height__Percentile([nil, 3.0, 1.0, 2.0], 0.5) == 2.0 && HT.Na__Height__Percentile([nil], 0.5).nil? &&
+        HT.Na__Height__Nice(0.37) == 0.2 && HT.Na__Height__Nice(7.0) == 5.0 && HT.Na__Height__Nice(1000.0) == 1000.0 && HT.Na__Height__Nice(0.0) == 0.0
+end
+
+check('picture: size, white where empty, blue low and red high, a contour where a multiple is crossed') do
+    values = [0.0, 1.0, 9.0, nil, 2.0, 10.0]
+    rows = HT.Na__Height__Picture(values, 3, 2, 1.0, 4, 0.0, 10.0, 5.0)
+    pixel = ->(row, column) { rows[row].byteslice(3 * column, 3).unpack('C3') }
+    low = pixel.call(1, 1)
+    high = pixel.call(1, 9)
+    empty = pixel.call(5, 1)
+    # 1 | 9 crosses 5: the last column of the middle cell darkened; 0 | 1 crosses nothing
+    contour = pixel.call(1, 7)
+    plain = pixel.call(1, 3)
+    rows.length == 8 && rows.all? { |row| row.bytesize == 3 * 12 } && empty == [255, 255, 255] &&
+        low[2] > low[0] && high[0] > high[2] && contour.sum < plain.sum - 60
+end
+
+check('pieces: a straight run is one piece, a diagonal is cut to about the width, capped') do
+    straight, length = HT.Na__Height__Pieces([[0.0, 0.0], [100.0, 0.0]], 4.0, 32)
+    diagonal, diagonal_length = HT.Na__Height__Pieces([[0.0, 0.0], [70.0, 70.0]], 4.0, 32)
+    capped, = HT.Na__Height__Pieces([[0.0, 0.0], [700.0, 700.0]], 4.0, 32)
+    straight.length == 1 && length == 100.0 && straight[0]['low'] == [-2.0, -2.0] && straight[0]['high'] == [102.0, 2.0] &&
+        diagonal.length == 18 && (diagonal_length - 70 * Math.sqrt(2)).abs < 1e-9 && diagonal.last['last'] && !diagonal.first['last'] &&
+        capped.length == 32 && refused('the same') { HT.Na__Height__Pieces([[1.0, 1.0], [1.0, 1.0]], 4.0, 32) }
+end
+
+check('stations: points at known chainages along a bent path land once each, at the right station') do
+    path = [[0.0, 0.0], [60.0, 80.0], [160.0, 80.0]]   # 100 diagonal, then 100 along +x
+    pieces, length = HT.Na__Height__Pieces(path, 2.0, 32)
+    step = 5.0
+    count = (length / step).ceil
+    placed = []
+    600.times do
+        chainage = RNG.rand * length
+        next if (chainage - 100.0).abs < 3.0   # not round the bend
+        offset = (RNG.rand - 0.5) * 1.9
+        if chainage < 100
+            d = [0.6, 0.8]
+            base = [d[0] * chainage, d[1] * chainage]
+        else
+            d = [1.0, 0.0]
+            base = [60.0 + chainage - 100.0, 80.0]
+        end
+        placed << [base[0] - d[1] * offset, base[1] + d[0] * offset, chainage]
+    end
+    outside = [[30.0, 40.0 + 5.0, 1.0], [120.0, 84.0, 2.0]]   # 3 and 4 off the path
+    seen = Hash.new(0)
+    good = true
+    pieces.each do |piece|
+        inside = (placed + outside).select { |u, v, _| u >= piece['low'][0] && u <= piece['high'][0] && v >= piece['low'][1] && v <= piece['high'][1] }
+        xyz = inside.flat_map { |u, v, c| [u, v, c] }
+        stations, values, chainages = HT.Na__Height__Stations(xyz, TOP, piece, 1.0, step, count)
+        stations.each_with_index do |station, i|
+            next if station < 0
+            seen[values[i]] += 1
+            good &&= (chainages[i] - values[i]).abs < 1e-9 && station == [(values[i] / step).floor, count - 1].min
+        end
+    end
+    good && placed.all? { |_, _, c| seen[c] == 1 } && seen[1.0].zero? && seen[2.0].zero?
+end
+
+check('line and steepest: a known fall, and its steepest metre') do
+    xs = (0..20).map { |k| k * 5.0 }
+    ys = xs.map { |x| x < 50 ? 100.0 - 0.02 * x : 99.0 - 0.1 * (x - 50) }
+    ys[3] = nil
+    line = HT.Na__Height__Line(xs, ys)
+    steep = HT.Na__Height__Steepest(xs, ys, 20.0)
+    flat = HT.Na__Height__Line([0.0, 0.0], [1.0, 2.0])
+    line['slope'] < -0.02 && line['points'] == 20 && (steep['slope'] + 0.1).abs < 1e-9 && steep['to'] - steep['from'] >= 20 &&
+        flat.nil? && HT.Na__Height__Steepest([0.0, 1.0], [1.0, 2.0], 5.0).nil?
+end
+
+check('profile frame: automatic exaggeration from 1, 2, 5, 10 ..., the plot kept under its height cap') do
+    road = HT.Na__Height__ProfileFrame(400.0, 10.0, 16.0, nil)     # a 6 in fall over 400 in
+    stair = HT.Na__Height__ProfileFrame(200.0, 0.0, 100.0, nil)    # steep: no exaggeration
+    wall = HT.Na__Height__ProfileFrame(10.0, 0.0, 400.0, 1)       # nearly vertical: narrower, under the cap
+    road['exaggeration'] == 10 && stair['exaggeration'] == 1 && wall['height'] <= 2 * 20 + 1600 + 2 &&
+        road['width'] == 2 * 20 + 1200 + 1 && road['high'] > 16.0 && road['low'] < 10.0
+end
+
+check('profile picture: grey points, the line in its colour, a gap left open') do
+    frame = HT.Na__Height__ProfileFrame(100.0, 0.0, 10.0, 5)
+    stations = [[5.0, 2.0], [15.0, 3.0], [25.0, nil], [35.0, 6.0], [45.0, 7.0]]
+    rows = HT.Na__Height__ProfilePicture(frame, [[50.0, 5.0]], [[[220, 30, 30], stations]], 10.0, 1.0)
+    pixel = lambda do |chainage, value|
+        column = (frame['left'] + chainage * frame['per_unit']).floor
+        row = (frame['top'] + (frame['high'] - value) * frame['per_unit'] * frame['exaggeration']).floor
+        rows[row].byteslice(3 * column, 3).unpack('C3')
+    end
+    pixel.call(10.0, 2.5) == [220, 30, 30] && pixel.call(50.0, 5.0) == [165, 165, 165] && pixel.call(40.0, 6.5) == [220, 30, 30] &&
+        pixel.call(25.0, 4.5) != [220, 30, 30] && rows.length == frame['height']
+end
+
+puts "Point Cloud Viewer heightmaps and profiles: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

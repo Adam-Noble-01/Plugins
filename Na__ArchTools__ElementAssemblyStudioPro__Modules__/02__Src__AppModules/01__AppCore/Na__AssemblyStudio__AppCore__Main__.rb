@@ -54,6 +54,8 @@ require_relative '../40__System__InteriorDoorSystem/Na__AssemblyStudio__Interior
 # @delegate: ../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Init__.rb
 require_relative '../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Init__'
 require_relative '../50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__Init__'
+# @delegate: ../60__System__McpOperations/Na__AssemblyStudio__McpOperations__Main__.rb (V2.5.3 Agent seam for Na SketchUp MCP)
+require_relative '../60__System__McpOperations/Na__AssemblyStudio__McpOperations__Main__'
 
 # Optional dev tools (silently skipped if folder removed for shipping)
 begin

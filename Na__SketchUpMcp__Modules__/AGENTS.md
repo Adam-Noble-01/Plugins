@@ -5,7 +5,7 @@ These are instructions for AI coding agents working **on** this plugin: Codex / 
 
 ## What This Is
 
-A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 44 tools, and every SketchUp API call it makes is checked against the official API index.
+A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 63 tools, and every SketchUp API call it makes is checked against the official API index.
 
 ```
 MCP client --stdio--> Python server (30__McpServer__Python, stdlib only)
@@ -102,6 +102,51 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
   python 40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py ../Na__Noble3dModellingTools__Modules__/10__PluginModules/21__SourceCode__ComponentEditorTools/tests/mcp_operations_unit.rb.test
   ```
 - **Reloading.** A change to the seam needs Reload Plugin Data in Na Noble3d Modelling Tools (the Component Editor dialog's Settings, or the main plugin), as well as in this plugin.
+
+## The Element Assembly Studio Seam (entity_studio, entity_studio_edit)
+
+- **Where the rules live.** Both tools are thin, like the library seam. `10__BridgeHandlers/Na__SketchUpMcp__Handlers__EntityStudio__.rb` resolves `instance_id` and `position` and forwards to Adam's Element Assembly Studio Pro (also called Entity Studio Pro): `../Na__ArchTools__ElementAssemblyStudioPro__Modules__/02__Src__AppModules/60__System__McpOperations`, entry points `Na__AssemblyStudio::Na__McpOperations.Na__AssemblyStudio__McpRead` / `...McpEdit`. It returns a placed element as `instance_object`; the handler swaps it for its id and world bounds.
+- **Its refusals.** `Na__AssemblyStudio::Na__McpOperationsError` (code, message, hint, details) becomes `Na__McpError`. Without the plugin, both tools refuse with `unsupported`.
+- **Undo.** The exterior door engines open and commit their own operation, so `entity_studio_edit` has `"operation": false` and is in `NA_BATCH_FORBIDDEN`. `build` refuses inside an open group, because the engines place at the model root.
+- **What it reuses.** Builds go through each system's own `GeometryEngine`; presets through the Presets Store; gallery pictures through the open dialog's own SvgCapture and its existing `na_presetsUpdateConfig` callback.
+- **Validation.** `ValidateApiUsage` counts every def under `02__Src__AppModules` as defined, and checks the `60__System__McpOperations` files like the bridge.
+- **Reloading.** A change to the seam needs Element Assembly Studio's Reload Scripts (or `entity_studio_edit {action: "reload"}`) as well as this plugin's Reload Plugin Data.
+
+## The Point Cloud Viewer Seam (point_cloud_state, point_cloud_clip, point_cloud_view, point_cloud_slice, point_cloud_fit, point_cloud_check, point_cloud_heightmap)
+
+- **Where the rules live.** Every point cloud tool is thin. `10__BridgeHandlers/Na__SketchUpMcp__Handlers__PointCloud__.rb` reads the call's lengths into inches, turns `ids` into world bounds for `around`, picks the capture path for images and passes `per_inch`. Everything else is in Adam's Na Point Cloud Viewer: `../Na__PointCloudTools__PointCloudViewer__Modules__/02__Src__AppModules/95__System__McpOperations`, entry points `Na__PointCloudViewer::Na__McpOperations.Na__PointCloudViewer__McpRead` / `...McpEdit`. It multiplies every length it returns by `per_inch`, so results are in the call's units.
+- **Its refusals.** `Na__PointCloudViewer::Na__McpOperationsError` (code, message, hint, details) becomes `Na__McpError`. Without the viewer (0.13.1 or newer), every one refuses with `unsupported`.
+- **Undo.** The viewer writes a clip box in its own operation ("Point Cloud: ..."), so `point_cloud_clip` has `"operation": false`, reports `undo_step`, and is in `NA_BATCH_FORBIDDEN`. `point_cloud_view` changes view settings only (no model change, not undone by a rollback). `point_cloud_state` and `point_cloud_slice` do not mutate.
+- **The engine.** Counts use `napc_box_count`, images `napc_render_png`; histograms, density images and points use the ABI 9 calls `napc_box_grid` and `napc_box_points` (viewer 0.14.0, ARCHITECTURE section 29), one pass over the cloud whatever the bins or pixels. With a viewer before 0.14.0, `points` and `density` refuse with `unsupported`.
+- **Overlays (1.0.13, viewer 0.14.1).** `point_cloud_slice overlay_ids`: the handler collects world edge segments (through `Na__Serializer` / `Na__Coordinates`, soft and hidden edges left out) and the seam draws them in red. `view_capture include_point_cloud`: after `write_image`, with the capture's camera still set, the seam's `composite` draws the clouds on show over the file in place (the live overlay's camera maths; SketchUp keeps the vertical field of view for any image shape). A composite problem is a warning, never a failed capture.
+- **Fitting (1.0.14, viewer 0.14.2).** `point_cloud_fit` reads lengths here and calls the seam's `fit`, which takes an even sample of the box from `napc_box_points` and fits it in pure Ruby (`95__System__McpOperations/Na__PointCloudViewer__McpOperations__Fit__.rb`: RANSAC, then least squares on the inliers). Its own suite: `tests/mcp_fit_unit.rb.test`.
+- **Checking (1.0.15, viewer 0.14.3).** `point_cloud_check` turns every visible face under `ids` into world triangles (`Face#mesh`, `Na__Serializer__ToWorld`, the face's world normal), each labelled with its part (a group or component directly inside an id), and the seam's `check` measures an even sample of the cloud against them (`...McpOperations__Check__.rb`: a grid of cells `reach` wide; suite `tests/mcp_check_unit.rb.test`).
+- **Heights (1.0.16, viewer 0.14.4).** `point_cloud_heightmap` reads lengths, the path and file names here (`na_save_path`, `na_image_path`; a grid-only key on a profile, or the reverse, is refused before the viewer is asked) and calls the seam's `heightmap` or `profile`, which bin an even sample of the box (a profile reads one box per piece of its path) in pure Ruby (`...McpOperations__Height__.rb`: a counting sort, percentiles by pc_terrain.py's rank rule, its rasters.npz layout for files; suite `tests/mcp_height_unit.rb.test`).
+- **A parameter added to an existing tool (1.0.19).** List it in the registry's top-level `property_since` (`"tool.parameter": "x.y.z"`, the bridge version that reads it). A window not yet reloaded would ignore it and answer as if it were not there; the server pings that window's bridge before such a call and refuses it with the fix (Reload Plugin Data).
+- **Angled slices (1.0.19, viewer 0.14.6).** `frame` on `point_cloud_slice` and `point_cloud_heightmap`: `na_frame` turns the origin into inches and an `id` into that group's world origin and axes (`Na__Serializer__ToWorld`); the seam folds the frame into the cloud's transform (`...McpOperations__Frame__.rb`), so the engine needs no change. It refuses `unsupported` unless the viewer lists 'frame' in `NA_FEATURES`.
+- **Review rules (1.0.17, viewer 0.14.5).**
+  - A key sent as `null` is not given: read presence with `Na__Params__Has`, never `params.key?`.
+  - What the check and the overlays measure or draw is what SketchUp shows (`na_shown?`: not hidden, tag and tag folders on; `na_walk_shown` never enters a hidden group).
+  - A capture's `save_path` must carry the image's extension (`na_capture_path`).
+  - The composite follows a scene the call activated only outside an MCP operation (`ctx[:in_operation]`).
+- **Validation.** `ValidateApiUsage` counts every def and `attr_*` accessor in the viewer's modules as defined, and checks the seam like the bridge. The seam's own suite runs with SketchUp's Ruby:
+  ```bash
+  python 40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py ../Na__PointCloudTools__PointCloudViewer__Modules__/02__Src__AppModules/95__System__McpOperations/tests/mcp_operations_unit.rb.test
+  ```
+- **Reloading.** A change to the seam needs the viewer's Reload Plugin (Settings) as well as this plugin's Reload Plugin Data.
+
+## The TrueVision GLB Builder Seam (truevision_export, truevision_export_edit, truevision_publish)
+
+- **Where the rules live.** All three tools are thin. `10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVisionExport__.rb` checks the action, drops keys sent as `null` and forwards to Adam's TrueVision GLB Builder: `../Na__TrueVision__GlbBuilderUtility__Modules__/07__Plugin__McpOperations` (2.14.0), entry points `TrueVision3D::GlbBuilderUtility::Na__McpOperations.Na__GlbBuilder__McpRead` / `...McpEdit` / `...McpPublish`, and `Na__GlbBuilder__McpActions` for the action lists. The registry's `action` enums, the handler's constants and that list must stay the same, one for one (a BridgeCore check compares all three).
+- **Its refusals.** `TrueVision3D::GlbBuilderUtility::Na__McpOperationsError` (code, message, hint, details) becomes `Na__McpError`. Without the GLB Builder 2.14.0, every one refuses with `unsupported`.
+- **The split is the safety.** `truevision_export` only reads (`fetch_r2` starts a job that lists R2 and changes nothing there). `truevision_export_edit` changes this model and this computer's files. `truevision_publish` reaches the live site: every action but `push_dry_run` needs `confirm` = the linked project's code, and so does every deletion in the edit tool. Never pass `confirm` unless the user asked for exactly that push, purge or deletion.
+- **What it reuses.** The tab actions run the dialog's own handlers, handed `Na__McpDialog`, which records the status lines, reports and R2 reports they push and passes every script on to the real dialog when it is open. So a rule changed in the GLB Builder changes here too.
+- **Undo.** Edit and publish have `"operation": false`: the seam opens one "TrueVision: ..." step per model setting (aborted when the handler ends on an error or warning), and the Scene Sync and point cloud settings open their own. Both tools are in `NA_BATCH_FORBIDDEN`.
+- **Jobs.** Pushes, the dry run, R2 fetch and purge, and point cloud renders run as the GLB Builder's CloudJob, a Fiber resumed by a UI timer. The call answers at once; `truevision_export {action: "job"}` follows it. Never block inside SketchUp waiting for one: the bridge runs on the same thread, so the job would never move.
+- **No message boxes.** A modal stops the bridge. The seam takes folders as parameters and calls three keywords added for it, each defaulting to the dialog's behaviour: `Na__UserInterface__BuildModelStatus(prune:)`, `Na__SitePlan__Write(on_stale:)` and `Na__DynamicReloader__ReloadAllScripts(quiet:)`.
+- **Child processes.** Inside SketchUp 2026 a child's stdout never arrives (`Open3.capture3` or a file redirect), so anything that must read a child's answer has the child write a file (the seam's `python` check does).
+- **Validation.** `ValidateApiUsage` counts every def in the GLB Builder (its `00__ArchivedVersions` left out) as defined, and checks the `07__Plugin__McpOperations` files like the bridge. BridgeCore loads the real seam beside this plugin for its checks.
+- **Reloading.** A change to the seam needs the GLB Builder's Reload Scripts (or `truevision_export_edit {action: "reload"}`) as well as this plugin's Reload Plugin Data.
 
 ## Live Testing Without Leaving a Trace
 
