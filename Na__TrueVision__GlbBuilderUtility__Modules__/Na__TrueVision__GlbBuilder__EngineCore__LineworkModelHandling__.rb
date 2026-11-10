@@ -11,6 +11,18 @@
 #              as the mesh export for perfect spatial alignment.
 #
 # DEVELOPMENT LOG:
+# 10-Nov-2026 - Version 1.7.0
+# - A component placed from Adam's SketchUp library (the Na__ComponentLibrary
+#   dictionary on its definition, or a library code at the front of its name)
+#   now writes its edges to a node of its OWN, named like an instanced node
+#   (<name>_ID<persistent id>) and carrying extras.Na__LibraryAsset (Code, Type,
+#   Category, Name, Definition). Until now a library part placed once was
+#   flattened into the category's unnamed node and nothing downstream could
+#   tell a door handle or a pilaster from the wall behind it. ValeVision 3D's
+#   ornament fade reads this to draw library parts lightly from a distance.
+# - The same position ranges as the modifier tags: outermost wins, and an asset
+#   that holds a modifier tag is left as before so that node is never lost.
+#   Door children (ADR) split their library parts the same way (DoorHandler).
 # 20-Sep-2026 - Version 1.6.0
 # - Edges below a nested LineworkModifier tag (SSOT 76-79) are now written to a
 #   node of their OWN, named with that tag, instead of being flattened with
@@ -40,6 +52,107 @@
 
 module TrueVision3D
     module GlbBuilderUtility
+
+    # -------------------------------------------------------------------------
+    # REGION | Library Assets (Adam's SketchUp component library)
+    # -------------------------------------------------------------------------
+
+        # MODULE CONSTANTS | How a Library Asset Is Known
+        # ---------------------------------------------------------------
+        # The Component Editor Tools file every library asset with the
+        # Na__ComponentLibrary dictionary on its definition (type, category,
+        # gallery_name) and a code at the front of the definition name
+        # (10_1001__..., 20__1003__..., the older 03_85__...). Either marks
+        # it. Code 00 is the modelling helpers (origin points): never an asset.
+        # ---------------------------------------------------------------
+        NA__LIBRARY_DICTIONARY   = 'Na__ComponentLibrary'.freeze
+        NA__LIBRARY_CODE_PATTERN = /\A(\d{2})_{1,2}(\d{2,4})__/
+        NA__LIBRARY_NESTED_DEPTH = 3                                           # <-- How deep a wrapper is searched for the asset it holds
+        # ---------------------------------------------------------------
+
+        # FUNCTION | What the Library Says About a Definition, or nil
+        # ---------------------------------------------------------------
+        # @param definition [Sketchup::ComponentDefinition]
+        # @return [Hash|nil] glTF extras: Code, Type, Category, Name, Definition
+        # ---------------------------------------------------------------
+        def self.Na__LibraryAsset__InfoForDefinition(definition)
+            return nil unless definition.is_a?(Sketchup::ComponentDefinition)
+            return nil if definition.group? || definition.image?
+            name  = definition.name.to_s
+            match = name.match(NA__LIBRARY_CODE_PATTERN)
+            dict  = definition.attribute_dictionary(NA__LIBRARY_DICTIONARY)
+            return nil unless match || dict
+            return nil if match && match[1] == '00'                            # <-- A modelling helper, not an asset
+            {
+                'Code'       => match ? "#{match[1]}_#{match[2]}" : dict['code'].to_s.sub(/_+\z/, ''),
+                'Type'       => dict ? dict['type'].to_s : '',
+                'Category'   => dict ? dict['category'].to_s : '',
+                'Name'       => dict ? dict['gallery_name'].to_s : '',
+                'Definition' => name
+            }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Library Asset an Entity Is, or Holds (a renamed wrapper of one)
+        # ---------------------------------------------------------------
+        # A component Adam made around library parts (Handles__DoubleDoor
+        # round two lever handles) is marked with the first asset found
+        # inside it, and 'Via' => 'Nested'. Groups are searched the same way.
+        # ---------------------------------------------------------------
+        def self.Na__LibraryAsset__InfoForEntity(entity, depth = NA__LIBRARY_NESTED_DEPTH)
+            return nil unless entity.is_a?(Sketchup::ComponentInstance) || entity.is_a?(Sketchup::Group)
+            own = entity.is_a?(Sketchup::ComponentInstance) ? Na__LibraryAsset__InfoForDefinition(entity.definition) : nil
+            return own if own
+            return nil if depth <= 0
+            entity.definition.entities.each do |child|
+                next unless child.is_a?(Sketchup::ComponentInstance) || child.is_a?(Sketchup::Group)
+                found = Na__LibraryAsset__InfoForEntity(child, depth - 1)
+                return found.merge('Via' => 'Nested') if found
+            end
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | glTF Extras for a Node Drawn From This Entity
+        # ---------------------------------------------------------------
+        def self.Na__LibraryAsset__ExtrasFor(entity)
+            info = Na__LibraryAsset__InfoForEntity(entity)
+            info ? { 'Na__LibraryAsset' => info } : {}
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Does a Definition Hold a LineworkModifier Tag Anywhere Below
+        # ---------------------------------------------------------------
+        # A modifier keeps its own node for the drawings; an asset that holds
+        # one is left to flatten as before, so that node is never lost.
+        # ---------------------------------------------------------------
+        def self.Na__LibraryAsset__HoldsModifierTag?(definition, depth = 6)
+            return false if depth <= 0
+            definition.entities.any? do |child|
+                next false unless child.is_a?(Sketchup::ComponentInstance) || child.is_a?(Sketchup::Group)
+                (child.layer.name.to_s =~ NA__LINEWORK_MODIFIER_TAG_PATTERN) || Na__LibraryAsset__HoldsModifierTag?(child.definition, depth - 1)
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Should This Entity's Edges Be a Node of Their Own
+        # ---------------------------------------------------------------
+        # Only a component placed from the library itself (not a wrapper: its
+        # own node would cut a renamed group in two), never one that holds a
+        # modifier tag. Returns [node_name, extras] or nil.
+        # ---------------------------------------------------------------
+        def self.Na__LibraryAsset__RangeFor(entity)
+            return nil unless entity.is_a?(Sketchup::ComponentInstance)
+            info = Na__LibraryAsset__InfoForDefinition(entity.definition)
+            return nil unless info
+            return nil if Na__LibraryAsset__HoldsModifierTag?(entity.definition)
+            [Na__GlbEngine__SanitizeEntityName(entity), { 'Na__LibraryAsset' => info }]
+        end
+        # ---------------------------------------------------------------
+
+    # endregion ---------------------------------------------------------------
+
+
 
     # -------------------------------------------------------------------------
     # REGION | Recursive Edge Traversal
@@ -75,7 +188,7 @@ module TrueVision3D
         # ---------------------------------------------------------------
         NA__LINEWORK_MODIFIER_TAG_PATTERN = /\A\d{2}__LineworkModifier__/
 
-        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil, camera_follow_assemblies = nil, layer_ranges = nil, inside_modifier = false)
+        def self.Na__LineworkEngine__TraverseEdges(entities, parent_transform, parent_layer, positions, colors, door_assemblies = nil, instanced_skip_set = nil, camera_follow_assemblies = nil, layer_ranges = nil, inside_modifier = false, library_ranges = nil)
             entities.each do |entity|
                 next if Na__Helpers__EntityExcluded?(entity)
 
@@ -142,10 +255,18 @@ module TrueVision3D
                                      own_layer_name =~ NA__LINEWORK_MODIFIER_TAG_PATTERN
                     range_start    = opens_range ? positions.length : nil
 
-                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set, camera_follow_assemblies, layer_ranges, inside_modifier || opens_range)
+                    # A library asset opens a range of its own the same way, named
+                    # for the asset and carrying its library data (outermost only).
+                    library_range  = (!inside_modifier && !opens_range && !library_ranges.nil?) ? Na__LibraryAsset__RangeFor(entity) : nil
+                    library_start  = library_range ? positions.length : nil
+
+                    Na__LineworkEngine__TraverseEdges(entity.definition.entities, child_transform, child_layer, positions, colors, door_assemblies, instanced_skip_set, camera_follow_assemblies, layer_ranges, inside_modifier || opens_range || !library_range.nil?, library_ranges)
 
                     if opens_range && positions.length > range_start
                         layer_ranges << { :name => own_layer_name, :from => range_start, :to => positions.length }
+                    end
+                    if library_range && positions.length > library_start
+                        library_ranges << { :name => library_range[0], :extras => library_range[1], :from => library_start, :to => positions.length }
                     end
                 end
             end
@@ -160,6 +281,26 @@ module TrueVision3D
     # REGION | glTF Structure Assembly
     # -------------------------------------------------------------------------
 
+        # HELPER FUNCTION | Cut a Buffer Into Its Ranges, in Order
+        # ---------------------------------------------------------------
+        # Returns [ [name_or_nil, from, to, extras_or_nil], ... ] covering the
+        # whole buffer once: unnamed runs between the named ranges.
+        # ---------------------------------------------------------------
+        def self.Na__LineworkEngine__SplitRanges(ranges, length)
+            sorted   = Array(ranges).select { |r| r[:to] > r[:from] }.sort_by { |r| r[:from] }
+            segments = []
+            cursor   = 0
+            sorted.each do |range|
+                next if range[:from] < cursor                                      # <-- Defensive: never emit an overlap
+                segments << [nil, cursor, range[:from], nil] if range[:from] > cursor
+                segments << [range[:name], range[:from], range[:to], range[:extras]]
+                cursor = range[:to]
+            end
+            segments << [nil, cursor, length, nil] if length > cursor
+            segments
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Build glTF from Edge Data
         # ---------------------------------------------------------------
         # Assembles a minimal glTF structure with a single LINES primitive
@@ -172,7 +313,7 @@ module TrueVision3D
         # ---------------------------------------------------------------
         def self.Na__LineworkEngine__BuildGltfFromEdgeData(positions, colors, layer_ranges = nil)
             gltf = {
-                "asset"       => { "version" => "2.0", "generator" => "TrueVision3D GLB Builder Linework v1.6.0" },
+                "asset"       => { "version" => "2.0", "generator" => "TrueVision3D GLB Builder Linework v1.7.0" },
                 "scene"       => 0,
                 "scenes"      => [{ "nodes" => [] }],
                 "nodes"       => [],
@@ -190,19 +331,9 @@ module TrueVision3D
             # modifier range becomes a node of its own, NAMED with its tag, which
             # is the only way the drawing editors can tell those edges apart -
             # the flat single-node file carried no tag identity at all.
-            ranges = Array(layer_ranges).select { |r| r[:to] > r[:from] }.sort_by { |r| r[:from] }
+            segments = Na__LineworkEngine__SplitRanges(layer_ranges, positions.length)
 
-            segments = []                                                          # <-- [ [name_or_nil, from, to], ... ]
-            cursor   = 0
-            ranges.each do |range|
-                next if range[:from] < cursor                                      # <-- Defensive: never emit an overlap
-                segments << [nil, cursor, range[:from]] if range[:from] > cursor
-                segments << [range[:name], range[:from], range[:to]]
-                cursor = range[:to]
-            end
-            segments << [nil, cursor, positions.length] if positions.length > cursor
-
-            segments.each do |(name, from, to)|
+            segments.each do |(name, from, to, extras)|
                 next if to <= from
 
                 slice_positions = positions[from...to]
@@ -225,7 +356,8 @@ module TrueVision3D
 
                 node_index = gltf["nodes"].length
                 node       = { "mesh" => mesh_index }
-                node["name"] = name if name                                        # <-- The tag name, read back by the drawing editors
+                node["name"] = name if name                                        # <-- The tag name, read back by the drawing editors (or a library asset's)
+                node["extras"] = extras if extras                                  # <-- A library asset's Na__LibraryAsset data
                 gltf["nodes"] << node
                 gltf["scenes"][0]["nodes"] << node_index
             end
@@ -310,6 +442,8 @@ module TrueVision3D
                         top_layer_name = entity.layer.name.to_s
                         top_opens      = (top_layer_name =~ NA__LINEWORK_MODIFIER_TAG_PATTERN) ? true : false
                         top_start      = top_opens ? positions.length : nil
+                        top_library    = top_opens ? nil : Na__LibraryAsset__RangeFor(entity)
+                        top_lib_start  = top_library ? positions.length : nil
 
                         Na__LineworkEngine__TraverseEdges(
                             entity.definition.entities,
@@ -321,11 +455,15 @@ module TrueVision3D
                             instanced_skip_set,
                             camera_follow_assemblies,
                             layer_ranges,
-                            top_opens
+                            top_opens || !top_library.nil?,
+                            layer_ranges                                           # <-- Library ranges share the list: they never overlap a modifier's
                         )
 
                         if top_opens && positions.length > top_start
                             layer_ranges << { :name => top_layer_name, :from => top_start, :to => positions.length }
+                        end
+                        if top_library && positions.length > top_lib_start
+                            layer_ranges << { :name => top_library[0], :extras => top_library[1], :from => top_lib_start, :to => positions.length }
                         end
 
                     elsif entity.is_a?(Sketchup::Edge)

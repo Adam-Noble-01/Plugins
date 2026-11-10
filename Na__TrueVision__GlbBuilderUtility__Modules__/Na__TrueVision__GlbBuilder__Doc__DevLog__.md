@@ -8,6 +8,17 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.15.0 - 10-Nov-2026
+#### Library Parts Keep Their Own Linework Node and Say What They Are
+Adam: "make it so anything in my SketchUp Library is known to ValeVision as one of these assets requiring culling as the authored assets already contain numbers, meta data and loads of other stuff we can use to gurantee its exported, update ValeVision Cloud Sync if required"
+
+- A component placed from the library (`Na__ComponentLibrary` on its definition, or a library code at the front of its name; code 00, the modelling helpers, excepted) writes its edges to a linework node of its own, named `<name>_ID<persistent id>`, with `extras.Na__LibraryAsset` = Code, Type, Category, Name, Definition. A part placed once used to vanish into the category's unnamed node.
+- Instanced nodes (mesh and linework) and door children carry the same extras, a renamed wrapper marked with the part it holds (`Via: Nested`). Library parts inside a door child get their own line nodes under that child, so they still swing with the leaf.
+- Outermost range wins; an asset holding a LineworkModifier tag is left to flatten so the modifier's node is never lost. Modifier tags inside doors stay flat, as before.
+- Cloud Sync needs no change: it exports through `Na__PublicApi__PerformExport`.
+- Linework engine 1.7.0, `ComponentInstancing` and `DoorObjectHandling` touched.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.14.0 - 09-Nov-2026
 #### The MCP Folder: Everything The Dialog Does, For Agents
 

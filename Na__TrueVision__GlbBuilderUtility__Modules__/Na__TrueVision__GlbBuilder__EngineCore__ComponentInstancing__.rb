@@ -453,7 +453,7 @@ module TrueVision3D
                     "name"   => node_name,
                     "mesh"   => mesh_index,
                     "matrix" => gltf_matrix,
-                    "extras" => { "generator" => "TrueVision3D_Instancing" }
+                    "extras" => { "generator" => "TrueVision3D_Instancing" }.merge(Na__LibraryAsset__ExtrasFor(entity))   # <-- A library part says so (ValeVision's ornament fade)
                 }
                 gltf["scenes"][0]["nodes"] << node_index
             end

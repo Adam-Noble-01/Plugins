@@ -379,7 +379,7 @@ module TrueVision3D
                     "name"     => child_name,
                     "matrix"   => child_matrix,
                     "children" => [],
-                    "extras"   => { "generator" => "TrueVision3D_DoorHandler" }
+                    "extras"   => { "generator" => "TrueVision3D_DoorHandler" }.merge(Na__LibraryAsset__ExtrasFor(child_entity))
                 }
                 gltf["nodes"] << child_node
                 adr_node["children"] << child_node_index
@@ -494,6 +494,7 @@ module TrueVision3D
             # Create isolated edge collection arrays for this child
             positions = []
             colors    = []
+            library_ranges = []                                               # <-- Library parts inside this child (a handle in a leaf)
 
             # Traverse child entities with Z_UP_TO_Y_UP as root transform.
             # This produces edge endpoints in Y-up local space, in meters.
@@ -504,11 +505,13 @@ module TrueVision3D
                 Z_UP_TO_Y_UP_MATRIX,                                          # <-- Root: Y-up conversion
                 child_entity.layer,                                           # <-- Layer context
                 positions,                                                    # <-- Edge positions array
-                colors                                                        # <-- Edge colors array
+                colors,                                                       # <-- Edge colors array
+                nil, nil, nil, nil, false,
+                library_ranges                                                # <-- Library parts only: modifier tags stay flat in doors, as before
             )
 
             # Build LINES primitives from edge data and attach to parent node
-            Na__DoorHandler__BuildLineworkForNode(positions, colors, parent_node_index, gltf, bin_buffer)
+            Na__DoorHandler__BuildLineworkForNode(positions, colors, parent_node_index, gltf, bin_buffer, library_ranges)
         end
         # ---------------------------------------------------------------
 
@@ -695,8 +698,20 @@ module TrueVision3D
         # @param gltf              [Hash]          glTF JSON structure
         # @param bin_buffer        [String]        Binary buffer (ASCII-8BIT)
         # ---------------------------------------------------------------
-        def self.Na__DoorHandler__BuildLineworkForNode(positions, colors, parent_node_index, gltf, bin_buffer)
+        def self.Na__DoorHandler__BuildLineworkForNode(positions, colors, parent_node_index, gltf, bin_buffer, library_ranges = nil)
             return if positions.empty?                                        # <-- Skip if no edges
+
+            # LIBRARY PARTS: each its own node under the same parent, the rest as before
+            if library_ranges && !library_ranges.empty?
+                Na__LineworkEngine__SplitRanges(library_ranges, positions.length).each do |(name, from, to, extras)|
+                    Na__DoorHandler__BuildLineworkForNode(positions[from...to], colors[(from / 3) * 4...(to / 3) * 4], parent_node_index, gltf, bin_buffer)
+                    next unless name
+                    line_node = gltf["nodes"][gltf["nodes"].length - 1]
+                    line_node["name"]   = name
+                    line_node["extras"] = extras if extras
+                end
+                return
+            end
 
             vertex_count = positions.length / 3
             mesh_index   = gltf["meshes"].length
