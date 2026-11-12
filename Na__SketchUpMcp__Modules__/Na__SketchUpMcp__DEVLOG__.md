@@ -3,6 +3,266 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.30 - 12-Nov-2026 - Sketch and Site Tools: Seven New Tools So a Site Photo Never Becomes a Spec
+
+- **What Adam asked for.** After the Corrett 64610 planting bed failed ("You failed, and badly": an agent spent three rounds turning a drone photo into a bed, and he redrew it himself in twelve minutes as plain parallel offsets of his terrace edge): "Build all of the Proposed MCP Tools and update your skills to intercept earlier on. Precision IS need on CAD / SketchUp Reference Geom given / Photoplanes etc but if I give a site photo its just a reference and the agent must ask for more early on rather than trying to be too surgical on a site photograph." The six tools came from the job's audit (the 3D skill's `learning/retrospectives/2026-11-12__Corrett-64610__PlantingBed__Failure.md`).
+- **The seven tools (68 -> 75):**
+  - `sketch_read`: Adam draws rough lines and notes and selects them; the agent gets them as world polylines split into straight runs and fitted arcs, a `clean_path` resampled to his segment budget, and the numbers in his notes ("1100", "1.1m", "150 wall") with the line each sits beside. Groups are read into at any depth.
+  - `input_pick`: Adam clicks points in SketchUp with full inference (a plain SketchUp tool: red rubber band, Backspace, Enter or double-click, Esc); `round_to` snaps to his 5 mm grid. `wait` is polled by the server.
+  - `proposal_preview`: the gate. A red 2D proposal (`PROPOSAL__<name>` at the root, labels for the numbers, `z` to lift it above the paving), a top-view picture, the question posted beside it in his Agent Outliner with the picture, `wait` until he answers there, `status`, `clear`, `list`.
+  - `geometry_offset_band`: a rule into geometry in one call. Bands at parallel offsets from a path (`path_points`, or `path_ids` for one drawn line): solids (`hollow` ring walls, `end_inset`), or lines (`line_only`); ends square or on `start_line` / `end_line`; arcs offset radially so bands stay concentric; softened, edge-painted, and every solid manifold or nothing is built.
+  - `model_snapshot` / `model_diff`: record objects (bounds, volume, counts, edge and face material tallies, plan footprint by level, children) and measure two versions against each other: plan overlap (IoU), outline distance, bounds moved, volume, which edge colours changed; children paired by name, then by overlap. Live or from a saved snapshot of another window or moment.
+  - `image_rectify`: a site photo laid flat on the ground (or any plane) by a homography from four or more pixel/model pairs, for context only, with the fit in pixels and in ground distance.
+- **Where the code is.**
+  - `06__Plugin__BridgeHelpers/...PlanGeometry__.rb` (`Na__PlanGeometry`): all plan maths, pure Ruby on plain arrays, so the offline suite checks it.
+  - `10__BridgeHandlers/...SketchIntake__.rb`, `...OffsetBand__.rb`, `...ModelDiff__.rb`, `...PhotoReference__.rb`; routes and `NA_BATCH_FORBIDDEN` (input_pick, proposal_preview) in the CommandRouter; requires in CoreAppLoaders.
+  - `ToolRunner.na_wait`: `input_pick` / `proposal_preview` `wait` polls the bridge every 0.5 s / 2 s until done, an Agent Outliner notice, or `wait_s`. Never inside SketchUp.
+- **Found and fixed while testing.**
+  - Whole-number input fell into Ruby integer division (a 1,000 square read as 0.8 m2): every vector helper returns floats.
+  - A split could leave an arc's last facet plus the tangent line after it as one 17.8 m arc within 15 mm: an arc must now have even spacing (no segment over three times the median). A regression check bites when the rule is removed.
+  - Rounded `clean_path` points 0.1 mm apart made SketchUp refuse the face ("Duplicate points"): paths and outlines drop points closer than 0.5 mm / 0.05 mm.
+  - `Group#volume` is in the parent's units: a band inside a scaled group now reports world volume.
+- **Versions.** `bridge_version` and `server.version` are `1.0.30`. 75 tools. New tools, not new parameters, so no `property_since` keys.
+- **Verified offline:**
+  - ValidateApiUsage passed (75 tools, 273 dependencies, 55 Ruby files).
+  - BridgeCore 179 of 179 (30 new Plan Geometry checks: chaining and snap, circle and run fitting, the budget, clean paths, mitred and radial offsets, caps, insets, slanted and far end lines, refusals, rings, self-crossing, homography and inverse, clipping, footprint overlap with holes, outline distance).
+  - PythonServer 65 OK (4 new: the pick wait polls with `result` until done and never sends `wait_s` to SketchUp; it gives up at `wait_s`; the proposal wait returns on Adam's answer; both are refused in a batch). `--check` 75 tools. `node --check` passed.
+- **Verified live (a copy of Corrett 1.0.1 and a blank template, each in its own window, closed after):**
+  - `geometry_offset_band` along Adam's terrace edge, ends on y 19438 and x 11790, wall `0-1270 hollow 150`, bed `150-1120 end_inset 150`, lawn line at 2300, rebuilt his redraw: wall 531 L (his 524), bed 874.4 L (his 873.5); `model_diff` plan overlap 98 %, outlines median 2 mm apart (132 mm at most, where his ring narrows at the east end).
+  - The same bands built at the root and inside a moved, rotated, non-uniformly scaled group three deep: identical world vertices (404 of 404, 0.0 mm) and volumes.
+  - `sketch_read` of lines drawn inside that group: arc centre (20000, 5000), radius 3000.0, sweep 90.0, then the 2,000 straight; a freehand arc drawn at 4,500 +/- 6 read as 4,498.6; the note "lawn 1100 beyond" gave 1100 and its nearest line; a dimension gave its world length 1100 (its text, measured in the scaled group, says 608).
+  - `proposal_preview` with a rotated group open landed on its world points; `ask` posted the question and picture in the Agent Outliner; a reply written through the Outliner's own `Na__Notes__Comment` (by: user) was picked up by the server's real `na_wait` 4.2 s later.
+  - `input_pick`: two clicks through the tool's own InputPoint picking at real screen positions, Enter: points back, rounded to 5, Select tool restored; Esc: "cancelled".
+  - `image_rectify` of the Corrett drone photo on the terrace plane (12 pairs projected through the camera fitted for the job): fit 0.0 px, SketchUp's mapping read back through a UVHelper 0.0 px off: four pins give a true perspective mapping. The photo's bed and bridge sit under Adam's ring.
+  - Refusals read right: two lines given as `path_ids`, `hollow` on a closed path, an offset folding inside a tight curve.
+- **What offline cannot prove:** Adam's real clicking and typing in `input_pick` (simulated through the tool's own callbacks), and his Agent Outliner reply typed in the dialog (simulated through its note writer).
+
+### Validation Checklist
+
+- [ ] In each SketchUp window: Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.30), then restart the MCP server in Claude (the new wait loop is server code).
+- [ ] Draw a rough line and a note ("1100 bed") anywhere, select both, ask an agent to `sketch_read` them: it should say the line's runs and 1100 back to you.
+- [ ] Ask an agent to `input_pick` two points: click them (Backspace, Enter, Esc all work), and it should have them.
+- [ ] Ask an agent for a `proposal_preview` with a question: answer it beside the PROPOSAL__ object in the Agent Outliner, and the agent should carry on.
+
+## Na SketchUp MCP | Version 1.0.29 - 11-Nov-2026 - Agent Outliner: Sessions Started Before the Update Hear Adam Too
+
+- **What happened.** At 13:58 Adam reloaded Telfer-Smith (bridge 1.0.28, Agent Outliner 0.1.9), wrote "Can you see now? if so send screenshot" and pressed Send. The status line said "Sent: agents working in this window see it on their next SketchUp call. Last agent call 13:57:24", but nobody answered. "Nope nothing". Two causes:
+  - **No agent was calling SketchUp.** The notice rides on an agent's next call, and an MCP server cannot wake an idle Claude session. The "last agent call" was the bridge starting (`bridge_start`). The fix is in the Agent Outliner (0.1.10) and the 3D skill's watcher.
+  - **Every running session had the old server.** A Claude session started before 1.0.28 runs the old ToolRunner, which drops the `outliner` key. A busy agent would not have seen it either until its client restarted.
+- **The fix here: a copy for older servers.** From 1.0.29 the server says in every request that it shows the notice itself (`features: ["outliner"]`, `BridgeClient`).
+  - For a request without that, the router (`na_with_notice(response, command, ctx, request)`) also adds the notice as one warning line, which every server already passes on. On an error it goes into the error's details.
+  - The line comes from `Na__Handlers__AgentOutliner__NoticeLine`, e.g. `Adam WROTE TO YOU in the Agent Outliner (3 waiting, model chat, 2 min): "Can you see now? ..." Read it before your next change: agent_outliner {action: "inbox"}; then reply or acknowledge.`
+  - So once a window's bridge is reloaded, every session working there hears him on its next call, with no client restart. A 1.0.29 server gets it once, first in the JSON, as before.
+- **Answered in Telfer.** A read-only check of Telfer (pid 856288, bridge 1.0.28) showed the notice on the raw response: 3 waiting, his 13:58 message first. A screenshot of his current view went to his Model Chat as a `comment` (not `reply`, so his 13:31 lantern instruction stays unread for the orangery session).
+- **Versions.** `bridge_version` and `server.version` are `1.0.29`. Still 68 tools.
+- **Validation:**
+  - ValidateApiUsage passed.
+  - BridgeCore 149 of 149 (3 new: the warning line and error details for a request without features; once only for one with them; the line's wording).
+  - PythonServer 61 OK (1 new: requests carry `features: ["outliner"]`).
+  - `--check` 68 tools; `node --check` passed.
+  - The Agent Outliner's suite 254 of 254, and 18 of 18 deliberate faults caught.
+- **Live, in a throwaway template window (pid 863908, closed after):**
+  - a watcher (`outliner_watch.py --who "Claude (wake test)"`) was running when a message was sent through the dialog's route. Send said "Sent: the agent working here sees it on its next SketchUp call (last call 14:05:08); 1 waiting agent (Claude (wake test)) wakes now.", and the watcher ended, re-invoking this session;
+  - **this session's own MCP server, still 1.0.27,** showed it in `sketchup_status` as `"warnings": ["Adam WROTE TO YOU in the Agent Outliner (1 waiting, model chat, just now): \"Wake test: can you see this?\" ..."]`;
+  - the 1.0.29 server had it first in the JSON and no warning copy;
+  - `acknowledge` cleared it.
+
+### Validation Checklist
+
+- [ ] In each SketchUp window: Noble 3D Tools > Reload Plugin Data (Agent Outliner 0.1.10), then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.29). Agents already running then hear you on their next call; no client restart is needed.
+- [ ] Send while no agent is working: the line says "no agent is working here ... or watching" (amber), so you know to prod one in Claude.
+- [ ] Ask an agent to leave its inbox watcher running when it stops, then Send. The line says "1 waiting agent (Claude (...)) wakes now", and the agent answers.
+
+## Na SketchUp MCP | Version 1.0.28 - 11-Nov-2026 - Agent Outliner: Send Reaches the Agents Working in the Window
+
+- **What Adam asked for.** "Should the Send button in the plugin not do that?", after his 13:15 model chat message on Telfer-Smith 64481 waited unread while the agent made about 15 SketchUp calls. The chat was pull-only: an agent heard him only when it thought to call `agent_outliner`. Then: "Add the ability for Claude to share images back to me ... may require a second cache folder for incoming images". The dialog's side is Agent Outliner 0.1.9 (Noble 3D Tools 0.9.41).
+- **The waiting notice.** While anything in the Agent Outliner waits for an agent (Adam's comment, a For Agent / Question / Check This flag), every tool result carries `outliner`:
+  - `waiting` (how many), `from`, `at`, `ago`, `where` ("model chat" or "<name> (id N)"), `text` (the latest message, first 120 characters), `pictures` and `threads` when there are any, `kind` for a flag;
+  - `read`: `agent_outliner {action: "inbox"}`, and a `note` saying to read it before the next change, then reply or acknowledge.
+  - It goes **first** in the result's JSON, so an agent reads it before the result and the 45,000 character cap never cuts it; on an error it is the last line, `Outliner: {...}`. `sketchup_status` and `batch_execute` carry it too.
+  - **Silent when nothing waits**, and never on `ping` or `api_probe`. A reply or `acknowledge` ends it at once (the edit's own result already has none). So does undo of his message.
+- **Cheap.** The Agent Outliner works it out (`Na__AgentOutliner__McpNotice`, cached per model) only when a note is written, an agent acknowledges, undo, redo or an abort happens, the standards are saved, or an object it counted is gone. Measured live: 8 microseconds a call from the cache; 1.7 ms to work it out again in a model of 3,001 objects.
+- **Where:**
+  - `Handlers__AgentOutliner`: `Na__Handlers__AgentOutliner__Notice(model)` forwards to the seam. nil without the Agent Outliner, with one older than 0.1.9, or on any fault: no notice, never an error;
+  - `CommandRouter`: `na_with_notice` puts it on every response, the two error paths included;
+  - `ToolRunner`: `na_with_notice` / `na_notice` put it first, and `na_error_result(notice:)` as the last line.
+  - **Both directions stay compatible:** a bridge before 1.0.28 sends no `outliner`, so nothing is added; a server before 1.0.28 ignores the key.
+- **Pictures back to Adam.** `agent_outliner_edit comment` / `reply` with `images` (since 1.0.26) now copy into their own folder, `ChatFromAgents`, named `agt_...`, beside his `ChatCache`. The description says to save a `view_capture` with `save_path` first: the server deletes an unsaved capture once it is inlined.
+- **Versions.** `bridge_version` and `server.version` are `1.0.28`. Still 68 tools; no new parameter, so no `property_since` key.
+- **Validation:**
+  - `ValidateApiUsage` passed (the Agent Outliner seam checked).
+  - `RunRubyChecks`: 50 of 50 compile. BridgeCore 146 of 146, 8 new: no Agent Outliner, no notice; the seam's answer passed on; an empty answer, a fault or a seam without `McpNotice` (0.1.8) gives none; `na_with_notice` on a tool but not on ping or api_probe; an error response through `Dispatch` carries it, ping does not.
+  - PythonServer: 60 OK, 4 new: the notice leads entity_query, sketchup_status and batch_execute results; it ends an error; it survives the text cap; an older bridge gives none and no error.
+  - `--check`: 68 tools at 1.0.28. `node --check` passed.
+  - The Agent Outliner's suite: 249 of 249, and 16 of 16 deliberate faults caught.
+- **Live, in a throwaway window** (a copy of the Simple template, pid 754708, opened and closed by the session; never Adam's models):
+  - both Reload Plugin Data;
+  - an empty model: no notice;
+  - a message sent through the dialog's own `comment` route: Send said "Sent: agents working in this window see it on their next SketchUp call. Last agent call 13:49:44." The next `model_info` led with the notice, and an `entity_get` error ended with it;
+  - `outliner_watch.py` woke on it;
+  - a `view_capture` sent back with `reply`: it landed as `ChatFromAgents/agt_20261111_135145_5413.png`, and the reply cleared the notice;
+  - `acknowledge` cleared a second message; `model_undo` cleared a third.
+  - All through this folder's 1.0.28 server over stdio.
+- **Seen, not caused by this change:** that `view_capture` of a 640 x 400 view took 70.0 s inside SketchUp (its own log line: a new window drawn in the background). The next connection was reset once (`connection_lost` during the `property_since` ping), then every call worked.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) in each session, so its server is 1.0.28 (`sketchup_status` shows `"version":"1.0.28"`).
+- [ ] In each SketchUp window: Noble 3D Tools > Reload Plugin Data (Agent Outliner 0.1.9), then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.28). The Telfer window is still on 1.0.24.
+- [ ] Type in the Model Chat while an agent is modelling, and press Send. The status reads "Sent: agents working in this window see it on their next SketchUp call", and the agent should mention your message within a call or two.
+- [ ] Ask an agent for a screenshot in the chat: the picture appears in the Chat tab, and Settings lists the "Pictures agents sent" folder.
+
+## Na SketchUp MCP | Version 1.0.27 - 11-Nov-2026 - Entity Studio: Every Window, Door and Cabinet
+
+- **What Adam asked for:** "the ultimate MCP to allow agents to interface with the tool and to create, edit and maintain parametric external doors, windows, cabinets etc using the tools available ... making sure everything in the plugin is exposed to agents". The plugin side is Element Assembly Studio Pro 2.6.0: its dialog and this MCP now share one build pipeline per system.
+- **entity_studio (read).** New actions:
+  - `parameters` (type: every setting the dialog shows, with range, options, start value, section and what it needs; generated from the dialog's own control files);
+  - `elements` (every placed element at any depth);
+  - `openings` (wall_id: every opening in a wall, left to right seen from outside, with the points the opening tools would pick; `outside` / `outside_point`, `path`);
+  - `assets` (handles, architraves, hinges, cabinet handles and legs, sash horns, window boards, finishes, edge colours).
+  - `inspect` covers every product and shows the values that differ from a new one; `list_presets` takes `type` and `archived`.
+- **entity_studio_edit.** Covers windows (casement, sash), all four exterior doors, interior doors and cabinets (base, drawers, wall, tall, wardrobe).
+  - **build:** `type` and/or `preset`, into `opening` {wall_id, index} or {point_a, point_b, point_d}, sized as Measure Opening would (`fit`); or at `position` + `direction`; cabinets on a `run` + `run_offset`. Also `name` and `dry_run`.
+  - **update:** values, preset with the size kept, `reset`, refit to an opening; returns the changed values.
+  - **New actions:** `rename`, `export_dxf` (`file`, `overwrite`), `update_preset`, `archive_preset`, `restore_preset`. `open_dialog` takes `instance_id`.
+  - **Values:** checked against the dialog's own ranges, options and build rules, refused (never clamped) with every problem named.
+- **The handler** resolves the wall with `Na__Coordinates__ReportedToWorld` (container path + the wall), so moved, rotated, nested, scaled and open walls all read true. It also converts points and `run_offset` from the call's units.
+- **Where:**
+  - `ToolRegistry` (both tools rewritten; 32 `property_since` keys at 1.0.27);
+  - `Handlers__EntityStudio`;
+  - `PythonServer` tests (2 new: an older bridge is refused the additions with the fix, the current one takes them);
+  - `AGENTS.md` and `AgentGuide`.
+  - The rules live in the plugin's seam (`60__System__McpOperations`, now 7 files). Still 68 tools.
+- **Versions.** `bridge_version` and `server.version` are `1.0.27`.
+- **Validation:**
+  - ValidateApiUsage passed: 7 Element Assembly Studio seam files, 137 defining.
+  - RunRubyChecks: 50 of 50 compile; BridgeCore 138 of 138.
+  - PythonServer: 56 OK.
+  - `--check`: 68 tools at 1.0.27.
+  - Live, on the plugin's testbed through `su_bridge.py`: every product built into its opening, updated, renamed and inspected, presets in a sandbox, DXF, refusals. See the plugin's V2.6.0 devlog.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server knows the new actions and parameters.
+- [ ] In SketchUp: Element Assembly Studio Reload Scripts (close and reopen its dialog), then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.27).
+- [ ] Ask an agent to list a wall's openings (`entity_studio openings`) and put a casement into one; one Ctrl+Z removes it.
+- [ ] Ask it to change a setting on a placed door (`entity_studio_edit update`) and open the dialog on it (`open_dialog`, instance_id).
+
+## Na SketchUp MCP | Version 1.0.26 - 11-Nov-2026 - Agent Outliner: Pictures in the Chat
+
+- **What Adam asked for:** "Add a dedicated Chat Tab which charts the ongoing conversation in a typical chatbot interface and shows all active agents chats associated with the current model. ensure pasting images is possible". The dialog's side is Agent Outliner 0.1.6 (Noble 3D Tools 0.9.38).
+- **Reading:** a thread entry may carry `images`: each with `file`, `w`, `h`, `bytes`, `name`, and for agents `path` (his chat folder on this PC) and `exists`. An agent opens the path with its own image reader to see the screenshot he pasted. `threads` lines count `images` and list the `agents` who wrote.
+- **Writing:** `agent_outliner_edit comment` / `reply` take `images`, absolute paths of picture files (PNG, JPEG, GIF or WebP; 15 MB each; 8 at most). They are checked and copied into the chat folder before anything is written, so a bad file refuses the call and leaves the model alone. `text` may be left out when pictures are given.
+- **Sign every entry** (`author`): the Chat tab lists each agent by that name, with its chats and when it last wrote.
+- **Where:** `ToolRegistry` (`images`, one `property_since` key, both descriptions), `AgentGuide` (an example and the map row). The work is in the seam (`Na__ChatCache`, `na_import_images`). Still 68 tools.
+- **Versions.** `bridge_version` and `server.version` are `1.0.26`.
+- **Validation.** BridgeCore 138 of 138 (1 new: `images` in the schema and `property_since`); PythonServer 54 OK; ValidateApiUsage passed; `--check` 68 tools at 1.0.26. The seam's suite: 197 of 197, with an agent's picture copied and its bad files refused. Not yet called live.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server knows `images`.
+- [ ] In SketchUp: Noble 3D Tools Reload Plugin Data, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.26).
+- [ ] Paste a screenshot into the Model Chat and ask an agent what it shows (it reads the path through `agent_outliner thread` with `model: true`).
+- [ ] Ask an agent to reply with a `view_capture` picture: it appears in the chat.
+
+## Na SketchUp MCP | Version 1.0.25 - 11-Nov-2026 - Agent Outliner: Every Tag, and Putting Objects on One
+
+- **What Adam asked for:** "Create an effective efficient system for changing the tag of a item or a selection of items and ensure tagging is easily exposed to agents too." The dialog's side is Agent Outliner 0.1.5 (Noble 3D Tools 0.9.37): a Tag picker.
+- **For agents:**
+  - `agent_outliner tags` lists every tag: name, colour, shown (its folders too), folder path, and how many groups, components, images and section planes are on it, plus the untagged count.
+  - `agent_outliner_edit tag` puts objects on one tag (`ids`, `tag`; "Untagged" or "" for none) as one "MCP: Agent Outliner Edit" step. A missing tag is refused `not_found` with the model's tags named; `create: true` makes it in the same step. Already there: no undo step.
+- **Where:** `ToolRegistry` (two enum values, `tag` and `create`, four `property_since` keys at 1.0.25, two `api` entries), the handler's action lists, `AgentGuide` (map row, two example calls). The work is in the seam (`06__McpOperations`, `EntityActions.Na__Actions__SetTag`). Still 68 tools.
+- **Versions.** `bridge_version` and `server.version` are `1.0.25`.
+- **Validation.** BridgeCore 137 of 137 (1 new: the four `property_since` keys and the two parameters); PythonServer 54 OK (the new enum values and parameters asserted); ValidateApiUsage passed (the Agent Outliner seam's 2 files, 17 defining); `--check` 68 tools at 1.0.25. The seam's own suite: 171 of 171. Not yet called live.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server knows `tags` and `tag`.
+- [ ] In SketchUp: Noble 3D Tools Reload Plugin Data, then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.25).
+- [ ] Ask an agent "which tags are in the model?" (`agent_outliner tags`), then to move two objects onto a tag; one Ctrl+Z takes the move back.
+
+## Na SketchUp MCP | Version 1.0.24 - 11-Nov-2026 - Profile Path Tracer: Read, Edit and Library Tools
+
+- **What Adam asked for** (Brown 60795, after the masonry orangery): "ALWAYS use [Na Profile Path Tracer] for elements like entabeture extrusion, wall cappings, cornices, covings, skirtings, windowboards, and anything else requiring a standardised profile ... create a new MCP subfolder in the plugin with ALL TOOLS POSSIBLE to allow you to interface with the plugin and to create, edit, make new profile presets etc." The tracer paints and smooths the edges itself, keeps the path and the profile on the trace, and lets him refine either in its editors. Use the closest library profile; he decides case by case what goes into the library.
+- **The seam lives in the tracer** (1.6.17, `02__Src__AppModules/60__System__McpOperations`, four files), entry points `Na__ProfileTools__ProfilePathTracer::Na__McpOperations.Na__ProfileTracer__McpRead` / `McpEdit` / `McpLibrary`, and `Na__ProfileTracer__McpActions` for the action lists. The new handler (`Handlers__ProfileTracer__.rb`) checks the action, drops `null` keys and resolves only what the MCP can: `path` into world points, `path_edge_ids` into world segments (a curve's edge brings the whole curve, a group its own edges), `parent_id` into the container (entities and reported-to-world), `wrapper.origin`, `profile_face_id`; and it hands the seam two resolvers, `world_of` and `path_of`, built on `Na__Coordinates`. Without the tracer every tool refuses and names the fix.
+- **Three tools, split by risk** (68 tools):
+  - `profile_tracer` (read-only): `status`, `profiles` (query; `near {width, height}` ranks the closest sizes), `profile` (outline [[y, z]], arcs, edge colours, JSON; `profile_edit` previews a reshape), `traces`, `trace` (the world path as Edit Path draws it), `check_path`.
+  - `profile_tracer_edit`: `create` (profile from `profile_key`, `profile_from` a trace, `profile_outline`, `profile_json` or `profile_face_id`; `profile_edit` scale / size / stretch / flip / datum into a local profile; `reverse`, `rotation_step`, `toggles`, `origin_offset`, offsets; `parent_id`; `wrapper` makes Adam's `SUB__...` group with the reference path edges, `reference_path_material` paints them), `set_path`, `set_placement`, `swap_profile`, `set_local_profile`, `revert_local`, `regenerate`, `recreate` (the only way to change reverse), `rename`, `delete`, `open_dialog`, `reload`.
+  - `profile_tracer_library` (files only): `save_new`, `overwrite`, `set_meta`, `rename_file`, `redatum`, `flip`, `delete`. `overwrite` and `delete` need `confirm` = the key; `delete` sets the file aside as `.deleted__<time>` unless `permanent: true`.
+- **One undo step, and batchable.** `profile_tracer_edit` has `"operation": false` and opens "MCP: Profile Tracer Edit (<action>)" itself through `Na__CommandRouter__WithOperation`, so inside `batch_execute` it joins the batch's step. That needed the tracer's engines to stop opening their own operations: `wrap_in_operation:` keywords (1.6.17) on the build, the rebuild, the swap and the local-profile writers, each defaulting to the dialog's behaviour. `open_dialog` and `reload` open no step; `reload` is refused inside a batch. `profile_tracer_library` is in `NA_BATCH_FORBIDDEN`.
+- **Where the work is done.** `10__BridgeHandlers/Na__SketchUpMcp__Handlers__ProfileTracer__.rb` (new); `CommandRouter` (three routes, one batch refusal); `CoreAppLoaders` (one require); `ToolRegistry` (three tools, `server.version`); `AppConfig` (`bridge_version`); `ValidateApiUsage` (the tracer as a checked partner); `BridgeCore` and `PythonServer` tests; AGENTS.md (the seam); the Agent Guide (tool map).
+- **Versions.** `bridge_version` and `server.version` are `1.0.24`. 68 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes: 68 tools, 245 API dependencies; 4 tracer seam files checked like the bridge, 46 defining.
+  - `RunRubyChecks`: 50 of 50 compile; `BridgeCore` 136 (15 new: the refusal without the tracer, actions refused before the seam, world points from one run or several, routes and the batch rule, the registry's lists equal to the handler's and the real seam's, read-only mode, `reload` refused in a batch, a seam refusal carried through, and the seam's own edge chaining, branch splitting, stretch and scale maths).
+  - `PythonServer` 54 (1 new); `--check` 68 tools; `node --check` passes.
+  - **Live in Brown (pid 549572)**, after both reloads: every read action; a zero-trace trial of 14 edit steps (create into the live walls with a wrapper and Adam's local profile, then set_placement, set_local_profile with a stretch, set_path, revert_local, swap_profile, regenerate, recreate with reverse off, rename, traces, delete), all rolled back; every library action on a throwaway profile, then removed. The real build: one batch, one undo step "MCP: Brown Scheme-3: parapet capping by Profile Path Tracer", 0.52 s. The capping is identical to Adam's REFERENCE CAPPING HERE trace, 10 m lower: bounds, 0.8989339 m3, 159 faces, 369 edges, 71 L20 + 298 L40.
+  - **Found and fixed live:** a library code ending in `__` slipped past the "already in the library" check (the plugin's cleaner trims it), and wrote a second file beside the profile it copied (removed). New codes now clash with any key that cleans to the same code.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server lists 68 tools.
+- [ ] In each SketchUp window: the Profile Path Tracer's Reload Plugin Files (Settings tab), then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.24). A restart does both.
+- [ ] Select a trace, open the tracer, Draw Profile > From Model: Live is on straight away (the tracer's own 1.6.17 change).
+- [ ] Ask an agent for a skirting along a few edges: it should pick a library profile with `profile_tracer profiles`, build it with `profile_tracer_edit create`, and one Ctrl+Z should take it away.
+
+## Na SketchUp MCP | Version 1.0.23 - 10-Nov-2026 - Agent Outliner: Every Flag, Every Thread, Strip, and a History That Saves
+
+- **What was asked.** From the Brown 60795 session: investigate Adam's Agent Outliner, build every MCP tool it still needs (read: summary, flags, threads, names; write: flags, threads, standard names), each write one undo step and refused in read-only mode, and prove each one in a test model.
+- **What 1.0.22 already had** (built earlier the same day, not yet run inside SketchUp): `agent_outliner` with summary, inbox, changes, thread, prefixes, find; `agent_outliner_edit` with comment, reply, resolve, reopen, flag, unflag, acknowledge, name. Three gaps:
+  - no way to list **every flagged object**: `inbox` shows only For Agent, Question and Check This, so an agent never saw Adam's Do Not Touch or Reference flags;
+  - no list of **every thread** with who it waits on: an agent could not find its own unanswered questions;
+  - no **Strip**, the Outliner's button that takes a standard prefix off again.
+- **New actions**, all in the Agent Outliner's seam (0.1.1), the handler forwarding as before:
+  - `agent_outliner {action: "flags"}`: every flagged object grouped by flag type, in the standards' order, each type with its meaning and count (empty ones too, so "no Do Not Touch objects" is an answer); each object with id, path and who set the flag; a flag type since dropped from the standards still shows. `flag` (an id or label) and `by` (user or agent) narrow it.
+  - `agent_outliner {action: "threads"}`: every thread on one line (the model's too): open or resolved, `waiting_on` agent (Adam's comments or flag no agent has acknowledged) or user (open, and the last comment is an agent's), counts, flag, and the last word cut to 240 characters. Sorted: on an agent, on Adam, other open, resolved; newest first. `status` and `waiting_on` narrow it.
+  - `agent_outliner_edit {action: "strip"}`: any standard prefix taken off (`REF__Wall` becomes `Wall`), one "MCP: Agent Outliner Edit" undo step, none when nothing changes. A name that was exactly a label (CAD__FrontElevation) is left empty, as the button does, and a warning says which.
+- **An older window is refused with the fix.** `property_since` now also takes values: `"agent_outliner.action=flags"`. Before a call, the server pings the window's bridge and refuses a 1.0.22 window with "Reload Plugin Data" instead of the bridge's bare "unknown action". Listed: the three new actions and the new parameters `status`, `waiting_on`, `flag` (`ToolRunner.na_too_old`).
+- **Found live and fixed in the Agent Outliner (0.1.1)**, both from 0.1.0:
+  - **No history was ever saved.** The ModelHistory folder is about 195 characters deep, and 0.1.0's file names took the path to 274 to 292 characters. SketchUp's Ruby cannot open 260 or more on Windows (`Errno::ENOENT`, proved in the test window: a 276 character path refused, a 238 character one written). So Adam's change marks and an agent's acknowledgements were lost at every restart. Files are now `History__<20 character stem>__<crc>.json` (about 243 with `.tmp`), and a key held over a reload is cut to the same name.
+  - **A plain Do Not Touch, Reference or Done flag waited for an agent.** Configure says only the ticked types ("waits for an agent") go to the inbox; the flag's thread entry ignored that. Now a flag entry waits only for an inbox type, or when Adam typed his own note with it.
+- **Reload safe.** The seam's action lists were guarded constants, so Reload Plugin Data would have kept 0.1.0's lists until a restart. They are now replaced on every load.
+- **Where the work is done.** `Handlers__AgentOutliner__.rb` (action lists); `ToolRegistry` (enums, `status`, `waiting_on`, `flag`, descriptions, `property_since`, `server.version`); `AppConfig` (`bridge_version`); `ToolRunner` (values in `property_since`); `BridgeCore` and `PythonServer` tests; Agent Guide; AGENTS.md. In the Agent Outliner: `McpOperations__Main`, `McpOperations__Payloads`, `Naming` (`Strip` takes `operation_name:`), `Notes` (inbox flags), `HistoryStore` (short names), version 0.1.1; see its DEVLOG.
+- **Versions.** `bridge_version` and `server.version` are `1.0.23`. 65 tools (unchanged: new actions, not new tools).
+- **Validation.**
+  - Offline: `ValidateApiUsage` passes (65 tools, 234 API dependencies, the seam checked); `RunRubyChecks` 49 of 49 compile, `BridgeCore` 121 (3 new: read-only refuses every edit action before the seam and lets reads through; every `property_since` key names a real tool, parameter and value at or below this bridge; the new actions are listed; and a stale 0.1.0 action list is replaced when the seam loads); `PythonServer` 53 (2 new: a 1.0.22 bridge refused `flags`, `threads` and `strip` with "needs 1.0.23" and "Reload Plugin Data", nothing sent, while `summary` still goes; a 1.0.23 bridge served); `--check` 65 tools.
+  - The Agent Outliner's suite: 135 of 135 (36 new) and 12 of 12 deliberate faults caught (6 new).
+  - **Live, in a throwaway window** (a copy of SketchUp's Simple template in the session scratchpad, pid 596180; Adam's window untouched): bridge 1.0.23, Agent Outliner 0.1.1, `api_self_test` 234 with none unavailable; both Reload Plugin Data commands from `ruby_eval` (47 and 17 files, no errors, the action lists equal in the seam and the handler). Four test groups, Adam-side notes written as `by: user`, then: `threads` (3, all waiting on an agent; after the fix the plain Do Not Touch waits on nobody), `threads waiting_on agent`, `flags`, `flags flag: "Do Not Touch"` (by label), `inbox` (the Do Not Touch no longer in it), `prefixes` (the REF box), `summary` (history file `History__AoTrial__AgentOutlin__e7a426a9.json`, 239 characters, saved); `reply` (acknowledged 2, the thread then waiting on Adam, one `model_undo` took it out); `strip` on `REF__AO Trial - Survey Box` (renamed, undo named "MCP: Agent Outliner Edit", one `model_undo` put it back); `strip` on a plain name (no step); `name` CAD__FrontElevation then `strip` (empty name and the warning; two undos restored "AO Trial - Wordy"); read-only mode (an in-memory switch that ended by itself after 25 s): `strip` and `acknowledge` refused `read_only`, `flags` answered; refusals for `status: "closed"` and `flag: "urgent"` with their hints. Then every step undone: one component left, no `Na__AgentOutliner__Notes` anywhere; the copy saved in the scratchpad, the window closed, its history file deleted.
+  - Not run live: the version refusal against a real 1.0.22 window (proved with a fake bridge), and anything in Adam's own window.
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server is 1.0.23 (the tool list is still 65; the new actions appear in `agent_outliner` and `agent_outliner_edit`).
+- [ ] In each SketchUp window: Noble 3D Tools' Reload Plugin Data (or the Agent Outliner's Settings > Reload Plugin Data), then Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.23). A restart does both.
+- [ ] Flag a group Do Not Touch in the Agent Outliner: it is not in the agent inbox, and an agent's `agent_outliner flags` lists it.
+- [ ] After a restart, the New and Updated marks of the last session are still there (the history now saves: look for `History__<model>__<crc>.json` in the Agent Outliner's `91__UserConfig__LocalOnly/ModelHistory`).
+
+## Na SketchUp MCP | Version 1.0.22 - 10-Nov-2026 - The Agent Outliner: Adam's Flags, Threads and Change History for Agents
+
+- **What Adam asked for.** An outliner "tailored for helping me working with Claude MCP Agents": flags and a two way comment system, "so agent -> user and user -> agent", New / Recent / Updated marks for what he or an agent changed, standard names such as CAD__FrontElevation, "and build robust MCP handling".
+- **The seam lives in the Agent Outliner** (Na Noble3d Modelling Tools 0.9.25, `10__PluginModules/36__SourceCode__AgentOutliner/06__McpOperations`), as the Component Editor Tools', Point Cloud Viewer's and GLB Builder's do. The new handler (`Handlers__AgentOutliner__.rb`) only checks the action, drops keys sent as `null`, passes the open model, moves warnings onto the response and turns the seam's refusals into `Na__McpError`. Without the Agent Outliner both tools refuse and name the fix.
+- **Two tools, split by risk:**
+  - `agent_outliner` (read-only, the 64th): `summary` (start here), `inbox` (what Adam flagged or asked, with each object's id, path, tag, size, standard name meaning and whole thread), `changes` (made, changed or erased, by whom and which fields, since the agent's last acknowledge or a cursor; `by: "user"` gives Adam's own corrections), `thread`, `prefixes` (what each standard name means and which objects carry it), `find` (the Outliner's search language).
+  - `agent_outliner_edit` (the 65th): `comment`, `reply`, `resolve`, `reopen`, `flag`, `unflag`, `acknowledge` (this PC only, no undo step), `name` (standard names only, never tags).
+- **Who did it.** The Agent Outliner reads the Ruby call stack inside each observer callback: this plugin's folder on the stack means an agent's request is running (ruby_eval included), so every object an agent makes or changes is marked as the agent's, with the handler's name (`Primitives__CreateSolid`). Nothing in this plugin had to change for it.
+- **Server instructions unchanged**: they are at 2,045 of their 2,048 characters. The tool descriptions and a new Agent Guide recipe ("Start a job from Adam's notes") carry the advice instead.
+- **Where the work is done.** `10__BridgeHandlers/Na__SketchUpMcp__Handlers__AgentOutliner__.rb` (new); `CommandRouter` (two routes, one batch refusal); `CoreAppLoaders` (one require); `ToolRegistry` (two tools, `server.version`); `AppConfig` (`bridge_version`); `ValidateApiUsage` (the Agent Outliner as a checked partner); `BridgeCore` and `PythonServer` tests; the Agent Guide (tool map, recipe) and AGENTS.md (the seam).
+- **Versions.** `bridge_version` and `server.version` are `1.0.22`. 65 tools.
+- **Validation.**
+  - `ValidateApiUsage` passes: 65 tools, 234 API dependencies; 2 Agent Outliner seam files checked like the bridge, 17 defining.
+  - `RunRubyChecks`: 49 of 49 compile; `BridgeCore` passes 118, 10 of them new: the refusal without the Agent Outliner, actions refused before the seam is asked, `null` keys dropped and the model passed, routes and the batch refusal, the registry's action lists equal to the handler's and to the real seam's, a seam refusal carried through with its code, hint and details.
+  - `PythonServer`: 51 tests pass (65 tools; one new test for the pair's schemas and hints). `--check`: 65 tools, and it pinged the running SketchUp 2027 (bridge still 1.0.21 until reloaded). `node --check` passes.
+  - The Agent Outliner's own suite: 99 checks, and 6 of 6 deliberate faults caught (its DEVLOG, 0.1.0).
+- **Not yet tested inside SketchUp.**
+
+### Validation Checklist
+
+- [ ] Restart the MCP client (Claude Code) so the server lists 65 tools.
+- [ ] In SketchUp 2027, Extensions > Na SketchUp MCP > Reload Plugin Data (1.0.22), and Noble 3D Tools' Reload Plugin Data (Agent Outliner 0.1.0; a restart adds its menu item).
+- [ ] Flag a group For Agent in the Agent Outliner with a comment; ask an agent to "check the outliner inbox" and reply.
+- [ ] The reply shows in the Outliner's thread, in the agent colour, marked New; the group is no longer waiting.
+- [ ] Ask the agent to build a box: it shows NEW, by agent, in the Outliner. Rename it yourself: UPDATED, by you; `agent_outliner changes by: "user"` lists the rename.
+
 ## Na SketchUp MCP | Version 1.0.21 - 09-Nov-2026 - The TrueVision GLB Builder, From Status To Push
 
 - **What Adam asked for.** "It might be worth you building some MCP tools for TrueVision GLB Exporter, my plugin. Look in the plugins folder and build out an MCP folder in there with all of the MCP tools, so agents can access absolutely all of the tools available for pushing, handling, and checking statuses, etc."

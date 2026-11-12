@@ -126,6 +126,7 @@ NA_ROOT = $NA_MODULES_ROOT
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Coordinates__.rb
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__EntityResolver__.rb
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Serializer__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__PlanGeometry__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ConnectionFile__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ApiSelfTest__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb
@@ -136,6 +137,8 @@ NA_ROOT = $NA_MODULES_ROOT
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__Geometry__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVision__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVisionExport__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__AgentOutliner__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__ProfileTracer__.rb
 ].each { |relative| load File.join(NA_ROOT, relative) }
 
 # Keep test connection files and settings out of the real 91__UserConfig__LocalOnly.
@@ -863,6 +866,446 @@ if File.exist?(tvx_seam)
 else
     na_check("glb builder: the GLB Builder seam was not found at #{tvx_seam}") { false }
 end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Agent Outliner Seam (1.0.22: agent_outliner, agent_outliner_edit)
+# -----------------------------------------------------------------------------
+
+AOH = Na__SketchUpMcp::Na__Handlers__AgentOutliner
+AOH_CTX = { model: nil, unit: 'mm', warnings: [] }.freeze
+
+na_check('agent outliner: without the Agent Outliner both tools refuse as unsupported, naming the fix') do
+    na_refuses('unsupported') { AOH.Na__Handlers__AgentOutliner__Read({ 'action' => 'summary' }, AOH_CTX.dup) } &&
+        na_refuses('unsupported') { AOH.Na__Handlers__AgentOutliner__Edit({ 'action' => 'reply' }, AOH_CTX.dup) } &&
+        begin
+            AOH.na_operations
+            false
+        rescue Na__SketchUpMcp::Na__McpError => error
+            error.message.include?('Agent Outliner') && error.na_hint.to_s.include?('Reload Plugin Data')
+        end
+end
+
+na_check('agent outliner notice (1.0.28): no Agent Outliner, no notice and no error') do
+    AOH.Na__Handlers__AgentOutliner__Notice(:a_model).nil? && AOH.Na__Handlers__AgentOutliner__Notice(nil).nil?
+end
+
+na_check('agent outliner: an unknown or missing action is refused before the Agent Outliner is asked') do
+    na_refuses('invalid_params') { AOH.Na__Handlers__AgentOutliner__Read({ 'action' => 'reply' }, AOH_CTX.dup) } &&
+        na_refuses('invalid_params') { AOH.Na__Handlers__AgentOutliner__Edit({ 'action' => 'summary' }, AOH_CTX.dup) } &&
+        na_refuses('invalid_params') { AOH.Na__Handlers__AgentOutliner__Edit({}, AOH_CTX.dup) }
+end
+
+na_check('agent outliner: the seam gets the arguments without action and nulls, plus the open model') do
+    AOH.na_arguments({ 'action' => 'reply', 'ids' => [7], 'text' => 'Done.', 'author' => nil }, { model: :the_model }) ==
+        { 'ids' => [7], 'text' => 'Done.', 'model_object' => :the_model }
+end
+
+na_check('router: both outliner tools are routed; the edit tool is kept out of batches') do
+    routes = Na__SketchUpMcp::Na__CommandRouter::NA_HANDLER_ROUTES
+    forbidden = Na__SketchUpMcp::Na__CommandRouter::NA_BATCH_FORBIDDEN
+    routes['agent_outliner'] == [:Na__Handlers__AgentOutliner, :Na__Handlers__AgentOutliner__Read] &&
+        routes['agent_outliner_edit'] == [:Na__Handlers__AgentOutliner, :Na__Handlers__AgentOutliner__Edit] &&
+        forbidden.key?('agent_outliner_edit') && !forbidden.key?('agent_outliner')
+end
+
+aoh_registry = JSON.parse(File.read(File.join(NA_ROOT, '02__Plugin__CoreAppData', 'Na__SketchUpMcp__CoreAppData__ToolRegistry__.json'), encoding: 'UTF-8'))
+aoh_tools = aoh_registry['tools'].each_with_object({}) { |tool, hash| hash[tool['name']] = tool }
+na_check('agent outliner: the registry offers exactly the handler\'s actions') do
+    aoh_tools['agent_outliner']['input_schema']['properties']['action']['enum'] == AOH::NA_READ_ACTIONS &&
+        aoh_tools['agent_outliner_edit']['input_schema']['properties']['action']['enum'] == AOH::NA_EDIT_ACTIONS
+end
+na_check('agent outliner: the read tool changes nothing; the edit tool manages its own undo') do
+    aoh_tools['agent_outliner']['mutates'] == false && aoh_tools['agent_outliner']['annotations']['readOnlyHint'] == true &&
+        aoh_tools['agent_outliner_edit']['mutates'] == true && aoh_tools['agent_outliner_edit']['operation'] == false
+end
+
+# 1.0.23: read-only mode, and every later parameter or value named in property_since.
+na_check('agent outliner: read-only mode refuses every edit action before the seam is asked; reads still answer') do
+    loader = Na__SketchUpMcp::Na__ConfigLoader
+    original = loader.method(:Na__ConfigLoader__ReadOnlyMode)
+    loader.define_singleton_method(:Na__ConfigLoader__ReadOnlyMode) { true }
+    begin
+        na_refuses('read_only') { Na__SketchUpMcp::Na__CommandRouter.na_check_safety(aoh_tools['agent_outliner_edit']) } &&
+            Na__SketchUpMcp::Na__CommandRouter.na_check_safety(aoh_tools['agent_outliner']).nil?
+    ensure
+        loader.define_singleton_method(:Na__ConfigLoader__ReadOnlyMode) { original.call }
+    end
+end
+
+na_check('registry: every property_since key names a real tool, parameter and value, at or below this bridge') do
+    bridge = JSON.parse(File.read(File.join(NA_ROOT, '02__Plugin__CoreAppData', 'Na__SketchUpMcp__CoreAppData__AppConfig__.json'), encoding: 'UTF-8'))['metadata']['bridge_version']
+    as_parts = ->(text) { text.split('.').map(&:to_i) }
+    aoh_registry['property_since'].all? do |key, version|
+        tool_name, rest = key.split('.', 2)
+        parameter, value = rest.to_s.split('=', 2)
+        tool = aoh_tools[tool_name]
+        property = tool && tool['input_schema']['properties'][parameter]
+        property && (value.nil? || Array(property['enum']).include?(value)) && (as_parts.call(version) <=> as_parts.call(bridge)) <= 0
+    end
+end
+
+na_check('agent outliner: the actions added in 1.0.23 are in property_since, so an older window is refused with the fix') do
+    since = aoh_registry['property_since']
+    %w[agent_outliner.action=threads agent_outliner.action=flags agent_outliner_edit.action=strip].all? { |key| since[key] == '1.0.23' }
+end
+
+na_check('agent outliner: images on comment / reply (1.0.26) are in property_since, an array of paths') do
+    images = aoh_tools['agent_outliner_edit']['input_schema']['properties']['images']
+    aoh_registry['property_since']['agent_outliner_edit.images'] == '1.0.26' && images['type'] == 'array' && images['items']['type'] == 'string' && images['maxItems'] == 8
+end
+
+na_check('agent outliner: tags and tag (1.0.25) are in property_since, with tag and create on the edit tool') do
+    since = aoh_registry['property_since']
+    edit  = aoh_tools['agent_outliner_edit']['input_schema']['properties']
+    %w[agent_outliner.action=tags agent_outliner_edit.action=tag agent_outliner_edit.tag agent_outliner_edit.create].all? { |key| since[key] == '1.0.25' } &&
+        edit['tag']['type'] == 'string' && edit['create']['type'] == 'boolean'
+end
+
+# The real seam from Noble 3D Tools beside this plugin: its actions must be the handler's, one for one.
+aoh_seam = File.join(File.dirname(NA_ROOT), 'Na__Noble3dModellingTools__Modules__', '10__PluginModules', '36__SourceCode__AgentOutliner',
+                     '06__McpOperations', 'Na__AgentOutliner__McpOperations__Main__.rb')
+if File.exist?(aoh_seam)
+    # What 0.1.0 left in a running SketchUp: the seam must replace it on load (Reload Plugin Data), not keep it.
+    module ::Na__AgentOutliner
+        module Na__McpOperations
+            NA_READ_ACTIONS = %w[summary inbox changes thread prefixes find].freeze unless const_defined?(:NA_READ_ACTIONS, false)
+        end
+    end
+    load aoh_seam
+    seam = ::Na__AgentOutliner::Na__McpOperations
+    na_check('agent outliner: the Agent Outliner\'s seam answers exactly the handler\'s actions') do
+        actions = seam.Na__AgentOutliner__McpActions
+        actions['read'] == AOH::NA_READ_ACTIONS && actions['edit'] == AOH::NA_EDIT_ACTIONS
+    end
+    na_check('agent outliner: with the seam loaded, the handler finds it') { AOH.na_operations.equal?(seam) }
+    na_check('agent outliner: a seam refusal becomes an MCP error with its code, hint and details') do
+        AOH.na_forward({ warnings: [] }) do
+            raise ::Na__AgentOutliner::Na__McpOperationsError.new('not_found', 'No object has the id 9.', 'Read ids with agent_outliner find.', { 'missing' => [9] })
+        end
+        false
+    rescue Na__SketchUpMcp::Na__McpError => error
+        error.na_code == 'not_found' && error.na_hint == 'Read ids with agent_outliner find.' && error.na_details == { 'missing' => [9] }
+    end
+
+    # 1.0.28: the waiting notice on every response, from the seam's cache (Agent Outliner 0.1.9).
+    na_check('agent outliner notice: the real seam offers it') { seam.respond_to?(:Na__AgentOutliner__McpNotice) }
+    real_notice = seam.method(:Na__AgentOutliner__McpNotice)
+    notice_answer = { 'waiting' => 1, 'from' => 'Adam', 'where' => 'model chat', 'text' => 'Widen the door.', 'read' => 'agent_outliner {action: "inbox"}' }
+    seam.define_singleton_method(:Na__AgentOutliner__McpNotice) { |_model| notice_answer }
+    router = Na__SketchUpMcp::Na__CommandRouter
+    begin
+        na_check('agent outliner notice: the seam\'s answer is passed on as it is; nothing for no model') do
+            AOH.Na__Handlers__AgentOutliner__Notice(:the_model) == notice_answer && AOH.Na__Handlers__AgentOutliner__Notice(nil).nil?
+        end
+        na_check('router: a tool\'s response carries the notice first-hand as outliner; ping and api_probe never do') do
+            shaped = router.na_with_notice({ 'id' => 1, 'ok' => true, 'result' => {} }, 'model_info', { model: :the_model })
+            pinged = router.na_with_notice({ 'id' => 2, 'ok' => true, 'result' => {} }, 'ping', { model: :the_model })
+            probed = router.na_with_notice({ 'id' => 3, 'ok' => true, 'result' => {} }, 'api_probe', { model: :the_model })
+            shaped['outliner'] == notice_answer && !pinged.key?('outliner') && !probed.key?('outliner') &&
+                !router.na_with_notice({ 'ok' => false }, 'model_info', nil).key?('outliner')
+        end
+        na_check('router: a refused call still carries the notice (Dispatch, error path); ping does not') do
+            refused = router.Na__CommandRouter__Dispatch({ 'id' => 7, 'command' => 'no_such_command', 'params' => {} })
+            pong    = router.Na__CommandRouter__Dispatch({ 'id' => 8, 'command' => 'ping', 'params' => {} })
+            refused['ok'] == false && refused.dig('error', 'code') == 'unknown_command' && refused['outliner'] == notice_answer &&
+                pong['ok'] == true && !pong.key?('outliner')
+        end
+        # 1.0.29: a server before 1.0.28 drops 'outliner', so a request without the feature gets it where that server looks.
+        na_check('router: a request from an older server (no features) gets the notice as a warning line too, and as error details') do
+            ok    = router.na_with_notice({ 'id' => 1, 'ok' => true, 'result' => {}, 'warnings' => ['own warning'] }, 'model_info', { model: :m }, { 'command' => 'model_info' })
+            error = router.na_with_notice({ 'id' => 2, 'ok' => false, 'error' => { 'code' => 'not_found', 'message' => 'x', 'details' => { 'missing' => [9] } } },
+                                          'entity_get', { model: :m }, { 'command' => 'entity_get' })
+            ok['warnings'].length == 2 && ok['warnings'][0] == 'own warning' && ok['warnings'][1].start_with?('Adam WROTE TO YOU in the Agent Outliner (1 waiting, model chat)') &&
+                ok['warnings'][1].include?('"Widen the door."') && ok['warnings'][1].include?('agent_outliner {action: "inbox"}') && ok['outliner'] == notice_answer &&
+                error['error']['details'] == { 'missing' => [9], 'outliner' => notice_answer }
+        end
+        na_check('router: a 1.0.29 server (features: outliner) gets the notice once, in its own key only') do
+            ok = router.na_with_notice({ 'id' => 1, 'ok' => true, 'result' => {} }, 'model_info', { model: :m }, { 'features' => ['outliner'] })
+            error = router.na_with_notice({ 'id' => 2, 'ok' => false, 'error' => { 'code' => 'not_found', 'message' => 'x' } }, 'entity_get', { model: :m }, { 'features' => ['outliner'] })
+            ok['outliner'] == notice_answer && !ok.key?('warnings') && !error['error'].key?('details') && error['outliner'] == notice_answer
+        end
+        na_check('agent outliner notice: the warning line names pictures and the age when there are some') do
+            line = AOH.Na__Handlers__AgentOutliner__NoticeLine(notice_answer.merge('waiting' => 3, 'ago' => '2 min', 'pictures' => 2))
+            line.start_with?('Adam WROTE TO YOU in the Agent Outliner (3 waiting, model chat, 2 min, 2 pictures): "Widen the door."')
+        end
+        notice_answer = {}
+        na_check('agent outliner notice: an empty answer is no notice') { AOH.Na__Handlers__AgentOutliner__Notice(:the_model).nil? }
+        seam.define_singleton_method(:Na__AgentOutliner__McpNotice) { |_model| raise TypeError, 'broken thread' }
+        na_check('agent outliner notice: a fault in the seam is no notice, never an error') do
+            AOH.Na__Handlers__AgentOutliner__Notice(:the_model).nil? &&
+                !router.Na__CommandRouter__Dispatch({ 'id' => 9, 'command' => 'no_such_command', 'params' => {} }).key?('outliner')
+        end
+        seam.singleton_class.send(:remove_method, :Na__AgentOutliner__McpNotice)
+        na_check('agent outliner notice: an Agent Outliner older than 0.1.9 (no McpNotice) is no notice') do
+            !seam.respond_to?(:Na__AgentOutliner__McpNotice) && AOH.Na__Handlers__AgentOutliner__Notice(:the_model).nil?
+        end
+    ensure
+        seam.define_singleton_method(:Na__AgentOutliner__McpNotice) { |model| real_notice.call(model) }
+    end
+else
+    na_check("agent outliner: the Agent Outliner seam was not found at #{aoh_seam}") { false }
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Profile Path Tracer Seam (1.0.24: profile_tracer, profile_tracer_edit, profile_tracer_library)
+# -----------------------------------------------------------------------------
+
+PTH = Na__SketchUpMcp::Na__Handlers__ProfileTracer
+PTH_CTX = { model: nil, unit: 'mm', warnings: [] }.freeze
+
+na_check('profile tracer: without the plugin all three tools refuse as unsupported, naming the fix') do
+    na_refuses('unsupported') { PTH.Na__Handlers__ProfileTracer__Read({ 'action' => 'status' }, PTH_CTX.dup) } &&
+        na_refuses('unsupported') { PTH.Na__Handlers__ProfileTracer__Edit({ 'action' => 'regenerate' }, PTH_CTX.dup) } &&
+        na_refuses('unsupported') { PTH.Na__Handlers__ProfileTracer__Library({ 'action' => 'flip' }, PTH_CTX.dup) } &&
+        begin
+            PTH.na_operations
+            false
+        rescue Na__SketchUpMcp::Na__McpError => error
+            error.message.include?('Profile Path Tracer') && error.na_hint.to_s.include?('Reload Plugin Files')
+        end
+end
+
+na_check('profile tracer: an unknown or missing action is refused before the plugin is asked') do
+    na_refuses('invalid_params') { PTH.Na__Handlers__ProfileTracer__Read({ 'action' => 'create' }, PTH_CTX.dup) } &&
+        na_refuses('invalid_params') { PTH.Na__Handlers__ProfileTracer__Edit({ 'action' => 'status' }, PTH_CTX.dup) } &&
+        na_refuses('invalid_params') { PTH.Na__Handlers__ProfileTracer__Library({ 'action' => 'create' }, PTH_CTX.dup) } &&
+        na_refuses('invalid_params') { PTH.Na__Handlers__ProfileTracer__Edit({}, PTH_CTX.dup) }
+end
+
+na_check('profile tracer: one run or several become world points in inches; a short run is refused') do
+    one = PTH.na_path_runs([[0, 0, 0], [254, 0, 0]], { unit: 'mm' })
+    two = PTH.na_path_runs([[[0, 0], [25.4, 0]], [[0, 0, 0], [0, 50.8, 0], [0, 50.8, 25.4]]], { unit: 'mm' })
+    one.length == 1 && na_close(one[0][1].to_a, [10.0, 0.0, 0.0]) &&
+        two.length == 2 && two[1].length == 3 && na_close(two[1][2].to_a, [0.0, 2.0, 1.0]) &&
+        na_refuses('invalid_params') { PTH.na_path_runs([[[0, 0, 0]]], { unit: 'mm' }) } &&
+        na_refuses('invalid_params') { PTH.na_path_runs([], { unit: 'mm' }) }
+end
+
+na_check('router: the three tracer tools are routed; only the library tool is kept out of batches') do
+    routes = Na__SketchUpMcp::Na__CommandRouter::NA_HANDLER_ROUTES
+    forbidden = Na__SketchUpMcp::Na__CommandRouter::NA_BATCH_FORBIDDEN
+    routes['profile_tracer'] == [:Na__Handlers__ProfileTracer, :Na__Handlers__ProfileTracer__Read] &&
+        routes['profile_tracer_edit'] == [:Na__Handlers__ProfileTracer, :Na__Handlers__ProfileTracer__Edit] &&
+        routes['profile_tracer_library'] == [:Na__Handlers__ProfileTracer, :Na__Handlers__ProfileTracer__Library] &&
+        forbidden.key?('profile_tracer_library') && !forbidden.key?('profile_tracer_edit') && !forbidden.key?('profile_tracer')
+end
+
+pth_registry = JSON.parse(File.read(File.join(NA_ROOT, '02__Plugin__CoreAppData', 'Na__SketchUpMcp__CoreAppData__ToolRegistry__.json'), encoding: 'UTF-8'))
+pth_tools = pth_registry['tools'].each_with_object({}) { |tool, hash| hash[tool['name']] = tool }
+na_check('profile tracer: the registry offers exactly the handler\'s actions') do
+    pth_tools['profile_tracer']['input_schema']['properties']['action']['enum'] == PTH::NA_READ_ACTIONS &&
+        pth_tools['profile_tracer_edit']['input_schema']['properties']['action']['enum'] == PTH::NA_EDIT_ACTIONS &&
+        pth_tools['profile_tracer_library']['input_schema']['properties']['action']['enum'] == PTH::NA_LIBRARY_ACTIONS
+end
+na_check('profile tracer: the read tool changes nothing; edit and library manage their own undo') do
+    pth_tools['profile_tracer']['mutates'] == false && pth_tools['profile_tracer']['annotations']['readOnlyHint'] == true &&
+        pth_tools['profile_tracer_edit']['mutates'] == true && pth_tools['profile_tracer_edit']['operation'] == false &&
+        pth_tools['profile_tracer_library']['mutates'] == true && pth_tools['profile_tracer_library']['operation'] == false
+end
+na_check('profile tracer: read-only mode refuses edit and library before the plugin is asked; reads still answer') do
+    loader = Na__SketchUpMcp::Na__ConfigLoader
+    original = loader.method(:Na__ConfigLoader__ReadOnlyMode)
+    loader.define_singleton_method(:Na__ConfigLoader__ReadOnlyMode) { true }
+    begin
+        na_refuses('read_only') { Na__SketchUpMcp::Na__CommandRouter.na_check_safety(pth_tools['profile_tracer_edit']) } &&
+            na_refuses('read_only') { Na__SketchUpMcp::Na__CommandRouter.na_check_safety(pth_tools['profile_tracer_library']) } &&
+            Na__SketchUpMcp::Na__CommandRouter.na_check_safety(pth_tools['profile_tracer']).nil?
+    ensure
+        loader.define_singleton_method(:Na__ConfigLoader__ReadOnlyMode) { original.call }
+    end
+end
+
+# The real seam from the Profile Path Tracer beside this plugin: its actions must be the handler's, one for one.
+pth_seam = File.join(File.dirname(NA_ROOT), 'Na__ProfileTools__ProfilePathTracer__Modules__', '02__Src__AppModules', '60__System__McpOperations',
+                     'Na__ProfileTracer__McpOperations__Main__.rb')
+if File.exist?(pth_seam)
+    load pth_seam
+    seam = ::Na__ProfileTools__ProfilePathTracer::Na__McpOperations
+    na_check('profile tracer: the plugin\'s seam answers exactly the handler\'s actions') do
+        actions = seam.Na__ProfileTracer__McpActions
+        actions['read'] == PTH::NA_READ_ACTIONS && actions['edit'] == PTH::NA_EDIT_ACTIONS &&
+            actions['library'] == PTH::NA_LIBRARY_ACTIONS && actions['edit_no_undo'] == PTH::NA_EDIT_WITHOUT_UNDO
+    end
+    na_check('profile tracer: with the seam loaded, the handler finds it') { PTH.na_operations.equal?(seam) }
+    na_check('profile tracer: reload is refused inside a batch, before the plugin is asked') do
+        na_refuses('invalid_params') { PTH.Na__Handlers__ProfileTracer__Edit({ 'action' => 'reload' }, PTH_CTX.merge(in_operation: true)) }
+    end
+    na_check('profile tracer: a seam refusal becomes an MCP error with its code, hint and details') do
+        PTH.na_forward({ warnings: [] }) do
+            raise ::Na__ProfileTools__ProfilePathTracer::Na__McpOperationsError.new('not_found', 'No trace carries the id NPT0099.', 'List them with traces.', { 'ids' => [] })
+        end
+        false
+    rescue Na__SketchUpMcp::Na__McpError => error
+        error.na_code == 'not_found' && error.na_hint == 'List them with traces.' && error.na_details == { 'ids' => [] }
+    end
+    na_check('profile tracer: the seam joins loose edges into runs and loops, skipping zero-length ones') do
+        chains = seam.Na__McpPath__Chains([[[0, 0, 0], [10, 0, 0]], [[10, 0, 0], [10, 5, 0]], [[3, 3, 3], [3, 3, 3]],
+                                           [[20, 0, 0], [30, 0, 0]], [[30, 0, 0], [30, 9, 0]], [[30, 9, 0], [20, 0, 0]]])
+        open_run = chains[:runs].find { |run| !run[:closed] }
+        loop_run = chains[:runs].find { |run| run[:closed] }
+        chains[:runs].length == 2 && chains[:skipped] == 1 && chains[:branches].zero? &&
+            open_run[:points].length == 3 && [open_run[:points].first, open_run[:points].last].sort == [[0, 0, 0], [10, 5, 0]].sort &&
+            loop_run[:points].length == 3
+    end
+    na_check('profile tracer: a branch point splits loose edges into one run per branch') do
+        chains = seam.Na__McpPath__Chains([[[0, 0, 0], [5, 0, 0]], [[5, 0, 0], [10, 0, 0]], [[5, 0, 0], [5, 5, 0]]])
+        chains[:branches] == 1 && chains[:runs].length == 3 && chains[:runs].none? { |run| run[:closed] }
+    end
+    na_check('profile tracer: a stretch moves only the points beyond the cut, and drops the radius of an arc it splits') do
+        asset = {
+            'Na__Asset__Profile2D' => {
+                'Na__Geometry__Vertices' => [{ 'VertexId' => 'V001', 'PosY_mm' => 0.0, 'PosZ_mm' => 0.0 },
+                                             { 'VertexId' => 'V002', 'PosY_mm' => 100.0, 'PosZ_mm' => 0.0 },
+                                             { 'VertexId' => 'V003', 'PosY_mm' => 100.0, 'PosZ_mm' => 110.0 },
+                                             { 'VertexId' => 'V004', 'PosY_mm' => 0.0, 'PosZ_mm' => 110.0 }],
+                'Na__Geometry__Curves' => [{ 'CurveId' => 'C001', 'VertexIds' => %w[V002 V003], 'Radius_mm' => 55.0 }]
+            },
+            'Na__Asset__Mesh3D' => {
+                'Na__Geometry__Vertices' => [{ 'PosX_mm' => 0.0, 'PosY_mm' => 0.0 }, { 'PosX_mm' => 100.0, 'PosY_mm' => 110.0 }],
+                'Na__Geometry__BoundingBox' => { 'Na__Geometry__MinX_mm' => 0.0, 'Na__Geometry__MaxX_mm' => 100.0,
+                                                 'Na__Geometry__MinY_mm' => 0.0, 'Na__Geometry__MaxY_mm' => 110.0 }
+            }
+        }
+        moved = seam.Na__McpShape__Stretch(asset, 'z', 50.0, 30.0, 'above')
+        zs = asset['Na__Asset__Profile2D']['Na__Geometry__Vertices'].map { |vertex| vertex['PosZ_mm'] }
+        moved == 2 && zs == [0.0, 0.0, 140.0, 140.0] &&
+            asset['Na__Asset__Mesh3D']['Na__Geometry__BoundingBox']['Na__Geometry__MaxY_mm'] == 140.0 &&
+            !asset['Na__Asset__Profile2D']['Na__Geometry__Curves'][0].key?('Radius_mm') &&
+            seam.Na__McpShape__Extent(asset) == [0.0, 100.0, 0.0, 140.0]
+    end
+    na_check('profile tracer: a uniform scale keeps arc radii in step; an uneven one drops them') do
+        make = lambda do
+            { 'Na__Asset__Profile2D' => { 'Na__Geometry__Vertices' => [{ 'VertexId' => 'V001', 'PosY_mm' => 10.0, 'PosZ_mm' => 20.0 }],
+                                          'Na__Geometry__Curves' => [{ 'VertexIds' => ['V001'], 'Radius_mm' => 5.0 }] } }
+        end
+        even = make.call
+        seam.Na__McpShape__Scale(even, 2.0, 2.0)
+        uneven = make.call
+        seam.Na__McpShape__Scale(uneven, 1.0, 1.5)
+        even['Na__Asset__Profile2D']['Na__Geometry__Curves'][0]['Radius_mm'] == 10.0 &&
+            even['Na__Asset__Profile2D']['Na__Geometry__Vertices'][0]['PosZ_mm'] == 40.0 &&
+            !uneven['Na__Asset__Profile2D']['Na__Geometry__Curves'][0].key?('Radius_mm')
+    end
+else
+    na_check("profile tracer: the Profile Path Tracer seam was not found at #{pth_seam}") { false }
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Plan Geometry (1.0.30: sketch_read, geometry_offset_band, image_rectify, model_diff)
+# -----------------------------------------------------------------------------
+
+PG = Na__SketchUpMcp::Na__PlanGeometry
+
+# Chaining: a square drawn as four loose edges in any order and direction is one closed loop;
+# a T junction ends the chains there; ends within snap join.
+square_segments = [[[0, 0, 0], [100, 0, 0]], [[100, 100, 0], [100, 0, 0]], [[0, 100, 0], [100, 100, 0]], [[0, 0, 0], [0, 100.4, 0]]]
+square_chains = PG.Na__PlanGeometry__ChainSegments(square_segments, 1.0)
+na_check('chain: four loose edges of a square are one closed loop') { square_chains.length == 1 && square_chains[0]['closed'] && square_chains[0]['points'].length == 4 }
+tee = PG.Na__PlanGeometry__ChainSegments([[[0, 0, 0], [100, 0, 0]], [[100, 0, 0], [200, 0, 0]], [[100, 0, 0], [100, 50, 0]]], 0.5)
+na_check('chain: a T junction gives three open chains') { tee.length == 3 && tee.none? { |chain| chain['closed'] } }
+na_check('chain: ends 0.4 apart stay apart with snap 0.1') do
+    loose = PG.Na__PlanGeometry__ChainSegments(square_segments, 0.1)
+    loose.length == 1 && !loose[0]['closed'] && loose[0]['points'].length == 5
+end
+
+# Fitting: an arc of radius 1000 about (500, 200), with a straight run either side.
+arc_points = (0..12).map { |k| a = Math::PI * (0.25 + (0.5 * k / 12.0)); [500 + (1000 * Math.cos(a)), 200 + (1000 * Math.sin(a))] }
+circle = PG.Na__PlanGeometry__FitCircle(arc_points)
+na_check('fit: circle centre and radius recovered') { circle && na_close(circle[:center], [500.0, 200.0], 1.0e-6) && na_close(circle[:radius], 1000.0, 1.0e-6) }
+na_check('fit: collinear points have no circle') { PG.Na__PlanGeometry__FitCircle([[0, 0], [1, 1], [2, 2]]).nil? }
+line_in = [[arc_points.first[0] + 600, arc_points.first[1] - 600], [arc_points.first[0] + 300, arc_points.first[1] - 300]]
+line_out = [[arc_points.last[0] - 300, arc_points.last[1] - 300], [arc_points.last[0] - 600, arc_points.last[1] - 600]]
+mixed = line_in + arc_points + line_out
+runs = PG.Na__PlanGeometry__SplitRuns(mixed, 0.5)
+na_check('runs: line, arc, line') { runs.map { |run| run['type'] } == %w[line arc line] }
+na_check('runs: the arc keeps its radius and a 90 degree sweep') do
+    arc = runs.find { |run| run['type'] == 'arc' }
+    arc && na_close(arc['radius'], 1000.0, 1.0e-3) && na_close(arc['sweep'].abs, Math::PI / 2, 1.0e-6)
+end
+# Live 12-Nov-2026: an arc's last facet plus the tangent line after it must not fit one big arc.
+tangent_end = arc_points.last
+tangent_dir = [-Math.sin(Math::PI * 0.75), Math.cos(Math::PI * 0.75)]
+with_tangent = arc_points + [[tangent_end[0] + (2000 * tangent_dir[0]), tangent_end[1] + (2000 * tangent_dir[1])]]
+tangent_runs = PG.Na__PlanGeometry__SplitRuns(with_tangent, 15.0)
+na_check('runs: an arc then a long tangent line stay an arc and a line (tolerance 15)') do
+    tangent_runs.map { |run| run['type'] } == %w[arc line] && na_close(tangent_runs[0]['radius'], 1000.0, 1.0e-3)
+end
+na_check('budget: a 6364 mm radius, 90 degrees -> 48 edges') { PG.Na__PlanGeometry__ArcSegments(6364.0, Math::PI / 2) == 48 }
+na_check('budget: a 400 mm radius full circle -> 48 edges') { PG.Na__PlanGeometry__ArcSegments(400.0, 2 * Math::PI) == 48 }
+na_check('budget: a 4 mm radius half circle -> 6 edges') { PG.Na__PlanGeometry__ArcSegments(4.0, Math::PI) == 6 }
+clean = PG.Na__PlanGeometry__CleanPath(mixed, runs, 1.0)
+na_check('clean path: arc resampled on the circle, lines kept as two points') do
+    on_arc = clean.select { |p| (Math.hypot(p[0] - 500, p[1] - 200) - 1000).abs < 1.0e-6 }
+    on_arc.length == 25 && na_close(clean.first, mixed.first) && na_close(clean.last, mixed.last)
+end
+
+# Offsets: a straight run moves square to itself; arc vertices move radially (exact concentric).
+straight = PG.Na__PlanGeometry__OffsetPolyline([[0, 0], [1000, 0], [2000, 0]], 150.0, false)
+na_check('offset: left of an eastward line is +y') { straight.all? { |p| na_close(p[1], 150.0) } && na_close(straight.first[0], 0.0) }
+na_check('offset: a right angle is mitred') { na_close(PG.Na__PlanGeometry__OffsetPolyline([[0, 0], [100, 0], [100, 100]], 10.0, false)[1], [90.0, 10.0]) }
+centres = PG.Na__PlanGeometry__ArcCentres(arc_points, false, 0.01)
+na_check('offset: interior arc vertices know their centre') { centres[1..-2].all? { |c| c && na_close(c, [500.0, 200.0], 1.0e-6) } && centres.first.nil? }
+concentric = PG.Na__PlanGeometry__OffsetPolyline(arc_points, -150.0, false, centres)
+na_check('offset: arc vertices land on radius 1150 (walking anticlockwise, right is outside)') do
+    concentric[1..-2].all? { |p| (Math.hypot(p[0] - 500, p[1] - 200) - 1150.0).abs < 1.0e-6 }
+end
+
+# Bands with caps: a 1000 long path, band 0..100; square ends, insets, and slanted end lines.
+band_path = [[0, 0], [500, 0], [1000, 0]]
+square = PG.Na__PlanGeometry__BandOutline(band_path, 0, 100, false, nil, [nil, nil], [0, 0])
+na_check('band: square ends give 1000 x 100') { na_close(PG.Na__PlanGeometry__Area(square[:outer]).abs, 100_000.0, 1.0e-6) }
+inset = PG.Na__PlanGeometry__BandOutline(band_path, 0, 100, false, nil, [nil, nil], [150, 150])
+na_check('band: insets 150 each end give 700 x 100') { na_close(PG.Na__PlanGeometry__Area(inset[:outer]).abs, 70_000.0, 1.0e-6) }
+slanted = PG.Na__PlanGeometry__BandOutline(band_path, 0, 100, false, nil, [{ line: [[0, 0], [100, 100]] }, nil], [0, 0])
+na_check('band: a 45 degree start line cuts a triangle off (1000 x 100 - 5000)') { na_close(PG.Na__PlanGeometry__Area(slanted[:outer]).abs, 95_000.0, 1.0e-6) }
+beyond = PG.Na__PlanGeometry__BandOutline(band_path, 0, 100, false, nil, [{ line: [[-200, -50], [-200, 50]] }, nil], [0, 0])
+na_check('band: an end line beyond the path extends the band to it') { na_close(PG.Na__PlanGeometry__Area(beyond[:outer]).abs, 120_000.0, 1.0e-6) }
+na_check('band: a cap that never crosses is refused') do
+    begin
+        PG.Na__PlanGeometry__BandOutline(band_path, 0, 100, false, nil, [{ line: [[0, 500], [1000, 500]] }, nil], [0, 0])
+        false
+    rescue ArgumentError
+        true
+    end
+end
+ring = PG.Na__PlanGeometry__BandOutline([[0, 0], [1000, 0], [1000, 1000], [0, 1000]], -100, 0, true, nil, [nil, nil], [0, 0])
+na_check('band: a closed square path makes a ring (1200 square less 1000 square)') do
+    na_close(PG.Na__PlanGeometry__Area(ring[:outer]).abs - PG.Na__PlanGeometry__Area(ring[:inner]).abs, 440_000.0, 1.0e-6)
+end
+na_check('self intersection: a bow tie crosses, a square does not') do
+    PG.Na__PlanGeometry__SelfIntersects([[0, 0], [10, 10], [10, 0], [0, 10]]) && !PG.Na__PlanGeometry__SelfIntersects([[0, 0], [10, 0], [10, 10], [0, 10]])
+end
+
+# Homography: a known plane-to-photo mapping is recovered from six pairs.
+known = [[0.8, -0.3, 400.0], [0.1, 0.5, 300.0], [0.0002, 0.0004, 1.0]]
+plane = [[0, 0], [4000, 0], [4000, 3000], [0, 3000], [2000, 1500], [1000, 2500]]
+pixels = plane.map { |p| PG.Na__PlanGeometry__ApplyHomography(known, p) }
+fit = PG.Na__PlanGeometry__FitHomography(plane, pixels)
+na_check('homography: six pairs fit to under 1e-6 px') { fit && fit[:max_px] < 1.0e-6 }
+na_check('homography: the inverse maps pixels back to the plane') do
+    inverse = PG.Na__PlanGeometry__Invert3(fit[:matrix])
+    na_close(PG.Na__PlanGeometry__ApplyHomography(inverse, pixels[4]), [2000.0, 1500.0], 1.0e-6)
+end
+na_check('homography: four points on one line cannot fix it') { PG.Na__PlanGeometry__FitHomography([[0, 0], [1, 0], [2, 0], [3, 0]], [[0, 0], [1, 0], [2, 0], [3, 0]]).nil? }
+na_check('clip: a half-plane cuts a square in two') do
+    half = PG.Na__PlanGeometry__ClipHalfPlane([[0, 0], [10, 0], [10, 10], [0, 10]]) { |p| 5.0 - p[0] }
+    na_close(PG.Na__PlanGeometry__Area(half).abs, 50.0)
+end
+
+# Footprints: two 1000 squares half overlapping -> IoU 1/3; outline distance of a square moved 10.
+sq = ->(x, y, s) { [[x, y], [x + s, y], [x + s, y + s], [x, y + s]] }
+compare = PG.Na__PlanGeometry__CompareFootprints([sq.(0, 0, 1000)], [sq.(500, 0, 1000)])
+na_check('footprint: half overlap is IoU one third') { na_close(compare[:iou], 1.0 / 3.0, 1.0e-6) && na_close(compare[:overlap], 500_000.0, 1.0e-3) }
+holed = PG.Na__PlanGeometry__CompareFootprints([sq.(0, 0, 1000), sq.(250, 250, 500)], [sq.(0, 0, 1000)])
+na_check('footprint: a hole (even-odd) leaves 750,000') { na_close(holed[:area_a], 750_000.0, 1.0e-3) }
+distance = PG.Na__PlanGeometry__OutlineDistance([sq.(0, 0, 1000)], [sq.(10, 0, 1000)], 20.0)
+na_check('outline distance: a square moved 10 is 10 at most') { na_close(distance[:hausdorff], 10.0, 1.0e-9) }
 
 # endregion -------------------------------------------------------------------
 

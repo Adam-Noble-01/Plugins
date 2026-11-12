@@ -70,6 +70,17 @@ NA_TAGUTILS_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__Noble3dMo
 # like the bridge. Its archived versions are left out, so a name only an old copy defines does not count.
 NA_GLB_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__TrueVision__GlbBuilderUtility__Modules__')
 NA_GLB_CHECKED = [os.path.join('07__Plugin__McpOperations', '*.rb')]
+
+# agent_outliner / _edit (1.0.22) call into Adam's Agent Outliner (Na Noble3d Modelling Tools) the same way:
+# every def in it counts as defined, and its MCP seam (06__McpOperations) is checked like the bridge.
+NA_OUTLINER_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__Noble3dModellingTools__Modules__', '10__PluginModules',
+                                '36__SourceCode__AgentOutliner')
+NA_OUTLINER_CHECKED = [os.path.join('06__McpOperations', '*.rb')]
+
+# profile_tracer / _edit / _library (1.0.24) call into Adam's Na Profile Path Tracer the same way: every def
+# in its modules counts as defined, and its MCP seam (60__System__McpOperations) is checked like the bridge.
+NA_TRACER_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__ProfileTools__ProfilePathTracer__Modules__', '02__Src__AppModules')
+NA_TRACER_CHECKED = [os.path.join('60__System__McpOperations', '*.rb')]
 NA_SKETCHUP_TOP_LEVEL = re.compile(r'\b(PAGE_[A-Z_]+|MF_[A-Z]+|TB_[A-Z_]+|IDOK|IDCANCEL|TextAlign[A-Za-z]+|SnapTo_[A-Za-z]+|IDENTITY|ORIGIN|[XYZ]_AXIS)\b')
 
 # Method names allowed although the index does not list them, each with its reason.
@@ -270,10 +281,13 @@ def na_main():
     tagutils_all = sorted(glob.glob(os.path.join(NA_TAGUTILS_ROOT, '**', '*.rb'), recursive=True)) if os.path.isdir(NA_TAGUTILS_ROOT) else []
     glb_all, glb_checked = na_partner_files(NA_GLB_ROOT, NA_GLB_CHECKED)
     glb_all = [path for path in glb_all if '00__ArchivedVersions' not in path]
+    outliner_all, outliner_checked = na_partner_files(NA_OUTLINER_ROOT, NA_OUTLINER_CHECKED)
+    tracer_all, tracer_checked = na_partner_files(NA_TRACER_ROOT, NA_TRACER_CHECKED)
     api_count = na_check_registry_api(api, registry_raw, failures)
-    call_count = na_check_method_calls(api, files + partner_checked + studio_checked + viewer_checked + glb_checked, failures,
-                                       partner_all + studio_all + viewer_all + tagutils_all + glb_all)
-    constant_count = na_check_constants(api, files + partner_checked + studio_checked + viewer_checked + glb_checked, failures)
+    call_count = na_check_method_calls(api, files + partner_checked + studio_checked + viewer_checked + glb_checked + outliner_checked + tracer_checked,
+                                       failures, partner_all + studio_all + viewer_all + tagutils_all + glb_all + outliner_all + tracer_all)
+    constant_count = na_check_constants(api, files + partner_checked + studio_checked + viewer_checked + glb_checked + outliner_checked + tracer_checked,
+                                        failures)
     route_count = na_check_routes(registry_raw, files, failures)
 
     print('Registry: %d tools; %d API dependencies checked against %d SketchUp methods (%s).' % (
@@ -299,6 +313,14 @@ def na_main():
         print('Partner: %d TrueVision GLB Builder seam file(s) checked, %d defining.' % (len(glb_checked), len(glb_all)))
     else:
         print('Partner: TrueVision GLB Builder seam not found at %s; truevision_export calls into it are unchecked.' % NA_GLB_ROOT)
+    if outliner_checked:
+        print('Partner: %d Agent Outliner seam file(s) checked, %d defining.' % (len(outliner_checked), len(outliner_all)))
+    else:
+        print('Partner: Agent Outliner seam not found at %s; agent_outliner calls into it are unchecked.' % NA_OUTLINER_ROOT)
+    if tracer_checked:
+        print('Partner: %d Profile Path Tracer seam file(s) checked, %d defining.' % (len(tracer_checked), len(tracer_all)))
+    else:
+        print('Partner: Profile Path Tracer seam not found at %s; profile_tracer calls into it are unchecked.' % NA_TRACER_ROOT)
     if failures:
         print('FAILED (%d):' % len(failures))
         for failure in failures:

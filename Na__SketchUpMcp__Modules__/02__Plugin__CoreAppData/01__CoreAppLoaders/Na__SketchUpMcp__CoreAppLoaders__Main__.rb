@@ -42,6 +42,7 @@ require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Serializer__'
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Creation__'
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__SolidHealth__'
+require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__PlanGeometry__'
 
 # Bridge core services
 require_relative '../../04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ConnectionFile__'
@@ -72,10 +73,16 @@ require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Materials_
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Tags__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVision__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVisionExport__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__AgentOutliner__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__ProfileTracer__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Scenes__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__View__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Actions__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Ruby__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__SketchIntake__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__OffsetBand__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__ModelDiff__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__PhotoReference__'
 
 # User interface and maintenance
 require_relative '../../03__Plugin__CoreAppLogic/Na__SketchUpMcp__CoreAppLogic__DialogManager__'

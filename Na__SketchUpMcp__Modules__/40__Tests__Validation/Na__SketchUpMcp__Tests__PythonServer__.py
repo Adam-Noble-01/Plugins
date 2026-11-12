@@ -60,8 +60,12 @@ class NaFakeBridge:
         self.model_path = model_path        # the open model's file (sketchup_open_window looks for it)
         self.modified = modified            # unsaved changes (sketchup_close_window refuses them)
         self.requests = []
+        self.outliner = None                # 1.0.28: the Agent Outliner notice put on every answer but ping (None: an older bridge)
         self.reject_next_as_unauthorized = False
         self.delay_seconds = 0.0
+        self.pick_polls = 0                 # 1.0.30: looks at a waiting input_pick
+        self.pick_never = False
+        self.proposal_polls = 0
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind(('127.0.0.1', 0))
         self.server.listen(8)
@@ -98,6 +102,8 @@ class NaFakeBridge:
             if self.delay_seconds:
                 time.sleep(self.delay_seconds)
             response = self.answer(request)
+            if self.outliner and request.get('command') != 'ping' and (response.get('error') or {}).get('code') != 'unauthorized':
+                response['outliner'] = self.outliner
             try:
                 client.sendall((json.dumps(response) + '\n').encode('utf-8'))
             except OSError:
@@ -124,6 +130,17 @@ class NaFakeBridge:
             return {'id': rid, 'ok': True, 'result': {'image_file': path, 'mime_type': 'image/png', 'width': 1, 'height': 1}}
         if command == 'entity_get':
             return {'id': rid, 'ok': False, 'error': {'code': 'not_found', 'message': 'No entity with id 5.', 'hint': 'Query again.'}}
+        if command == 'input_pick':
+            # 1.0.30: Adam finishes on the third look (or never, when pick_never is set).
+            self.pick_polls += 1
+            done = not self.pick_never and self.pick_polls >= 3
+            return {'id': rid, 'ok': True, 'result': {'pick_id': 'pick_1', 'status': 'done' if done else 'waiting',
+                                                       'points': [[10.0, 20.0, 0.0]] if done else [], 'seen_action': params.get('action')}}
+        if command == 'proposal_preview' and params.get('action') == 'status':
+            self.proposal_polls += 1
+            answered = self.proposal_polls >= 2
+            return {'id': rid, 'ok': True, 'result': {'name': 'PROPOSAL__Bed', 'answered': answered,
+                                                       'replies': [{'text': 'Yes, go'}] if answered else []}}
         return {'id': rid, 'ok': True, 'result': {'echo_command': command, 'echo_params': params}, 'warnings': ['fake warning'], 'undo': 'MCP: Fake'}
 
     def stop(self):
@@ -219,11 +236,54 @@ class NaMcpServerTests(unittest.TestCase):
 
     def test_tools_list(self):
         tools = self.session.request('tools/list')['result']['tools']
-        self.assertEqual(len(tools), 63)
+        self.assertEqual(len(tools), 75)
         for tool in tools:
             self.assertEqual(tool['inputSchema']['type'], 'object')
             self.assertNotIn('$use', json.dumps(tool['inputSchema']))
             self.assertIn('readOnlyHint', tool['annotations'])
+
+    def test_agent_outliner_tools(self):
+        tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
+        for name in ('agent_outliner', 'agent_outliner_edit'):
+            self.assertIn(name, tools)
+            self.assertLessEqual(len(tools[name]['description']), 2048)
+            self.assertEqual(tools[name]['inputSchema']['required'], ['action'])
+        self.assertTrue(tools['agent_outliner']['annotations']['readOnlyHint'])
+        self.assertFalse(tools['agent_outliner_edit']['annotations']['readOnlyHint'])
+        # 1.0.23: threads, flags and strip, with their own filters.
+        read = tools['agent_outliner']['inputSchema']['properties']
+        self.assertIn('threads', read['action']['enum'])
+        self.assertIn('flags', read['action']['enum'])
+        self.assertEqual(read['waiting_on']['enum'], ['agent', 'user'])
+        self.assertEqual(read['status']['enum'], ['open', 'resolved'])
+        self.assertIn('strip', tools['agent_outliner_edit']['inputSchema']['properties']['action']['enum'])
+        # 1.0.25: every tag for agents, and putting objects on one.
+        self.assertIn('tags', tools['agent_outliner']['inputSchema']['properties']['action']['enum'])
+        edit = tools['agent_outliner_edit']['inputSchema']['properties']
+        self.assertIn('tag', edit['action']['enum'])
+        self.assertEqual(edit['tag']['type'], 'string')
+        self.assertEqual(edit['create']['type'], 'boolean')
+        # 1.0.26: pictures on comments and replies.
+        self.assertEqual(edit['images']['type'], 'array')
+        self.assertEqual(edit['images']['items']['type'], 'string')
+
+    def test_profile_tracer_tools(self):
+        # 1.0.24: Adam's Na Profile Path Tracer, read / edit (batchable, own undo step) / library (files).
+        tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
+        for name in ('profile_tracer', 'profile_tracer_edit', 'profile_tracer_library'):
+            self.assertIn(name, tools)
+            self.assertLessEqual(len(tools[name]['description']), 2048)
+            self.assertEqual(tools[name]['inputSchema']['required'], ['action'])
+            self.assertFalse(tools[name]['inputSchema']['additionalProperties'])
+        self.assertTrue(tools['profile_tracer']['annotations']['readOnlyHint'])
+        self.assertFalse(tools['profile_tracer_edit']['annotations']['readOnlyHint'])
+        self.assertTrue(tools['profile_tracer_library']['annotations']['destructiveHint'])
+        edit = tools['profile_tracer_edit']['inputSchema']['properties']
+        self.assertIn('create', edit['action']['enum'])
+        self.assertEqual(edit['profile_edit']['properties']['stretch']['items']['required'], ['axis', 'at', 'by'])
+        self.assertEqual(edit['wrapper']['required'], ['name'])
+        self.assertIn('near', tools['profile_tracer']['inputSchema']['properties'])
+        self.assertIn('confirm', tools['profile_tracer_library']['inputSchema']['properties'])
 
     def test_truevision_glb_builder_tools(self):
         tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
@@ -304,6 +364,63 @@ class NaMcpServerTests(unittest.TestCase):
         self.assertIn('Error (not_found)', self.text(response))
         self.assertIn('Fix: Query again.', self.text(response))
 
+    # --- the Agent Outliner notice (1.0.28) ---------------------------------------------
+
+    NOTICE = {'waiting': 2, 'from': 'Adam', 'at': '2026-11-11T13:15:02+00:00', 'ago': '3 min', 'where': 'model chat',
+              'text': 'Can you widen the rear door to 900?', 'pictures': 1, 'read': 'agent_outliner {action: "inbox"}'}
+
+    def test_the_outliner_notice_leads_every_result_while_adam_waits(self):
+        self.bridge.outliner = dict(self.NOTICE)
+        try:
+            response = self.session.call('entity_query', {'types': ['Face'], 'limit': 5})
+            text = self.text(response)
+            payload = json.loads(text)
+            self.assertFalse(response['result']['isError'])
+            self.assertTrue(text.startswith('{"outliner":'), text[:80])
+            self.assertEqual(payload['outliner'], self.NOTICE)
+            self.assertEqual(payload['echo_command'], 'entity_query')
+            status = json.loads(self.text(self.session.call('sketchup_status', {})))
+            self.assertEqual(status['outliner']['from'], 'Adam')
+            batch = json.loads(self.text(self.session.call('batch_execute', {'steps': [{'tool': 'model_info', 'arguments': {}}]})))
+            self.assertEqual(list(batch)[0], 'outliner')
+        finally:
+            self.bridge.outliner = None
+
+    def test_the_outliner_notice_ends_an_error(self):
+        self.bridge.outliner = dict(self.NOTICE)
+        try:
+            response = self.session.call('entity_get', {'ids': [5]})
+            text = self.text(response)
+            self.assertTrue(response['result']['isError'])
+            self.assertIn('Error (not_found)', text)
+            last = text.splitlines()[-1]
+            self.assertTrue(last.startswith('Outliner: '), last)
+            self.assertEqual(json.loads(last[len('Outliner: '):])['text'], 'Can you widen the rear door to 900?')
+        finally:
+            self.bridge.outliner = None
+
+    def test_the_outliner_notice_survives_the_text_cap(self):
+        self.bridge.outliner = dict(self.NOTICE)
+        try:
+            text = self.text(self.session.call('ruby_eval', {'code': '# ' + 'x' * 60000}))
+            self.assertIn('[truncated', text)
+            self.assertTrue(text.startswith('{"outliner":{"waiting":2'), text[:80])
+        finally:
+            self.bridge.outliner = None
+
+    def test_requests_say_this_server_shows_the_notice_itself(self):
+        # 1.0.29: without it the bridge also writes the notice into warnings, for servers before 1.0.28.
+        self.session.call('entity_query', {'types': ['Face'], 'limit': 1})
+        last = [request for request in self.bridge.requests if request.get('command') == 'entity_query'][-1]
+        self.assertEqual(last.get('features'), ['outliner'])
+
+    def test_no_notice_from_a_bridge_before_1_0_28_and_no_error(self):
+        self.assertIsNone(self.bridge.outliner)
+        response = self.session.call('entity_query', {'types': ['Face'], 'limit': 5})
+        self.assertFalse(response['result']['isError'])
+        self.assertNotIn('outliner', json.loads(self.text(response)))
+        self.assertNotIn('Outliner:', self.text(self.session.call('entity_get', {'ids': [5]})))
+
     def test_argument_validation(self):
         response = self.session.call('geometry_create_solid', {'shape': 'box', 'size': [1, 2], 'colour': 'red'})
         self.assertTrue(response['result']['isError'])
@@ -345,6 +462,44 @@ class NaMcpServerTests(unittest.TestCase):
         self.assertFalse(trial['result']['isError'])
         typo = self.session.call('batch_execute', {'rollback': 'yes', 'steps': [{'tool': 'model_info', 'arguments': {}}]})
         self.assertTrue(typo['result']['isError'])
+
+    # --- 1.0.30: waiting for Adam happens in the server, never inside SketchUp -------------
+
+    def test_input_pick_wait_polls_the_bridge_until_adam_finishes(self):
+        self.bridge.pick_polls = 0
+        self.bridge.pick_never = False
+        before = len(self.bridge.requests)
+        payload = json.loads(self.text(self.session.call('input_pick', {'action': 'wait', 'pick_id': 'pick_1', 'wait_s': 20})))
+        self.assertEqual(payload['status'], 'done')
+        self.assertEqual(payload['points'], [[10.0, 20.0, 0.0]])
+        self.assertEqual(payload['waited']['polls'], 3)
+        sent = [request for request in self.bridge.requests[before:] if request['command'] == 'input_pick']
+        self.assertEqual([request['params']['action'] for request in sent], ['result'] * 3)
+        self.assertTrue(all('wait_s' not in request['params'] for request in sent))
+
+    def test_input_pick_wait_gives_up_after_wait_s(self):
+        self.bridge.pick_polls = 0
+        self.bridge.pick_never = True
+        try:
+            payload = json.loads(self.text(self.session.call('input_pick', {'action': 'wait', 'wait_s': 1})))
+        finally:
+            self.bridge.pick_never = False
+        self.assertEqual(payload['status'], 'waiting')
+        self.assertEqual(payload['waited']['stopped'], 'wait_s ran out')
+
+    def test_proposal_wait_returns_when_adam_answers(self):
+        self.bridge.proposal_polls = 0
+        payload = json.loads(self.text(self.session.call('proposal_preview', {'action': 'wait', 'name': 'Bed', 'wait_s': 30})))
+        self.assertTrue(payload['answered'])
+        self.assertEqual(payload['replies'][0]['text'], 'Yes, go')
+        self.assertEqual(payload['waited']['polls'], 2)
+
+    def test_pick_and_proposal_are_refused_in_a_batch(self):
+        response = self.session.call('batch_execute', {'steps': [{'tool': 'input_pick', 'arguments': {'prompt': 'x'}},
+                                                                {'tool': 'proposal_preview', 'arguments': {'action': 'list'}}]})
+        self.assertTrue(response['result']['isError'])
+        self.assertIn('input_pick is not allowed', self.text(response))
+        self.assertIn('proposal_preview is not allowed', self.text(response))
 
     def test_ruby_eval_lint(self):
         payload = json.loads(self.text(self.session.call('ruby_eval', {'code': 'model.entities.add_cube(3)'})))
@@ -449,6 +604,51 @@ class NaBridgeVersionTests(unittest.TestCase):
         response = self.session.call('point_cloud_slice', self.FRAMED)
         self.assertFalse(response['result']['isError'])
         self.assertEqual(self.work(), ['point_cloud_slice'])
+
+    def test_an_older_bridge_is_refused_a_new_action_with_the_fix(self):
+        # 1.0.23: property_since also lists values ("agent_outliner.action=flags"); a 1.0.22 window would refuse
+        # the action without saying Reload Plugin Data.
+        self.start('1.0.22')
+        for name, arguments, value in (('agent_outliner', {'action': 'flags'}, 'flags'),
+                                       ('agent_outliner', {'action': 'threads'}, 'threads'),
+                                       ('agent_outliner_edit', {'action': 'strip', 'ids': [1]}, 'strip')):
+            response = self.session.call(name, arguments)
+            text = response['result']['content'][0]['text']
+            self.assertTrue(response['result']['isError'], name)
+            self.assertIn('"%s" needs 1.0.23' % value, text)
+            self.assertIn('Reload Plugin Data', text)
+        self.assertEqual(self.work(), [])
+        older = self.session.call('agent_outliner', {'action': 'summary'})
+        self.assertFalse(older['result']['isError'])
+        self.assertEqual(self.work(), ['agent_outliner'])
+
+    def test_a_current_bridge_takes_the_new_actions(self):
+        self.start('1.0.23')
+        response = self.session.call('agent_outliner', {'action': 'threads', 'waiting_on': 'agent'})
+        self.assertFalse(response['result']['isError'])
+        self.assertEqual(self.work(), ['agent_outliner'])
+    def test_an_older_bridge_is_refused_the_entity_studio_additions_with_the_fix(self):
+        # 1.0.27: Element Assembly Studio Pro for every product (openings, parameters, build into an opening).
+        self.start('1.0.26')
+        for name, arguments in (('entity_studio', {'action': 'openings', 'wall_id': 1}),
+                                ('entity_studio', {'action': 'parameters', 'type': 'bifold'}),
+                                ('entity_studio_edit', {'action': 'build', 'type': 'casement', 'opening': {'wall_id': 1, 'index': 0}})):
+            response = self.session.call(name, arguments)
+            text = response['result']['content'][0]['text']
+            self.assertTrue(response['result']['isError'], name)
+            self.assertIn('needs 1.0.27', text)
+            self.assertIn('Reload Plugin Data', text)
+        self.assertEqual(self.work(), [])
+        older = self.session.call('entity_studio', {'action': 'status'})
+        self.assertFalse(older['result']['isError'])
+        self.assertEqual(self.work(), ['entity_studio'])
+
+    def test_a_current_bridge_takes_the_entity_studio_additions(self):
+        self.start('1.0.27')
+        response = self.session.call('entity_studio_edit', {'action': 'build', 'type': 'bifold', 'opening': {'wall_id': 1, 'index': 0}, 'dry_run': True})
+        self.assertFalse(response['result']['isError'])
+        self.assertEqual(self.work(), ['entity_studio_edit'])
+
 
 
 class NaWindowChoiceTests(unittest.TestCase):

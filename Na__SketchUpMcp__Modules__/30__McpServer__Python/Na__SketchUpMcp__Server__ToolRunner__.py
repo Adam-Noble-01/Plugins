@@ -15,6 +15,10 @@
 # - failure: isError true and a plain text "Error (code): message / Fix: hint",
 #   so the model can read it and correct its next call (MCP 2025-11-25:
 #   argument validation failures are tool errors, not protocol errors).
+# - the Agent Outliner notice (1.0.28): while Adam's messages wait for an
+#   agent, the bridge's response carries 'outliner'. It goes FIRST in the JSON
+#   (seen before anything else, never cut by the text cap), or as a last line
+#   of an error. A bridge before 1.0.28 sends none, and nothing is added.
 #
 # SERVER-SIDE WORK BEFORE SKETCHUP IS ASKED:
 # - arguments are validated against the tool schema;
@@ -23,6 +27,12 @@
 # - ruby_eval code is linted against the API index (warnings, never blocking);
 # - batch_execute steps are validated one by one (with $ref strings allowed).
 #
+# WAITING FOR ADAM (1.0.30):
+# input_pick and proposal_preview {action: "wait"} wait HERE, never inside
+# SketchUp: the server polls the bridge with short calls (result / status)
+# until Adam finishes, cancels or answers, he writes in the Agent Outliner, or
+# wait_s runs out. SketchUp keeps running between polls.
+#
 # =============================================================================
 
 import base64
@@ -30,6 +40,7 @@ import json
 import os
 import platform
 import sys
+import time
 
 import Na__SketchUpMcp__Server__BridgeClient__ as Na__BridgeClientModule
 import Na__SketchUpMcp__Server__SchemaValidator__ as Na__SchemaValidator
@@ -54,7 +65,12 @@ NA_IMPORT_FORMATS = {
     '.ddf': ['Digital Elevation Model (DEM/DDF)'], '.dwg': ['3D Autocad (DWG/DXF)'], '.dxf': ['3D Autocad (DWG/DXF)'],
     '.kmz': ['Google Earth (KMZ)'], '.stl': ['STereoLithography (STL)']
 }
-NA_BATCH_FORBIDDEN = {'batch_execute': 'batches cannot nest', 'model_file': 'call model_file on its own'}
+NA_BATCH_FORBIDDEN = {'batch_execute': 'batches cannot nest', 'model_file': 'call model_file on its own',
+                      'input_pick': 'it hands SketchUp to Adam and waits for him; call it on its own',
+                      'proposal_preview': 'it asks Adam in the Agent Outliner; call it on its own'}
+
+# Tools whose action "wait" is answered by polling: (poll action, default wait_s, seconds between polls).
+NA_WAIT_TOOLS = {'input_pick': ('result', 180, 0.5), 'proposal_preview': ('status', 300, 2.0)}
 
 
 class Na__UnknownTool(Exception):
@@ -101,6 +117,8 @@ class Na__ToolRunner:
                     return problem
             if name == 'ruby_eval':
                 return self.na_ruby_eval(tool, arguments)
+            if name in NA_WAIT_TOOLS and arguments.get('action') == 'wait':
+                return self.na_wait(tool, arguments)
             too_old = self.na_too_old([(name, arguments)])
             if too_old:
                 return too_old
@@ -115,16 +133,21 @@ class Na__ToolRunner:
         return na_result_from_response(response, extra)
 
     def na_too_old(self, calls):
-        """An error result when a call uses a parameter newer than the window's bridge (registry property_since):
-        that bridge would ignore it and answer as if it were not there. The version comes from a ping (what the
+        """An error result when a call uses a parameter, or a value such as an action, newer than the window's bridge
+        (registry property_since: "tool.parameter" or "tool.parameter=value"): that bridge would ignore the parameter and
+        answer as if it were not there, or refuse the value without naming the fix. The version comes from a ping (what the
         window runs now: a data reload does not rewrite its connection file). None when all is well or unknown."""
         since = self.na_registry.Na__ToolRegistry__PropertySince()
         needed = []
         for name, arguments in calls:
-            for key in (arguments or {}):
+            for key, value in (arguments or {}).items():
                 version = since.get('%s.%s' % (name, key))
                 if version and na_version(version):
                     needed.append(('%s %s' % (name, key), version))
+                if isinstance(value, str):                       # a value added later, e.g. "agent_outliner.action=flags"
+                    version = since.get('%s.%s=%s' % (name, key, value))
+                    if version and na_version(version):
+                        needed.append(('%s %s "%s"' % (name, key, value), version))
         if not needed:
             return None
         response = self.na_bridge.Na__BridgeClient__Request('ping', {}, 10)
@@ -139,10 +162,41 @@ class Na__ToolRunner:
         point_cloud = what.startswith('point_cloud')
         return na_error_result(
             'unsupported',
-            "This SketchUp window (pid %s) runs bridge %s; %s needs %s, and an older bridge ignores it, so the answer would be wrong. "
-            'Nothing was sent.' % (result.get('pid'), have, what, version),
+            "This SketchUp window (pid %s) runs bridge %s; %s needs %s, which that bridge does not know (it would ignore it and answer wrongly, "
+            'or refuse it). Nothing was sent.' % (result.get('pid'), have, what, version),
             'In that window run Extensions > Na SketchUp MCP > Reload Plugin Data%s, then call again.'
             % (" (and the Point Cloud Viewer's Reload Plugin first)" if point_cloud else ''))
+
+    # --- waiting for Adam (input_pick, proposal_preview) ---------------------------------
+
+    def na_wait(self, tool, arguments):
+        """Poll the bridge until Adam has finished (input_pick: status no longer 'waiting'; proposal_preview: answered),
+        he writes in the Agent Outliner (the notice), or wait_s runs out. Each poll is a short call, so SketchUp keeps
+        running: the waiting is here, never inside SketchUp."""
+        name = tool['name']
+        poll_action, default_wait, interval = NA_WAIT_TOOLS[name]
+        wait_s = float(arguments.get('wait_s') or default_wait)
+        deadline = time.monotonic() + wait_s
+        poll = dict((key, value) for key, value in arguments.items() if key not in ('action', 'wait_s'))
+        poll['action'] = poll_action
+        polls = 0
+        while True:
+            response = self.na_bridge.Na__BridgeClient__Request(name, poll, 30)
+            polls += 1
+            if not response.get('ok'):
+                return na_result_from_response(response)
+            result = response.get('result') or {}
+            done = result.get('status') != 'waiting' if name == 'input_pick' else bool(result.get('answered'))
+            spoke = na_notice(response) is not None
+            out_of_time = time.monotonic() >= deadline
+            if done or spoke or out_of_time:
+                extra = {'waited': {'polls': polls, 'seconds_allowed': wait_s}}
+                if not done:
+                    extra['waited']['stopped'] = 'Adam wrote in the Agent Outliner: read it first' if spoke else 'wait_s ran out'
+                    extra['waited']['next'] = ('Ask Adam in chat whether he is still on it, then wait again or cancel.' if name == 'input_pick'
+                                               else 'He may have answered in chat. Wait again, or ask him; build nothing until he says yes.')
+                return na_result_from_response(response, extra)
+            time.sleep(interval)
 
     # --- sketchup_status -------------------------------------------------------------
 
@@ -181,7 +235,7 @@ class Na__ToolRunner:
         payload.update(response.get('result', {}))
         if response.get('warnings'):
             payload['warnings'] = response['warnings']
-        return na_success_result(payload)
+        return na_success_result(na_with_notice(payload, response))
 
     # --- ruby_api_lookup -------------------------------------------------------------
 
@@ -299,9 +353,26 @@ def na_result_from_response(response, extra=None):
             payload['undo_step'] = response['undo']
         if extra:
             payload.update(extra)
-        return na_success_result(payload)
+        return na_success_result(na_with_notice(payload, response))
     error = response.get('error') or {}
-    return na_error_result(error.get('code', 'error'), error.get('message', 'SketchUp reported an error.'), error.get('hint'), error.get('details'))
+    return na_error_result(error.get('code', 'error'), error.get('message', 'SketchUp reported an error.'), error.get('hint'), error.get('details'),
+                           notice=na_notice(response))
+
+
+def na_notice(response):
+    """The Agent Outliner's waiting notice on a bridge response (1.0.28), or None."""
+    notice = (response or {}).get('outliner')
+    return notice if isinstance(notice, dict) and notice else None
+
+
+def na_with_notice(payload, response):
+    """The payload with the waiting notice first, so an agent reads it before the result and the text cap never cuts it."""
+    notice = na_notice(response)
+    if notice is None:
+        return payload
+    shaped = {'outliner': notice}
+    shaped.update((key, value) for key, value in payload.items() if key != 'outliner')
+    return shaped
 
 
 def na_success_result(payload):
@@ -313,12 +384,14 @@ def na_success_result(payload):
     return {'content': [{'type': 'text', 'text': text}] + images, 'isError': False}
 
 
-def na_error_result(code, message, hint=None, details=None):
+def na_error_result(code, message, hint=None, details=None, notice=None):
     lines = ['Error (%s): %s' % (code, message)]
     if hint:
         lines.append('Fix: %s' % hint)
     if details:
         lines.append('Details: %s' % json.dumps(details, ensure_ascii=False, default=str)[:6000])
+    if notice:
+        lines.append('Outliner: %s' % json.dumps(notice, ensure_ascii=False, separators=(',', ':'), default=str))
     return {'content': [{'type': 'text', 'text': '\n'.join(lines)}], 'isError': True}
 
 

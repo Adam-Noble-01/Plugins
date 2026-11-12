@@ -11,7 +11,7 @@
             "api": "SketchUp Ruby API methods the tool cannot work without. Checked offline against the official stubs index and live at bridge start; a tool with a missing dependency is refused with that reason.",
             "toolsets": "core = the 22-tool set for clients with tool limits (--toolset core); every tool is in full.",
             "timeout_s": "How long the Python server waits for SketchUp before reporting 'status unknown' (never auto-retried).",
-            "property_since": "Top level: {\"tool.parameter\": \"x.y.z\"}, the bridge version a parameter added later needs. A SketchUp window whose bridge predates it would ignore the parameter and answer as if it were not there, so the server pings the window's bridge and refuses the call with the fix (Reload Plugin Data). List every parameter added to an existing tool here.",
+            "property_since": "Top level: {\"tool.parameter\": \"x.y.z\"}, the bridge version a parameter added later needs. A SketchUp window whose bridge predates it would ignore the parameter and answer as if it were not there, so the server pings the window's bridge and refuses the call with the fix (Reload Plugin Data). List every parameter added to an existing tool here. A value added later, such as a new action, is listed as \"tool.parameter=value\" (1.0.23): an older bridge would refuse it without naming the fix.",
             "$use": "Inside input_schema, {\"$use\": \"name\"} is replaced by common_schemas[name] (plus any sibling keys, e.g. a longer description) when the Python server loads this file."
         },
         "adding_a_tool": "Add an entry here, add a handler method in 10__BridgeHandlers, add its route in Na__CommandRouter, run 40__Tests__Validation, then Reload Plugin Data and restart the MCP server."
@@ -19,14 +19,57 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.21",
+        "version": "1.0.30",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
     },
     "property_since": {
         "point_cloud_slice.frame": "1.0.19",
-        "point_cloud_heightmap.frame": "1.0.19"
+        "point_cloud_heightmap.frame": "1.0.19",
+        "agent_outliner.action=threads": "1.0.23",
+        "agent_outliner.action=flags": "1.0.23",
+        "agent_outliner.status": "1.0.23",
+        "agent_outliner.waiting_on": "1.0.23",
+        "agent_outliner.flag": "1.0.23",
+        "agent_outliner_edit.action=strip": "1.0.23",
+        "agent_outliner.action=tags": "1.0.25",
+        "agent_outliner_edit.action=tag": "1.0.25",
+        "agent_outliner_edit.tag": "1.0.25",
+        "agent_outliner_edit.create": "1.0.25",
+        "agent_outliner_edit.images": "1.0.26",
+        "entity_studio.action=parameters": "1.0.27",
+        "entity_studio.action=elements": "1.0.27",
+        "entity_studio.action=openings": "1.0.27",
+        "entity_studio.action=assets": "1.0.27",
+        "entity_studio.type": "1.0.27",
+        "entity_studio.section": "1.0.27",
+        "entity_studio.limit": "1.0.27",
+        "entity_studio.all": "1.0.27",
+        "entity_studio.archived": "1.0.27",
+        "entity_studio.kind": "1.0.27",
+        "entity_studio.wall_id": "1.0.27",
+        "entity_studio.path": "1.0.27",
+        "entity_studio.outside": "1.0.27",
+        "entity_studio.outside_point": "1.0.27",
+        "entity_studio.units": "1.0.27",
+        "entity_studio_edit.action=rename": "1.0.27",
+        "entity_studio_edit.action=export_dxf": "1.0.27",
+        "entity_studio_edit.action=update_preset": "1.0.27",
+        "entity_studio_edit.action=archive_preset": "1.0.27",
+        "entity_studio_edit.action=restore_preset": "1.0.27",
+        "entity_studio_edit.type": "1.0.27",
+        "entity_studio_edit.opening": "1.0.27",
+        "entity_studio_edit.fit": "1.0.27",
+        "entity_studio_edit.direction": "1.0.27",
+        "entity_studio_edit.run": "1.0.27",
+        "entity_studio_edit.run_offset": "1.0.27",
+        "entity_studio_edit.dry_run": "1.0.27",
+        "entity_studio_edit.reset": "1.0.27",
+        "entity_studio_edit.keep_size": "1.0.27",
+        "entity_studio_edit.file": "1.0.27",
+        "entity_studio_edit.overwrite": "1.0.27",
+        "entity_studio_edit.units": "1.0.27"
     },
     "common_schemas": {
         "frame": {
@@ -1570,22 +1613,137 @@
             "runs_on": "bridge",
             "handler_key": "entity_studio",
             "mutates": false,
-            "timeout_s": 60,
-            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
-            "api": ["Sketchup::Group#manifold?", "Sketchup::Group#volume"],
-            "description": "Read Adam's Element Assembly Studio Pro (also called Entity Studio Pro), the plugin that builds his windows and doors (needs it loaded, 2.5.3 or newer). action: status (version, folders, preset count, dialog open, what build can make), list_presets (code, name, family, type, file, has_preview; filter family Window / ExteriorDoor / InteriorDoor / Cabinet, or query text), get_preset (code: its card and config values; keys or prefix narrow the values, e.g. prefix \"single_door_\"), list_handles (door handle asset keys and names, for single_door_handle_asset_key and the like), inspect (instance_id of a placed ADR element: every MOD leaf group's parts and every fielded panel cell, each with solid, volume_mm3, faces and nested_groups, so you can prove the panels are closed solids). Read-only.",
+            "timeout_s": 90,
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Group#manifold?",
+                "Sketchup::Group#volume",
+                "Sketchup::Face#outer_loop",
+                "Sketchup::Entity#attribute_dictionaries"
+            ],
+            "description": "Read Adam's Element Assembly Studio Pro (Entity Studio Pro): his parametric windows, exterior doors, interior doors and cabinets (2.6.0 or newer). type is one of casement, sash, single, double, bifold, sliding, interior_door, base, drawers, wall, tall, wardrobe. action: status (version, types, setting counts, presets, dialog open); parameters (type: every setting the dialog shows, from its own control files: with no filter the sections and their keys; query / section / keys give label, unit, min, max, step, options, start value, section and what it needs. Values outside these are refused, never clamped); elements (every placed element at any depth: instance_id, id such as AWN001 / ADR002 / ACB001, type, size_mm, world origin, along axis, bounds, copies; type / query filter); inspect (instance_id: identity, size, metadata, the stored values that differ from a new one (all: true for every one; keys / prefix narrow), parts, MOD groups and fielded panels with solid and volume); openings (wall_id: every opening in a wall group, left to right seen from outside, with width, height, depth, sill and head z and the points A, B, D the opening tools would pick; outside or outside_point says which side is outside, default away from the model's middle; path when the wall's component is used more than once); list_presets (family, type, query; archived: true lists the archive); get_preset (code; keys / prefix); assets (kind: handles, architraves, hinges, cabinet_handles, cabinet_legs, sash_horns, window_boards, finishes, edge_colours: the keys the dropdowns and finish cards offer); list_handles. Lengths mm. Read-only.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["status", "list_presets", "get_preset", "list_handles", "inspect"]},
-                    "code": {"type": "string", "description": "get_preset: the preset code, e.g. \"EAS008\"."},
-                    "family": {"type": "string", "description": "list_presets: Window, ExteriorDoor, InteriorDoor or Cabinet."},
-                    "query": {"type": "string", "description": "list_presets: text in the code, name, description or keywords."},
-                    "keys": {"type": "array", "items": {"type": "string"}, "description": "get_preset: only these config keys."},
-                    "prefix": {"type": "string", "description": "get_preset: only config keys starting with this, e.g. \"single_door_\"."},
-                    "instance_id": {"$use": "id", "description": "inspect: a placed element (its ADR component)."}
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "status",
+                            "parameters",
+                            "elements",
+                            "inspect",
+                            "openings",
+                            "list_presets",
+                            "get_preset",
+                            "assets",
+                            "list_handles"
+                        ]
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "casement",
+                            "sash",
+                            "single",
+                            "double",
+                            "bifold",
+                            "sliding",
+                            "interior_door",
+                            "base",
+                            "drawers",
+                            "wall",
+                            "tall",
+                            "wardrobe"
+                        ],
+                        "description": "parameters / elements / list_presets: the product."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "parameters: words in a key, label, section or condition. elements: part of an id or name. list_presets: text in the code, name, description or keywords."
+                    },
+                    "section": {
+                        "type": "string",
+                        "description": "parameters: one section of the tab, e.g. size, lights, opening, leaves, glazing, panels, frame, sashes, hardware, finish, output."
+                    },
+                    "keys": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "parameters / get_preset / inspect: only these setting keys (door and cabinet keys may drop their Na__DoorConfig__ / Na__CabinetConfig__ prefix)."
+                    },
+                    "prefix": {
+                        "type": "string",
+                        "description": "get_preset / inspect: only keys starting with this, e.g. \"single_door_\"."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 400,
+                        "description": "parameters: most settings listed (default 60)."
+                    },
+                    "all": {
+                        "type": "boolean",
+                        "description": "inspect: every stored value, not only those changed from a new element."
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "get_preset: the preset code, e.g. \"EAS008\"."
+                    },
+                    "family": {
+                        "type": "string",
+                        "description": "list_presets: Window, ExteriorDoor, InteriorDoor or Cabinet."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "list_presets: the presets in the archive instead."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "handles",
+                            "architraves",
+                            "hinges",
+                            "cabinet_handles",
+                            "cabinet_legs",
+                            "sash_horns",
+                            "window_boards",
+                            "finishes",
+                            "edge_colours"
+                        ],
+                        "description": "assets: one kind (all when left out)."
+                    },
+                    "instance_id": {
+                        "$use": "id",
+                        "description": "inspect: a placed element (from elements)."
+                    },
+                    "wall_id": {
+                        "$use": "id",
+                        "description": "openings: the wall: a group or component whose own faces are the wall."
+                    },
+                    "path": {
+                        "$use": "path",
+                        "description": "openings: instance path to the wall, only when its component is placed more than once."
+                    },
+                    "outside": {
+                        "$use": "vector",
+                        "description": "openings: a direction pointing out of the building through the wall, e.g. [0, -1, 0]."
+                    },
+                    "outside_point": {
+                        "$use": "point",
+                        "description": "openings: any point on the outside of the wall."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
                 },
-                "required": ["action"],
+                "required": [
+                    "action"
+                ],
                 "additionalProperties": false
             }
         },
@@ -1596,24 +1754,193 @@
             "handler_key": "entity_studio_edit",
             "mutates": true,
             "operation": false,
-            "timeout_s": 180,
-            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
-            "api": ["Sketchup::Model#active_path", "Sketchup::Entities#add_instance", "UI::HtmlDialog#execute_script"],
-            "description": "Drive Element Assembly Studio Pro (Entity Studio Pro) through its own door engines and presets store. action: build (an exterior single or double door from preset and/or values, at position [x, y, z] at the model root; returns instance_id, bounds, definition and whether every fielded panel is a solid; one undo step of the plugin's own, e.g. 'Create Exterior Single Door', so model_undo steps 1 removes it), update (rebuild a placed door, instance_id, with values merged onto its stored config, or onto preset), save_preset (a new preset file: name, description, keywords, from preset and/or instance_id plus values; the next free EASnnn code and the file name come from the plugin; when the dialog is open it is asked to draw the gallery picture), refresh_preview (code: the open dialog redraws and stores a preset's picture with its own SvgCapture; it lands a moment later, so confirm with entity_studio get_preset), open_dialog, reload (Adam's Reload Scripts: code from disk and fresh material palettes; it reopens an open dialog). values are the dialog's flat config keys, e.g. single_door_panel_preset or single_door_mid_rail_width_mm: read a preset with entity_studio get_preset to see them. Windows, sliding, bifold and interior doors are refused by build and update: use the dialog for those. Not allowed in batch_execute. Agree a new preset's name with the user before saving it.",
+            "timeout_s": 240,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Model#active_path",
+                "Sketchup::Model#start_operation",
+                "Sketchup::Entities#add_instance",
+                "UI::HtmlDialog#execute_script"
+            ],
+            "description": "Create, change and maintain Element Assembly Studio Pro windows, exterior doors (single, double, bifold, sliding), interior doors and cabinets through the dialog's own build pipelines: each build or rebuild is ONE undo step with the plugin's own name (e.g. 'Create Window', 'Update Bifold Door'). action: build (type and/or preset, values on top; placed into opening {wall_id, index} (from entity_studio openings) or {point_a, point_b, point_d}: fit (default true) sizes it as Measure Opening would, height less the cill; or at position + direction (along the wall, left to right seen from outside); cabinets take run {point_a, point_b, side (a point on the room side)} and run_offset mm; name gives the name tail; dry_run checks everything and builds nothing); update (instance_id: values merged onto its stored ones, or preset (keep_size default true), reset (keys back to a new element's), opening refits the size only; never moves it; every copy of the definition changes; returns the changed values; dry_run); rename (instance_id, name: the tail after the coded head); export_dxf (file: absolute .dxf; from instance_id, preset or type; windows and single / double doors; overwrite); save_preset (name agreed with Adam first; from instance_id, preset or type plus values), update_preset (code: name / description / keywords and/or values or instance_id; keeps a .bak), archive_preset / restore_preset (code: moved to and from the archive, never deleted), refresh_preview (code; dialog open), open_dialog (instance_id selects it so the dialog shows it), reload. values use the dialog's keys (entity_studio parameters lists them with ranges): out-of-range values, unknown keys and options the dialog does not offer are refused. Builds go at the model root. Not allowed in batch_execute.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["build", "update", "save_preset", "refresh_preview", "open_dialog", "reload"]},
-                    "preset": {"type": "string", "description": "build / update / save_preset: start from this preset's values, e.g. \"EAS008\"."},
-                    "values": {"type": "object", "description": "Config keys to set on top of the preset or the placed element's stored config."},
-                    "position": {"$use": "point", "description": "build: where the element's origin goes, at the model root (default [0, 0, 0])."},
-                    "instance_id": {"$use": "id", "description": "update: the placed door. save_preset: start from its stored config."},
-                    "code": {"type": "string", "description": "refresh_preview: the preset code."},
-                    "name": {"type": "string", "description": "save_preset: the gallery name, e.g. \"Traditional | Four Panel Half Glazed\"."},
-                    "description": {"type": "string", "description": "save_preset: one or two plain sentences for the card."},
-                    "keywords": {"type": "array", "items": {"type": "string"}, "description": "save_preset: search words."}
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "build",
+                            "update",
+                            "rename",
+                            "export_dxf",
+                            "save_preset",
+                            "update_preset",
+                            "archive_preset",
+                            "restore_preset",
+                            "refresh_preview",
+                            "open_dialog",
+                            "reload"
+                        ]
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "casement",
+                            "sash",
+                            "single",
+                            "double",
+                            "bifold",
+                            "sliding",
+                            "interior_door",
+                            "base",
+                            "drawers",
+                            "wall",
+                            "tall",
+                            "wardrobe"
+                        ],
+                        "description": "build / save_preset / export_dxf: what to make (from its starting values)."
+                    },
+                    "preset": {
+                        "type": "string",
+                        "description": "build / update / save_preset / export_dxf: start from this preset's values, e.g. \"EAS008\"."
+                    },
+                    "values": {
+                        "type": "object",
+                        "description": "Setting keys and values on top (mm, true/false, an option's value). entity_studio parameters lists them."
+                    },
+                    "instance_id": {
+                        "$use": "id",
+                        "description": "update / rename / export_dxf / save_preset / update_preset / open_dialog: a placed element."
+                    },
+                    "opening": {
+                        "type": "object",
+                        "description": "build: the opening to fill. update: refit the size to it. Either wall_id + index (+ outside / outside_point, path), or point_a, point_b (and point_d for an interior door's wall depth).",
+                        "properties": {
+                            "wall_id": {
+                                "$use": "id"
+                            },
+                            "index": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "The opening's index in entity_studio openings (left to right seen from outside)."
+                            },
+                            "path": {
+                                "$use": "path"
+                            },
+                            "outside": {
+                                "$use": "vector"
+                            },
+                            "outside_point": {
+                                "$use": "point"
+                            },
+                            "point_a": {
+                                "$use": "point",
+                                "description": "Bottom corner at the LEFT seen from outside, on the outside face."
+                            },
+                            "point_b": {
+                                "$use": "point",
+                                "description": "Top corner at the right, on the outside face."
+                            },
+                            "point_d": {
+                                "$use": "point",
+                                "description": "A carried through the wall to the inside face (interior doors)."
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "fit": {
+                        "type": "boolean",
+                        "description": "build / update with an opening (default true; cabinets: true makes one unit fill the run): set the size from it, except sizes given in values."
+                    },
+                    "position": {
+                        "$use": "point",
+                        "description": "build without an opening: the element's origin (bottom left of the outside face; a cabinet's back left at floor level)."
+                    },
+                    "direction": {
+                        "$use": "vector",
+                        "description": "build with position: along the wall, left to right seen from outside (default [1, 0, 0])."
+                    },
+                    "run": {
+                        "type": "object",
+                        "description": "build a cabinet along a run, as Measure Run does.",
+                        "properties": {
+                            "point_a": {
+                                "$use": "point"
+                            },
+                            "point_b": {
+                                "$use": "point"
+                            },
+                            "side": {
+                                "$use": "point",
+                                "description": "Any point on the room side of the run."
+                            }
+                        },
+                        "required": [
+                            "point_a",
+                            "point_b",
+                            "side"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "run_offset": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "build in a run: where this unit starts along it (mm; the result's next_offset_mm is the next unit's)."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "build / update / rename: the component name tail. save_preset / update_preset: the gallery name."
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "build / update: check every value and the placement, build nothing."
+                    },
+                    "reset": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "update: keys set back to a new element's starting values."
+                    },
+                    "keep_size": {
+                        "type": "boolean",
+                        "description": "update with preset: keep the element's size (default true)."
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "update_preset / archive_preset / restore_preset / refresh_preview: the preset code."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "save_preset / update_preset: one or two plain sentences for the card."
+                    },
+                    "keywords": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "save_preset / update_preset: search words."
+                    },
+                    "file": {
+                        "type": "string",
+                        "description": "export_dxf: absolute path of the .dxf to write."
+                    },
+                    "overwrite": {
+                        "type": "boolean",
+                        "description": "export_dxf: replace an existing file."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
                 },
-                "required": ["action"],
+                "required": [
+                    "action"
+                ],
                 "additionalProperties": false
             }
         },
@@ -1830,6 +2157,1002 @@
             }
         },
         {
+            "name": "agent_outliner",
+            "title": "Agent Outliner",
+            "runs_on": "bridge",
+            "handler_key": "agent_outliner",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::ComponentDefinition#instances",
+                "Sketchup::Entity#get_attribute",
+                "Sketchup::Model#find_entity_by_persistent_id"
+            ],
+            "description": "What Adam has left for agents in his Agent Outliner (Na Noble3d Modelling Tools): the flags and comment threads on objects, the standard names he gives them, and what was made or changed, by him or by an agent. Start a job with summary. action: summary (what waits for you, what changed since you last acknowledged, flag counts), inbox (every object Adam flagged For Agent, Question or Check This, or commented on, that no agent has acknowledged: its id, path, tag, size, what its standard name means, its flag and whole thread; and the model's own thread when he wrote there), changes (made, changed or erased since your last acknowledge, or since_seq / since; by: user shows Adam's own edits, the silent corrections to learn from; each says who and which fields: name, tag, material, transform, definition, contents), thread (whole threads by ids, or model: true), threads (every thread on one line: open or resolved, waiting_on agent (answer it) or user (Adam has not answered yours yet), the last word; status and waiting_on narrow it), flags (every flagged object by flag type with each type's meaning, Do Not Touch and Reference included: never change those; flag and by narrow it), prefixes (the standard names such as CAD__FrontElevation, what each means, and which objects carry it: how to find the CAD elevations and references he points you to), find (the Outliner's search: words, tag:, type:, is:new, by:agent, flag:for_agent, -term, a | b), tags (every tag in the model: colour, shown or hidden (folders included), its folder, and how many objects are on it, plus the untagged count; move objects with agent_outliner_edit tag). Entries may carry images: pictures Adam pasted into the Chat tab (or an agent attached), each with its path on this PC: open it with your own image reader to see what he means. Read-only. Answer with agent_outliner_edit.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "summary",
+                            "inbox",
+                            "changes",
+                            "thread",
+                            "threads",
+                            "flags",
+                            "prefixes",
+                            "find",
+                            "tags"
+                        ]
+                    },
+                    "ids": {
+                        "$use": "ids",
+                        "description": "thread: the objects whose threads to read (persistent ids)."
+                    },
+                    "model": {
+                        "type": "boolean",
+                        "description": "thread: also the model's own thread."
+                    },
+                    "by": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "agent"
+                        ],
+                        "description": "changes: only Adam's (user) or only agents' changes. flags: only flags Adam (user) or agents set."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "open",
+                            "resolved"
+                        ],
+                        "description": "threads: only open or only resolved threads."
+                    },
+                    "waiting_on": {
+                        "type": "string",
+                        "enum": [
+                            "agent",
+                            "user"
+                        ],
+                        "description": "threads: only threads waiting on an agent, or on Adam (user)."
+                    },
+                    "flag": {
+                        "type": "string",
+                        "description": "flags: one flag type, by id or label (e.g. do_not_touch)."
+                    },
+                    "since_seq": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "changes: only after this change number (the cursor a previous call returned)."
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "changes: only at or after this ISO 8601 time, e.g. 2026-11-10T14:05:00+00:00."
+                    },
+                    "group": {
+                        "type": "string",
+                        "enum": [
+                            "object",
+                            "event"
+                        ],
+                        "description": "changes: one line per object (default) or every event."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "find: the Outliner's search, e.g. \"tag:06__Drawings is:new\" or \"flag:any -is:hidden\"."
+                    },
+                    "include_seen": {
+                        "type": "boolean",
+                        "description": "inbox: also what an agent already acknowledged."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2000
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "agent_outliner_edit",
+            "title": "Agent Outliner Edit",
+            "runs_on": "bridge",
+            "handler_key": "agent_outliner_edit",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 60,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Entity#set_attribute",
+                "Sketchup::Entity#delete_attribute",
+                "Sketchup::Drawingelement#layer=",
+                "Sketchup::Layers#add",
+                "Sketchup::Model#start_operation",
+                "Sketchup::Model#commit_operation",
+                "Sketchup::Model#abort_operation"
+            ],
+            "description": "Write to Adam through his Agent Outliner (needs Na Noble3d Modelling Tools); he reads it in the Outliner beside each object. action: reply (answer a thread Adam started, by ids or model: true; marks what you answered as read), comment (start or add to a thread: a question, what you did and why; model: true for a summary of your work), resolve / reopen (close or reopen a thread, text optional), flag (flag objects for Adam: check_this, question, reference, do_not_touch, done; text adds a note), unflag, acknowledge (mark Adam's comments and flags as read: ids, model: true, or everything waiting when neither is given; changes: true also marks every recorded change as seen, so the next changes call starts after it; this PC only, no undo step), name (give objects a standard name: prefix = a label or id such as CAD__FrontElevation or REF, in the mode Adam set; names only, never tags), strip (take a standard prefix off again: REF__Wall becomes Wall; a name that was exactly a label is left empty, with a warning), tag (put the objects on one tag: tag = a name from agent_outliner tags, \"Untagged\" or \"\" for none; a missing tag is refused with the model's tags named unless create: true, which makes it in the same step: ask Adam before making tags). images (comment / reply): picture files on this PC to show Adam, e.g. a view_capture saved with save_path (PNG, JPEG, GIF or WebP, 15 MB each, 8 at most); they are copied into his ChatFromAgents folder and shown in the Chat tab; text may then be left out. While his messages wait, every tool result carries an outliner notice; reply or acknowledge and it stops. author signs your entries, e.g. 'Claude (bay window session)': sign every entry, as his Chat tab lists each agent by it. Each change to the model is one undo step 'MCP: Agent Outliner Edit'. Keep comments short and factual.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "comment",
+                            "reply",
+                            "resolve",
+                            "reopen",
+                            "flag",
+                            "unflag",
+                            "acknowledge",
+                            "name",
+                            "strip",
+                            "tag"
+                        ]
+                    },
+                    "ids": {
+                        "$use": "ids"
+                    },
+                    "model": {
+                        "type": "boolean",
+                        "description": "The model's own thread (comment, reply, resolve, reopen, acknowledge)."
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "comment / reply: the message (may be left out when images are given). resolve / reopen / flag: an optional note."
+                    },
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "maxItems": 8,
+                        "description": "comment / reply: picture files on this PC (absolute paths) to attach; Adam sees them in the Chat tab."
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "Who is writing, e.g. 'Claude (bay window session)'. Default 'Agent'."
+                    },
+                    "flag": {
+                        "type": "string",
+                        "description": "flag: the flag type id (agent_outliner prefixes lists them with their meanings)."
+                    },
+                    "prefix": {
+                        "type": "string",
+                        "description": "name: a prefix label or id from agent_outliner prefixes."
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "tag: the tag to put the objects on, as agent_outliner tags names it; \"Untagged\" or \"\" for none."
+                    },
+                    "create": {
+                        "type": "boolean",
+                        "description": "tag: make the tag when the model has none of that name (ask Adam first). Default false."
+                    },
+                    "changes": {
+                        "type": "boolean",
+                        "description": "acknowledge: also mark the recorded changes as seen."
+                    },
+                    "upto": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "acknowledge with changes: only up to this change number."
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "profile_tracer",
+            "title": "Profile Tracer",
+            "runs_on": "bridge",
+            "handler_key": "profile_tracer",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Entity#attribute_dictionary",
+                "Sketchup::Model#find_entity_by_persistent_id",
+                "Geom::Transformation#inverse"
+            ],
+            "description": "Adam's Na Profile Path Tracer: his library of standard profiles (wall cappings, cornices, entablatures, covings, skirtings, window boards, mouldings) and the traces swept from them in this model. ALWAYS make anything with a standard profile with profile_tracer_edit, never by hand: the plugin colours and smooths the edges itself, keeps the path and the profile on the trace, and Adam refines either later in its editors. action: status (plugin, library size, traces in the model, whether Draw Profile opens a bound trace in Live mode), profiles (the library: key, name, size_mm [width, height], keywords, traces using it; query filters by words; near {width, height} ranks the closest sizes: take the closest and reshape it with profile_edit, make a new one only when nothing fits), profile (one by profile_key, or a trace's own by id / trace_id: size, extent, outline [[y, z], ...] mm with y across and z up from the datum that rides on the path, arc runs, edge colours; include_json gives the file; profile_edit previews a reshape), traces (every trace: id, trace_id, profile and source library/local, reverse, rotation, offsets, path length, world bounds, solid health and edge colours; query, profile_key, within_id narrow it), trace (one in full: the world path as Edit Path draws it, start point, local profile), check_path (a path judged before building, from path or path_edge_ids: runs, loops, branches, length, level, and the order it sweeps in). Profile lengths are mm. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "status",
+                            "profiles",
+                            "profile",
+                            "traces",
+                            "trace",
+                            "check_path"
+                        ]
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "profiles: words that must all appear (key, name, keywords). traces: part of a name, key or trace id."
+                    },
+                    "near": {
+                        "type": "object",
+                        "properties": {
+                            "width": {
+                                "type": "number"
+                            },
+                            "height": {
+                                "type": "number"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "profiles: rank by closeness to this size in mm."
+                    },
+                    "profile_key": {
+                        "type": "string",
+                        "description": "A library profile key (profile_tracer profiles lists them)."
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "A trace, or anything inside one (its solid, a face)."
+                    },
+                    "trace_id": {
+                        "type": "string",
+                        "description": "A trace's id, e.g. NPT0005 (profile_tracer traces lists them)."
+                    },
+                    "profile_edit": {
+                        "type": "object",
+                        "description": "profile_edit: reshape the profile; the result goes on the trace as its own local profile (the library file is untouched). Applied in this order.",
+                        "properties": {
+                            "scale": {
+                                "type": [
+                                    "number",
+                                    "array"
+                                ],
+                                "items": {
+                                    "type": "number"
+                                },
+                                "description": "A factor, or [across, up]."
+                            },
+                            "size": {
+                                "type": "object",
+                                "properties": {
+                                    "width": {
+                                        "type": "number",
+                                        "description": "mm across"
+                                    },
+                                    "height": {
+                                        "type": "number",
+                                        "description": "mm up"
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "description": "Scale the axis named to this size in mm."
+                            },
+                            "keep_aspect": {
+                                "type": "boolean",
+                                "description": "size: scale both axes by the one given."
+                            },
+                            "stretch": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "axis": {
+                                            "type": "string",
+                                            "enum": [
+                                                "y",
+                                                "z",
+                                                "width",
+                                                "height"
+                                            ]
+                                        },
+                                        "at": {
+                                            "type": "number",
+                                            "description": "mm: the cut line in the profile's own coordinates."
+                                        },
+                                        "by": {
+                                            "type": "number",
+                                            "description": "mm the points beyond the cut move (negative moves them the other way)."
+                                        },
+                                        "side": {
+                                            "type": "string",
+                                            "enum": [
+                                                "above",
+                                                "below"
+                                            ],
+                                            "description": "Which side of the cut moves (default above)."
+                                        }
+                                    },
+                                    "required": [
+                                        "axis",
+                                        "at",
+                                        "by"
+                                    ],
+                                    "additionalProperties": false
+                                },
+                                "description": "Lengthen without distorting the mouldings: e.g. [{axis: 'z', at: 50, by: 30}] makes it 30 taller above z 50."
+                            },
+                            "flip": {
+                                "type": "boolean",
+                                "description": "Mirror left to right about the datum."
+                            },
+                            "datum": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "[y, z]: this point becomes 0,0, the point that rides on the path."
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "include_outline": {
+                        "type": "boolean",
+                        "description": "profile: the outline points (default true)."
+                    },
+                    "include_json": {
+                        "type": "boolean",
+                        "description": "profile: the whole profile as the library file holds it."
+                    },
+                    "max_points": {
+                        "type": "integer",
+                        "minimum": 3,
+                        "maximum": 5000
+                    },
+                    "include_profile_json": {
+                        "type": "boolean",
+                        "description": "trace: its local profile in full."
+                    },
+                    "within_id": {
+                        "type": "integer",
+                        "description": "traces: only those inside this group or component."
+                    },
+                    "path": {
+                        "type": "array",
+                        "items": {
+                            "type": "array"
+                        },
+                        "description": "World points in the call's units: one run [[x,y,z], ...] or several [[[x,y,z], ...], ...]."
+                    },
+                    "path_edge_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "minItems": 1,
+                        "description": "Edges (a curve's edge brings its whole curve) or groups (their own edges) to sweep along, e.g. a reference path."
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "Sweep the run(s) as closed loops (default: closed when the ends meet)."
+                    },
+                    "limit": {
+                        "$use": "limit"
+                    },
+                    "offset": {
+                        "$use": "offset"
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "profile_tracer_edit",
+            "title": "Profile Tracer Edit",
+            "runs_on": "bridge",
+            "handler_key": "profile_tracer_edit",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 120,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Entities#add_group",
+                "Sketchup::Face#followme",
+                "Sketchup::Group#transformation=",
+                "Sketchup::Entity#attribute_dictionary",
+                "Sketchup::Model#start_operation",
+                "Sketchup::Model#commit_operation",
+                "Sketchup::Model#abort_operation"
+            ],
+            "description": "Build and change Profile Path Tracer traces through the plugin's own engines: edge colours, soft and smooth edges, the stored path and profile, all as its dialog makes them. One undo step per call, 'MCP: Profile Tracer Edit (<action>)'; allowed in batch_execute, where it joins the batch's step. action: create (sweep a profile along path or path_edge_ids; the profile from exactly one of profile_key, profile_from (a trace: copies its local profile), profile_outline, profile_json, profile_face_id; profile_edit reshapes it into the trace's own local profile; reverse puts it on the other side of the path, since open runs always sweep negative along their main axis whatever order you give them; rotation_step, toggles, origin_offset [y, z], start_offset / end_offset mm; parent_id is the container, the active context when omitted; wrapper {name, origin, reference_path} makes Adam's SUB__ group holding the reference path edges and the trace), set_path (a new world path, rebuilt), set_placement (rotation_step, toggles, origin_offset, offsets), swap_profile (another library profile_key), set_local_profile (the trace's own profile: any source, or profile_edit alone to reshape the one it has), revert_local (back to its library profile), regenerate, recreate (a fresh build from its own data: the only way to change reverse), rename, delete, open_dialog (id selects a trace for Draw Profile, which binds it in Live mode), reload. id, ids or trace_id name traces: a persistent id of the trace or anything in it, or NPT0005. A failed call changes nothing.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "create",
+                            "set_path",
+                            "set_placement",
+                            "swap_profile",
+                            "set_local_profile",
+                            "revert_local",
+                            "regenerate",
+                            "recreate",
+                            "rename",
+                            "delete",
+                            "open_dialog",
+                            "reload"
+                        ]
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "A trace, or anything inside one."
+                    },
+                    "ids": {
+                        "$use": "ids",
+                        "description": "Traces (set_placement, swap_profile, set_local_profile, revert_local, regenerate, delete)."
+                    },
+                    "trace_id": {
+                        "type": "string",
+                        "description": "A trace's id, e.g. NPT0005 (profile_tracer traces lists them)."
+                    },
+                    "path": {
+                        "type": "array",
+                        "items": {
+                            "type": "array"
+                        },
+                        "description": "World points in the call's units: one run [[x,y,z], ...] or several [[[x,y,z], ...], ...]."
+                    },
+                    "path_edge_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "minItems": 1,
+                        "description": "Edges (a curve's edge brings its whole curve) or groups (their own edges) to sweep along, e.g. a reference path."
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "Sweep the run(s) as closed loops (default: closed when the ends meet)."
+                    },
+                    "profile_key": {
+                        "type": "string",
+                        "description": "A library profile key (profile_tracer profiles lists them)."
+                    },
+                    "profile_from": {
+                        "type": "string",
+                        "description": "A trace (persistent id or NPT id) whose profile to copy, its local one included."
+                    },
+                    "profile_outline": {
+                        "type": "object",
+                        "description": "A new outline: points [[y, z], ...] in mm (y across, z up, 0,0 rides on the path; one closed loop, no closing repeat), arcs [{start, segments, radius}] as runs of the loop, edge_colour an SSOT edge colour id for every edge.",
+                        "properties": {
+                            "points": {
+                                "type": "array",
+                                "minItems": 3,
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                }
+                            },
+                            "arcs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "start": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        },
+                                        "segments": {
+                                            "type": "integer",
+                                            "minimum": 1
+                                        },
+                                        "radius": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            },
+                            "edge_colour": {
+                                "type": "string"
+                            },
+                            "edge_colours": {
+                                "type": "array",
+                                "description": "One colour id (or null) per edge."
+                            },
+                            "vertex_colours": {
+                                "type": "array",
+                                "description": "One colour id (or null) per vertex: the line it sweeps along the path."
+                            }
+                        },
+                        "required": [
+                            "points"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "profile_json": {
+                        "type": [
+                            "object",
+                            "string"
+                        ],
+                        "description": "A whole unified profile, as a library file holds it."
+                    },
+                    "profile_face_id": {
+                        "type": "integer",
+                        "description": "A face whose outer loop becomes the profile (lower-left corner at the datum)."
+                    },
+                    "profile_edit": {
+                        "type": "object",
+                        "description": "profile_edit: reshape the profile; the result goes on the trace as its own local profile (the library file is untouched). Applied in this order.",
+                        "properties": {
+                            "scale": {
+                                "type": [
+                                    "number",
+                                    "array"
+                                ],
+                                "items": {
+                                    "type": "number"
+                                },
+                                "description": "A factor, or [across, up]."
+                            },
+                            "size": {
+                                "type": "object",
+                                "properties": {
+                                    "width": {
+                                        "type": "number",
+                                        "description": "mm across"
+                                    },
+                                    "height": {
+                                        "type": "number",
+                                        "description": "mm up"
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "description": "Scale the axis named to this size in mm."
+                            },
+                            "keep_aspect": {
+                                "type": "boolean",
+                                "description": "size: scale both axes by the one given."
+                            },
+                            "stretch": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "axis": {
+                                            "type": "string",
+                                            "enum": [
+                                                "y",
+                                                "z",
+                                                "width",
+                                                "height"
+                                            ]
+                                        },
+                                        "at": {
+                                            "type": "number",
+                                            "description": "mm: the cut line in the profile's own coordinates."
+                                        },
+                                        "by": {
+                                            "type": "number",
+                                            "description": "mm the points beyond the cut move (negative moves them the other way)."
+                                        },
+                                        "side": {
+                                            "type": "string",
+                                            "enum": [
+                                                "above",
+                                                "below"
+                                            ],
+                                            "description": "Which side of the cut moves (default above)."
+                                        }
+                                    },
+                                    "required": [
+                                        "axis",
+                                        "at",
+                                        "by"
+                                    ],
+                                    "additionalProperties": false
+                                },
+                                "description": "Lengthen without distorting the mouldings: e.g. [{axis: 'z', at: 50, by: 30}] makes it 30 taller above z 50."
+                            },
+                            "flip": {
+                                "type": "boolean",
+                                "description": "Mirror left to right about the datum."
+                            },
+                            "datum": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "[y, z]: this point becomes 0,0, the point that rides on the path."
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "local_name": {
+                        "type": "string",
+                        "description": "The name a local profile carries (default the profile's own)."
+                    },
+                    "reverse": {
+                        "type": "boolean",
+                        "description": "create / recreate: the profile on the other side of the path."
+                    },
+                    "rotation_step": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3,
+                        "description": "Quarter turns of the profile about the path."
+                    },
+                    "toggles": {
+                        "type": "object",
+                        "properties": {
+                            "flipXCenter": {
+                                "type": "boolean"
+                            },
+                            "flipYCenter": {
+                                "type": "boolean"
+                            },
+                            "flipXWorld": {
+                                "type": "boolean"
+                            },
+                            "flipYWorld": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "The dialog's mirror toggles."
+                    },
+                    "origin_offset": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        },
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "[y, z] mm: the profile point that rides on the path; [0, 0] clears it."
+                    },
+                    "start_offset": {
+                        "type": "number",
+                        "description": "mm the sweep runs past (+) or short of (-) the start of an open run, as given."
+                    },
+                    "end_offset": {
+                        "type": "number",
+                        "description": "mm past (+) or short of (-) its end."
+                    },
+                    "parent_id": {
+                        "$use": "parent_id",
+                        "description": "create / recreate: the group or component the trace (or its wrapper) goes in; omit for the active context, 0 for the model root."
+                    },
+                    "path_ids": {
+                        "$use": "path"
+                    },
+                    "wrapper": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "e.g. SUB__Orangery__ParapetWall__StoneCapping"
+                            },
+                            "origin": {
+                                "$use": "point",
+                                "description": "World origin of the wrapper (default the path's lowest corner)."
+                            },
+                            "reference_path": {
+                                "type": "boolean",
+                                "description": "Draw the path as loose edges in the wrapper (default true)."
+                            }
+                        },
+                        "required": [
+                            "name"
+                        ],
+                        "additionalProperties": false,
+                        "description": "create: Adam's pattern, a named group holding the reference path and the trace."
+                    },
+                    "reference_path": {
+                        "type": "boolean",
+                        "description": "create without a wrapper: also draw the path as loose edges beside the trace."
+                    },
+                    "reference_path_material": {
+                        "type": "string",
+                        "description": "create: an edge material already in the model for the reference path edges (e.g. MTE102__LineColour__SoftBlack__L20); unpainted when omitted."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "create / recreate / rename: the trace's name (default the plugin's Na__ProfileTrace__<key>)."
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "create: an existing tag for the wrapper, else the trace."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "profile_tracer_library",
+            "title": "Profile Tracer Library",
+            "runs_on": "bridge",
+            "handler_key": "profile_tracer_library",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 60,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": true,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Model#find_entity_by_persistent_id"
+            ],
+            "description": "Adam's profile library files (the Gallery's presets, 04__Data__ProfileLibrary) through the Profile Path Tracer's own writers. Never the model, not undoable, not allowed in batch_execute. Only on Adam's say-so for that profile: he decides case by case what is added or changed; otherwise keep a reshaped profile local to its trace. action: save_new (a new profile: name required, code optional; geometry from from_trace (a trace's local profile), profile_key + profile_edit, profile_outline, profile_json or profile_face_id; short_name, description, keywords), overwrite (new geometry for profile_key from any of those, or profile_edit alone to reshape it in place; confirm = the key; the old file kept as .bak), set_meta (name, short_name, description, keywords), rename_file (file_name), redatum (datum [y, z] becomes 0,0; .bak), flip (left to right; .bak), delete (confirm = the key; the file is set aside beside itself as .deleted__<time> unless permanent: true). Profile lengths are mm.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "save_new",
+                            "overwrite",
+                            "set_meta",
+                            "rename_file",
+                            "redatum",
+                            "flip",
+                            "delete"
+                        ]
+                    },
+                    "profile_key": {
+                        "type": "string",
+                        "description": "A library profile key (profile_tracer profiles lists them)."
+                    },
+                    "confirm": {
+                        "type": "string",
+                        "description": "overwrite / delete: the profile key again, only when Adam asked for exactly this."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "save_new / set_meta: the display name."
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "save_new: the key and file name (default from the name)."
+                    },
+                    "short_name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "keywords": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "file_name": {
+                        "type": "string",
+                        "description": "rename_file: the new file name."
+                    },
+                    "from_trace": {
+                        "type": "string",
+                        "description": "save_new / overwrite: a trace (persistent id or NPT id) whose profile to save."
+                    },
+                    "profile_outline": {
+                        "type": "object",
+                        "description": "A new outline: points [[y, z], ...] in mm (y across, z up, 0,0 rides on the path; one closed loop, no closing repeat), arcs [{start, segments, radius}] as runs of the loop, edge_colour an SSOT edge colour id for every edge.",
+                        "properties": {
+                            "points": {
+                                "type": "array",
+                                "minItems": 3,
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                }
+                            },
+                            "arcs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "start": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                        },
+                                        "segments": {
+                                            "type": "integer",
+                                            "minimum": 1
+                                        },
+                                        "radius": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            },
+                            "edge_colour": {
+                                "type": "string"
+                            },
+                            "edge_colours": {
+                                "type": "array",
+                                "description": "One colour id (or null) per edge."
+                            },
+                            "vertex_colours": {
+                                "type": "array",
+                                "description": "One colour id (or null) per vertex: the line it sweeps along the path."
+                            }
+                        },
+                        "required": [
+                            "points"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "profile_json": {
+                        "type": [
+                            "object",
+                            "string"
+                        ]
+                    },
+                    "profile_face_id": {
+                        "type": "integer"
+                    },
+                    "profile_edit": {
+                        "type": "object",
+                        "description": "profile_edit: reshape the profile; the result goes on the trace as its own local profile (the library file is untouched). Applied in this order.",
+                        "properties": {
+                            "scale": {
+                                "type": [
+                                    "number",
+                                    "array"
+                                ],
+                                "items": {
+                                    "type": "number"
+                                },
+                                "description": "A factor, or [across, up]."
+                            },
+                            "size": {
+                                "type": "object",
+                                "properties": {
+                                    "width": {
+                                        "type": "number",
+                                        "description": "mm across"
+                                    },
+                                    "height": {
+                                        "type": "number",
+                                        "description": "mm up"
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "description": "Scale the axis named to this size in mm."
+                            },
+                            "keep_aspect": {
+                                "type": "boolean",
+                                "description": "size: scale both axes by the one given."
+                            },
+                            "stretch": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "axis": {
+                                            "type": "string",
+                                            "enum": [
+                                                "y",
+                                                "z",
+                                                "width",
+                                                "height"
+                                            ]
+                                        },
+                                        "at": {
+                                            "type": "number",
+                                            "description": "mm: the cut line in the profile's own coordinates."
+                                        },
+                                        "by": {
+                                            "type": "number",
+                                            "description": "mm the points beyond the cut move (negative moves them the other way)."
+                                        },
+                                        "side": {
+                                            "type": "string",
+                                            "enum": [
+                                                "above",
+                                                "below"
+                                            ],
+                                            "description": "Which side of the cut moves (default above)."
+                                        }
+                                    },
+                                    "required": [
+                                        "axis",
+                                        "at",
+                                        "by"
+                                    ],
+                                    "additionalProperties": false
+                                },
+                                "description": "Lengthen without distorting the mouldings: e.g. [{axis: 'z', at: 50, by: 30}] makes it 30 taller above z 50."
+                            },
+                            "flip": {
+                                "type": "boolean",
+                                "description": "Mirror left to right about the datum."
+                            },
+                            "datum": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "[y, z]: this point becomes 0,0, the point that rides on the path."
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "base_profile_key": {
+                        "type": "string",
+                        "description": "save_new from an outline: the profile whose edge colour it takes."
+                    },
+                    "datum": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        },
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "redatum: [y, z] mm, the point that becomes 0,0."
+                    },
+                    "permanent": {
+                        "type": "boolean",
+                        "description": "delete: delete the file outright instead of setting it aside."
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
             "name": "ruby_api_lookup",
             "title": "SketchUp API Lookup",
             "runs_on": "server",
@@ -1884,6 +3207,639 @@
                     "operation_name": {"type": "string", "description": "Undo step name (default 'Batch (n steps)')."}
                 },
                 "required": ["steps"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "sketch_read",
+            "title": "Read Sketch",
+            "runs_on": "bridge",
+            "handler_key": "sketch_read",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {
+                "readOnlyHint": true,
+                "destructiveHint": false,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Edge#start",
+                "Sketchup::Text#text",
+                "Sketchup::DimensionLinear#start",
+                "Sketchup::Model#selection"
+            ],
+            "description": "Read what Adam sketched to show intent: rough lines, arcs and freehand he drew and selected, plus the notes and dimensions he wrote beside them. The fastest way to get a shape from him: ask him to draw it roughly in SketchUp and select it. Edges (also inside selected groups, any depth) are chained into polylines (ends within snap join), each split into straight runs and fitted arcs (within tolerance) and returned in world coordinates: runs (line or arc with centre, radius, sweep and how far his line strays from it) and clean_path (lines as their two ends, arcs resampled to Adam's segment budget), ready to pass to geometry_offset_band as path_points. Notes come back with the numbers in them in the call's units ('1100', '1.1m', '150 wall') and the polyline they sit beside; dimensions with their lengths. Default: the current selection; ids reads those instead. A sketch is intent, not a survey: say the rule back in numbers and get Adam's yes before building. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {
+                        "$use": "ids",
+                        "description": "Read these (edges, faces, groups, texts, dimensions) instead of the selection."
+                    },
+                    "snap": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "Line ends closer than this join (default 5 mm)."
+                    },
+                    "tolerance": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "How far a run may stray from its fitted line or arc (default 15 mm)."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "input_pick",
+            "title": "Pick Points",
+            "runs_on": "bridge",
+            "handler_key": "input_pick",
+            "mutates": false,
+            "timeout_s": 900,
+            "annotations": {
+                "readOnlyHint": true,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Model#select_tool",
+                "Sketchup::InputPoint#pick",
+                "Sketchup::InputPoint#position",
+                "Sketchup::View#draw"
+            ],
+            "description": "Ask Adam to click points in SketchUp and get them back exactly, snapped by SketchUp's own inference (endpoints, edges, faces, axes). Use it instead of guessing a position from a photo or a screenshot: 'click where the lawn edge meets the terrace', 'trace the bed edge'. action: start (prompt says what to click; mode points, polyline or polygon; max_points; round_to snaps the answer to a grid, e.g. 5), then tell Adam in chat what to click and call wait (polls until he presses Enter or double-clicks, presses Esc, or wait_s runs out; returns early when he writes in the Agent Outliner), or result to look without waiting, or cancel. He clicks to add a point, Backspace removes the last, Enter or a double-click finishes, Esc cancels; the picked line is drawn in red as he goes. Points come back in world coordinates in the call's units. Changes nothing in the model; it does change the active tool, so it is not allowed in a batch.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "start",
+                            "result",
+                            "wait",
+                            "cancel"
+                        ],
+                        "description": "Default start."
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "start: what Adam should click, shown in SketchUp's status bar."
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "points",
+                            "polyline",
+                            "polygon"
+                        ],
+                        "description": "start: default polyline."
+                    },
+                    "max_points": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000,
+                        "description": "start: finish by itself after this many points."
+                    },
+                    "round_to": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "start: round the picked coordinates to this step (e.g. 5 for the 5 mm grid)."
+                    },
+                    "pick_id": {
+                        "type": "string",
+                        "description": "result / wait / cancel: the id start returned (default the latest)."
+                    },
+                    "wait_s": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 900,
+                        "description": "wait: how long to wait for Adam (default 180 s)."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "proposal_preview",
+            "title": "Proposal Preview",
+            "runs_on": "bridge",
+            "handler_key": "proposal_preview",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 900,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Entities#add_curve",
+                "Sketchup::Entities#add_text",
+                "Sketchup::View#write_image"
+            ],
+            "description": "The gate before building anything that is not fixed by CAD, a drawing, an orthophoto, a scan or the model: draw the proposal as red 2D lines (a group PROPOSAL__<name> at the model root), capture it from above, and ask Adam. action: draw (lines: [{points, closed}], labels: [{text, point}] for the numbers, e.g. '150 wall', '970 bed'; ask: the question, posted with the picture beside the proposal in his Agent Outliner; author signs it; capture false skips the picture), wait (polls his Agent Outliner thread until he answers, up to wait_s; he may answer in chat instead), status (his replies so far), clear (name, or all: true, when the real thing is built or he says no), list. Redrawing a name replaces it. Build nothing from a site photo until he has said yes. Drawing and clearing are one undo step each; the question is the Agent Outliner's own step. Not allowed in a batch.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "draw",
+                            "status",
+                            "wait",
+                            "clear",
+                            "list"
+                        ]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The proposal's name, as Adam would call it (PROPOSAL__ is added)."
+                    },
+                    "lines": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 2000,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "points": {
+                                    "$use": "points"
+                                },
+                                "closed": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "points"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "labels": {
+                        "type": "array",
+                        "maxItems": 200,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "text": {
+                                    "type": "string"
+                                },
+                                "point": {
+                                    "$use": "point"
+                                }
+                            },
+                            "required": [
+                                "text",
+                                "point"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "colour": {
+                        "type": "string",
+                        "description": "Line colour, default \"#E8412C\" (red)."
+                    },
+                    "z": {
+                        "type": "number",
+                        "description": "Draw every point at this height (e.g. just above the paving) so existing solids never hide the lines."
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "draw: kept on the proposal (what rule it shows)."
+                    },
+                    "ask": {
+                        "type": "string",
+                        "description": "draw: the question for Adam, posted in the Agent Outliner with the picture."
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "Who asks, e.g. 'Claude (planting bed)'."
+                    },
+                    "capture": {
+                        "type": "boolean",
+                        "description": "draw: take the top-view picture (default true)."
+                    },
+                    "width": {
+                        "type": "integer",
+                        "minimum": 200,
+                        "maximum": 4000
+                    },
+                    "height": {
+                        "type": "integer",
+                        "minimum": 200,
+                        "maximum": 4000
+                    },
+                    "all": {
+                        "type": "boolean",
+                        "description": "clear: every proposal."
+                    },
+                    "wait_s": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 900,
+                        "description": "wait: how long to wait (default 300 s)."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "geometry_offset_band",
+            "title": "Offset Bands",
+            "runs_on": "bridge",
+            "handler_key": "geometry_offset_band",
+            "mutates": true,
+            "timeout_s": 300,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Entities#add_face",
+                "Sketchup::Face#pushpull",
+                "Sketchup::Group#manifold?",
+                "Sketchup::Edge#soft="
+            ],
+            "description": "Turn a rule into geometry in one call: bands at parallel offsets from a path. The way to build planters, raised beds, retaining walls, kerbs, paths, edgings and lawn lines that follow a terrace or wall edge, once Adam has given the numbers. Path: path_points (world points, e.g. a sketch_read clean_path) or path_ids (one connected line of edges). Offsets are true parallels: positive to the LEFT of the path's direction (side: right flips), straight runs mitred, drawn arcs offset radially so bands stay concentric. Each band is a named group inside one wrapper group (name, tag): a solid from z0 to z1 between offsets from and to (hollow: wall thickness makes a ring wall round an open band; end_inset [start, end] pulls its ends in), or line_only at one offset (at) and z, for a lawn edge. Ends: square to the path, or start_line / end_line (two world points each) such as the paving's straight edge. Faces under soften_angle (default 15) are softened; edge_material paints the edges. Every solid must close or nothing is built. Example (Corrett planter): bands [{name wall, from 0, to 1270, z1 200, hollow 150}, {name bed, from 150, to 1120, z1 120, end_inset [150, 150]}, {name lawn line, line_only, at 2300}]. One undo step.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path_points": {
+                        "$use": "points",
+                        "description": "The path in world coordinates (its z is ignored: bands carry their own)."
+                    },
+                    "path_ids": {
+                        "$use": "ids",
+                        "description": "Or: edges, a curve, or a group of edges forming one connected line."
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "The path is a loop (rings, no end lines)."
+                    },
+                    "side": {
+                        "type": "string",
+                        "enum": [
+                            "left",
+                            "right"
+                        ],
+                        "description": "Which side positive offsets go, walking the path (default left)."
+                    },
+                    "arc_tolerance": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "Vertices fitting an arc within this are offset radially (default 1 mm)."
+                    },
+                    "start_line": {
+                        "$use": "points",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Two world points: the line the bands start on."
+                    },
+                    "end_line": {
+                        "$use": "points",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Two world points: the line the bands end on."
+                    },
+                    "bands": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 24,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Outliner name, e.g. SUB__PlantingBed__RetainingWall."
+                                },
+                                "from": {
+                                    "type": "number"
+                                },
+                                "to": {
+                                    "type": "number"
+                                },
+                                "z0": {
+                                    "type": "number",
+                                    "description": "Bottom (default 0)."
+                                },
+                                "z1": {
+                                    "type": "number",
+                                    "description": "Top."
+                                },
+                                "hollow": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "description": "Wall thickness: the band becomes a ring wall."
+                                },
+                                "end_inset": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 2
+                                },
+                                "line_only": {
+                                    "type": "boolean"
+                                },
+                                "at": {
+                                    "type": "number",
+                                    "description": "line_only: the offset."
+                                },
+                                "z": {
+                                    "type": "number",
+                                    "description": "line_only: its height (default 0)."
+                                },
+                                "edge_material": {
+                                    "$use": "material"
+                                },
+                                "material": {
+                                    "$use": "material"
+                                },
+                                "soften_angle": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 90
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "parent_id": {
+                        "$use": "parent_id"
+                    },
+                    "name": {
+                        "$use": "name"
+                    },
+                    "tag": {
+                        "$use": "tag"
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "bands"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_snapshot",
+            "title": "Model Snapshot",
+            "runs_on": "bridge",
+            "handler_key": "model_snapshot",
+            "mutates": false,
+            "timeout_s": 300,
+            "annotations": {
+                "readOnlyHint": true,
+                "destructiveHint": false,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Face#loops",
+                "Sketchup::Group#volume"
+            ],
+            "description": "Record objects as they are now, to compare later or in another window with model_diff: per object its name, tag, world bounds, solid and volume, counts, edge and face material tallies, its plan footprint (every face looking straight up, by level) and the same for its direct children (child_depth). Always mm and litres. save_path writes it as JSON (take one of your work before Adam reviews it, then diff his corrected version against it). Read-only; the file is the only thing written.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {
+                        "$use": "ids",
+                        "description": "Groups or components to record."
+                    },
+                    "child_depth": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3,
+                        "description": "Levels of children recorded too (default 1)."
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "save_path": {
+                        "type": "string",
+                        "description": "Absolute .json path to keep it."
+                    },
+                    "overwrite": {
+                        "type": "boolean"
+                    },
+                    "include_data": {
+                        "type": "boolean",
+                        "description": "Return the whole snapshot in the result (large)."
+                    }
+                },
+                "required": [
+                    "ids"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "model_diff",
+            "title": "Model Diff",
+            "runs_on": "bridge",
+            "handler_key": "model_diff",
+            "mutates": false,
+            "timeout_s": 300,
+            "annotations": {
+                "readOnlyHint": true,
+                "destructiveHint": false,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Face#loops",
+                "Sketchup::Group#volume"
+            ],
+            "description": "Measure two versions of the same thing against each other: what you built against Adam's redraw, before and after he tidied it, this window against a snapshot from another. a and b are each {id} (an object in this window) or {snapshot: path, object: name or id} (a model_snapshot file). Reports plan overlap (IoU, area only in a, only in b), how far apart the outlines are (max, medians, the worst spot), bounds moved, volume, solid, counts, and which edge and face materials changed; children are paired by name, then by best overlap, and compared the same way. Use it whenever Adam has redrawn or repainted your work: record what he changed as lessons. Always mm and litres. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "a": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "$use": "id"
+                            },
+                            "snapshot": {
+                                "type": "string"
+                            },
+                            "object": {
+                                "type": [
+                                    "string",
+                                    "integer"
+                                ]
+                            },
+                            "child_depth": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 3
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "b": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "$use": "id"
+                            },
+                            "snapshot": {
+                                "type": "string"
+                            },
+                            "object": {
+                                "type": [
+                                    "string",
+                                    "integer"
+                                ]
+                            },
+                            "child_depth": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 3
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "a",
+                    "b"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "image_rectify",
+            "title": "Rectify Site Photo",
+            "runs_on": "bridge",
+            "handler_key": "image_rectify",
+            "mutates": true,
+            "timeout_s": 180,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Face#position_material",
+                "Sketchup::Material#texture=",
+                "Sketchup::Texture#image_width",
+                "Sketchup::Face#get_UVHelper"
+            ],
+            "description": "Lay a site photo (drone, phone) flat on the ground in the model, or on any plane, rectified by a homography fitted to four or more pairs of photo pixel and model point, so you and Adam can see where things in it sit against the model. FOR CONTEXT ONLY: a site photo is a reference, never a spec; anything off the plane (walls, plants, people) is smeared, and nothing in it is measured for building. Ask Adam for the numbers, or CAD, an orthophoto or a scan, before modelling from it. pairs: [{pixel: [u, v] from the photo's top left, world: [x, y, z] ON the plane}], spread round the area (paving corners, wall bases). z sets the ground plane (default 0); plane {origin, x_axis, y_axis} for any other. region (two opposite world corners) or margin limits the area; the part beyond the horizon is left off. Placed as REF__SitePhoto__<name> at the model root (opacity default 0.75). Reports the fit in pixels and in ground distance, and checks SketchUp's mapping against it. One undo step.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the photo (PNG or JPEG)."
+                    },
+                    "pairs": {
+                        "type": "array",
+                        "minItems": 4,
+                        "maxItems": 64,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "pixel": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "world": {
+                                    "$use": "point"
+                                }
+                            },
+                            "required": [
+                                "pixel",
+                                "world"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "z": {
+                        "type": "number",
+                        "description": "Height of the ground plane (default 0)."
+                    },
+                    "plane": {
+                        "type": "object",
+                        "properties": {
+                            "origin": {
+                                "$use": "point"
+                            },
+                            "x_axis": {
+                                "$use": "direction"
+                            },
+                            "y_axis": {
+                                "$use": "direction"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "region": {
+                        "$use": "points",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Two opposite world corners of the area to cover."
+                    },
+                    "margin": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "Without region: how far past the control points to cover (default 25 % of their spread)."
+                    },
+                    "opacity": {
+                        "type": "number",
+                        "minimum": 0.05,
+                        "maximum": 1.0
+                    },
+                    "edge_material": {
+                        "$use": "material"
+                    },
+                    "parent_id": {
+                        "$use": "parent_id"
+                    },
+                    "name": {
+                        "$use": "name"
+                    },
+                    "tag": {
+                        "$use": "tag"
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "path",
+                    "pairs"
+                ],
                 "additionalProperties": false
             }
         }

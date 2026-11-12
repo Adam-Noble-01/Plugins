@@ -20,6 +20,15 @@
 # Edit > Undo what it was. Any exception aborts the operation: the model is
 # left exactly as it was. A batch is ONE operation for all its steps.
 #
+# THE AGENT OUTLINER NOTICE (1.0.28):
+# While anything in Adam's Agent Outliner waits for an agent, every response
+# (errors too, never ping or api_probe) carries 'outliner': the count, who
+# wrote and when, the latest words, and the call that reads it. The MCP server
+# puts it on the tool result. The Agent Outliner caches it, so it costs no
+# scan. A server older than 1.0.28 ignores the key, so unless the request
+# lists 'outliner' in its features (servers from 1.0.29) the notice also goes
+# in as one warning line (a success) or error detail, which every server shows.
+#
 # BATCH REFERENCES:
 # A string argument "$<step>.<path>" is replaced by a value from an earlier
 # step's result, e.g. "$0.id" or "$1.created_ids.0". This lets an agent build
@@ -84,6 +93,11 @@ module Na__SketchUpMcp
             'truevision_export'     => [:Na__Handlers__TrueVisionExport, :Na__Handlers__TrueVisionExport__Read],
             'truevision_export_edit' => [:Na__Handlers__TrueVisionExport, :Na__Handlers__TrueVisionExport__Edit],
             'truevision_publish'    => [:Na__Handlers__TrueVisionExport, :Na__Handlers__TrueVisionExport__Publish],
+            'agent_outliner'        => [:Na__Handlers__AgentOutliner, :Na__Handlers__AgentOutliner__Read],
+            'agent_outliner_edit'   => [:Na__Handlers__AgentOutliner, :Na__Handlers__AgentOutliner__Edit],
+            'profile_tracer'        => [:Na__Handlers__ProfileTracer, :Na__Handlers__ProfileTracer__Read],
+            'profile_tracer_edit'   => [:Na__Handlers__ProfileTracer, :Na__Handlers__ProfileTracer__Edit],
+            'profile_tracer_library' => [:Na__Handlers__ProfileTracer, :Na__Handlers__ProfileTracer__Library],
             'attributes_get'        => [:Na__Handlers__Attributes,   :Na__Handlers__Attributes__Get],
             'attributes_set'        => [:Na__Handlers__Attributes,   :Na__Handlers__Attributes__Set],
             'material_manage'       => [:Na__Handlers__Materials,    :Na__Handlers__Materials__Manage],
@@ -95,7 +109,14 @@ module Na__SketchUpMcp
             'view_capture'          => [:Na__Handlers__View,         :Na__Handlers__View__Capture],
             'sketchup_send_action'  => [:Na__Handlers__Actions,      :Na__Handlers__Actions__SendAction],
             'model_undo'            => [:Na__Handlers__Actions,      :Na__Handlers__Actions__Undo],
-            'ruby_eval'             => [:Na__Handlers__Ruby,         :Na__Handlers__Ruby__Eval]
+            'ruby_eval'             => [:Na__Handlers__Ruby,         :Na__Handlers__Ruby__Eval],
+            'sketch_read'           => [:Na__Handlers__SketchIntake,  :Na__Handlers__SketchIntake__Read],
+            'input_pick'            => [:Na__Handlers__SketchIntake,  :Na__Handlers__SketchIntake__Pick],
+            'proposal_preview'      => [:Na__Handlers__SketchIntake,  :Na__Handlers__SketchIntake__Proposal],
+            'geometry_offset_band'  => [:Na__Handlers__OffsetBand,    :Na__Handlers__OffsetBand__Build],
+            'model_snapshot'        => [:Na__Handlers__ModelDiff,     :Na__Handlers__ModelDiff__Snapshot],
+            'model_diff'            => [:Na__Handlers__ModelDiff,     :Na__Handlers__ModelDiff__Diff],
+            'image_rectify'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Rectify]
         }.freeze
 
         # Bridge commands that are not MCP tools in the registry.
@@ -114,7 +135,11 @@ module Na__SketchUpMcp
             'entity_studio_edit' => 'the Element Assembly Studio door engines open and commit their own undo operation, which would end the batch\'s; call it on its own',
             'point_cloud_clip'   => 'the Point Cloud Viewer writes the clip box in its own undo operation, which would end the batch\'s; call it on its own',
             'truevision_export_edit' => 'the GLB Builder writes its settings in its own "TrueVision: ..." undo operations, which would end the batch\'s; call it on its own',
-            'truevision_publish' => 'a push or purge reaches the live site and cannot be rolled back with the batch; call it on its own'
+            'truevision_publish' => 'a push or purge reaches the live site and cannot be rolled back with the batch; call it on its own',
+            'agent_outliner_edit' => 'the Agent Outliner writes each comment, flag or name in its own "MCP: Agent Outliner Edit" undo operation, which would end the batch\'s; call it on its own',
+            'profile_tracer_library' => 'it writes the Profile Path Tracer library files, which cannot be rolled back with the batch; call it on its own',
+            'input_pick'             => 'it hands SketchUp to Adam to click points and waits for him; call it on its own',
+            'proposal_preview'       => 'it asks Adam in the Agent Outliner, whose own undo step would end the batch\'s; call it on its own'
         }.freeze
 
         NA_REFERENCE = /\A\$(\d+)((?:\.[A-Za-z0-9_]+)*)\z/.freeze
@@ -150,18 +175,42 @@ module Na__SketchUpMcp
             response = { 'id' => request['id'], 'ok' => true, 'result' => result, 'elapsed_ms' => elapsed }
             response['warnings'] = ctx[:warnings].uniq unless ctx[:warnings].empty?
             response['undo'] = ctx[:undo_name] if ctx[:undo_name]
-            response
+            na_with_notice(response, command, ctx, request)
         rescue Na__McpError => error
             elapsed = na_elapsed_ms(started)
             Na__ActivityLog.Na__ActivityLog__Record(request['command'], elapsed, false, error.message)
-            { 'id' => request['id'], 'ok' => false, 'error' => error.na_to_hash, 'elapsed_ms' => elapsed }
+            na_with_notice({ 'id' => request['id'], 'ok' => false, 'error' => error.na_to_hash, 'elapsed_ms' => elapsed }, command, ctx, request)
         rescue StandardError, ScriptError => error
             elapsed = na_elapsed_ms(started)
             Na__ActivityLog.Na__ActivityLog__Record(request['command'], elapsed, false, "#{error.class}: #{error.message}")
-            { 'id' => request['id'], 'ok' => false, 'elapsed_ms' => elapsed,
-              'error' => { 'code' => 'sketchup_error', 'message' => "#{error.class}: #{error.message}",
-                           'hint' => 'SketchUp raised an exception; the operation was aborted and the model is unchanged.',
-                           'details' => { 'backtrace' => na_short_backtrace(error) } } }
+            na_with_notice({ 'id' => request['id'], 'ok' => false, 'elapsed_ms' => elapsed,
+                             'error' => { 'code' => 'sketchup_error', 'message' => "#{error.class}: #{error.message}",
+                                          'hint' => 'SketchUp raised an exception; the operation was aborted and the model is unchanged.',
+                                          'details' => { 'backtrace' => na_short_backtrace(error) } } }, command, ctx, request)
+        end
+
+        # 1.0.28: what waits for an agent in the Agent Outliner, on every
+        # tool's response (not the bridge's own ping and api_probe). ctx is
+        # nil when no model was open; the notice itself never raises.
+        # 1.0.29: a request whose features do not list 'outliner' comes from a
+        # server that drops the key, so the notice is also put where that
+        # server looks: a warning line, or the error's details.
+        def self.na_with_notice(response, command, ctx, request = nil)
+            return response if ctx.nil? || NA_INTERNAL_COMMANDS.key?(command.to_s)
+
+            notice = Na__Handlers__AgentOutliner.Na__Handlers__AgentOutliner__Notice(ctx[:model])
+            return response unless notice
+
+            response['outliner'] = notice
+            return response if request.is_a?(Hash) && Array(request['features']).include?('outliner')
+
+            if response['ok']
+                response['warnings'] = Array(response['warnings']) + [Na__Handlers__AgentOutliner.Na__Handlers__AgentOutliner__NoticeLine(notice)]
+            elsif response['error'].is_a?(Hash)
+                details = response['error']['details'].is_a?(Hash) ? response['error']['details'] : {}
+                response['error']['details'] = details.merge('outliner' => notice)
+            end
+            response
         end
 
 # endregion -------------------------------------------------------------------

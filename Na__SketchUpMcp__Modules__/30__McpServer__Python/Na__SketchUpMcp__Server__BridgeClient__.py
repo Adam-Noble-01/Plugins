@@ -249,7 +249,8 @@ class Na__BridgeClient:
         """Send one command; return the bridge's response envelope (dict with ok/result or error)."""
         for attempt in (1, 2):
             target = self.Na__BridgeClient__Target()
-            payload = {'id': uuid.uuid4().hex, 'token': target.get('token', ''), 'command': command, 'params': params or {}}
+            payload = {'id': uuid.uuid4().hex, 'token': target.get('token', ''), 'command': command, 'params': params or {},
+                       'features': ['outliner']}                       # 1.0.29: this server shows the Agent Outliner notice itself
             try:
                 response = self.na_round_trip(target, payload, timeout_s)
             except ConnectionRefusedError:
