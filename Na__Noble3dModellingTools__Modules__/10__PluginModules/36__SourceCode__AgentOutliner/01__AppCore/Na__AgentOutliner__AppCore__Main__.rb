@@ -83,7 +83,7 @@ module Na__AgentOutliner
     # FUNCTION | The Version (a method, not a constant, so a reload updates it)
     # ------------------------------------------------------------
     def self.Na__AgentOutliner__Version
-        '0.1.16'
+        '0.1.18'
     end
     # ---------------------------------------------------------------
 
@@ -95,6 +95,20 @@ module Na__AgentOutliner
     rescue StandardError => error
         Na__AgentOutliner::Na__DebugTools.Na__Debug__Error('The Agent Outliner could not open.', error)
         { success: false, message: "Agent Outliner failed to open: #{error.class}: #{error.message}" }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Show or Hide the Agent Outliner (Noble 3D Tools: the key Adam binds, 0.1.17)
+    # ------------------------------------------------------------
+    # Open it, or close it when it is open: SketchUp's shortcuts only fire while
+    # the model has the keyboard; with the Outliner focused the page closes
+    # itself on the same key (DialogManager.Na__Dialog__ToggleKeys).
+    def self.Na__AgentOutliner__ToggleDialog
+        state = Na__AgentOutliner::Na__DialogManager.Na__Dialog__Toggle
+        { success: true, message: state == :closed ? 'Agent Outliner closed.' : 'Agent Outliner opened.' }
+    rescue StandardError => error
+        Na__AgentOutliner::Na__DebugTools.Na__Debug__Error('The Agent Outliner could not be shown or hidden.', error)
+        { success: false, message: "Agent Outliner failed to show or hide: #{error.class}: #{error.message}" }
     end
     # ---------------------------------------------------------------
 

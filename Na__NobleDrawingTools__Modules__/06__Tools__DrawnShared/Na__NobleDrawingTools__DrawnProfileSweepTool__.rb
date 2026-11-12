@@ -117,6 +117,12 @@ module Na__NobleDrawingTools
         # profile surface in amber, outlined only round its edge so the facets
         # read as one curved surface rather than a grid. Shared by the driver,
         # every SHIFT-banked rider and the retype ghost.
+        #
+        # A cut that takes material away (a convex edge) lays its surface INSIDE
+        # the solid, where the faces being cut hide it from a depth-tested draw,
+        # so it is drawn on top in screen space, as the subtraction push is
+        # (5.2.39). A cut that fills an inside corner sits in the air and keeps
+        # the depth-tested draw, as does anything the camera cannot project.
         # ------------------------------------------------------------
         def na_drawn__draw_cut_faces(view, solve)
             world    = solve[:world]
@@ -135,6 +141,8 @@ module Na__NobleDrawingTools
 
             na_drawn__draw_end_cap(view, solve, 0, [world[:v0]] + profile0)          # <-- The chamfer tool's: cap, stop or nothing
             na_drawn__draw_end_cap(view, solve, 1, [world[:v1]] + profile1)
+
+            return if solve[:convex] != false && na_drawn__draw_profile_on_top(view, world, profile0, profile1)
 
             near = Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(profile0)
             far  = Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(profile1)
@@ -162,6 +170,30 @@ module Na__NobleDrawingTools
             view.draw(GL_LINE_STRIP, near)
             view.draw(GL_LINE_STRIP, far)
             view.draw(GL_LINES, [near.first, far.first, near.last, far.last])
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Profile's Surface on Top, Through the Faces It Cuts
+        # The facets, any ball corner, and the outline the depth-tested draw
+        # gives: the profile at each end and the two lines it leaves the faces
+        # along. false when it could not be projected, for the fallback.
+        # ------------------------------------------------------------
+        def na_drawn__draw_profile_on_top(view, world, profile0, profile1)
+            quads = []
+            (0...(profile0.length - 1)).each do |index|
+                quads << profile0[index] << profile1[index] << profile1[index + 1] << profile0[index + 1]
+            end
+
+            triangles = []
+            [:ball0, :ball1].each do |key|
+                triangles.concat(world[key]) if world[key] && world[key].length >= 3
+            end
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawSurfaceOnTop(
+                view, quads, triangles,
+                [profile0, profile1, [profile0.first, profile1.first], [profile0.last, profile1.last]],
+                NA_DRAWN_VOLUME_XRAY_FILL, NA_DRAWN_VOLUME_BORDER_COLOR
+            )
         end
         # ---------------------------------------------------------------
 
@@ -202,6 +234,11 @@ module Na__NobleDrawingTools
 
             stop_line = na_drawn__stop_summary(solve)
             lines << stop_line if stop_line
+
+            # A corner the batch cannot turn, on the card beside the cursor where
+            # it is read, not only on the status bar (12-Nov-2026: three coves at
+            # a hip refused on the status bar while the card said nothing).
+            lines << "CANNOT CUT: #{@na_ch_mitre_note}" if @na_ch_mitre_note
 
             Na__NobleDrawingTools.Na__DrawnPreview__DrawWorldLabel(view, world[:a1], lines)
         end

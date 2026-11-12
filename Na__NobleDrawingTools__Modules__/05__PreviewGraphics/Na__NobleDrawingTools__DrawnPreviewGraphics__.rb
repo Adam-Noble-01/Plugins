@@ -64,6 +64,12 @@ module Na__NobleDrawingTools
     # the box reads as a volume and the model still reads through it.
     NA_DRAWN_CUTTER_XRAY_FILL    = Sketchup::Color.new(225,  60,  60,  34)
 
+    # An edge treatment's new surface drawn on top (5.2.39): the cut amber, thin
+    # for the same reason — the facets of a curve and the blue face slivers
+    # under them overlap on screen, and stacked at the depth-tested 62 they
+    # would hide the roof the round is being cut into.
+    NA_DRAWN_VOLUME_XRAY_FILL    = Sketchup::Color.new(255, 150,  30,  44)
+
     NA_DRAWN_TEXT_COLOR          = Sketchup::Color.new( 20,  20,  20)
     NA_DRAWN_TEXT_HALO_COLOR     = Sketchup::Color.new(255, 255, 255)
     NA_DRAWN_TEXT_ACCENT_COLOR   = Sketchup::Color.new(  0,  90, 190)
@@ -628,6 +634,50 @@ module Na__NobleDrawingTools
         view.line_width    = 2
         view.drawing_color = border_color
         view.draw2d(GL_LINE_LOOP, quad_2d)
+
+        true
+    rescue StandardError
+        false
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Draw a Faceted Surface THROUGH Whatever Stands in Front
+    # Deep Chamfer, Fillet, Ogee and Ovolo's counterpart of DrawPrismOnTop
+    # (5.2.39). A cut that takes material away lays its new surface INSIDE the
+    # solid, so the very faces it cuts win the depth test and hide it: a round
+    # on a roof ridge previewed as nothing but the blue slivers on the slopes.
+    # quads is a flat list, four world points per facet; triangles three per
+    # facet (a ball corner, a stop fan); outlines are polylines drawn over the
+    # fill — the profile at each end and the lines it leaves the faces along.
+    # All in screen space with no depth test, as the subtraction push does.
+    #
+    # Returns false without drawing when any point cannot be projected
+    # honestly (behind a perspective camera), for the caller's depth-tested
+    # fallback.
+    # ------------------------------------------------------------
+    def self.Na__DrawnPreview__DrawSurfaceOnTop(view, quads, triangles, outlines, fill_color, border_color)
+        quads_2d = (quads || []).empty? ? [] : Na__NobleDrawingTools.Na__DrawnPreview__ScreenPoints(view, quads)
+        tris_2d  = (triangles || []).empty? ? [] : Na__NobleDrawingTools.Na__DrawnPreview__ScreenPoints(view, triangles)
+        return false unless quads_2d && tris_2d
+        return false if quads_2d.empty? && tris_2d.empty?
+
+        lines_2d = (outlines || []).map do |polyline|
+            next nil unless polyline && polyline.length >= 2
+
+            projected = Na__NobleDrawingTools.Na__DrawnPreview__ScreenPoints(view, polyline)
+            return false unless projected
+
+            projected
+        end.compact
+
+        view.drawing_color = fill_color
+        view.draw2d(GL_QUADS, quads_2d) unless quads_2d.empty?
+        view.draw2d(GL_TRIANGLES, tris_2d) unless tris_2d.empty?
+
+        view.line_stipple  = ''
+        view.line_width    = 2
+        view.drawing_color = border_color
+        lines_2d.each { |polyline| view.draw2d(GL_LINE_STRIP, polyline) }
 
         true
     rescue StandardError

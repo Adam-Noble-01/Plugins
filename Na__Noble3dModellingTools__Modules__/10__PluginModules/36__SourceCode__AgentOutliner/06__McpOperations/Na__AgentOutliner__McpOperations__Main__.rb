@@ -90,7 +90,7 @@ module Na__AgentOutliner
         # actions until SketchUp restarts (the MCP compares its lists to these).
         remove_const(:NA_READ_ACTIONS) if const_defined?(:NA_READ_ACTIONS, false)
         remove_const(:NA_EDIT_ACTIONS) if const_defined?(:NA_EDIT_ACTIONS, false)
-        NA_READ_ACTIONS = %w[summary inbox changes thread threads flags prefixes find tags].freeze
+        NA_READ_ACTIONS = %w[summary inbox changes thread threads flags prefixes find tags tag_tree category_tree].freeze
         NA_EDIT_ACTIONS = %w[comment reply resolve reopen flag unflag acknowledge name strip tag].freeze
         NA_OPERATION    = 'MCP: Agent Outliner Edit'.freeze unless defined?(NA_OPERATION)
         NA_MAX_IDS      = 500 unless defined?(NA_MAX_IDS)
@@ -139,6 +139,12 @@ module Na__AgentOutliner
                 Na__AgentOutliner::Na__Payloads.Na__Payload__Find(model, query, limit: self.na_limit(params, 50, 500))
             when 'tags'
                 Na__AgentOutliner::Na__Payloads.Na__Payload__TagList(model)
+            when 'tag_tree'                                                                  # <-- The Tree by Tag view (0.1.17)
+                depth = params.key?('depth') ? [[params['depth'].to_i, 0].max, 8].min : (params['tag'].nil? ? 1 : 3)
+                Na__AgentOutliner::Na__Payloads.Na__Payload__TagTree(model, tag: params['tag'], depth: depth, limit: self.na_limit(params, 300, 2000))
+            when 'category_tree'                                                             # <-- The Group by Category view (0.1.18)
+                depth = params.key?('depth') ? [[params['depth'].to_i, 0].max, 8].min : (params['prefix'].nil? ? 1 : 3)
+                Na__AgentOutliner::Na__Payloads.Na__Payload__CategoryTree(model, prefix: params['prefix'], depth: depth, limit: self.na_limit(params, 300, 2000))
             else
                 raise Na__McpOperationsError.new('invalid_params', "Unknown agent_outliner action '#{action}'.", "Use one of: #{NA_READ_ACTIONS.join(', ')}.")
             end

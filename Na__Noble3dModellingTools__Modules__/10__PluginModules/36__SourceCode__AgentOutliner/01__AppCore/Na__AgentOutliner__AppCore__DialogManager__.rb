@@ -59,6 +59,20 @@ module Na__AgentOutliner
         NA_SELECTION_WATCH_S = 0.5 unless defined?(NA_SELECTION_WATCH_S)                 # <-- How often the backstop looks (0.1.15)
         NA_ICON_PREFIX       = 'Icon__AgentOutliner__'.freeze unless defined?(NA_ICON_PREFIX)
 
+        # Show or Hide (0.1.17): the menu path Adam binds a key to in Preferences > Shortcuts, as SketchUp
+        # records it in SharedPreferences.json ("Windows Only" > "Settings" > "Shortcuts", read only, never
+        # written), and SketchUp's key names turned into the browser's KeyboardEvent.code.
+        NA_TOGGLE_PATH = 'Extensions/Na__Noble3dModellingTools/Show or Hide Agent Outliner'.freeze unless defined?(NA_TOGGLE_PATH)
+        unless defined?(NA_KEY_CODES)
+            NA_KEY_CODES = {
+                'Left' => 'ArrowLeft', 'Right' => 'ArrowRight', 'Up' => 'ArrowUp', 'Down' => 'ArrowDown',
+                'Space' => 'Space', 'Backspace' => 'Backspace', 'Tab' => 'Tab', 'Enter' => 'Enter', 'Return' => 'Enter',
+                'Delete' => 'Delete', 'Insert' => 'Insert', 'Home' => 'Home', 'End' => 'End', 'PageUp' => 'PageUp', 'PageDown' => 'PageDown',
+                '-' => 'Minus', '=' => 'Equal', ',' => 'Comma', '.' => 'Period', '/' => 'Slash', '\\' => 'Backslash',
+                '[' => 'BracketLeft', ']' => 'BracketRight', ';' => 'Semicolon', "'" => 'Quote', '`' => 'Backquote'
+            }.freeze
+        end
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -92,6 +106,81 @@ module Na__AgentOutliner
         def self.Na__Dialog__Close
             @na_dialog.close if self.Na__Dialog__Visible?
             @na_dialog = nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Show or Hide: Open It, or Close It When Open (0.1.17)
+        # ------------------------------------------------------------
+        # @return [Symbol] :opened or :closed
+        def self.Na__Dialog__Toggle
+            if self.Na__Dialog__Visible?
+                self.Na__Dialog__Close
+                :closed
+            else
+                self.Na__Dialog__Show
+                :opened
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Where SketchUp Keeps Adam's Shortcuts (nil off Windows)
+        # ------------------------------------------------------------
+        def self.Na__Dialog__PreferencesPath
+            appdata = ENV['APPDATA'].to_s
+            return nil if appdata.empty?
+
+            File.join(appdata, 'SketchUp', "SketchUp #{2000 + Sketchup.version.to_i}", 'SketchUp', 'SharedPreferences.json')
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Keys Bound to Show or Hide, for the Page (0.1.17)
+        # ------------------------------------------------------------
+        # While the Outliner has the keyboard SketchUp never sees its shortcut,
+        # so the page closes itself on the same key. Read from SketchUp's
+        # preferences file only when it changed; [] when there is no binding
+        # (or no file, or a key name this does not know).
+        # @return [Array<Hash>] { 'code', 'char', 'ctrl', 'alt', 'shift', 'label' }
+        def self.Na__Dialog__ToggleKeys
+            path = self.Na__Dialog__PreferencesPath
+            return [] unless path && File.file?(path)
+
+            stamp = [path, File.mtime(path).to_f, File.size(path)]
+            return @na_toggle_keys[1] if @na_toggle_keys && @na_toggle_keys[0] == stamp
+
+            data      = JSON.parse(File.read(path, encoding: 'bom|utf-8'))
+            shortcuts = data.is_a?(Hash) ? data.dig('Windows Only', 'Settings', 'Shortcuts') : nil
+            keys = Array(shortcuts).select { |entry| entry.is_a?(Hash) && entry['Path'].to_s.strip.casecmp(NA_TOGGLE_PATH).zero? }
+                                   .map { |entry| self.na_key_entry(entry) }.compact
+            @na_toggle_keys = [stamp, keys]
+            keys
+        rescue StandardError
+            []
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | One SketchUp Binding as the Page Matches It (nil for a key it cannot name)
+        # ------------------------------------------------------------
+        def self.na_key_entry(entry)
+            key  = entry['Key'].to_s
+            code = self.na_key_code(key)
+            return nil unless code
+
+            mods = [('Ctrl' if entry['Ctrl']), ('Alt' if entry['Alt']), ('Shift' if entry['Shift'])].compact
+            { 'code' => code, 'char' => key.length == 1 ? key.upcase : '', 'ctrl' => entry['Ctrl'] ? true : false,
+              'alt' => entry['Alt'] ? true : false, 'shift' => entry['Shift'] ? true : false, 'label' => (mods + [key]).join('+') }
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | SketchUp's Key Name as KeyboardEvent.code
+        # ------------------------------------------------------------
+        def self.na_key_code(key)
+            text = key.to_s
+            return "Key#{text.upcase}" if text.match?(/\A[A-Za-z]\z/)
+            return "Digit#{text}" if text.match?(/\A[0-9]\z/)
+            return "Numpad#{text[-1]}" if text.match?(/\ANumPad[0-9]\z/)
+            return text if text.match?(/\AF(?:[1-9]|1[0-9]|2[0-4])\z/)
+
+            NA_KEY_CODES[text]
         end
         # ---------------------------------------------------------------
 
@@ -202,6 +291,7 @@ module Na__AgentOutliner
             model = self.Na__Dialog__Model
             self.Na__Dialog__Send('state', {
                 'version'   => Na__AgentOutliner.Na__AgentOutliner__Version,
+                'toggle_keys' => self.Na__Dialog__ToggleKeys,                            # <-- Show or Hide closes from inside too (0.1.17)
                 'settings'  => Na__AgentOutliner::Na__ConfigStore.Na__Config__Settings,
                 'standards' => Na__AgentOutliner::Na__ConfigStore.Na__Standards__All,
                 'ui'        => Na__AgentOutliner::Na__ConfigStore.Na__UserConfig__Ui,

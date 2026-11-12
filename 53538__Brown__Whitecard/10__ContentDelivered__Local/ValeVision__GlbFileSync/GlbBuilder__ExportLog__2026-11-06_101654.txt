@@ -1,0 +1,402 @@
+===============================================================================
+ TrueVision3D GLB Builder - Export Log
+===============================================================================
+ Model      : Brown__WhiteCardModel__0.2.1__.skp
+ Export dir : C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync
+ Timestamp  : 2026-11-06_101654
+ Console    : suppressed (OFF)
+-------------------------------------------------------------------------------
+  Project prefix detected: 'Brown__'
+
+=== Analyzing model layers ===
+  Skipping layer '00__Standards' (tag 0 is in ignored range)
+  Found entity on layer '07__Landscape' -> TrueVision__LandscapeEnvironment.glb
+  Found entity on layer '01__OrbitHelperCube' -> 01__OrbitHelperCube.glb
+  Found entity on layer '20__ProposedBuilding' -> TrueVision__MainBuildingModel__Proposed.glb
+  Found entity on layer '08__Site__Boundaries' -> TrueVision__SiteBoundaries.glb
+  Found entity on layer '10__ExistingBuilding' -> TrueVision__MainBuildingModel__Existing.glb
+  Found entity on layer '10__ExistingBuilding' -> TrueVision__MainBuildingModel__Existing.glb
+
+=== All layers in model ===
+  '00__Standards' (1 entities)
+  '07__Landscape' (1 entities)
+  '01__OrbitHelperCube' (1 entities)
+  '100__NetherRealm' (13 entities)
+  '20__ProposedBuilding' (1 entities)
+  '08__Site__Boundaries' (1 entities)
+  '10__ExistingBuilding' (2 entities)
+=========================
+
+=== Scanning for Storey Containers ===
+  No storey containers found - using flat export mode
+=== End Storey Scan ===
+
+=== Export Plan ===
+  Brown__TrueVision__LandscapeEnvironment__MeshModel__.glb - 1 top-level entities
+  Brown__TrueVision__LandscapeEnvironment__LineworkModel__.glb - 1 top-level entities
+  Brown__01__OrbitHelperCube__MeshModel__.glb - 1 top-level entities
+  Brown__TrueVision__MainBuildingModel__Proposed__MeshModel__.glb - 1 top-level entities
+  Brown__TrueVision__MainBuildingModel__Proposed__LineworkModel__.glb - 1 top-level entities
+  Brown__TrueVision__SiteBoundaries__MeshModel__.glb - 1 top-level entities
+  Brown__TrueVision__SiteBoundaries__LineworkModel__.glb - 1 top-level entities
+  Brown__TrueVision__MainBuildingModel__Existing__MeshModel__.glb - 2 top-level entities
+  Brown__TrueVision__MainBuildingModel__Existing__LineworkModel__.glb - 2 top-level entities
+=== End Export Plan ===
+
+Exporting series: Brown__TrueVision__LandscapeEnvironment...
+  Using virtual flattening for non-destructive world-space export...
+    Traversing: Group_13_ID19182101...
+    Traversal complete: 1 entities -> 1 buckets, 270 vertices, 174 triangles
+    [TextureEngine] State reset
+    [MaterialEngine] no-materials (whitecard + MAT000E__ exempt) mode: 0 material(s) exported
+    Building mesh: 07__Landscape::Default (270 verts, 174 tris)
+    Total meshes built: 1
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__LandscapeEnvironment__MeshModel__.glb (11136 bytes, BIN: 9684 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 11136 bytes
+    Chunk 1: "JSON", Length: 1424 bytes
+    Chunk 2: "BIN\x00", Length: 9684 bytes
+  ✓ GLB validation passed
+  ✓ Export complete (non-destructive, model unchanged)
+  Using virtual flattening for linework export (same transforms as mesh)...
+    Traversing linework: Group_13_ID19182101...
+    Linework traversal complete: 1 entities -> 125 edges
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__LandscapeEnvironment__LineworkModel__.glb (7836 bytes, BIN: 7000 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 7836 bytes
+    Chunk 1: "JSON", Length: 808 bytes
+    Chunk 2: "BIN\x00", Length: 7000 bytes
+  ✓ GLB validation passed
+  ✓ Linework export complete
+
+Exporting series: Brown__01__OrbitHelperCube...
+  Using virtual flattening for non-destructive world-space export...
+    Traversing: Group_917_ID16615488...
+    Traversal complete: 1 entities -> 1 buckets, 24 vertices, 12 triangles
+    [TextureEngine] State reset
+    [MaterialEngine] no-materials (whitecard + MAT000E__ exempt) mode: 0 material(s) exported
+    Building mesh: 01__OrbitHelperCube::Default (24 verts, 12 tris)
+    Total meshes built: 1
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__01__OrbitHelperCube__MeshModel__.glb (2304 bytes, BIN: 840 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 2304 bytes
+    Chunk 1: "JSON", Length: 1436 bytes
+    Chunk 2: "BIN\x00", Length: 840 bytes
+  ✓ GLB validation passed
+  ✓ Export complete (non-destructive, model unchanged)
+  Skipping linework export for OrbitHelperCube (mesh only)
+
+Exporting series: Brown__TrueVision__MainBuildingModel__Proposed...
+  Using virtual flattening for non-destructive world-space export...
+    [Instancing] Found 265 instanced placements across 8 definition(s) (8 mesh group(s))
+    [Instancing] Mirrored fallback-to-unique count: 8 placement(s)
+    Traversing: OuterShell_ID29968788...
+    Traversal complete: 1 entities -> 1 buckets, 27339 vertices, 16838 triangles
+    [TextureEngine] State reset
+    [MaterialEngine] no-materials (whitecard + MAT000E__ exempt) mode: 0 material(s) exported
+    Building mesh: 20__ProposedBuilding::Default (27339 verts, 16838 tris)
+    Total meshes built: 1
+
+    [Instancing] Building 8 shared mesh(es)...
+      [Instancing] Built shared mesh: 85__Doors-01 (1136 verts, 728 tris)
+      [Instancing] 85__Doors-01: 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Na__ArrayBuilder__Block#5 (24 verts, 12 tris)
+      [Instancing] Na__ArrayBuilder__Block#5: 1 mesh -> 131 nodes
+      [Instancing] Built shared mesh: Na__ArrayBuilder__Block (24 verts, 12 tris)
+      [Instancing] Na__ArrayBuilder__Block: 1 mesh -> 101 nodes
+      [Instancing] Built shared mesh: 10_1001__Column__Standard__Inline__w260mm__ (940 verts, 540 tris)
+      [Instancing] 10_1001__Column__Standard__Inline__w260mm__: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: 10_1001__Column__Standard__Inline__w260mm__#1 (940 verts, 540 tris)
+      [Instancing] 10_1001__Column__Standard__Inline__w260mm__#1: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: 03_85__RidgeCresting__Belton__VG515__SpanSection__ (1518 verts, 968 tris)
+      [Instancing] 03_85__RidgeCresting__Belton__VG515__SpanSection__: 1 mesh -> 12 nodes
+      [Instancing] Built shared mesh: 50_7001__Finial__BeltonPostAndUrn__VG724__ (9010 verts, 4628 tris)
+      [Instancing] 50_7001__Finial__BeltonPostAndUrn__VG724__: 1 mesh -> 6 nodes
+      [Instancing] Built shared mesh: 03_85__RidgeCresting__Belton__VG515__EndSection__ (1768 verts, 1126 tris)
+      [Instancing] 03_85__RidgeCresting__Belton__VG515__EndSection__: 1 mesh -> 8 nodes
+    [Instancing] Instanced mesh export complete
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__MainBuildingModel__Proposed__MeshModel__.glb (1590688 bytes, BIN: 1518720 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 1590688 bytes
+    Chunk 1: "JSON", Length: 71940 bytes
+    Chunk 2: "BIN\x00", Length: 1518720 bytes
+  ✓ GLB validation passed
+  ✓ Export complete (non-destructive, model unchanged)
+  Using virtual flattening for linework export (same transforms as mesh)...
+    [Instancing] Found 265 instanced placements across 8 definition(s) (8 mesh group(s))
+    [Instancing] Mirrored fallback-to-unique count: 8 placement(s)
+    Traversing linework: OuterShell_ID29968788...
+    Linework traversal complete: 1 entities -> 8258 edges
+
+    [Instancing/Linework] Building shared linework mesh(es)...
+      [Instancing] Built shared linework: 85__Doors-01 (748 edges)
+      [Instancing/Linework] 85__Doors-01: 3 nodes
+      [Instancing] Built shared linework: Na__ArrayBuilder__Block#5 (12 edges)
+      [Instancing/Linework] Na__ArrayBuilder__Block#5: 131 nodes
+      [Instancing] Built shared linework: Na__ArrayBuilder__Block (12 edges)
+      [Instancing/Linework] Na__ArrayBuilder__Block: 101 nodes
+      [Instancing] Built shared linework: 10_1001__Column__Standard__Inline__w260mm__ (321 edges)
+      [Instancing/Linework] 10_1001__Column__Standard__Inline__w260mm__: 2 nodes
+      [Instancing] Built shared linework: 10_1001__Column__Standard__Inline__w260mm__#1 (321 edges)
+      [Instancing/Linework] 10_1001__Column__Standard__Inline__w260mm__#1: 2 nodes
+      [Instancing] Built shared linework: 03_85__RidgeCresting__Belton__VG515__SpanSection__ (472 edges)
+      [Instancing/Linework] 03_85__RidgeCresting__Belton__VG515__SpanSection__: 12 nodes
+      [Instancing] Built shared linework: 50_7001__Finial__BeltonPostAndUrn__VG724__ (479 edges)
+      [Instancing/Linework] 50_7001__Finial__BeltonPostAndUrn__VG724__: 6 nodes
+      [Instancing] Built shared linework: 03_85__RidgeCresting__Belton__VG515__EndSection__ (592 edges)
+      [Instancing/Linework] 03_85__RidgeCresting__Belton__VG515__EndSection__: 8 nodes
+    [Instancing/Linework] Instanced linework export complete
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__MainBuildingModel__Proposed__LineworkModel__.glb (695920 bytes, BIN: 628040 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 695920 bytes
+    Chunk 1: "JSON", Length: 67852 bytes
+    Chunk 2: "BIN\x00", Length: 628040 bytes
+  ✓ GLB validation passed
+  ✓ Linework export complete
+
+Exporting series: Brown__TrueVision__SiteBoundaries...
+  Using virtual flattening for non-destructive world-space export...
+    Traversing: Group_53_ID30127795...
+    Traversal complete: 1 entities -> 1 buckets, 150 vertices, 92 triangles
+    [TextureEngine] State reset
+    [MaterialEngine] no-materials (whitecard + MAT000E__ exempt) mode: 0 material(s) exported
+    Building mesh: 08__Site__Boundaries::Default (150 verts, 92 tris)
+    Total meshes built: 1
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__SiteBoundaries__MeshModel__.glb (6764 bytes, BIN: 5352 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 6764 bytes
+    Chunk 1: "JSON", Length: 1384 bytes
+    Chunk 2: "BIN\x00", Length: 5352 bytes
+  ✓ GLB validation passed
+  ✓ Export complete (non-destructive, model unchanged)
+  Using virtual flattening for linework export (same transforms as mesh)...
+    Traversing linework: Group_53_ID30127795...
+    Linework traversal complete: 1 entities -> 122 edges
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__SiteBoundaries__LineworkModel__.glb (7556 bytes, BIN: 6832 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 7556 bytes
+    Chunk 1: "JSON", Length: 696 bytes
+    Chunk 2: "BIN\x00", Length: 6832 bytes
+  ✓ GLB validation passed
+  ✓ Linework export complete
+
+Exporting series: Brown__TrueVision__MainBuildingModel__Existing...
+  Using virtual flattening for non-destructive world-space export...
+    [Instancing] Found 481 instanced placements across 34 definition(s) (36 mesh group(s))
+    [Instancing] Mirrored fallback-to-unique count: 5 placement(s)
+    Traversing: Group_51_ID30422969...
+    Traversing: Group_59_ID30425451...
+    Traversal complete: 2 entities -> 1 buckets, 22822 vertices, 14807 triangles
+    [TextureEngine] State reset
+    [MaterialEngine] no-materials (whitecard + MAT000E__ exempt) mode: 0 material(s) exported
+    Building mesh: 10__ExistingBuilding::Default (22822 verts, 14807 tris)
+    Total meshes built: 1
+
+    [Instancing] Building 36 shared mesh(es)...
+      [Instancing] Built shared mesh: Roof__RidgeTile__Crested__L450mm__Ridge (564 verts, 384 tris)
+      [Instancing] Roof__RidgeTile__Crested__L450mm__Ridge: 1 mesh -> 21 nodes
+      [Instancing] Built shared mesh: Roof__RidgeTile__Crested__L450mm__Hip (564 verts, 384 tris)
+      [Instancing] Roof__RidgeTile__Crested__L450mm__Hip: 1 mesh -> 51 nodes
+      [Instancing] Na__FacePattern__RosemaryTile__320.0x252.5b0.0: 1 mesh -> 37 nodes
+      [Instancing] 90_9901__Note__Windows_DoorsOnThisElevationOmitted__: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W600xH300 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W600xH300: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W340xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W340xH290: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W600xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W600xH290: 1 mesh -> 32 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W260xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W260xH290: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W35xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W35xH290: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W280xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W280xH290: 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W455xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W455xH290: 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W565xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W565xH290: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W585xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W585xH290: 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W150xH290 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W150xH290: 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Left__W600xH205 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Left__W600xH205: 1 mesh -> 7 nodes
+      [Instancing] Built shared mesh: Facade__Dentil__W50xH50xD25 (24 verts, 12 tris)
+      [Instancing] Facade__Dentil__W50xH50xD25: 1 mesh -> 187 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Long__L385xH286 (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Long__L385xH286: 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Short__L320xH286 (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Short__L320xH286: 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Facade__Keystone__W130-180xH280 (48 verts, 28 tris)
+      [Instancing] Facade__Keystone__W130-180xH280: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Right__W342.5xH284#1 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Right__W342.5xH284#1: 1 mesh -> 18 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Right__W695xH284#1 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Right__W695xH284#1: 1 mesh -> 8 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Long__L385xH296 (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Long__L385xH296: 1 mesh -> 8 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Long__L385xH296_Mirrored (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Long__L385xH296 (mirrored): 1 mesh -> 4 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Short__L315xH296 (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Short__L315xH296: 1 mesh -> 6 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Short__L315xH296_Mirrored (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Short__L315xH296 (mirrored): 1 mesh -> 3 nodes
+      [Instancing] Built shared mesh: Facade__Quoin__Frieze__L315xH480 (36 verts, 20 tris)
+      [Instancing] Facade__Quoin__Frieze__L315xH480: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: Facade__Keystone__W95-135xH235 (48 verts, 28 tris)
+      [Instancing] Facade__Keystone__W95-135xH235: 1 mesh -> 8 nodes
+      [Instancing] Built shared mesh: Window__Bay__Cant__W520 (840 verts, 559 tris)
+      [Instancing] Window__Bay__Cant__W520: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: Window__Middle__Pair__W520 (840 verts, 559 tris)
+      [Instancing] Window__Middle__Pair__W520: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W360xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W360xH284: 1 mesh -> 10 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W600xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W600xH284: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W335xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W335xH284: 1 mesh -> 6 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W355xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W355xH284: 1 mesh -> 5 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W680xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W680xH284: 1 mesh -> 2 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W390xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W390xH284: 1 mesh -> 10 nodes
+      [Instancing] Built shared mesh: Facade__Rustication__Middle__W790xH284 (24 verts, 12 tris)
+      [Instancing] Facade__Rustication__Middle__W790xH284: 1 mesh -> 5 nodes
+    [Instancing] Instanced mesh export complete
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__MainBuildingModel__Existing__MeshModel__.glb (1084096 bytes, BIN: 950276 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 1084096 bytes
+    Chunk 1: "JSON", Length: 133792 bytes
+    Chunk 2: "BIN\x00", Length: 950276 bytes
+  ✓ GLB validation passed
+  ✓ Export complete (non-destructive, model unchanged)
+  Using virtual flattening for linework export (same transforms as mesh)...
+    [Instancing] Found 481 instanced placements across 34 definition(s) (36 mesh group(s))
+    [Instancing] Mirrored fallback-to-unique count: 5 placement(s)
+    Traversing linework: Group_51_ID30422969...
+    Traversing linework: Group_59_ID30425451...
+    Linework traversal complete: 2 entities -> 10502 edges
+
+    [Instancing/Linework] Building shared linework mesh(es)...
+      [Instancing] Built shared linework: Roof__RidgeTile__Crested__L450mm__Ridge (204 edges)
+      [Instancing/Linework] Roof__RidgeTile__Crested__L450mm__Ridge: 21 nodes
+      [Instancing] Built shared linework: Roof__RidgeTile__Crested__L450mm__Hip (204 edges)
+      [Instancing/Linework] Roof__RidgeTile__Crested__L450mm__Hip: 51 nodes
+      [Instancing] Built shared linework: Na__FacePattern__RosemaryTile__320.0x252.5b0.0 (4 edges)
+      [Instancing/Linework] Na__FacePattern__RosemaryTile__320.0x252.5b0.0: 37 nodes
+      [Instancing] Built shared linework: 90_9901__Note__Windows_DoorsOnThisElevationOmitted__ (1156 edges)
+      [Instancing/Linework] 90_9901__Note__Windows_DoorsOnThisElevationOmitted__: 4 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W600xH300 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W600xH300: 4 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W340xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W340xH290: 4 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W600xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W600xH290: 32 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W260xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W260xH290: 4 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W35xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W35xH290: 4 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W280xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W280xH290: 3 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W455xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W455xH290: 3 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W565xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W565xH290: 4 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W585xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W585xH290: 3 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W150xH290 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W150xH290: 3 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Left__W600xH205 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Left__W600xH205: 7 nodes
+      [Instancing] Built shared linework: Facade__Dentil__W50xH50xD25 (12 edges)
+      [Instancing/Linework] Facade__Dentil__W50xH50xD25: 187 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Long__L385xH286 (18 edges)
+      [Instancing/Linework] Facade__Quoin__Long__L385xH286: 4 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Short__L320xH286 (18 edges)
+      [Instancing/Linework] Facade__Quoin__Short__L320xH286: 3 nodes
+      [Instancing] Built shared linework: Facade__Keystone__W130-180xH280 (24 edges)
+      [Instancing/Linework] Facade__Keystone__W130-180xH280: 2 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Right__W342.5xH284#1 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Right__W342.5xH284#1: 18 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Right__W695xH284#1 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Right__W695xH284#1: 8 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Long__L385xH296 (18 edges)
+      [Instancing/Linework] Facade__Quoin__Long__L385xH296: 8 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Long__L385xH296_Mirrored (18 edges)
+      [Instancing/Linework] Facade__Quoin__Long__L385xH296 (mirrored): 4 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Short__L315xH296 (18 edges)
+      [Instancing/Linework] Facade__Quoin__Short__L315xH296: 6 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Short__L315xH296_Mirrored (18 edges)
+      [Instancing/Linework] Facade__Quoin__Short__L315xH296 (mirrored): 3 nodes
+      [Instancing] Built shared linework: Facade__Quoin__Frieze__L315xH480 (18 edges)
+      [Instancing/Linework] Facade__Quoin__Frieze__L315xH480: 2 nodes
+      [Instancing] Built shared linework: Facade__Keystone__W95-135xH235 (24 edges)
+      [Instancing/Linework] Facade__Keystone__W95-135xH235: 8 nodes
+      [Instancing] Built shared linework: Window__Bay__Cant__W520 (351 edges)
+      [Instancing/Linework] Window__Bay__Cant__W520: 2 nodes
+      [Instancing] Built shared linework: Window__Middle__Pair__W520 (351 edges)
+      [Instancing/Linework] Window__Middle__Pair__W520: 2 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W360xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W360xH284: 10 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W600xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W600xH284: 2 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W335xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W335xH284: 6 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W355xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W355xH284: 5 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W680xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W680xH284: 2 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W390xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W390xH284: 10 nodes
+      [Instancing] Built shared linework: Facade__Rustication__Middle__W790xH284 (12 edges)
+      [Instancing/Linework] Facade__Rustication__Middle__W790xH284: 5 nodes
+    [Instancing/Linework] Instanced linework export complete
+GLB file written: C:/01__ValeProjects/ValeProjects__2026/53538__Brown__Whitecard/10__ContentDelivered__Local/ValeVision__GlbFileSync/Brown__TrueVision__MainBuildingModel__Existing__LineworkModel__.glb (872960 bytes, BIN: 739088 bytes)
+
+  Validating GLB structure...
+    Magic: glTF (should be 'glTF')
+    Version: 2 (should be 2)
+    File size: 872960 bytes
+    Chunk 1: "JSON", Length: 133844 bytes
+    Chunk 2: "BIN\x00", Length: 739088 bytes
+  ✓ GLB validation passed
+  ✓ Linework export complete
+
+=== Exporting Linetype Linework ===
+    01__ModelFlag__BuildingJoins__IndicatorLines: no linework
+    01__ModelFlag__ElementsForRemoval: no linework
+    01__ModelFlag__OverheadObjects__IndicatorLines: no linework
+    02__Linetype__DoorSwings: no linework
+    02__Linetype__DashedLines: no linework
+    02__Linetype__CentreLines: no linework
+    02__Linetype__DottedLines: no linework
+    02__ClearanceLines__IndicatorLines: no linework
+=== No linetype linework found in this model ===
+-------------------------------------------------------------------------------
+ Export complete. Elapsed: 2.27s
+===============================================================================

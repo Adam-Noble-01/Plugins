@@ -220,6 +220,171 @@ module Na__AgentOutliner
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Tree by Tag for an Agent (agent_outliner tag_tree, 0.1.17)
+        # ------------------------------------------------------------
+        # Adam (12-Nov-2026): "ensure agents can also reference and see this
+        # structure as I believe this is a powerful way to categorise and group
+        # things". The same structure as the Outliner's Tree by Tag view
+        # (OutlinerModel.js na_build_tag_tree), built from the same walk:
+        # - tag folders hold tags (nested folders nest), each level by name in
+        #   natural order, Untagged first; a tag with no objects is left out;
+        # - each tag is a card listing the objects on it as trees. An object
+        #   heads its tag's card only when nothing above it carries the same tag;
+        #   an untagged object only at the top level, since an untagged part of a
+        #   tagged group shows and hides with that group's tag in SketchUp, so it
+        #   is listed inside the group;
+        # - an object on another tag inside a card is listed there (with its own
+        #   'tag') AND heads that tag's card; each object by its first place.
+        # depth: levels listed below each card's top objects (deeper contents
+        # are counted as 'inside'); limit: objects listed in all.
+        # @param tag [String, nil] one card only ('' or 'Untagged' for Untagged)
+        def self.Na__Payload__TagTree(model, tag: nil, depth: 1, limit: 300)
+            rows, kids, first = self.na_tree_rows(model)
+            blocks = self.na_card_blocks(rows, first, 't')
+
+            tags = self.Na__Payload__Tags(model)
+            wanted = nil
+            unless tag.nil?
+                text = tag.to_s.strip
+                wanted = text.casecmp('untagged').zero? ? '' : (blocks.keys.find { |name| name.casecmp(text).zero? } || tags.keys.find { |name| name.casecmp(text).zero? } || text)
+                unless blocks.key?(wanted)
+                    raise ArgumentError, "No objects are on the tag '#{text}'. agent_outliner tags lists every tag and how many objects each has."
+                end
+            end
+
+            budget = { left: limit, listed: 0, cut: false }
+            card = lambda do |on|
+                info  = tags[on] || {}
+                block = blocks[on]
+                roots = self.na_natural_sort(block['roots'], rows)
+                items = []
+                roots.each do |pid|
+                    break budget[:cut] = true if budget[:left] <= 0
+
+                    items << self.na_tag_tree_node(rows, kids, pid, first[pid], 0, depth, on, budget, 't', 'tag')
+                end
+                out = { 'kind' => 'tag', 'tag' => on, 'label' => on.empty? ? 'Untagged' : on,
+                        'colour' => on.empty? ? nil : info['c'], 'shown' => on.empty? ? true : info['v'] != false,
+                        'objects_on_tag' => block['count'], 'top_objects' => roots.length, 'items' => items }
+                out['folder'] = Array(info['f']).join(' / ') if info['f'] && !Array(info['f']).empty?
+                out['more'] = roots.length - items.length if items.length < roots.length
+                out
+            end
+
+            result = {
+                'view'         => 'Tree by Tag',
+                'how_it_reads' => 'Tag folders hold tags; each tag is a card of the objects on it, as trees. An object heads its tag\'s card ' \
+                                  'unless something above it carries the same tag. Untagged lists only top-level untagged objects: an untagged ' \
+                                  'part of a tagged group is listed inside that group, in its tag\'s card (SketchUp hides it with that tag). ' \
+                                  'A child on another tag carries its own tag and also heads that tag\'s card; "within" is where a ' \
+                                  'card\'s top object sits in the model.',
+                'objects'      => first.length
+            }
+            if wanted.nil?
+                result['cards'] = self.na_tag_tree_level(blocks.keys, tags, 0, card)
+            else
+                result['card'] = card.call(wanted)
+            end
+            result['listed']    = budget[:listed]
+            result['truncated'] = budget[:cut]
+            result['how_to']    = 'Read one card deeper with tag (and depth up to 8); an "inside" count means more below: pass a larger depth, ' \
+                                  'or entity_get / outliner_tree with that id. find "tag:NAME" lists a tag\'s objects flat; agent_outliner_edit ' \
+                                  'tag moves objects onto a tag (a new object goes on the tag of the card it belongs to).'
+            result
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Group by Category for an Agent (agent_outliner category_tree, 0.1.18)
+        # ------------------------------------------------------------
+        # Adam (12-Nov-2026): "Create a group by category that appears the same
+        # as the group by tag so coloured regions", then asked that agents can
+        # read it too. The same structure as the Outliner's Group by Category
+        # view (OutlinerModel.js NA_CARD_SPECS.cattree): Tree by Tag's rules
+        # with the naming prefix a name starts with in place of the tag.
+        # - each naming category (Configure) holds its prefixes, both in the
+        #   order Adam keeps them in Configure; No Standard Name last; a prefix
+        #   no longer in Configure under Other; empty ones left out (Elevation
+        #   Faces are segments, never prefixes, so never here);
+        # - each prefix is a card of the objects named with it, as trees. An
+        #   object heads its prefix's card only when nothing above it carries
+        #   the same prefix; an unnamed object only at the top level (an unnamed
+        #   part of a named object is listed inside it);
+        # - an object with another prefix inside a card is listed there (with
+        #   its own 'prefix') AND heads that prefix's card.
+        # @param prefix [String, nil] one card only (any case, trailing __ allowed;
+        #   'No Standard Name' or '' for the unnamed card)
+        def self.Na__Payload__CategoryTree(model, prefix: nil, depth: 1, limit: 300)
+            rows, kids, first = self.na_tree_rows(model)
+            blocks  = self.na_card_blocks(rows, first, 'pre')
+            entries = Array(Na__AgentOutliner::Na__ConfigStore.Na__Standards__Prefixes)
+            entry_of = lambda { |label| entries.find { |entry| entry['label'].to_s.casecmp(label.to_s).zero? } }
+            category_of = lambda do |label|
+                entry = entry_of.call(label)
+                entry && !entry['category'].to_s.strip.empty? ? entry['category'].to_s : 'Other'
+            end
+
+            wanted = nil
+            unless prefix.nil?
+                text = prefix.to_s.strip.sub(/_+\z/, '')
+                wanted = text.casecmp('no standard name').zero? ? '' : (blocks.keys.find { |name| name.casecmp(text).zero? } || text)
+                unless blocks.key?(wanted)
+                    raise ArgumentError, "No objects are named with the prefix '#{text}'. agent_outliner prefixes lists every prefix, its category and the objects named with it."
+                end
+            end
+
+            budget = { left: limit, listed: 0, cut: false }
+            card = lambda do |on|
+                entry = on.empty? ? nil : entry_of.call(on)
+                block = blocks[on]
+                roots = self.na_natural_sort(block['roots'], rows)
+                items = []
+                roots.each do |pid|
+                    break budget[:cut] = true if budget[:left] <= 0
+
+                    items << self.na_tag_tree_node(rows, kids, pid, first[pid], 0, depth, on, budget, 'pre', 'prefix')
+                end
+                out = { 'kind' => 'prefix', 'prefix' => on, 'label' => on.empty? ? 'No Standard Name' : on,
+                        'colour' => entry ? entry['colour'] : nil, 'objects_named' => block['count'], 'top_objects' => roots.length, 'items' => items }
+                out['category'] = category_of.call(on) unless on.empty?
+                out['meaning']  = entry['meaning'] if entry && !entry['meaning'].to_s.strip.empty?
+                out['more'] = roots.length - items.length if items.length < roots.length
+                out
+            end
+
+            result = {
+                'view'         => 'Group by Category',
+                'how_it_reads' => 'Each naming category (Adam\'s Configure tab) holds its prefixes, in his order; each prefix is a card of the ' \
+                                  'objects whose names start with it, as trees. An object heads its prefix\'s card unless something above it ' \
+                                  'carries the same prefix. No Standard Name (last) lists only top-level unnamed objects: an unnamed part of a ' \
+                                  'named object is listed inside it, in its prefix\'s card. A child with another prefix carries its own prefix ' \
+                                  'and also heads that prefix\'s card; "within" is where a card\'s top object sits in the model.',
+                'objects'      => first.length
+            }
+            if wanted.nil?
+                order = {}
+                categories = {}
+                entries.each_with_index do |entry, index|
+                    order[entry['label'].to_s.downcase] ||= index
+                    categories[entry['category'].to_s.strip.empty? ? 'Other' : entry['category'].to_s] ||= index
+                end
+                named = blocks.keys.reject(&:empty?).group_by { |label| category_of.call(label) }
+                result['cards'] = named.keys.sort_by { |name| [categories.fetch(name, 1_000_000), self.na_natural_key(name)] }.map do |name|
+                    labels = named[name].sort_by { |label| [order.fetch(label.downcase, 1_000_000), self.na_natural_key(label)] }
+                    { 'kind' => 'category', 'name' => name, 'items' => labels.map { |label| card.call(label) } }
+                end
+                result['cards'] << card.call('') if blocks.key?('')                         # <-- No Standard Name last
+            else
+                result['card'] = card.call(wanted)
+            end
+            result['listed']    = budget[:listed]
+            result['truncated'] = budget[:cut]
+            result['how_to']    = 'Read one card deeper with prefix (and depth up to 8); an "inside" count means more below: pass a larger depth, ' \
+                                  'or entity_get / outliner_tree with that id. prefixes gives each prefix\'s meaning and naming rule; ' \
+                                  'agent_outliner_edit name gives objects a standard name (a new object takes the prefix of the card it belongs to).'
+            result
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | The Model's Title, File and Open Group
         # ------------------------------------------------------------
         def self.Na__Payload__ModelInfo(model)
@@ -868,6 +1033,118 @@ module Na__AgentOutliner
             items = items.sort_by { |item| [item['name'].to_s.downcase, item['id']] }
             { 'id' => id, 'label' => label, 'meaning' => meaning, 'in_inbox' => inbox ? true : false,
               'count' => items.length, 'objects' => items.first(limit) }
+        end
+
+        # Every object's first place in the model, each definition walked once (as the page's na_reachable).
+        def self.na_first_paths(rows, kids, roots)
+            first  = {}
+            walked = {}
+            stack  = roots.reverse.map { |pid| [pid, []] }
+            until stack.empty?
+                pid, parent_path = stack.pop
+                row = rows[pid]
+                next unless row && parent_path.length < 64
+
+                path = parent_path + [pid]
+                first[pid] ||= path
+                next unless row['d'] && !walked[row['d']]
+
+                walked[row['d']] = true
+                kids.call(row).reverse_each { |child| stack << [child, path] }
+            end
+            first
+        end
+
+        # Every object's row, how to read its children, and its first place (the card views' walk).
+        def self.na_tree_rows(model)
+            context = self.Na__Payload__Context(model)
+            refs    = Na__AgentOutliner::Na__Tracker.Na__Tracker__Refs(model)
+            children, _defs = Na__AgentOutliner::Na__Tracker.Na__Tracker__Structure(model)
+            rows = {}
+            refs.each { |pid, entity| rows[pid.to_i] = Na__AgentOutliner::Na__Walker.Na__Walker__Row(entity, context) }
+            kids = lambda { |row| row['d'] ? Array(children[row['d']]).map(&:to_i).select { |pid| rows.key?(pid) } : [] }
+            [rows, kids, self.na_first_paths(rows, kids, Array(children[Na__AgentOutliner::Na__Walker::NA_ROOT_KEY]).map(&:to_i))]
+        end
+
+        # Each group's block (key 't': the tag; 'pre': the naming prefix; '' = none): its top objects and how many are in it.
+        def self.na_card_blocks(rows, first, key)
+            blocks = Hash.new { |hash, group| hash[group] = { 'roots' => [], 'count' => 0 } }
+            first.each do |pid, path|
+                on = rows[pid][key].to_s
+                blocks[on]['count'] += 1
+                blocks[on]['roots'] << pid if self.na_tag_root?(rows, on, path, key)
+            end
+            blocks
+        end
+
+        # Does an object head its group's card? (Tree by Tag's rule; key 'pre' for Group by Category)
+        def self.na_tag_root?(rows, tag, path, key = 't')
+            return path.length == 1 if tag.empty?
+
+            path[0...-1].none? { |up| rows[up] && rows[up][key].to_s == tag }
+        end
+
+        # One object and, to the depth asked, what is inside it. key / field: 't' / 'tag' or 'pre' / 'prefix'.
+        def self.na_tag_tree_node(rows, kids, pid, path, level, depth, card_tag, budget, key = 't', field = 'tag')
+            row = rows[pid]
+            budget[:left]   -= 1
+            budget[:listed] += 1
+            node = { 'id' => pid, 'name' => row['dn'].to_s, 'type' => Na__AgentOutliner::Na__Walker::NA_TYPE_NAMES[row['k']] }
+            own = row[key].to_s
+            node[field]    = own if !own.empty? && own != card_tag                         # <-- In another group: it heads that card too
+            node['hidden'] = true if row['h']
+            if level.zero? && path.length > 1                                               # <-- A card's top object nested in the model: where it is
+                node['within'] = path[0...-1].map { |up| { 'id' => up, 'name' => rows[up] ? rows[up]['dn'].to_s : '' } }
+            end
+            inside = kids.call(row)
+            return node if inside.empty?
+
+            if level >= depth
+                node['inside'] = inside.length
+                return node
+            end
+            listed = []
+            self.na_natural_sort(inside, rows).each do |child|
+                break budget[:cut] = true if budget[:left] <= 0
+
+                listed << self.na_tag_tree_node(rows, kids, child, path + [child], level + 1, depth, card_tag, budget, key, field)
+            end
+            node['children'] = listed
+            node['more'] = inside.length - listed.length if listed.length < inside.length
+            node
+        end
+
+        # A level of folders and tags, by name, Untagged ('' sorts first) first; tags with no objects left out.
+        def self.na_tag_tree_level(tag_names, tags, depth, card)
+            folders = Hash.new { |hash, key| hash[key] = [] }
+            here = []
+            tag_names.each do |name|
+                path = Array((tags[name] || {})['f'])
+                if path.length > depth
+                    folders[path[depth]] << name
+                else
+                    here << name
+                end
+            end
+            entries = here.map { |name| [name, :tag] } + folders.keys.map { |name| [name, :folder] }
+            entries.sort_by { |name, _kind| self.na_natural_key(name) }.map do |name, kind|
+                next card.call(name) if kind == :tag
+
+                inner = folders[name]
+                sample = tags[inner.first] || {}
+                path = Array(sample['f'])[0..depth]
+                { 'kind' => 'folder', 'name' => name, 'path' => path.join(' / '), 'shown' => Array(sample['fs'])[depth] != false,
+                  'items' => self.na_tag_tree_level(inner, tags, depth + 1, card) }
+            end
+        end
+
+        # Natural order (W2 before W10), case-insensitive.
+        def self.na_natural_key(text)
+            text.to_s.downcase.scan(/\d+|\D+/).map { |part| part.match?(/\A\d+\z/) ? [0, part.to_i, ''] : [1, 0, part] }
+        end
+
+        def self.na_natural_sort(pids, rows)
+            pids.sort_by { |pid| [self.na_natural_key(rows[pid]['dn']), pid] }
         end
 
         def self.na_colour_hex(layer)

@@ -19,7 +19,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.30",
+        "version": "1.0.33",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -38,6 +38,11 @@
         "agent_outliner_edit.tag": "1.0.25",
         "agent_outliner_edit.create": "1.0.25",
         "agent_outliner_edit.images": "1.0.26",
+        "agent_outliner.action=tag_tree": "1.0.31",
+        "agent_outliner.tag": "1.0.31",
+        "agent_outliner.depth": "1.0.31",
+        "agent_outliner.action=category_tree": "1.0.32",
+        "agent_outliner.prefix": "1.0.32",
         "entity_studio.action=parameters": "1.0.27",
         "entity_studio.action=elements": "1.0.27",
         "entity_studio.action=openings": "1.0.27",
@@ -2173,7 +2178,7 @@
                 "Sketchup::Entity#get_attribute",
                 "Sketchup::Model#find_entity_by_persistent_id"
             ],
-            "description": "What Adam has left for agents in his Agent Outliner (Na Noble3d Modelling Tools): the flags and comment threads on objects, the standard names he gives them, and what was made or changed, by him or by an agent. Start a job with summary. action: summary (what waits for you, what changed since you last acknowledged, flag counts), inbox (every object Adam flagged For Agent, Question or Check This, or commented on, that no agent has acknowledged: its id, path, tag, size, what its standard name means, its flag and whole thread; and the model's own thread when he wrote there), changes (made, changed or erased since your last acknowledge, or since_seq / since; by: user shows Adam's own edits, the silent corrections to learn from; each says who and which fields: name, tag, material, transform, definition, contents), thread (whole threads by ids, or model: true), threads (every thread on one line: open or resolved, waiting_on agent (answer it) or user (Adam has not answered yours yet), the last word; status and waiting_on narrow it), flags (every flagged object by flag type with each type's meaning, Do Not Touch and Reference included: never change those; flag and by narrow it), prefixes (the standard names such as CAD__FrontElevation, what each means, and which objects carry it: how to find the CAD elevations and references he points you to), find (the Outliner's search: words, tag:, type:, is:new, by:agent, flag:for_agent, -term, a | b), tags (every tag in the model: colour, shown or hidden (folders included), its folder, and how many objects are on it, plus the untagged count; move objects with agent_outliner_edit tag). Entries may carry images: pictures Adam pasted into the Chat tab (or an agent attached), each with its path on this PC: open it with your own image reader to see what he means. Read-only. Answer with agent_outliner_edit.",
+            "description": "What Adam has left for agents in his Agent Outliner (Na Noble3d Modelling Tools): the flags and comment threads on objects, the standard names he gives them, and what was made or changed, by him or by an agent. Start a job with summary. action: summary (what waits for you, what changed since you last acknowledged, flag counts), inbox (every object Adam flagged For Agent, Question or Check This, or commented on, that no agent has acknowledged: its id, path, tag, size, what its standard name means, its flag and whole thread; and the model's own thread when he wrote there), changes (made, changed or erased since your last acknowledge, or since_seq / since; by: user shows Adam's own edits, the silent corrections to learn from; each says who and which fields: name, tag, material, transform, definition, contents), thread (whole threads by ids, or model: true), threads (every thread on one line: open or resolved, waiting_on agent (answer it) or user (Adam has not answered yours yet), the last word; status and waiting_on narrow it), flags (every flagged object by flag type with each type's meaning, Do Not Touch and Reference included: never change those; flag and by narrow it), prefixes (the standard names such as CAD__FrontElevation, what each means, and which objects carry it: how to find the CAD elevations and references he points you to), find (the Outliner's search: words, tag:, type:, is:new, by:agent, flag:for_agent, -term, a | b), tags (every tag: colour, shown, folder, object count; move objects with agent_outliner_edit tag), tag_tree (Adam's Tree by Tag view, how he groups the model: tag folders, then tags, then each tag's objects as trees; an untagged part sits inside its tagged group; tag: one card, depth: levels), category_tree (his Group by Category view, the same by naming category and prefix; prefix: one card). Entries may carry images (pictures pasted in the Chat tab), each with its path on this PC: open it to see what he means. Read-only. Answer with agent_outliner_edit.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -2188,7 +2193,9 @@
                             "flags",
                             "prefixes",
                             "find",
-                            "tags"
+                            "tags",
+                            "tag_tree",
+                            "category_tree"
                         ]
                     },
                     "ids": {
@@ -2251,6 +2258,20 @@
                     "include_seen": {
                         "type": "boolean",
                         "description": "inbox: also what an agent already acknowledged."
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "tag_tree: one tag's card only (any case; Untagged for the untagged card). Without it, every folder and tag."
+                    },
+                    "prefix": {
+                        "type": "string",
+                        "description": "category_tree: one naming prefix's card only, e.g. MASSING__Neighbour (any case; No Standard Name for the unnamed card). Without it, every category and prefix."
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 8,
+                        "description": "tag_tree, category_tree: levels listed below each card's top objects (default 1, or 3 with tag or prefix); deeper contents are counted as inside."
                     },
                     "limit": {
                         "type": "integer",
@@ -3839,6 +3860,173 @@
                 "required": [
                     "path",
                     "pairs"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "image_flatten",
+            "title": "Flatten Photo onto a Rectangle",
+            "runs_on": "bridge",
+            "handler_key": "image_flatten",
+            "mutates": true,
+            "timeout_s": 180,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::ImageRep#load_file",
+                "Sketchup::ImageRep#data",
+                "Sketchup::ImageRep#set_data",
+                "Sketchup::ImageRep#save_file",
+                "Sketchup::Face#position_material",
+                "Sketchup::Material#texture=",
+                "Sketchup::Face#get_UVHelper"
+            ],
+            "description": "Flatten part of a photo onto a rectangle on its plane, as SketchUp's free-pin Position Texture then Make Unique Texture would, to draw over like a CAD sheet. For something flat and rectangular whose width you know (a window or door opening from the CAD, a panel, a facade). corners are the four texture pins in the photo (pixels as viewers show it, EXIF rotation applied); rectangle is where they go in the model. Without rectangle.height, points fix it (known positions with their pixels, fitted by least squares, e.g. glazing bar crossings from the CAD); with neither, it is estimated from the photo's perspective (rough). The photo is warped into a new square-on PNG (never written over; by default in the job's 01__ReferenceFiles/11__Photos__Flattened) mapped plainly onto a face over the rectangle plus margin: REF__PhotoPlane__<name> (opacity 0.75), with the rectangle's outline in its own group. Reports the fit at every pin and point in pixels and on the plane, the height and where it came from, and the output's pixel size. Only what lies on the plane is true to scale (reveals, cills and pipes are shifted). One undo step.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the photo (PNG or JPEG; convert WebP first)."
+                    },
+                    "corners": {
+                        "type": "array",
+                        "minItems": 4,
+                        "maxItems": 4,
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        },
+                        "description": "The rectangle's four corners in the photo, pixels [u, v] from its top left as photo viewers show it (a JPEG's EXIF rotation is undone for you), in this order: the origin corner, the corner along x_axis, the far corner, the corner along y_axis."
+                    },
+                    "rectangle": {
+                        "type": "object",
+                        "properties": {
+                            "origin": {
+                                "$use": "point",
+                                "description": "World position of the origin corner."
+                            },
+                            "x_axis": {
+                                "$use": "direction",
+                                "description": "Along the width, in the plane."
+                            },
+                            "y_axis": {
+                                "$use": "direction",
+                                "description": "Across it, in the plane, towards the far side."
+                            },
+                            "width": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "The known side, along x_axis."
+                            },
+                            "height": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "The side along y_axis, when known."
+                            }
+                        },
+                        "required": [
+                            "origin",
+                            "x_axis",
+                            "y_axis",
+                            "width"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "points": {
+                        "type": "array",
+                        "maxItems": 60,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "pixel": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "at": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                    "description": "Along x_axis and along y_axis from the origin corner."
+                                },
+                                "world": {
+                                    "$use": "point",
+                                    "description": "On the rectangle's plane."
+                                }
+                            },
+                            "required": [
+                                "pixel"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "Known positions with their pixels (at, or world): they tighten the fit and, without height, fix it."
+                    },
+                    "margin": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "How much of the photo to keep round the rectangle, every side (default 0)."
+                    },
+                    "pixel_size": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "Output pixel size (default: the photo's finest detail on the plane)."
+                    },
+                    "max_pixels": {
+                        "type": "integer",
+                        "minimum": 10000,
+                        "maximum": 16000000,
+                        "description": "Cap on output pixels (default 4,000,000; about 1.4 s a megapixel)."
+                    },
+                    "save_path": {
+                        "type": "string",
+                        "description": "Absolute .png path for the flattened image (refused if it exists)."
+                    },
+                    "opacity": {
+                        "type": "number",
+                        "minimum": 0.05,
+                        "maximum": 1.0
+                    },
+                    "outline": {
+                        "type": "boolean",
+                        "description": "Draw the rectangle's outline in its own group (default true)."
+                    },
+                    "edge_material": {
+                        "$use": "material",
+                        "description": "For the outline."
+                    },
+                    "parent_id": {
+                        "$use": "parent_id"
+                    },
+                    "name": {
+                        "$use": "name"
+                    },
+                    "tag": {
+                        "$use": "tag"
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "path",
+                    "corners",
+                    "rectangle"
                 ],
                 "additionalProperties": false
             }

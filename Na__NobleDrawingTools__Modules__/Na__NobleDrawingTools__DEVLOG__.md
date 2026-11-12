@@ -3,6 +3,130 @@
 
 # =============================================================================
 
+## Version 5.2.39 - 12-Nov-2026 - Edge Treatments Preview Through the Faces They Cut, Like the Subtraction Push
+
+### Asked For
+*"Show a better preview like with the subtraction push pull as the previewed edge treatments are covered by the face
+of the mesh being affected"*. The screenshot showed Deep Fillet R150 on a Corrett hip: only the blue slivers on the
+slopes, no round.
+
+### What Was Wrong
+The new surface of a cut on a convex edge lies INSIDE the solid: the chamfer plane, a round, an ogee or ovolo, a
+stop, and now a ball corner. It was drawn with `View#draw`, which is depth-tested against the model, so the very
+faces being cut covered it. Deep Push Pull's subtraction preview had the same problem in 5.1.22 and draws in screen
+space (`View#draw2d`, no depth test), so the removed volume reads through the wall.
+
+### What It Does Now
+- **On a convex edge, the cut's new surface is drawn on top**, in the cut amber at a thinner fill (alpha 44, as
+  the cutter's X-ray red is thinner), with its outline: the profile at each end and the two lines where it leaves
+  the faces. This covers every facet, any ball corner, the chamfer plane and the stops.
+- **Deep Chamfer, Deep Fillet (round-over and cove), Deep Ogee and Deep Ovolo** all get it, in the drag, on every
+  SHIFT-banked rider and in the retype ghost.
+- **Left as they were:**
+  - The blue slivers and end caps. They lie ON the faces and show already.
+  - A fill on an inside corner. It sits in the air, in front of the faces.
+  - Anything with a point behind a perspective camera. It falls back to the depth-tested draw, as the push does.
+
+### How It Was Done
+- `05__PreviewGraphics/...DrawnPreviewGraphics__.rb`:
+  - `NA_DRAWN_VOLUME_XRAY_FILL`.
+  - `Na__DrawnPreview__DrawSurfaceOnTop(view, quads, triangles, outlines, fill, border)`. It is `DrawPrismOnTop`'s
+    sibling for any faceted surface, projecting through `ScreenPoints`. It returns false when it cannot project
+    honestly.
+- `06__Tools__DrawnShared/...DrawnProfileSweepTool__.rb`: `na_drawn__draw_cut_faces` tries
+  `na_drawn__draw_profile_on_top` first when `solve[:convex]` is not false.
+- `31__System__DeepChamfer/...DrawnChamferTool__.rb`:
+  - The chamfer plane draws through `na_drawn__draw_fan_on_top`, the same fan the depth-tested polygon draws.
+  - A stopped end's cap does the same.
+- **Coordinate Rule:** preview points are world. `ScreenPoints` carries them through `ToDrawPoint` exactly as the
+  depth-tested draws do.
+
+### Checked
+- **Offline:** the `ball_corners` suite now has 121 checks. On the hipped roof in all four placements, the
+  preview draws the moulding's facets and the ball's triangles with `draw2d`, and none of the cut surface goes to the
+  depth-tested draw (only the face slivers do). Deep Chamfer's three planes draw on top. `ridge_ends` still passes
+  142 of 142. Lint: 0 errors, 0 warnings.
+- **Live in SketchUp 2027 on Corrett:** reloaded (121 of 121 files). A real Deep Fillet tool drew the ridge and both
+  hips at R150 against a recording stand-in for the view, with SketchUp's own camera and `screen_coords`:
+  - On top: three runs of 12 facets, the ball's 144 triangles, and 12 outline strips.
+  - All 666 projected points fall inside the 1822 x 1139 viewport.
+  - A cove draws on top the same way.
+  - The camera and active tool were put back.
+  - `View#write_image` does not include a tool's drawing, so there is no picture.
+
+### Files
+- `05__PreviewGraphics/Na__NobleDrawingTools__DrawnPreviewGraphics__.rb`
+- `06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnProfileSweepTool__.rb`
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamferTool__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Deep Fillet on the Corrett ridge and both hips (TAB to round-over): the amber round and the ball show through
+      the roof while dragging, outlined at each end.
+- [ ] Deep Chamfer on the same three: the three planes show through.
+- [ ] An inside corner (a valley, or the inside of an L): the fill still reads as before.
+- [ ] The view still reads with the round drawn on top; if the amber is too strong or too faint, say which.
+
+**Status: IMPLEMENTED - DRAW CALLS CHECKED LIVE; THE LOOK NOT YET SEEN BY ADAM**
+
+# =============================================================================
+
+## Version 5.2.38 - 12-Nov-2026 - Deep Fillet: TAB Measures Again, Corner Refusals on the Cursor Card, Ball Corner Proven Live
+
+### Asked For
+*"Only Chamfer Works / Fillet does not / test yourself"*, after 5.2.37, on the Corrett ridge with both hips banked.
+
+### What Was Found (live, SketchUp 2027.0.267, Corrett__WhiteCardModel__1.0.1__)
+- **Deep Fillet was set to cove.** The saved TAB setting reads cove. The cove limit on the main ridge with both hips
+  is 103.4 mm, the "103 mm max" in the screenshots. A cove cannot turn a three-way corner, so every cut was
+  refused. The refusal showed only on the status bar: the card beside the cursor said nothing.
+- **The round-over works.** The roof solid is the unnamed group inside `SUB__HostDwelling__Roof`. On its main
+  ridge (8,860 mm) with the two 2,476 mm hips:
+  - The limit is 203.5 mm; the corner turns as a ball.
+  - It was built for real, then cancelled, three ways:
+    - with the group closed at R95;
+    - with the group opened, as the batch commit does it, at R150;
+    - once more for the before/after pictures.
+  - Each time: 144 ball faces, every one facing out with soft, smooth seams; a closed solid with no loose edges.
+  - Each time the roof went back to 74 faces.
+- **TAB mid-drag did not measure again.** The limit was measured once, at the grab. A cove swapped to a
+  round-over stayed capped at the cove's 103.4 mm, and a round-over swapped to a cove could be dragged past what
+  the faces hold. Deep Ovolo has always measured again on TAB; Deep Fillet did not.
+
+### What It Does Now
+- **TAB mid-drag measures the limit again** for the new kind (`na_fl__remeasure`, as Deep Ovolo's
+  `na_ov__remeasure`). A dragged radius over the new limit comes down to it; a typed one is left for the commit
+  to refuse by name.
+- **A corner the batch cannot turn is written on the card beside the cursor** as *"CANNOT CUT: ..."*, for every
+  profile tool. On a cove at a hip, that is *"a cove cannot turn a three-way corner — TAB swaps to the round-over,
+  which rounds it as a ball"*.
+
+### Checked Live (no change left in the model)
+- **The reload:** 121 of 121 files loaded, no failures.
+- **A real Deep Fillet tool, three edges banked:**
+
+  | Step | Kind | Limit | Size | Corner |
+  |---|---|---|---|---|
+  | As grabbed | cove | 103.4 | 95 | refused |
+  | TAB | round-over | 203.5 | 95 | one ball |
+  | Dragged | round-over | 203.5 | 150 | one ball |
+  | TAB back | cove | 103.4 | clamped to 103.4 | refused |
+
+  The saved setting was put back to cove afterwards.
+- **Lint:** 0 errors, 0 warnings on the Fillet folder and the profile sweep tool.
+
+### Files
+- `33__System__DeepFillet/Na__NobleDrawingTools__DrawnFilletTool__.rb`
+- `06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnProfileSweepTool__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Deep Fillet, bank the ridge and both hips: the card says CANNOT CUT while it is a cove.
+- [ ] Press TAB mid-drag: the card reads round-over, the limit reads about 203 mm, and the ball shows at the apex.
+- [ ] Release or type 150: the ridge and hips round over and meet on the ball.
+
+**Status: IMPLEMENTED - BALL CORNER PROVEN LIVE ON CORRETT; TAB AND CARD NOT YET SEEN BY ADAM**
+
+# =============================================================================
+
 ## Version 5.2.37 - 12-Nov-2026 - Deep Fillet: a Ridge and Its Hips Round Together, Meeting on a Ball
 
 ### Asked For

@@ -116,7 +116,8 @@ module Na__SketchUpMcp
             'geometry_offset_band'  => [:Na__Handlers__OffsetBand,    :Na__Handlers__OffsetBand__Build],
             'model_snapshot'        => [:Na__Handlers__ModelDiff,     :Na__Handlers__ModelDiff__Snapshot],
             'model_diff'            => [:Na__Handlers__ModelDiff,     :Na__Handlers__ModelDiff__Diff],
-            'image_rectify'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Rectify]
+            'image_rectify'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Rectify],
+            'image_flatten'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Flatten]
         }.freeze
 
         # Bridge commands that are not MCP tools in the registry.

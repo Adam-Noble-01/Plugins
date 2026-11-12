@@ -1,8 +1,7 @@
 {
     "schema"   : 1,
     "about"    : "Na Agent Outliner naming standards: the Quick Name prefixes and the flag types. Edited in the dialog's Configure tab and shared between PCs through the Plugins repo. Agents read every 'meaning' through agent_outliner {action: 'prefixes'}, so write each one as an instruction to an agent.",
-    "updated"  : "11-Nov-2026",
-
+    "updated"  : "12-Nov-2026",
     "prefixes" : [
         {
             "id"       : "cad_front_elevation",
@@ -131,55 +130,77 @@
             "mode"     : "face",
             "colour"   : "#0369a1",
             "meaning"  : "The Top elevation face: the roof and anything seen from above, what SketchUp's Top view looks at. A face is a SEGMENT inside a name, never a prefix (Adam's standard, 11-Nov-2026): assets SUB__<Building>__<Asset>__Top__01 numbered left to right as you face that side, linework one group per face SUB__LineworkDetailing__Top__<Feature>. When the model has an orientation (which way Front faces), the cardinal follows the face word, e.g. Front__South."
+        },
+        {
+            "id"       : "massing_neighbour",
+            "label"    : "MASSING__Neighbour",
+            "category" : "Massing",
+            "mode"     : "prefix",
+            "colour"   : "#2563eb",
+            "meaning"  : "Rough Neighbouring Buildings Massing"
+        },
+        {
+            "id"       : "massing_existing",
+            "label"    : "MASSING__Existing",
+            "category" : "Massing",
+            "mode"     : "prefix",
+            "colour"   : "#eb2438",
+            "meaning"  : "Rough Existing Building Massing"
+        },
+        {
+            "id"       : "massing_proposed",
+            "label"    : "MASSING__Proposed",
+            "category" : "Massing",
+            "mode"     : "prefix",
+            "colour"   : "#24eb70",
+            "meaning"  : "Rough Proposed Building Massing"
         }
     ],
-
     "flags"    : [
         {
-            "id"       : "for_agent",
-            "label"    : "For Agent",
-            "colour"   : "#7c3aed",
-            "inbox"    : true,
-            "meaning"  : "Adam wants an agent to work on this object. Its comment thread says what to do."
+            "id"      : "for_agent",
+            "label"   : "For Agent",
+            "colour"  : "#7c3aed",
+            "inbox"   : true,
+            "meaning" : "Adam wants an agent to work on this object. Its comment thread says what to do."
         },
         {
-            "id"       : "question",
-            "label"    : "Question",
-            "colour"   : "#0891b2",
-            "inbox"    : true,
-            "meaning"  : "There is a question about this object. Answer it in the object's thread."
+            "id"      : "question",
+            "label"   : "Question",
+            "colour"  : "#0891b2",
+            "inbox"   : true,
+            "meaning" : "There is a question about this object. Answer it in the object's thread."
         },
         {
-            "id"       : "check_this",
-            "label"    : "Check This",
-            "colour"   : "#ea580c",
-            "inbox"    : true,
-            "meaning"  : "Something about this object may be wrong. Check it and report in its thread."
+            "id"      : "check_this",
+            "label"   : "Check This",
+            "colour"  : "#ea580c",
+            "inbox"   : true,
+            "meaning" : "Something about this object may be wrong. Check it and report in its thread."
         },
         {
-            "id"       : "reference",
-            "label"    : "Reference",
-            "colour"   : "#0d9488",
-            "inbox"    : false,
-            "meaning"  : "A source of truth. Measure and copy from it; never change it."
+            "id"      : "reference",
+            "label"   : "Reference",
+            "colour"  : "#0d9488",
+            "inbox"   : false,
+            "meaning" : "A source of truth. Measure and copy from it; never change it."
         },
         {
-            "id"       : "do_not_touch",
-            "label"    : "Do Not Touch",
-            "colour"   : "#475569",
-            "inbox"    : false,
-            "meaning"  : "Never change, move, hide, rename or delete this object."
+            "id"      : "do_not_touch",
+            "label"   : "Do Not Touch",
+            "colour"  : "#475569",
+            "inbox"   : false,
+            "meaning" : "Never change, move, hide, rename or delete this object."
         },
         {
-            "id"       : "done",
-            "label"    : "Done",
-            "colour"   : "#16a34a",
-            "inbox"    : false,
-            "meaning"  : "Finished and approved. Leave it as it is unless Adam asks again."
+            "id"      : "done",
+            "label"   : "Done",
+            "colour"  : "#16a34a",
+            "inbox"   : false,
+            "meaning" : "Finished and approved. Leave it as it is unless Adam asks again."
         }
     ],
-
     "handoff"  : {
-        "footer"   : "For the agent: the ids are persistent ids for the Na SketchUp MCP (entity_get, selection_set, entity_query). Read each object's whole thread with agent_outliner {action: \"inbox\"} and answer in it with agent_outliner_edit {action: \"reply\", ids: [...], text: \"...\"}."
+        "footer" : "For the agent: the ids are persistent ids for the Na SketchUp MCP (entity_get, selection_set, entity_query). Read each object's whole thread with agent_outliner {action: \"inbox\"} and answer in it with agent_outliner_edit {action: \"reply\", ids: [...], text: \"...\"}."
     }
 }

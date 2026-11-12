@@ -1,12 +1,13 @@
 // =============================================================================
-// NA AGENT OUTLINER - TESTS - PAGE STORE (TREE BY TAG)
+// NA AGENT OUTLINER - TESTS - PAGE STORE (THE CARD VIEWS)
 // =============================================================================
 //
 // FILE       : Na__AgentOutliner__Tests__Store__.js.test
 // PURPOSE    : The page's data store (OutlinerModel.js) on node, with no
 //              browser and no SketchUp: Tree by Tag's blocks, levels, keys,
-//              gaps and following, and that the plain tree is unchanged.
-// CREATED    : 12-Nov-2026 (0.1.16)
+//              gaps and following; Group by Category (0.1.18) on the same
+//              engine; that the plain tree is unchanged; the Show or Hide key.
+// CREATED    : 12-Nov-2026 (0.1.16); Group by Category 12-Nov-2026 (0.1.18)
 //
 // RUN        : node Na__AgentOutliner__Tests__Store__.js.test [module root]
 //              (Na__AgentOutliner__Tests__RunChecks__.py runs it after the
@@ -25,6 +26,7 @@
 //   Juliet_Loose (untagged)
 //   Kilo_Hidden (02__Hidden, a hidden tag)
 //   Tags: A__Walls in folder 01__Existing; B__Roof in 01__Existing / Sub.
+//   Group by Category gives the same objects naming prefixes (see there).
 //
 // =============================================================================
 
@@ -77,8 +79,8 @@ function build() { return Store.na_build_rows(); }
 function find(rows, test) { for (var i = 0; i < rows.length; i++) if (test(rows[i])) return rows[i]; return null; }
 function headers(rows) { return rows.filter(function (r) { return r.header; }).map(function (r) { return (r.kind === 'folder' ? 'F:' : '') + r.label; }); }
 function names(rows) { return rows.filter(function (r) { return !r.header; }).map(function (r) { return ents[r.pid].n; }); }
-function inBlock(rows, tag) {
-    var start = rows.indexOf(find(rows, function (r) { return r.header && r.kind === 'tag' && r.tag === tag; }));
+function inBlock(rows, group) {
+    var start = rows.indexOf(find(rows, function (r) { return r.header && r.kind === 'tag' && r.group === group; }));
     var list = [];
     for (var i = start + 1; i < rows.length && !rows[i].header; i++) list.push(rows[i]);
     return list;
@@ -97,24 +99,24 @@ check('a tagged group inside an untagged one heads its own tag\'s block; a part 
       JSON.stringify(names(inBlock(rows, 'A__Walls'))) === JSON.stringify(['Bravo_Walls', 'Foxtrot_Walls']));
 check('a part on another tag deep inside heads that tag\'s block, at its real place in the model',
       JSON.stringify(inBlock(rows, 'B__Roof').map(function (r) { return r.path; })) === JSON.stringify([[A, B, D]]));
-var wallsHead = find(rows, function (r) { return r.header && r.tag === 'A__Walls'; });
-var untaggedHead = find(rows, function (r) { return r.header && r.kind === 'tag' && r.tag === ''; });
+var wallsHead = find(rows, function (r) { return r.header && r.group === 'A__Walls'; });
+var untaggedHead = find(rows, function (r) { return r.header && r.kind === 'tag' && r.group === ''; });
 check('counts: a tag heading counts every object on the tag (3 on A__Walls, 5 untagged)', wallsHead.count === 3 && untaggedHead.count === 5);
 check('colours: a block takes its tag\'s colour; Untagged a neutral grey', wallsHead.colour === '#cc3333' && untaggedHead.colour === '#94a3b8');
-check('hidden: a hidden tag\'s heading says so', find(rows, function (r) { return r.header && r.tag === '02__Hidden'; }).hidden === true && wallsHead.hidden === false);
+check('hidden: a hidden tag\'s heading says so', find(rows, function (r) { return r.header && r.group === '02__Hidden'; }).hidden === true && wallsHead.hidden === false);
 
-var roofHead = find(rows, function (r) { return r.header && r.tag === 'B__Roof'; });
+var roofHead = find(rows, function (r) { return r.header && r.group === 'B__Roof'; });
 var roofRow = inBlock(rows, 'B__Roof')[0];
 check('indents: folder 0, tag in it 1, tag in a folder in it 2, its objects one more', roofHead.depth === 2 && roofRow.depth === 3 && wallsHead.depth === 1 &&
       find(rows, function (r) { return r.kind === 'folder' && r.label === 'Sub'; }).depth === 1);
 check('bands: an object row carries a band for each folder and its tag', JSON.stringify(roofRow.bands.map(function (b) { return b.kind + b.d; })) === JSON.stringify(['folder0', 'folder1', 'tag2']));
 check('gaps: 4 at the top, 10 before a top-level heading, 3 just under its folder, 6 between blocks in a folder',
       rows[0].gap === 4 && find(rows, function (r) { return r.label === '01__Existing'; }).gap === 10 && wallsHead.gap === 3 &&
-      find(rows, function (r) { return r.label === 'Sub'; }).gap === 6 && find(rows, function (r) { return r.header && r.tag === '06__Drawings'; }).gap === 10);
+      find(rows, function (r) { return r.label === 'Sub'; }).gap === 6 && find(rows, function (r) { return r.header && r.group === '06__Drawings'; }).gap === 10);
 check('cards: each block\'s heading starts it and its last row ends it',
       wallsHead.blockStart === true && inBlock(rows, 'A__Walls').slice(-1)[0].blockEnd === true && !inBlock(rows, 'A__Walls')[0].blockEnd);
 check('parents: a block\'s top rows step back to their heading, a tag in a folder to the folder',
-      inBlock(rows, 'A__Walls')[0].parentKey === wallsHead.key && wallsHead.parentKey === Store.na_tt_folder_key(['01__Existing']));
+      inBlock(rows, 'A__Walls')[0].parentKey === wallsHead.key && wallsHead.parentKey === Store.na_card_folder_key('tagtree', ['01__Existing']));
 
 // ---------------------------------------------------------------------------
 // Opening rows: each block on its own keys
@@ -126,14 +128,14 @@ var keys = {};
 var duplicate = rows.some(function (r) { if (keys[r.key]) return true; keys[r.key] = true; return false; });
 check('keys: no two rows share a key, though Bravo is listed in two blocks', !duplicate &&
       rows.filter(function (r) { return r.pid === B; }).length === 2);
-var bravoInUntagged = find(rows, function (r) { return r.pid === B && r.tt.tag === ''; });
-var bravoInWalls = find(rows, function (r) { return r.pid === B && r.tt.tag === 'A__Walls'; });
+var bravoInUntagged = find(rows, function (r) { return r.pid === B && r.tt.group === ''; });
+var bravoInWalls = find(rows, function (r) { return r.pid === B && r.tt.group === 'A__Walls'; });
 check('opening: Alpha opens in Untagged, its contents one level in, and Bravo in A__Walls stays shut',
       bravoInUntagged.level === 1 && bravoInUntagged.parentKey === alpha.key && bravoInWalls.open === false && bravoInUntagged.open === false);
 
 Store.na_toggle_open(wallsHead, false);
 rows = build();
-var closedHead = find(rows, function (r) { return r.header && r.tag === 'A__Walls'; });
+var closedHead = find(rows, function (r) { return r.header && r.group === 'A__Walls'; });
 check('closing a heading hides its rows and makes it the whole card', closedHead.open === false && closedHead.blockEnd === true && inBlock(rows, 'A__Walls').length === 0);
 Store.na_toggle_open(closedHead, true);
 
@@ -149,15 +151,16 @@ Store.na_set_search('');
 // ---------------------------------------------------------------------------
 // Following SketchUp's selection
 // ---------------------------------------------------------------------------
-var home = Store.na_tt_home([A, B, C]);
+var ttPrefix = function (tag) { return Store.na_card_prefix('tagtree', tag); };
+var home = Store.na_card_home('tagtree', [A, B, C]);
 check('home: an untagged part of a tagged group is followed to that group\'s block',
-      home.tag === 'A__Walls' && home.key === Store.na_tt_prefix('A__Walls') + [A, B, C].join('/') && JSON.stringify(home.open) === JSON.stringify([Store.na_tt_prefix('A__Walls') + A + '/' + B]));
-check('home: a part on the same tag goes under the topmost object on that tag', Store.na_tt_home([F, G]).key === Store.na_tt_prefix('A__Walls') + F + '/' + G);
-check('home: untagged all the way up stays in Untagged', Store.na_tt_home([A, E]).key === Store.na_tt_prefix('') + A + '/' + E);
+      home.group === 'A__Walls' && home.key === ttPrefix('A__Walls') + [A, B, C].join('/') && JSON.stringify(home.open) === JSON.stringify([ttPrefix('A__Walls') + A + '/' + B]));
+check('home: a part on the same tag goes under the topmost object on that tag', Store.na_card_home('tagtree', [F, G]).key === ttPrefix('A__Walls') + F + '/' + G);
+check('home: untagged all the way up stays in Untagged', Store.na_card_home('tagtree', [A, E]).key === ttPrefix('') + A + '/' + E);
 
 Store.na_collapse_all();
-Store.na_toggle_open({ header: true, key: Store.na_tt_folder_key(['01__Existing']) }, false);
-var revealed = Store.na_reveal_tag_tree([[A, B, C]]);
+Store.na_toggle_open({ header: true, key: Store.na_card_folder_key('tagtree', ['01__Existing']) }, false);
+var revealed = Store.na_reveal_cards([[A, B, C]], 'tagtree');
 rows = build();
 check('reveal: the folder, the tag and the rows on the way open, and the row is listed', revealed.length === 1 && rows.some(function (r) { return r.key === revealed[0]; }));
 
@@ -168,7 +171,7 @@ Store.na_collapse_all();
 Store.na_expand_below(null, 5000);
 rows = build();
 check('expand all: every block opens to the bottom (Golf inside Foxtrot, Charlie inside Bravo in A__Walls)',
-      rows.some(function (r) { return r.pid === G && r.tt.tag === 'A__Walls'; }) && rows.some(function (r) { return r.pid === C && r.tt.tag === 'A__Walls'; }));
+      rows.some(function (r) { return r.pid === G && r.tt.group === 'A__Walls'; }) && rows.some(function (r) { return r.pid === C && r.tt.group === 'A__Walls'; }));
 Store.na_collapse_all();
 rows = build();
 var step = Store.na_step_level(rows, true);
@@ -177,9 +180,65 @@ Store.na_collapse_all();
 step = Store.na_step_level(build(), false);
 rows = build();
 check('[ with every row shut closes the deepest headings first (B__Roof, two folders in), then ] opens them again',
-      step && step.groups === true && step.count === 1 && find(rows, function (r) { return r.header && r.tag === 'B__Roof'; }).open === false &&
-      find(rows, function (r) { return r.header && r.tag === 'A__Walls'; }).open === true &&
-      Store.na_step_level(rows, true).count === 1 && find(build(), function (r) { return r.header && r.tag === 'B__Roof'; }).open === true);
+      step && step.groups === true && step.count === 1 && find(rows, function (r) { return r.header && r.group === 'B__Roof'; }).open === false &&
+      find(rows, function (r) { return r.header && r.group === 'A__Walls'; }).open === true &&
+      Store.na_step_level(rows, true).count === 1 && find(build(), function (r) { return r.header && r.group === 'B__Roof'; }).open === true);
+
+// ---------------------------------------------------------------------------
+// Group by Category (0.1.18): the same engine, grouped by the naming prefix
+// a name starts with, under the prefix's category (Configure).
+//   Configure's order: CAD__FrontElevation, CAD__RearElevation (CAD Elevations),
+//   REF (References), MASSING__Neighbour, MASSING__Existing (Massing), Front
+//   (Elevation Faces, a face: never a prefix).
+//   Bravo, Foxtrot and Golf are MASSING__Existing; Delta CAD__FrontElevation;
+//   India REF; Kilo OLD__Gone (no longer in Configure); the rest unnamed.
+// ---------------------------------------------------------------------------
+var prefixList = [
+    { label: 'CAD__FrontElevation', category: 'CAD Elevations',  mode: 'replace', colour: '#2563eb', meaning: 'The CAD front elevation.' },
+    { label: 'CAD__RearElevation',  category: 'CAD Elevations',  mode: 'replace', colour: '#4f46e5', meaning: '' },
+    { label: 'REF',                 category: 'References',      mode: 'prefix',  colour: '#0d9488', meaning: '' },
+    { label: 'MASSING__Neighbour',  category: 'Massing',         mode: 'prefix',  colour: '#1d4ed8', meaning: '' },
+    { label: 'MASSING__Existing',   category: 'Massing',         mode: 'prefix',  colour: '#dc2626', meaning: '' },
+    { label: 'Front',               category: 'Elevation Faces', mode: 'face',    colour: '#ef4444', meaning: '' }
+];
+ents[B].pre = 'MASSING__Existing'; ents[F].pre = 'MASSING__Existing'; ents[G].pre = 'MASSING__Existing';
+ents[D].pre = 'CAD__FrontElevation'; ents[I].pre = 'REF'; ents[K].pre = 'OLD__Gone';
+Store.na_set_state({ standards: { prefixes: prefixList, flags: [], handoff: {} } });
+Store.na_collapse_all();
+Store.na_set_view('cattree');
+rows = build();
+check('category: categories and their prefixes in Configure\'s order, empty ones left out, a prefix no longer in Configure under Other, No Standard Name last',
+      JSON.stringify(headers(rows)) === JSON.stringify(['F:CAD Elevations', 'CAD__FrontElevation', 'F:References', 'REF', 'F:Massing', 'MASSING__Existing', 'F:Other', 'OLD__Gone', 'No Standard Name']));
+check('category: No Standard Name lists only the top-level unnamed objects', JSON.stringify(names(inBlock(rows, ''))) === JSON.stringify(['Alpha_Root', 'Juliet_Loose']));
+check('category: a named group inside an unnamed one heads its prefix\'s card; a part with the same prefix stays inside its group',
+      JSON.stringify(names(inBlock(rows, 'MASSING__Existing'))) === JSON.stringify(['Bravo_Walls', 'Foxtrot_Walls']));
+check('category: a part with another prefix deep inside heads that prefix\'s card, at its real place', JSON.stringify(inBlock(rows, 'CAD__FrontElevation').map(function (r) { return r.path; })) === JSON.stringify([[A, B, D]]));
+var massingHead = find(rows, function (r) { return r.header && r.group === 'MASSING__Existing'; });
+var noneHead = find(rows, function (r) { return r.header && r.kind === 'tag' && r.group === ''; });
+check('category: a card takes its prefix\'s colour; No Standard Name and a prefix no longer in Configure a neutral grey',
+      massingHead.colour === '#dc2626' && noneHead.colour === '#94a3b8' && find(rows, function (r) { return r.header && r.group === 'OLD__Gone'; }).colour === '#94a3b8');
+check('category: counts (3 named MASSING__Existing, 1 prefix in a category), no card is hidden, the cards indent under their category',
+      massingHead.count === 3 && find(rows, function (r) { return r.label === 'Massing'; }).countText === '1 prefix' && !rows.some(function (r) { return r.hidden; }) &&
+      massingHead.depth === 1 && inBlock(rows, 'MASSING__Existing')[0].depth === 2 && noneHead.depth === 0);
+check('category: its own keys, apart from Tree by Tag\'s', massingHead.key === 'g:cattree:p:MASSING__Existing' && inBlock(rows, 'MASSING__Existing')[0].key.indexOf('p:') === 0 &&
+      find(rows, function (r) { return r.label === 'Massing'; }).key === Store.na_card_folder_key('cattree', ['Massing']));
+var cpHome = Store.na_card_home('cattree', [A, B, C]);
+check('category: an unnamed part of a named group is followed to that group\'s card',
+      cpHome.group === 'MASSING__Existing' && cpHome.key === Store.na_card_prefix('cattree', 'MASSING__Existing') + [A, B, C].join('/'));
+Store.na_toggle_open(find(rows, function (r) { return r.label === 'Massing'; }), false);
+var cpRevealed = Store.na_reveal_cards([[A, B, C]]);
+check('category: following opens the category, the card and the rows on the way', build().some(function (r) { return r.key === cpRevealed[0]; }));
+Store.na_collapse_all();
+Store.na_expand_below(null, 5000);
+check('category: Expand All opens every card to the bottom (Golf inside Foxtrot)', build().some(function (r) { return r.pid === G && r.tt.group === 'MASSING__Existing'; }));
+Store.na_set_search('Delta');
+check('category: search keeps only the cards holding a match, with their categories',
+      JSON.stringify(headers(build())) === JSON.stringify(['F:CAD Elevations', 'CAD__FrontElevation', 'F:Massing', 'MASSING__Existing', 'No Standard Name']));
+Store.na_set_search('');
+Store.na_set_state({ standards: { prefixes: [prefixList[4], prefixList[0], prefixList[2]], flags: [], handoff: {} } });
+check('category: reordering Configure reorders the view', JSON.stringify(headers(build()).filter(function (h) { return h.indexOf('F:') === 0; })) === JSON.stringify(['F:Massing', 'F:CAD Elevations', 'F:References', 'F:Other']));
+Store.na_set_view('tagtree');
+check('category: Tree by Tag is unchanged by the prefixes', JSON.stringify(headers(build())) === JSON.stringify(['Untagged', 'F:01__Existing', 'A__Walls', 'F:Sub', 'B__Roof', '02__Hidden', '06__Drawings']));
 
 // ---------------------------------------------------------------------------
 // The plain tree is as it was
@@ -191,6 +250,20 @@ rows = build();
 check('tree: unchanged (keys are paths, roots then Alpha\'s contents one level in, no blocks)',
       JSON.stringify(rows.map(function (r) { return r.key; })) === JSON.stringify([String(A), A + '/' + B, A + '/' + E, String(F), String(I), String(J), String(K)]) &&
       rows[1].depth === 1 && !rows.some(function (r) { return r.header || r.tt || r.bands; }));
+
+// ---------------------------------------------------------------------------
+// The Show or Hide key (MainShell.js, 0.1.17): which key presses close the dialog
+// ---------------------------------------------------------------------------
+global.document = { readyState: 'loading', addEventListener: function () {} };              // <-- Never inits: only the matcher is used
+require(path.join(root, '05__UserInterface', 'Na__AgentOutliner__UiSystem__MainShell__.js'));
+var Shell = window.Na__AgentOutliner__Shell;
+var keys = [{ code: 'Digit9', char: '9', ctrl: true, alt: false, shift: true }, { code: 'Backslash', char: '\\', ctrl: false, alt: true, shift: false }];
+function press(code, key, ctrl, alt, shift) { return { code: code, key: key, ctrlKey: ctrl, altKey: alt, shiftKey: shift }; }
+check('key: Ctrl+Shift+9 matches its binding (Shift turns the key into "(", the code still matches)', Shell.na_toggle_key_hit(press('Digit9', '(', true, false, true), keys));
+check('key: the same key with other modifiers does not (Ctrl+9, Ctrl+Alt+Shift+9)',
+      !Shell.na_toggle_key_hit(press('Digit9', '9', true, false, false), keys) && !Shell.na_toggle_key_hit(press('Digit9', '(', true, true, true), keys));
+check('key: a UK backslash (IntlBackslash) matches by its character', Shell.na_toggle_key_hit(press('IntlBackslash', '\\', false, true, false), keys));
+check('key: nothing bound, nothing matches', !Shell.na_toggle_key_hit(press('Digit9', '(', true, false, true), []) && !Shell.na_toggle_key_hit(press('Digit9', '(', true, false, true), undefined));
 
 console.log('store: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

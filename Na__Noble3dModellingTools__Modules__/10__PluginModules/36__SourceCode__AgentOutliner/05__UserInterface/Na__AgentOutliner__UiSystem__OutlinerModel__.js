@@ -487,7 +487,7 @@
         var out = [];
         var state = { count: 0, truncated: false };
         if (S.view === 'tree') na_build_tree(predicate, out, state);
-        else if (S.view === 'tagtree') na_build_tag_tree(predicate, out, state);
+        else if (Store.na_card_spec()) na_build_card_tree(Store.na_card_spec(), predicate, out, state);   // <-- Tree by Tag, Group by Category
         else na_build_list(predicate, out, state);
         S.rows = out;
         S.matchCount = state.count;
@@ -674,117 +674,184 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
-    // REGION | Tree by Tag (0.1.16)
+    // REGION | The Card Views: Tree by Tag (0.1.16) and Group by Category (0.1.18)
     // -------------------------------------------------------------------------
     // Adam (12-Nov-2026): "A grouping mode that groups by tag, and each group in
     // the outliner is a level then its children indent ... Color the group
-    // blocks as per the layer colors and separate the blocks". Tag folders and
-    // tags are the levels; under each tag its objects are a tree, their
-    // contents indented below them whatever tags those carry.
-    // - A BLOCK ROOT is an object on the tag with nothing above it on the same
-    //   tag, so a tagged group's parts on that tag are listed inside it, once.
-    // - UNTAGGED: only top-level untagged objects are block roots. An untagged
-    //   object inside a tagged group goes with that group (SketchUp shows and
-    //   hides it with the group's tag), so it is listed inside it.
-    // - An object on another tag inside a block is listed in its parent there
-    //   AND at the top of its own tag's block.
+    // blocks as per the layer colors and separate the blocks". Then, of the
+    // categories of his naming prefixes (Configure): "Create a group by category
+    // that appears the same as the group by tag so coloured regions".
+    // One engine builds both from a SPEC: which card an object belongs to (its
+    // GROUP: its tag, or the naming prefix its name starts with; '' = none),
+    // the folders a group sits in (tag folders; the prefix's category), the
+    // order of a level, and a card's name and colour. Under each card its
+    // objects are a tree, their contents indented below them whatever group
+    // those are in.
+    // - A BLOCK ROOT is an object in the group with nothing above it in the
+    //   same group, so a group's parts in that group are listed inside it, once.
+    // - NO GROUP (Untagged, No Standard Name): only top-level objects are block
+    //   roots. An object with no group inside a grouped one goes with it (an
+    //   untagged part shows and hides with its group's tag; an unnamed part is
+    //   part of the named object), so it is listed inside it.
+    // - An object in another group inside a block is listed in its parent there
+    //   AND at the top of its own group's block.
     // Each object is placed by its first place in the tree (as the grouped
     // views do). Folder names need not be unique, so a folder is keyed by its
-    // whole path. Untagged comes first, as in SketchUp's Tags panel; then the
-    // folders and tags of each level in natural order (01__ before 10__).
+    // whole path.
+    // - Tree by Tag: Untagged first, as in SketchUp's Tags panel; then the
+    //   folders and tags of each level in natural order (01__ before 10__).
+    // - Group by Category: the categories, and the prefixes in each, in the
+    //   order Adam keeps them in Configure (the Quick Name panel's order); No
+    //   Standard Name last. A prefix's card takes the prefix's colour.
 
     var NA_TT_UNTAGGED = '#94a3b8';
     var NA_TT_FOLDER   = '#7b8798';
-    var na_tt_cache = { version: -1, blocks: null };
 
-    // FUNCTION | Every Tag's Block: its roots and how many objects carry the tag
-    // @return {Object<string, {tag: string, roots: number[], count: number}>} keyed by tag ('' = Untagged)
-    Store.na_tag_blocks = function () {
-        if (na_tt_cache.version === S.version) return na_tt_cache.blocks;
+    // The order of the naming prefixes and of their categories, as in Configure.
+    function na_prefix_order() {
+        var order = { prefixes: {}, categories: {} };
+        (S.standards.prefixes || []).forEach(function (entry, index) {
+            var category = entry.category || 'Other';
+            if (order.categories[category] === undefined) order.categories[category] = index;
+            var label = String(entry.label || '').toLowerCase();
+            if (label && order.prefixes[label] === undefined) order.prefixes[label] = index;
+        });
+        return order;
+    }
+
+    var NA_CARD_SPECS = {
+        tagtree: {
+            view: 'tagtree', short: 't', none: 'Untagged', unit: ['tag', 'tags'],
+            groupOf: function (row) { return row.t || ''; },
+            folders: function (tag) {                                                      // <-- Outermost first ([] at the top level)
+                var info = tag ? S.tags[tag] : null;
+                return info && Array.isArray(info.f) ? info.f : [];
+            },
+            folderShown: function (tag, depth) {
+                var info = tag ? S.tags[tag] : null;
+                return !(info && Array.isArray(info.fs) && info.fs[depth] === false);
+            },
+            colour: function (tag) { return tag ? (Store.na_tag_colour(tag) || NA_TT_UNTAGGED) : NA_TT_UNTAGGED; },
+            hidden: function (tag) { return !!tag && !Store.na_tag_shown(tag); },
+            rank: function () { return 0; }                                                // <-- All by name: Untagged's name is '', so it comes first
+        },
+        cattree: {
+            view: 'cattree', short: 'p', none: 'No Standard Name', unit: ['prefix', 'prefixes'],
+            groupOf: function (row) { return row.pre || ''; },                             // <-- Ruby's match: the longest prefix the name starts with
+            folders: function (label) {
+                if (!label) return [];
+                var entry = Store.na_prefix_entry(label);
+                return [entry && entry.category ? entry.category : 'Other'];
+            },
+            folderShown: function () { return true; },
+            colour: function (label) {
+                var entry = label ? Store.na_prefix_entry(label) : null;
+                return entry && entry.colour ? entry.colour : NA_TT_UNTAGGED;
+            },
+            hidden: function () { return false; },
+            rank: function (item, order) {                                                 // <-- Configure's order; No Standard Name last
+                if (item.folder) return order.categories[item.name] !== undefined ? order.categories[item.name] : 1e6;
+                if (!item.group) return 2e6;
+                var index = order.prefixes[item.group.toLowerCase()];
+                return index !== undefined ? index : 1e6;
+            }
+        }
+    };
+
+    // FUNCTION | The Card View's Spec (null for the other views)
+    // @param view {string=} a view name; the view on show when left out
+    Store.na_card_spec = function (view) {
+        var name = view === undefined ? S.view : view;
+        return Object.prototype.hasOwnProperty.call(NA_CARD_SPECS, name) ? NA_CARD_SPECS[name] : null;
+    };
+
+    function na_card_key(spec, group)       { return 'g:' + spec.view + ':' + spec.short + ':' + group; }
+    function na_card_folder_key(spec, path) { return 'g:' + spec.view + ':F:' + JSON.stringify(path); }
+    function na_card_prefix(spec, group)    { return spec.short + ':' + encodeURIComponent(group) + '|'; }
+
+    Store.na_card_key        = function (view, group) { return na_card_key(Store.na_card_spec(view), group); };
+    Store.na_card_folder_key = function (view, path)  { return na_card_folder_key(Store.na_card_spec(view), path); };
+    Store.na_card_prefix     = function (view, group) { return na_card_prefix(Store.na_card_spec(view), group); };
+
+    var na_card_cache = {};
+
+    // FUNCTION | Every Group's Block: its roots and how many objects are in the group
+    // @return {Object<string, {group: string, roots: number[], count: number}>} keyed by group ('' = none)
+    Store.na_card_blocks = function (view) {
+        var spec = Store.na_card_spec(view);
+        if (!spec) return {};
+        var cached = na_card_cache[spec.view];
+        if (cached && cached.version === S.version) return cached.blocks;
         var reach = Store.na_reachable();
         var blocks = {};
         Object.keys(reach).forEach(function (pidText) {
             var row = S.ents[pidText];
             if (!row) return;
-            var tag = row.t || '';
-            var block = blocks[tag] || (blocks[tag] = { tag: tag, roots: [], count: 0 });
+            var group = spec.groupOf(row);
+            var block = blocks[group] || (blocks[group] = { group: group, roots: [], count: 0 });
             block.count += 1;
-            if (Store.na_tag_root(row, reach[pidText])) block.roots.push(row.p);
+            if (na_card_root(spec, row, reach[pidText])) block.roots.push(row.p);
         });
-        na_tt_cache = { version: S.version, blocks: blocks };
+        na_card_cache[spec.view] = { version: S.version, blocks: blocks };
         return blocks;
     };
 
-    // FUNCTION | Is an Object Listed at the Top of Its Tag's Block?
+    // FUNCTION | Is an Object Listed at the Top of Its Group's Block?
     // @param row  {Object}   the object
     // @param path {number[]} its place in the tree, the object last
-    Store.na_tag_root = function (row, path) {
-        var tag = row.t || '';
-        if (!tag) return path.length === 1;
+    function na_card_root(spec, row, path) {
+        var group = spec.groupOf(row);
+        if (!group) return path.length === 1;
         for (var i = 0; i < path.length - 1; i++) {
             var above = S.ents[path[i]];
-            if (above && (above.t || '') === tag) return false;
+            if (above && spec.groupOf(above) === group) return false;
         }
         return true;
-    };
-
-    // The tag's folders, outermost first ([] at the top level), and whether each is shown.
-    function na_tt_folders(tag) {
-        var info = tag ? S.tags[tag] : null;
-        return info && Array.isArray(info.f) ? info.f : [];
     }
 
-    function na_tt_folder_shown(tag, depth) {
-        var info = tag ? S.tags[tag] : null;
-        return !(info && Array.isArray(info.fs) && info.fs[depth] === false);
-    }
-
-    Store.na_tt_tag_key    = function (tag) { return 'g:tagtree:t:' + tag; };
-    Store.na_tt_folder_key = function (path) { return 'g:tagtree:F:' + JSON.stringify(path); };
-    Store.na_tt_prefix     = function (tag) { return 't:' + encodeURIComponent(tag) + '|'; };
-    Store.na_tt_colour     = function (tag) { return tag ? (Store.na_tag_colour(tag) || NA_TT_UNTAGGED) : NA_TT_UNTAGGED; };
-
-    // The levels: folders (keyed by path) holding folders and tags.
-    function na_tt_levels(tags) {
-        var top = { folders: {}, tags: [], path: [] };
-        tags.forEach(function (tag) {
+    // The levels: folders (keyed by path) holding folders and groups.
+    function na_card_levels(spec, groups) {
+        var top = { folders: {}, groups: [], path: [] };
+        groups.forEach(function (group) {
             var node = top;
-            na_tt_folders(tag).forEach(function (name, depth) {
-                if (!node.folders[name]) node.folders[name] = { folders: {}, tags: [], path: node.path.concat([name]), name: name, shown: na_tt_folder_shown(tag, depth) };
+            spec.folders(group).forEach(function (name, depth) {
+                if (!node.folders[name]) node.folders[name] = { folders: {}, groups: [], path: node.path.concat([name]), name: name, shown: spec.folderShown(group, depth) };
                 node = node.folders[name];
             });
-            node.tags.push(tag);
+            node.groups.push(group);
         });
         return top;
     }
 
-    // A level's entries in order: folders and tags by name (Untagged's name is '', so it comes first).
-    function na_tt_entries(node) {
+    // A level's entries in order: the view's rank, then by name in natural order.
+    function na_card_entries(spec, node, order) {
         var list = [];
         Object.keys(node.folders).forEach(function (name) { list.push({ folder: node.folders[name], name: name }); });
-        node.tags.forEach(function (tag) { list.push({ tag: tag, name: tag }); });
-        list.sort(function (a, b) { return na_text_compare(a.name, b.name); });
+        node.groups.forEach(function (group) { list.push({ group: group, name: group }); });
+        list.forEach(function (item) { item.rank = spec.rank(item, order); });
+        list.sort(function (a, b) { return a.rank !== b.rank ? a.rank - b.rank : na_text_compare(a.name, b.name); });
         return list;
     }
 
-    function na_build_tag_tree(predicate, out, state) {
+    function na_build_card_tree(spec, predicate, out, state) {
         var filter = na_tree_filter(predicate);
-        var blocks = Store.na_tag_blocks();
+        var blocks = Store.na_card_blocks(spec.view);
         var reach = Store.na_reachable();
+        var order = na_prefix_order();
         state.counted = {};
 
         // Does a block (or a folder) list anything with the search and filters on?
-        var blockShows = function (tag) {
-            var block = blocks[tag];
+        var blockShows = function (group) {
+            var block = blocks[group];
             if (!block || !block.roots.length) return false;
             for (var i = 0; i < block.roots.length; i++) if (filter.shows(S.ents[block.roots[i]])) return true;
             return false;
         };
         var folderShows = function (node) {
-            return node.tags.some(blockShows) || Object.keys(node.folders).some(function (name) { return folderShows(node.folders[name]); });
+            return node.groups.some(blockShows) || Object.keys(node.folders).some(function (name) { return folderShows(node.folders[name]); });
         };
-        var countTags = function (node) {
-            return node.tags.filter(blockShows).length + Object.keys(node.folders).reduce(function (sum, name) { return sum + countTags(node.folders[name]); }, 0);
+        var countGroups = function (node) {
+            return node.groups.filter(blockShows).length + Object.keys(node.folders).reduce(function (sum, name) { return sum + countGroups(node.folders[name]); }, 0);
         };
         var gapFor = function (depth, parentKey) {
             if (!out.length) return 4;
@@ -793,39 +860,40 @@
         };
 
         var level = function (node, depth, bands, parentKey) {
-            na_tt_entries(node).forEach(function (entry) {
+            na_card_entries(spec, node, order).forEach(function (entry) {
                 if (out.length >= NA_MAX_ROWS) { state.truncated = true; return; }
                 if (entry.folder) folder(entry.folder, depth, bands, parentKey);
-                else tagBlock(entry.tag, depth, bands, parentKey);
+                else groupBlock(entry.group, depth, bands, parentKey);
             });
         };
 
         var folder = function (node, depth, bands, parentKey) {
             if (!folderShows(node)) return;
-            var key = Store.na_tt_folder_key(node.path);
+            var key = na_card_folder_key(spec, node.path);
             var closed = !!S.groupCollapsed[key];
             var own = bands.concat([{ d: depth, kind: 'folder', colour: NA_TT_FOLDER }]);
-            var tags = countTags(node);
-            out.push({ key: key, header: true, kind: 'folder', label: node.name, count: tags, countText: tags + (tags === 1 ? ' tag' : ' tags'),
+            var groups = countGroups(node);
+            out.push({ key: key, header: true, kind: 'folder', view: spec.view, label: node.name, count: groups, countText: groups + ' ' + spec.unit[groups === 1 ? 0 : 1],
                        open: !closed, hasKids: true, depth: depth, gap: gapFor(depth, parentKey), bands: own, parentKey: parentKey || '',
                        hidden: !node.shown, folderPath: node.path });
             if (!closed) level(node, depth + 1, own, key);
         };
 
-        var tagBlock = function (tag, depth, bands, parentKey) {
-            if (!blockShows(tag)) return;
-            var block = blocks[tag];
-            var key = Store.na_tt_tag_key(tag);
+        // A card (kind 'tag': a tag, or a prefix in Group by Category)
+        var groupBlock = function (group, depth, bands, parentKey) {
+            if (!blockShows(group)) return;
+            var block = blocks[group];
+            var key = na_card_key(spec, group);
             var closed = !!S.groupCollapsed[key];
-            var colour = Store.na_tt_colour(tag);
+            var colour = spec.colour(group);
             var own = bands.concat([{ d: depth, kind: 'tag', colour: colour }]);
-            var tt = { tag: tag, colour: colour, d: depth };
+            var tt = { group: group, colour: colour, d: depth };
             var start = out.length;
-            out.push({ key: key, header: true, kind: 'tag', tag: tag, label: tag || 'Untagged', colour: colour, count: block.count,
+            out.push({ key: key, header: true, kind: 'tag', view: spec.view, group: group, label: group || spec.none, colour: colour, count: block.count,
                        roots: block.roots.length, open: !closed, hasKids: true, depth: depth, gap: gapFor(depth, parentKey), bands: own,
-                       parentKey: parentKey || '', hidden: !!tag && !Store.na_tag_shown(tag), tt: tt });
+                       parentKey: parentKey || '', hidden: spec.hidden(group), tt: tt });
             if (!closed) {
-                var kp = Store.na_tt_prefix(tag);
+                var kp = na_card_prefix(spec, group);
                 var ctx = {
                     kp: kp, base: depth + 1,
                     decorate: function (item, lvl, parentPath) {
@@ -837,7 +905,7 @@
                         item.parentKey = lvl === 0 ? key : kp + parentPath.join('/');
                     }
                 };
-                var roots = na_sorted('tt:' + tag, block.roots);
+                var roots = na_sorted(spec.view + ':' + group, block.roots);
                 for (var i = 0; i < roots.length; i++) {
                     if (out.length >= NA_MAX_ROWS) { state.truncated = true; break; }
                     var path = reach[roots[i]] || [roots[i]];
@@ -848,48 +916,52 @@
             out[start].blockStart = true;
         };
 
-        var tags = Object.keys(blocks);
-        level(na_tt_levels(tags), 0, [], '');
+        level(na_card_levels(spec, Object.keys(blocks)), 0, [], '');
         if (!filter.on) state.count = Object.keys(reach).length;
     }
 
-    // FUNCTION | Where an Object Is Listed in Tree by Tag (its HOME)
-    // Its own tag's block; untagged, the block of the nearest tagged object
-    // above it (the one SketchUp hides it with), or Untagged when nothing
-    // above it is tagged. Inside the block, under the topmost object on the
-    // path that carries that tag.
+    // FUNCTION | Where an Object Is Listed in a Card View (its HOME)
+    // Its own group's block; with no group, the block of the nearest grouped
+    // object above it (the one SketchUp hides it with, or the named object it
+    // is part of), or the no-group card when nothing above it has one. Inside
+    // the block, under the topmost object on the path in that group.
+    // @param view {string}   'tagtree' or 'cattree'
     // @param path {number[]} the object's place in the tree, the object last
-    // @return {{tag: string, key: string, open: string[]}|null} the row's key, and the keys to open on the way
-    Store.na_tt_home = function (path) {
-        var target = path && path.length ? S.ents[path[path.length - 1]] : null;
+    // @return {{group: string, key: string, open: string[]}|null} the row's key, and the keys to open on the way
+    Store.na_card_home = function (view, path) {
+        var spec = Store.na_card_spec(view);
+        var target = spec && path && path.length ? S.ents[path[path.length - 1]] : null;
         if (!target) return null;
-        var tag = target.t || '';
-        for (var up = path.length - 2; !tag && up >= 0; up--) {
+        var group = spec.groupOf(target);
+        for (var up = path.length - 2; !group && up >= 0; up--) {
             var above = S.ents[path[up]];
-            if (above && above.t) tag = above.t;
+            if (above && spec.groupOf(above)) group = spec.groupOf(above);
         }
         var at = 0;
-        if (tag) while (at < path.length - 1 && (!S.ents[path[at]] || S.ents[path[at]].t !== tag)) at += 1;
+        if (group) while (at < path.length - 1 && (!S.ents[path[at]] || spec.groupOf(S.ents[path[at]]) !== group)) at += 1;
         var rootPath = Store.na_reachable()[path[at]] || path.slice(0, at + 1);
         var full = rootPath.concat(path.slice(at + 1));
-        var kp = Store.na_tt_prefix(tag);
+        var kp = na_card_prefix(spec, group);
         var open = [];
         for (var n = rootPath.length; n < full.length; n++) open.push(kp + full.slice(0, n).join('/'));
-        return { tag: tag, key: kp + full.join('/'), open: open };
+        return { group: group, key: kp + full.join('/'), open: open };
     };
 
-    // FUNCTION | Open Tree by Tag to Some Objects (following SketchUp's selection)
-    // Opens each object's folders, its tag and every row on the way to it.
+    // FUNCTION | Open a Card View to Some Objects (following SketchUp's selection)
+    // Opens each object's folders, its card and every row on the way to it.
     // @param paths {number[][]}
+    // @param view  {string=} the view on show when left out
     // @return {string[]} the keys of the rows it opened to
-    Store.na_reveal_tag_tree = function (paths) {
+    Store.na_reveal_cards = function (paths, view) {
+        var spec = Store.na_card_spec(view);
         var keys = [];
+        if (!spec) return keys;
         (paths || []).slice(0, 50).forEach(function (path) {
-            var home = Store.na_tt_home(path);
+            var home = Store.na_card_home(spec.view, path);
             if (!home) return;
-            delete S.groupCollapsed[Store.na_tt_tag_key(home.tag)];
-            var folders = na_tt_folders(home.tag);
-            for (var i = 1; i <= folders.length; i++) delete S.groupCollapsed[Store.na_tt_folder_key(folders.slice(0, i))];
+            delete S.groupCollapsed[na_card_key(spec, home.group)];
+            var folders = spec.folders(home.group);
+            for (var i = 1; i <= folders.length; i++) delete S.groupCollapsed[na_card_folder_key(spec, folders.slice(0, i))];
             home.open.forEach(function (key) { S.expanded[key] = true; delete S.searchCollapsed[key]; });
             keys.push(home.key);
         });
@@ -938,13 +1010,14 @@
             kids.forEach(function (pid) { var child = S.ents[pid]; if (child) walk(child, path.concat([pid]), depth + 1, kp); });
         };
         if (item) walk(S.ents[item.pid], item.path, 0, item.kp || '');
-        else if (S.view === 'tagtree') {                                                       // <-- Tree by Tag: every folder, tag and block (0.1.16)
-            Object.keys(S.groupCollapsed).forEach(function (key) { if (key.indexOf('g:tagtree:') === 0) delete S.groupCollapsed[key]; });
-            var blocks = Store.na_tag_blocks();
+        else if (Store.na_card_spec()) {                                                      // <-- The card views: every folder, card and block (0.1.16, 0.1.18)
+            var spec = Store.na_card_spec();
+            Object.keys(S.groupCollapsed).forEach(function (key) { if (key.indexOf('g:' + spec.view + ':') === 0) delete S.groupCollapsed[key]; });
+            var blocks = Store.na_card_blocks();
             var reach = Store.na_reachable();
-            Object.keys(blocks).forEach(function (tag) {
-                var kp = Store.na_tt_prefix(tag);
-                blocks[tag].roots.forEach(function (pid) { var row = S.ents[pid]; if (row) walk(row, reach[pid] || [pid], 0, kp); });
+            Object.keys(blocks).forEach(function (group) {
+                var kp = Store.na_card_prefix(spec.view, group);
+                blocks[group].roots.forEach(function (pid) { var row = S.ents[pid]; if (row) walk(row, reach[pid] || [pid], 0, kp); });
             });
         }
         else S.roots.forEach(function (pid) { var row = S.ents[pid]; if (row) walk(row, [pid], 0, ''); });
@@ -967,7 +1040,7 @@
             return item.hasKids && !!item.open !== open;
         });
         if (!stepping.length) return null;
-        // Headings step before rows, outermost first (Tree by Tag: folders, the tags in them, then each
+        // Headings step before rows, outermost first (the card views: folders, the cards in them, then each
         // card's rows by their level inside the card, 0.1.16)
         var depthOf = function (item) { return item.header ? (item.depth || 0) - 100 : (item.level !== undefined ? item.level : item.depth); };
         var level = stepping.reduce(function (best, item) {
@@ -998,7 +1071,7 @@
     // heading the object is listed under, as the tree view opens its parents.
     // @param pids {number[]}
     Store.na_reveal_groups = function (pids) {
-        if (S.view === 'tree' || S.view === 'flat' || S.view === 'tagtree') return;      // <-- Tree by Tag opens with na_reveal_tag_tree
+        if (S.view === 'tree' || S.view === 'flat' || Store.na_card_spec()) return;      // <-- The card views open with na_reveal_cards
         (pids || []).slice(0, 200).forEach(function (pid) {
             var row = S.ents[pid];
             if (row) delete S.groupCollapsed['g:' + S.view + ':' + na_group_of(row).key];

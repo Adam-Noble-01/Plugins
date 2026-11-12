@@ -236,7 +236,7 @@ class NaMcpServerTests(unittest.TestCase):
 
     def test_tools_list(self):
         tools = self.session.request('tools/list')['result']['tools']
-        self.assertEqual(len(tools), 75)
+        self.assertEqual(len(tools), 76)
         for tool in tools:
             self.assertEqual(tool['inputSchema']['type'], 'object')
             self.assertNotIn('$use', json.dumps(tool['inputSchema']))
@@ -266,6 +266,16 @@ class NaMcpServerTests(unittest.TestCase):
         # 1.0.26: pictures on comments and replies.
         self.assertEqual(edit['images']['type'], 'array')
         self.assertEqual(edit['images']['items']['type'], 'string')
+        # 1.0.31: Adam's Tree by Tag view for agents, one card and how deep.
+        self.assertIn('tag_tree', read['action']['enum'])
+        self.assertEqual(read['tag']['type'], 'string')
+        self.assertEqual((read['depth']['type'], read['depth']['minimum'], read['depth']['maximum']), ('integer', 0, 8))
+        self.assertIn('tag_tree', tools['agent_outliner']['description'])
+        # 1.0.32: his Group by Category view for agents, one prefix's card.
+        self.assertIn('category_tree', read['action']['enum'])
+        self.assertEqual(read['prefix']['type'], 'string')
+        self.assertIn('category_tree', tools['agent_outliner']['description'])
+        self.assertLessEqual(len(tools['agent_outliner']['description']), 2048)
 
     def test_profile_tracer_tools(self):
         # 1.0.24: Adam's Na Profile Path Tracer, read / edit (batchable, own undo step) / library (files).

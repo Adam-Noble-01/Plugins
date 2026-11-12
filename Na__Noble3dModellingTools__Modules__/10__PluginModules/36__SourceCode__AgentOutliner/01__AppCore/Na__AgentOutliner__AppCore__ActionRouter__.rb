@@ -61,6 +61,7 @@ module Na__AgentOutliner
             'saveStandards'   => :na_save_standards,
             'saveSettings'    => :na_save_settings,
             'reloadPlugin'    => :na_reload_plugin,
+            'closeDialog'     => :na_close_dialog,
             'reloadNoble3d'   => :na_reload_noble3d,
             'openFolder'      => :na_open_folder,
             'copyText'        => :na_copy_text,
@@ -148,6 +149,15 @@ module Na__AgentOutliner
         def self.na_reload_plugin(_payload)
             Na__AgentOutliner::Na__DialogManager.Na__Dialog__Deferred do
                 Na__AgentOutliner::Na__DialogManager.Na__Dialog__ReloadPlugin
+            end
+            true
+        end
+
+        # The Show or Hide key pressed while the Outliner has the keyboard (0.1.17): closed on a later
+        # tick, as the callback that asked returns before its own dialog goes.
+        def self.na_close_dialog(_payload)
+            Na__AgentOutliner::Na__DialogManager.Na__Dialog__Deferred do
+                Na__AgentOutliner::Na__DialogManager.Na__Dialog__Close
             end
             true
         end

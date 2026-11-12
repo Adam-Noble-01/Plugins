@@ -312,7 +312,7 @@ rescue AO::Na__McpOperationsError => error
 end
 
 actions = OPS.Na__AgentOutliner__McpActions
-check('seam: action lists', actions['read'] == %w[summary inbox changes thread threads flags prefixes find tags] && actions['edit'].include?('reply') && actions['edit'].last == 'tag')
+check('seam: action lists', actions['read'] == %w[summary inbox changes thread threads flags prefixes find tags tag_tree category_tree] && actions['edit'].include?('reply') && actions['edit'].last == 'tag')
 summary = OPS.Na__AgentOutliner__McpRead('summary', {})
 check('seam: summary counts groups and what waits', summary['objects']['Group'].to_i >= 5 && summary['waiting_for_agent'].to_i >= 1)
 inbox = OPS.Na__AgentOutliner__McpRead('inbox', {})
@@ -1173,6 +1173,181 @@ ensure
     walls16.folder = nil
     roof16.folder  = nil
 end
+
+# ---------------------------------------------------------------------------
+# 0.1.17: Show or Hide, the key Adam binds (Noble 3D Tools' toggle_agent_outliner)
+# ---------------------------------------------------------------------------
+dm17 = AO::Na__DialogManager
+calls17 = []
+open17 = [false]
+dm17.singleton_class.send(:alias_method, :na_test_visible17, :Na__Dialog__Visible?)
+dm17.singleton_class.send(:alias_method, :na_test_show17, :Na__Dialog__Show)
+dm17.singleton_class.send(:alias_method, :na_test_close17, :Na__Dialog__Close)
+dm17.singleton_class.send(:alias_method, :na_test_prefs17, :Na__Dialog__PreferencesPath)
+dm17.define_singleton_method(:Na__Dialog__Visible?) { open17[0] }
+dm17.define_singleton_method(:Na__Dialog__Show) { calls17 << :show; open17[0] = true; true }
+dm17.define_singleton_method(:Na__Dialog__Close) { calls17 << :close; open17[0] = false; nil }
+prefs17 = File.join(SCR, 'SharedPreferences.json')
+dm17.define_singleton_method(:Na__Dialog__PreferencesPath) { prefs17 }
+begin
+    first17  = AO.Na__AgentOutliner__ToggleDialog
+    second17 = AO.Na__AgentOutliner__ToggleDialog
+    check('toggle: shut, it opens; open, it closes', calls17 == [:show, :close] && first17[:message] == 'Agent Outliner opened.' && second17[:message] == 'Agent Outliner closed.' && first17[:success] && second17[:success])
+
+    bound = lambda do |key, ctrl: false, alt: false, shift: false, path: AO::Na__DialogManager::NA_TOGGLE_PATH|
+        { 'Alt' => alt, 'Ctrl' => ctrl, 'Key' => key, 'Meta' => false, 'Path' => path, 'Shift' => shift }
+    end
+    File.write(prefs17, "\uFEFF" + JSON.generate({ 'Windows Only' => { 'Settings' => { 'Shortcuts' => [
+        bound.call('9', ctrl: true, shift: true),
+        bound.call('O', ctrl: true, alt: true, path: 'Extensions/NA__NOBLE3DMODELLINGTOOLS/show or hide agent outliner'),
+        bound.call('\\', alt: true),
+        bound.call('NumPad4', ctrl: true),
+        bound.call('Left', shift: true),
+        bound.call('Escape'),
+        bound.call('9', ctrl: true, path: 'Extensions/Na__Noble3dModellingTools/Agent Outliner'),
+        bound.call('F7')
+    ] } } }))
+    keys17 = dm17.Na__Dialog__ToggleKeys
+    check('keys: only the Show or Hide bindings are read (any case), each as the page matches it',
+          keys17.map { |k| k['label'] } == ['Ctrl+Shift+9', 'Ctrl+Alt+O', 'Alt+\\', 'Ctrl+NumPad4', 'Shift+Left', 'F7'] &&
+          keys17.map { |k| k['code'] } == %w[Digit9 KeyO Backslash Numpad4 ArrowLeft F7])
+    check('keys: modifiers and the typed character travel too', keys17[0]['ctrl'] && keys17[0]['shift'] && !keys17[0]['alt'] && keys17[1]['char'] == 'O' && keys17[2]['char'] == '\\' && keys17[4]['char'] == '')
+    check('keys: a key it cannot name (Escape) is left out, not guessed', keys17.none? { |k| k['label'] == 'Escape' })
+    File.write(prefs17, 'not json')
+    File.utime(Time.now + 5, Time.now + 5, prefs17)
+    check('keys: a broken or missing preferences file gives none', dm17.Na__Dialog__ToggleKeys == [] && (File.delete(prefs17) || true) && dm17.Na__Dialog__ToggleKeys == [])
+
+    sent17 = []
+    dm17.singleton_class.send(:alias_method, :na_test_send17, :Na__Dialog__Send)
+    dm17.define_singleton_method(:Na__Dialog__Send) { |channel, payload| sent17 << [channel, payload]; true }
+    begin
+        File.write(prefs17, JSON.generate({ 'Windows Only' => { 'Settings' => { 'Shortcuts' => [bound.call('K', ctrl: true, shift: true)] } } }))
+        File.utime(Time.now + 10, Time.now + 10, prefs17)
+        dm17.Na__Dialog__PushState
+        state17 = sent17.assoc('state')
+        check('state: the page is told the Show or Hide keys', state17 && state17[1]['toggle_keys'].map { |k| k['label'] } == ['Ctrl+Shift+K'])
+
+        open17[0] = true
+        calls17.clear
+        $NA_TIMERS.clear
+        AO::Na__ActionRouter.Na__Action__Dispatch('closeDialog', {})
+        check('closeDialog: the page\'s key closes the dialog on a later tick, not inside its own callback', calls17.empty? && $NA_TIMERS.length == 1)
+        UI.run_timers!
+        check('closeDialog: then it is closed', calls17 == [:close])
+    ensure
+        dm17.singleton_class.send(:alias_method, :Na__Dialog__Send, :na_test_send17)
+    end
+ensure
+    dm17.singleton_class.send(:alias_method, :Na__Dialog__Visible?, :na_test_visible17)
+    dm17.singleton_class.send(:alias_method, :Na__Dialog__Show, :na_test_show17)
+    dm17.singleton_class.send(:alias_method, :Na__Dialog__Close, :na_test_close17)
+    dm17.singleton_class.send(:alias_method, :Na__Dialog__PreferencesPath, :na_test_prefs17)
+    File.delete(prefs17) if File.exist?(prefs17)
+end
+
+# ---------------------------------------------------------------------------
+# 0.1.17: agent_outliner tag_tree, the Tree by Tag view for agents
+#   TT__Alpha_Root (untagged)
+#     TT__Bravo_Walls (TT__Walls, in folder TT__Existing)
+#       TT__Charlie_Part (untagged: goes with Bravo)
+#       TT__Delta_Roof (TT__Roof: listed in Bravo AND heads TT__Roof)
+#   TT__Foxtrot_Walls (TT__Walls)
+#     TT__Golf_Walls (TT__Walls: inside Foxtrot only)
+# ---------------------------------------------------------------------------
+tt_walls  = model.layers.add('TT__Walls')
+tt_roof   = model.layers.add('TT__Roof')
+tt_folder = Sketchup::LayerFolder.new('TT__Existing')
+tt_walls.folder = tt_folder
+tt_alpha  = na_group(model.entities, 'TT__Alpha_Root')
+tt_bravo  = na_group(tt_alpha.definition.entities, 'TT__Bravo_Walls', layer: tt_walls)
+na_group(tt_bravo.definition.entities, 'TT__Charlie_Part')
+tt_delta  = na_group(tt_bravo.definition.entities, 'TT__Delta_Roof', layer: tt_roof)
+tt_fox    = na_group(model.entities, 'TT__Foxtrot_Walls', layer: tt_walls)
+na_group(tt_fox.definition.entities, 'TT__Golf_Walls', layer: tt_walls)
+AO::Na__Tracker.Na__Tracker__Refresh(model)
+begin
+    check('tag_tree: a read action the MCP is told about', OPS.Na__AgentOutliner__McpActions['read'].include?('tag_tree'))
+    walls_tt = OPS.Na__AgentOutliner__McpRead('tag_tree', { 'tag' => 'TT__Walls', 'depth' => 3 })['card']
+    names_tt = walls_tt['items'].map { |item| item['name'] }
+    check('tag_tree: a tagged group inside an untagged one heads its tag\'s card; a same-tag part stays inside its group',
+          names_tt == %w[TT__Bravo_Walls TT__Foxtrot_Walls] && walls_tt['objects_on_tag'] == 3 && walls_tt['folder'] == 'TT__Existing')
+    bravo_tt = walls_tt['items'][0]
+    check('tag_tree: a top object nested in the model says where it is', bravo_tt['within'].map { |up| up['name'] } == ['TT__Alpha_Root'] && !walls_tt['items'][1].key?('within'))
+    kids_tt = bravo_tt['children'].each_with_object({}) { |child, hash| hash[child['name']] = child }
+    check('tag_tree: an untagged part is listed inside its tagged group, no tag of its own; a part on another tag names it',
+          kids_tt.keys == %w[TT__Charlie_Part TT__Delta_Roof] && !kids_tt['TT__Charlie_Part'].key?('tag') && kids_tt['TT__Delta_Roof']['tag'] == 'TT__Roof')
+    roof_tt = OPS.Na__AgentOutliner__McpRead('tag_tree', { 'tag' => 'tt__roof' })['card']
+    check('tag_tree: that part heads its own card too (the tag in any case), at its place in the model',
+          roof_tt['items'].map { |item| item['name'] } == ['TT__Delta_Roof'] && roof_tt['items'][0]['within'].map { |up| up['name'] } == %w[TT__Alpha_Root TT__Bravo_Walls])
+    untagged_tt = OPS.Na__AgentOutliner__McpRead('tag_tree', { 'tag' => 'Untagged', 'depth' => 0 })['card']
+    check('tag_tree: Untagged lists top-level untagged objects only (Alpha, never Charlie)',
+          untagged_tt['label'] == 'Untagged' && untagged_tt['items'].any? { |item| item['name'] == 'TT__Alpha_Root' } &&
+          untagged_tt['items'].none? { |item| item['name'] == 'TT__Charlie_Part' } && untagged_tt['items'].all? { |item| !item.key?('within') })
+    shallow_tt = OPS.Na__AgentOutliner__McpRead('tag_tree', { 'tag' => 'TT__Walls', 'depth' => 0 })['card']
+    check('tag_tree: depth 0 lists the top objects and counts what is inside', shallow_tt['items'][0]['inside'] == 2 && !shallow_tt['items'][0].key?('children'))
+    cut_tt = OPS.Na__AgentOutliner__McpRead('tag_tree', { 'tag' => 'TT__Walls', 'depth' => 3, 'limit' => 2 })
+    check('tag_tree: limit stops the listing and says so', cut_tt['listed'] == 2 && cut_tt['truncated'] == true)
+    all_tt = OPS.Na__AgentOutliner__McpRead('tag_tree', {})
+    folder_tt = all_tt['cards'].find { |entry| entry['kind'] == 'folder' && entry['name'] == 'TT__Existing' }
+    check('tag_tree: the whole view: Untagged first, folders holding their tags, tags with no objects left out',
+          all_tt['cards'][0]['kind'] == 'tag' && all_tt['cards'][0]['tag'] == '' && folder_tt && folder_tt['items'].map { |entry| entry['tag'] } == ['TT__Walls'] &&
+          all_tt['cards'].none? { |entry| entry['kind'] == 'tag' && entry['tag'] == 'TT__Walls' } && all_tt['how_it_reads'].include?('Untagged'))
+    check('tag_tree: a tag with nothing on it is refused, naming the tags action', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('tag_tree', { 'tag' => 'No Such Tag' }) })
+ensure
+    tt_walls.folder = nil
+end
+
+# ---------------------------------------------------------------------------
+# 0.1.18: agent_outliner category_tree, the Group by Category view for agents
+# (the shipped standards: CAD__FrontElevation in CAD Elevations, REF in
+# References, EDIT in Guides)
+#   CT__Alpha_Root (no standard name)
+#     REF__CT_Bravo (REF)
+#       CT__Charlie_Part (unnamed: goes with Bravo)
+#       CAD__FrontElevation__CT_Delta (CAD__FrontElevation: in Bravo AND heads its card)
+#   REF__CT_Foxtrot (REF)
+#     REF__CT_Golf (REF: inside Foxtrot only)
+#   EDIT__CT_Echo (EDIT)
+# ---------------------------------------------------------------------------
+ct_alpha = na_group(model.entities, 'CT__Alpha_Root')
+ct_bravo = na_group(ct_alpha.definition.entities, 'REF__CT_Bravo')
+na_group(ct_bravo.definition.entities, 'CT__Charlie_Part')
+na_group(ct_bravo.definition.entities, 'CAD__FrontElevation__CT_Delta')
+ct_fox = na_group(model.entities, 'REF__CT_Foxtrot')
+na_group(ct_fox.definition.entities, 'REF__CT_Golf')
+na_group(model.entities, 'EDIT__CT_Echo')
+AO::Na__Tracker.Na__Tracker__Refresh(model)
+ct_ref_entry = AO::Na__ConfigStore.Na__Standards__Prefixes.find { |p| p['label'] == 'REF' }
+ct_names = lambda { |card| card['items'].map { |item| item['name'] }.select { |name| name.include?('CT_') } }
+check('category_tree: a read action the MCP is told about', OPS.Na__AgentOutliner__McpActions['read'].include?('category_tree'))
+ref_ct = OPS.Na__AgentOutliner__McpRead('category_tree', { 'prefix' => 'ref', 'depth' => 3 })['card']
+check('category_tree: a named group inside an unnamed one heads its prefix\'s card (any case); a same-prefix part stays inside its group',
+      ct_names.call(ref_ct) == %w[REF__CT_Bravo REF__CT_Foxtrot] && ref_ct['kind'] == 'prefix' && ref_ct['prefix'] == 'REF')
+check('category_tree: a card carries its category, colour and meaning from Configure',
+      ref_ct['category'] == 'References' && ref_ct['colour'] == ct_ref_entry['colour'] && ref_ct['meaning'] == ct_ref_entry['meaning'] && ref_ct['objects_named'] >= 3)
+bravo_ct = ref_ct['items'].find { |item| item['name'] == 'REF__CT_Bravo' }
+kids_ct = bravo_ct['children'].each_with_object({}) { |child, hash| hash[child['name']] = child }
+check('category_tree: an unnamed part is listed inside its named group; a part with another prefix names it; where a nested top object is',
+      kids_ct.keys == %w[CAD__FrontElevation__CT_Delta CT__Charlie_Part] && !kids_ct['CT__Charlie_Part'].key?('prefix') &&
+      kids_ct['CAD__FrontElevation__CT_Delta']['prefix'] == 'CAD__FrontElevation' && bravo_ct['within'].map { |up| up['name'] } == ['CT__Alpha_Root'])
+fox_ct = ref_ct['items'].find { |item| item['name'] == 'REF__CT_Foxtrot' }
+check('category_tree: a same-prefix part is listed once, inside its group', fox_ct['children'].map { |child| child['name'] } == ['REF__CT_Golf'] && !fox_ct['children'][0].key?('prefix'))
+cad_ct = OPS.Na__AgentOutliner__McpRead('category_tree', { 'prefix' => 'CAD__FrontElevation__' })['card']
+delta_ct = cad_ct['items'].find { |item| item['name'] == 'CAD__FrontElevation__CT_Delta' }
+check('category_tree: that part heads its own prefix\'s card too (a trailing __ is fine), at its place in the model',
+      delta_ct && delta_ct['within'].map { |up| up['name'] } == %w[CT__Alpha_Root REF__CT_Bravo] && cad_ct['category'] == 'CAD Elevations')
+none_ct = OPS.Na__AgentOutliner__McpRead('category_tree', { 'prefix' => 'No Standard Name', 'depth' => 0 })['card']
+check('category_tree: No Standard Name lists top-level unnamed objects only (Alpha, never Charlie)',
+      none_ct['label'] == 'No Standard Name' && none_ct['prefix'] == '' && none_ct['items'].any? { |item| item['name'] == 'CT__Alpha_Root' } &&
+      none_ct['items'].none? { |item| item['name'] == 'CT__Charlie_Part' } && !none_ct.key?('category'))
+all_ct = OPS.Na__AgentOutliner__McpRead('category_tree', {})
+cat_names = all_ct['cards'].select { |entry| entry['kind'] == 'category' }.map { |entry| entry['name'] }
+check('category_tree: the whole view: categories in Configure\'s order holding prefix cards, faces never, No Standard Name last',
+      cat_names.index('CAD Elevations') < cat_names.index('References') && cat_names.index('References') < cat_names.index('Guides') &&
+      !cat_names.include?('Elevation Faces') && all_ct['cards'].last['prefix'] == '' &&
+      all_ct['cards'].find { |entry| entry['name'] == 'Guides' }['items'].map { |entry| entry['prefix'] } == ['EDIT'] && all_ct['view'] == 'Group by Category')
+check('category_tree: a prefix nothing is named with is refused, naming the prefixes action',
+      refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('category_tree', { 'prefix' => 'NOPE__Nothing' }) })
 
 report_and_exit
 raise "#{$NA_FAIL} checks failed" if $NA_FAIL > 0

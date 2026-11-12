@@ -474,6 +474,17 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "toggle_agent_outliner",
+            "command_name"      : "Na Noble3d - Show or Hide Agent Outliner",
+            "tooltip"           : "Open the Agent Outliner, or close it when it is open. Bind a key to it in Window > Preferences > Shortcuts (Extensions/Na__Noble3dModellingTools/Show or Hide Agent Outliner); the same key closes it while the Outliner has the keyboard",
+            "status_bar_text"   : "Show or hide the Agent Outliner",
+            "menu_text"         : "Show or Hide Agent Outliner",
+            "short_name"        : "Outliner +/-",
+            "quick_launch"      : false,
+            "handler_key"       : "toggle_agent_outliner",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "untag_specific_in_selection",
             "command_name"      : "Na Noble3d - Untag Specific In Selection",
             "tooltip"           : "Selectively remove specific tags from the current selection while preserving all other tag assignments",
@@ -1349,6 +1360,10 @@
         },
         {
             "command_id"        : "open_agent_outliner",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "toggle_agent_outliner",
             "expose_to_hotkeys" : true
         },
         {

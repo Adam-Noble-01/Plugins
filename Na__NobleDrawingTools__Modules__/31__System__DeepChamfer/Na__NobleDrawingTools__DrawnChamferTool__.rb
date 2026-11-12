@@ -1066,6 +1066,11 @@ module Na__NobleDrawingTools
         # slivers plus the end triangles — so what disappears reads separately
         # from the amber cut plane that replaces it. Shared by the driver and
         # every SHIFT-banked rider; only the driver carries dimensions.
+        #
+        # On a convex edge the chamfer plane lies INSIDE the solid, behind the
+        # faces it cuts, so it is drawn on top in screen space as the
+        # subtraction push is (5.2.39); an inside corner's fill sits in the air
+        # and keeps the depth-tested draw.
         # ------------------------------------------------------------
         def na_drawn__draw_cut_faces(view, solve)
             world = solve[:world]
@@ -1081,9 +1086,31 @@ module Na__NobleDrawingTools
             na_drawn__draw_end_cap(view, solve, 0, [world[:v0], world[:a0], world[:b0]])
             na_drawn__draw_end_cap(view, solve, 1, [world[:v1], world[:a1], world[:b1]])
 
+            loop_points = Na__NobleDrawingTools.Na__DrawnChamfer__FaceLoopWorld(solve)
+            return if solve[:convex] != false && na_drawn__draw_fan_on_top(view, loop_points)
+
             Na__NobleDrawingTools.Na__DrawnPreview__DrawFilledPolygon(
-                view, Na__NobleDrawingTools.Na__DrawnChamfer__FaceLoopWorld(solve),
-                NA_DRAWN_VOLUME_FILL_COLOR, NA_DRAWN_VOLUME_BORDER_COLOR
+                view, loop_points, NA_DRAWN_VOLUME_FILL_COLOR, NA_DRAWN_VOLUME_BORDER_COLOR
+            )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Flat Polygon of New Surface on Top, Outlined
+        # A fan from the first point, as the depth-tested GL_TRIANGLE_FAN draws
+        # it: the chamfer plane (four to six points) or a stop. false when it
+        # could not be projected, for the caller's depth-tested fallback.
+        # ------------------------------------------------------------
+        def na_drawn__draw_fan_on_top(view, points)
+            return false unless points && points.length >= 3 && points.all?
+
+            triangles = []
+            (1...(points.length - 1)).each do |index|
+                triangles << points[0] << points[index] << points[index + 1]
+            end
+
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawSurfaceOnTop(
+                view, [], triangles, [points + [points.first]],
+                NA_DRAWN_VOLUME_XRAY_FILL, NA_DRAWN_VOLUME_BORDER_COLOR
             )
         end
         # ---------------------------------------------------------------
@@ -1102,6 +1129,8 @@ module Na__NobleDrawingTools
             return if solve[end_index.zero? ? :mitre0 : :mitre1] || solve[end_index.zero? ? :through0 : :through1]
 
             stopped = solve[end_index.zero? ? :stop0 : :stop1]
+            return if stopped && solve[:convex] != false && na_drawn__draw_fan_on_top(view, points)   # <-- A stop is new surface inside the solid
+
             Na__NobleDrawingTools.Na__DrawnPreview__DrawFilledPolygon(
                 view, points,
                 stopped ? NA_DRAWN_VOLUME_FILL_COLOR   : NA_DRAWN_PLANE_FILL_COLOR,

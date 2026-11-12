@@ -279,7 +279,7 @@ module Na__NobleDrawingTools
             message = nil
 
             if @na_state == :picking_depth
-                na_drawn__refresh_solve
+                na_fl__remeasure(view)
                 message = "Fillet is now a #{name}"
             elsif na_revise__available?
                 record  = @na_revise_record
@@ -294,6 +294,38 @@ module Na__NobleDrawingTools
             na_drawn__update_status_text
             na_drawn__refresh_vcb
             view.invalidate if view
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Measure Again After TAB Changed the Kind Mid-Drag
+        # A round-over and a cove of one radius take different room: on the
+        # Corrett ridge with its hips the limit is 203 mm round, 103 mm cove
+        # (12-Nov-2026). The limit was measured once at the grab, so without
+        # this a cove swapped to a round stayed capped at the cove's limit and a
+        # round swapped to a cove could be dragged past what the faces hold. A
+        # dragged radius over the new limit comes down to it; a typed (locked)
+        # one is left for the commit to refuse by name, as Deep Ovolo does.
+        # ------------------------------------------------------------
+        def na_fl__remeasure(view)
+            return false unless @na_ch_target
+
+            batch           = @na_ch_batch.empty? ? [@na_ch_target] : @na_ch_batch
+            @na_ch_max_size = na_lm__max_for(batch)
+            max             = @na_ch_max_size
+
+            if max && !na_drawn__locked?(:d)
+                if max.to_f <= 0.0
+                    @na_size_d = 0.0
+                elsif @na_size_d.to_f > max.to_f
+                    @na_size_d = max.to_f
+                elsif @na_size_d.to_f <= 0.0
+                    @na_size_d = na_sc__opening_size(view)
+                end
+            end
+
+            na_sc__rebase(@na_last_mouse_y, @na_size_d)
+            na_drawn__refresh_solve
             true
         end
         # ---------------------------------------------------------------

@@ -72,6 +72,7 @@
     var NA_VIEWS = [
         { value: 'tree',             label: 'Tree' },
         { value: 'tagtree',          label: 'Tree by Tag' },
+        { value: 'cattree',          label: 'Group by Category' },
         { value: 'flat',             label: 'Flat List' },
         { value: 'group:tag',        label: 'Group by Tag' },
         { value: 'group:type',       label: 'Group by Type' },
@@ -286,7 +287,7 @@
         Store.na_build_rows();
         na_render_header();
         var canvas = document.getElementById('na-ol-canvas');
-        canvas.style.height = (na_layout_rows() + (Store.na_state().view === 'tagtree' ? 10 : 0)) + 'px';
+        canvas.style.height = (na_layout_rows() + (Store.na_card_spec() ? 10 : 0)) + 'px';
         na_prune_selection();
         na_render_window(true);
         na_render_footer();
@@ -450,20 +451,29 @@
         element.appendChild(Shell.na_el('span', 'na-ol-group-label', item.label));
         if (item.hidden) {
             var off = View.na_icon('eye-off');
-            off.title = item.kind === 'tag' ? 'This tag is hidden in SketchUp' : 'This folder is hidden in SketchUp';
+            off.title = item.kind === 'tag' ? 'This tag is hidden in SketchUp' : 'This tag folder is hidden in SketchUp';
             element.appendChild(off);
         }
         element.appendChild(Shell.na_el('span', 'na-ol-group-count', item.kind === 'tag' ? String(item.count) : item.countText));
 
-        if (item.kind === 'folder') {
-            element.title = item.label + ': a tag folder holding ' + item.countText + ' with objects' + (item.hidden ? ' (hidden in SketchUp)' : '') + '. Click to open or close.';
-        } else if (item.tag) {
-            element.title = item.label + ': ' + item.count + (item.count === 1 ? ' object' : ' objects') + ' on this tag, ' + item.roots + ' listed at the top of the card and the rest inside them' +
-                (item.hidden ? '. The tag is hidden in SketchUp' : '') + '. Click to open or close.';
-        } else {
-            element.title = 'Untagged: ' + item.count + ' untagged objects. The top-level ones head this card; an untagged part of a tagged group is listed inside that group, in its tag\'s card. Click to open or close.';
-        }
+        element.title = na_tt_heading_title(item) + ' Click to open or close.';
         return element;
+    }
+
+    // What a card view's heading stands for (its tooltip)
+    function na_tt_heading_title(item) {
+        var objects = item.count + (item.count === 1 ? ' object' : ' objects');
+        var placed = ', ' + item.roots + ' listed at the top of the card and the rest inside them.';
+        if (item.view === 'cattree') {                                                     // <-- Group by Category (0.1.18)
+            if (item.kind === 'folder') return item.label + ': a naming category (Configure) holding ' + item.countText + ' with objects.';
+            if (!item.group) return 'No Standard Name: ' + objects + ' whose names carry no standard prefix. The top-level ones head this card; an unnamed part of a named object is listed inside that object, in its prefix\'s card.';
+            var meaning = String((Store.na_prefix_entry(item.group) || {}).meaning || '').trim();
+            if (meaning && !/[.!?]$/.test(meaning)) meaning += '.';                    // <-- Adam's short meanings have no full stop
+            return item.label + ': ' + objects + ' named with this prefix' + placed + (meaning ? ' ' + meaning : '');
+        }
+        if (item.kind === 'folder') return item.label + ': a tag folder holding ' + item.countText + ' with objects' + (item.hidden ? ' (hidden in SketchUp)' : '') + '.';
+        if (!item.group) return 'Untagged: ' + item.count + ' untagged objects. The top-level ones head this card; an untagged part of a tagged group is listed inside that group, in its tag\'s card.';
+        return item.label + ': ' + objects + ' on this tag' + placed.slice(0, -1) + (item.hidden ? '. The tag is hidden in SketchUp.' : '.');
     }
 
     function na_cell(col, row, item, change) {
@@ -774,7 +784,7 @@
         var S = Store.na_state();
         var homes = {};
         if (S.view === 'tree') paths.slice(0, 50).forEach(function (path) { Store.na_reveal(path); });
-        else if (S.view === 'tagtree') Store.na_reveal_tag_tree(paths).forEach(function (key) { homes[key] = true; });   // <-- Its own card (0.1.16)
+        else if (Store.na_card_spec()) Store.na_reveal_cards(paths).forEach(function (key) { homes[key] = true; });   // <-- Its own card (0.1.16)
         else Store.na_reveal_groups(paths.map(function (path) { return path[path.length - 1]; }));
         Store.na_build_rows();
         var wanted = {};
@@ -801,7 +811,7 @@
         var pid = path[path.length - 1];
         var homeKey = '';
         if (S.view === 'tree') Store.na_reveal(path);
-        else if (S.view === 'tagtree') homeKey = Store.na_reveal_tag_tree([path])[0] || '';
+        else if (Store.na_card_spec()) homeKey = Store.na_reveal_cards([path])[0] || '';
         else Store.na_reveal_groups([pid]);
         View.na_render();
         var key = homeKey || path.join('/');

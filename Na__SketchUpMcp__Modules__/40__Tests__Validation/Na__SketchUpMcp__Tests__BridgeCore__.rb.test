@@ -1307,6 +1307,65 @@ na_check('footprint: a hole (even-odd) leaves 750,000') { na_close(holed[:area_a
 distance = PG.Na__PlanGeometry__OutlineDistance([sq.(0, 0, 1000)], [sq.(10, 0, 1000)], 20.0)
 na_check('outline distance: a square moved 10 is 10 at most') { na_close(distance[:hausdorff], 10.0, 1.0e-9) }
 
+# Photo flattening (1.0.33, image_flatten): a 1000 x 2500 rectangle seen by a camera with a
+# 1500 px focal length, turned 29 degrees and tilted 14, its principal point at [1000, 750].
+flat_rotation = lambda do |yaw, pitch|
+    ry = [[Math.cos(yaw), 0.0, Math.sin(yaw)], [0.0, 1.0, 0.0], [-Math.sin(yaw), 0.0, Math.cos(yaw)]]
+    rx = [[1.0, 0.0, 0.0], [0.0, Math.cos(pitch), -Math.sin(pitch)], [0.0, Math.sin(pitch), Math.cos(pitch)]]
+    (0..2).map { |r| (0..2).map { |c| (0..2).sum { |k| rx[r][k] * ry[k][c] } } }
+end
+flat_rot = flat_rotation.call(0.5, 0.25)
+flat_project = lambda do |s, t|
+    p = [s - 500.0, -(t - 1250.0), 0.0]
+    c = (0..2).map { |r| (flat_rot[r][0] * p[0]) + (flat_rot[r][1] * p[1]) + (flat_rot[r][2] * p[2]) }
+    c[2] += 4000.0
+    [1000.0 + (1500.0 * c[0] / c[2]), 750.0 + (1500.0 * c[1] / c[2])]
+end
+flat_corners = [[0.0, 0.0], [1000.0, 0.0], [1000.0, 2500.0], [0.0, 2500.0]].map { |s, t| flat_project.call(s, t) }
+flat_aspect = PG.Na__PlanGeometry__RectangleAspect(flat_corners, [1000.0, 750.0])
+na_check('flatten: proportions of a rectangle seen in perspective are recovered') do
+    flat_aspect && na_close(flat_aspect[:aspect], 0.4, 1.0e-6) && na_close(flat_aspect[:focal_px], 1500.0, 1.0e-3)
+end
+na_check('flatten: a square-on view has no focal length and keeps the side ratio') do
+    square_on = PG.Na__PlanGeometry__RectangleAspect([[100.0, 100.0], [300.0, 100.0], [300.0, 600.0], [100.0, 600.0]], [500.0, 500.0])
+    square_on && square_on[:focal_px].nil? && na_close(square_on[:aspect], 0.4, 1.0e-9)
+end
+na_check('flatten: crossed corners make no rectangle') { PG.Na__PlanGeometry__SelfIntersects([flat_corners[0], flat_corners[2], flat_corners[1], flat_corners[3]]) }
+flat_points = [[250.0, 400.0], [750.0, 1800.0], [500.0, 1250.0], [100.0, 2100.0]].map { |s, t| [[s, t], flat_project.call(s, t)] }
+flat_height = PG.Na__PlanGeometry__SolveRectangleHeight(flat_corners, 1000.0, flat_points, 100.0, 25_000.0)
+na_check('flatten: an unknown height is solved from known points to under 0.01') do
+    flat_height && na_close(flat_height[:height], 2500.0, 0.01) && flat_height[:fit][:max_px] < 1.0e-3
+end
+na_check('flatten: no points, no height') { PG.Na__PlanGeometry__SolveRectangleHeight(flat_corners, 1000.0, [], 100.0, 25_000.0).nil? }
+flat_src = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180].pack('C*')
+flat_copy = PG.Na__PlanGeometry__WarpPixels(flat_src, 3, 2, 3, 9, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], 3, 2)
+na_check('flatten: an identity warp copies every pixel, opaque') do
+    flat_copy.bytesize == 24 && (0...6).all? { |k| flat_copy.byteslice(k * 4, 3) == flat_src.byteslice(k * 3, 3) && flat_copy.getbyte((k * 4) + 3) == 255 }
+end
+na_check('flatten: a warp off the photo is transparent') do
+    off = PG.Na__PlanGeometry__WarpPixels(flat_src, 3, 2, 3, 9, [[1.0, 0.0, 10.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], 3, 2)
+    (0...6).all? { |k| off.getbyte((k * 4) + 3).zero? }
+end
+na_check('flatten: half a pixel along blends two neighbours') do
+    half = PG.Na__PlanGeometry__WarpPixels(flat_src, 3, 2, 3, 9, [[1.0, 0.0, 0.5], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], 2, 1)
+    half.getbyte(0) == 25 && half.getbyte(1) == 35 && half.getbyte(2) == 45 && half.getbyte(3) == 255
+end
+# EXIF orientation (1.0.33): SketchUp's ImageRep ignores it, so pins read upright are turned back to raw pixels.
+exif_little = ["\xFF\xD8\xFF\xE1".b, [34].pack('n'), "Exif\0\0".b, "II*\0".b, [8].pack('V'), [1].pack('v'), [0x0112, 3, 1].pack('vvV'), [6, 0].pack('vv'), [0].pack('V'), "\xFF\xDA".b].join
+exif_big = ["\xFF\xD8\xFF\xE1".b, [34].pack('n'), "Exif\0\0".b, "MM\0*".b, [8].pack('N'), [1].pack('n'), [0x0112, 3, 1].pack('nnN'), [8, 0].pack('nn'), [0].pack('N'), "\xFF\xDA".b].join
+na_check('flatten: EXIF orientation is read, both byte orders') do
+    PG.Na__PlanGeometry__JpegOrientation(exif_little) == 6 && PG.Na__PlanGeometry__JpegOrientation(exif_big) == 8
+end
+na_check('flatten: no EXIF, or not a JPEG, is orientation 1') do
+    PG.Na__PlanGeometry__JpegOrientation("\xFF\xD8\xFF\xDA".b) == 1 && PG.Na__PlanGeometry__JpegOrientation("\x89PNG\r\n".b) == 1 && PG.Na__PlanGeometry__JpegOrientation(nil) == 1
+end
+na_check('flatten: an upright pixel of a portrait phone photo (orientation 6) maps back to raw') do
+    na_close(PG.Na__PlanGeometry__UprightToRaw([581.9, 611.5], 6, 4000, 3000), [611.5, 2418.1], 1.0e-9) &&
+        na_close(PG.Na__PlanGeometry__UprightToRaw([3000.0, 0.0], 6, 4000, 3000), [0.0, 0.0]) &&
+        na_close(PG.Na__PlanGeometry__UprightToRaw([0.0, 4000.0], 8, 4000, 3000), [0.0, 0.0]) &&
+        na_close(PG.Na__PlanGeometry__UprightToRaw([4000.0, 3000.0], 3, 4000, 3000), [0.0, 0.0])
+end
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

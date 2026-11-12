@@ -525,12 +525,46 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | The Show or Hide Key (0.1.17)
+    // -------------------------------------------------------------------------
+    // Adam binds Extensions > Na__Noble3dModellingTools > Show or Hide Agent
+    // Outliner in SketchUp's Preferences > Shortcuts. While this dialog has the
+    // keyboard SketchUp never sees that key, so Ruby reads the binding from
+    // SketchUp's preferences (state.toggle_keys) and the page closes itself on
+    // it. A key with no Ctrl or Alt is left to a text field being typed in.
+
+    // FUNCTION | Does a Key Press Match One of the Bindings?
+    // @param event {KeyboardEvent}
+    // @param keys  {Array} [{code, char, ctrl, alt, shift}]
+    Shell.na_toggle_key_hit = function (event, keys) {
+        return (keys || []).some(function (k) {
+            var sameKey = k.code === event.code || (!!k.char && String(event.key || '').toUpperCase() === k.char);
+            return sameKey && !!k.ctrl === !!event.ctrlKey && !!k.alt === !!event.altKey && !!k.shift === !!event.shiftKey;
+        });
+    };
+
+    function na_wire_toggle_key() {
+        document.addEventListener('keydown', function (event) {
+            if (event.repeat || !na_state || !Shell.na_toggle_key_hit(event, na_state.toggle_keys)) return;
+            var target = event.target;
+            var typing = target && (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable);
+            if (typing && !event.ctrlKey && !event.altKey) return;
+            event.preventDefault();
+            event.stopPropagation();
+            window.Na__AgentOutliner__Bridge.na_call('closeDialog', {});
+        }, true);                                                                       // <-- Capture: before the table's own keys
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Init
     // -------------------------------------------------------------------------
 
     function na_init() {
         na_wire_tabs();
         na_wire_modals();
+        na_wire_toggle_key();
         na_emit('init', null);
         window.Na__AgentOutliner__Bridge.na_ready();
     }

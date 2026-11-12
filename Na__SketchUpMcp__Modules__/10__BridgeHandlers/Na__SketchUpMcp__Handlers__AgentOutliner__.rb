@@ -22,7 +22,12 @@
 #   (what CAD__FrontElevation and the other standard names mean, and which
 #   objects carry them), find (the Outliner's search language); from
 #   1.0.23 threads (every thread, open or resolved, waiting on an agent or
-#   on Adam) and flags (every flagged object by type, Do Not Touch too).
+#   on Adam) and flags (every flagged object by type, Do Not Touch too);
+#   from 1.0.25 tags; from 1.0.31 tag_tree (Adam's Tree by Tag view: tag
+#   folders, tags, and each tag's objects as trees, with tag and depth);
+#   from 1.0.32 category_tree (his Group by Category view: the naming
+#   categories, their prefixes, and each prefix's objects as trees, with
+#   prefix and depth; Agent Outliner 0.1.18).
 # - agent_outliner_edit: comment, reply, resolve, reopen, flag, unflag,
 #   acknowledge, name; from 1.0.23 strip (a standard prefix taken off).
 #
@@ -54,7 +59,7 @@ module Na__SketchUpMcp
 # REGION | Constants
 # -----------------------------------------------------------------------------
 
-        NA_READ_ACTIONS  = %w[summary inbox changes thread threads flags prefixes find tags].freeze
+        NA_READ_ACTIONS  = %w[summary inbox changes thread threads flags prefixes find tags tag_tree category_tree].freeze
         NA_EDIT_ACTIONS  = %w[comment reply resolve reopen flag unflag acknowledge name strip tag].freeze
         NA_PARTNER_ERROR = 'Na__AgentOutliner::Na__McpOperationsError'.freeze
 

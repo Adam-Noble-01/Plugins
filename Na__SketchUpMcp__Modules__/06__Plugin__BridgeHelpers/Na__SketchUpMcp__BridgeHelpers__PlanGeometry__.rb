@@ -7,8 +7,10 @@
 # PURPOSE    : Pure maths on plain [x, y] / [x, y, z] arrays for the 1.0.30
 #              sketch and site tools: chaining edges into polylines, fitting
 #              lines and arcs to a rough sketch, parallel offsets with end caps,
-#              band outlines, a plane-to-photo homography, and footprint
-#              comparison (area, overlap, outline distance)
+#              band outlines, a plane-to-photo homography, photo flattening
+#              (a rectangle's proportions from its perspective, an unknown
+#              height solved from known points, the pixel warp; 1.0.33), and
+#              footprint comparison (area, overlap, outline distance)
 # CREATED    : 12-Nov-2026
 #
 # NO SKETCHUP API HERE:
@@ -65,6 +67,14 @@ module Na__SketchUpMcp
 
         def self.na_cross(a, b)
             (a[0] * b[1]) - (a[1] * b[0])
+        end
+
+        def self.na_dot3(a, b)
+            (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+        end
+
+        def self.na_cross3(a, b)
+            [(a[1] * b[2]) - (a[2] * b[1]), (a[2] * b[0]) - (a[0] * b[2]), (a[0] * b[1]) - (a[1] * b[0])]
         end
 
         def self.na_len(a)
@@ -780,6 +790,233 @@ module Na__SketchUpMcp
             out = self.Na__PlanGeometry__ClipHalfPlane(out) { |p| p[1] - ymin }
             self.Na__PlanGeometry__ClipHalfPlane(out) { |p| ymax - p[1] }
         end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Photo Flattening (image_flatten, 1.0.33)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | Proportions of a Rectangle Seen in a Photo (Zhang and He, 2007)
+        # ------------------------------------------------------------
+        # corners: the rectangle's four corners in the photo, [u, v] pixels from its
+        # top left, in the order origin, along x, far corner, along y. centre: the
+        # principal point (the middle of an uncropped photo); square pixels assumed.
+        # The corners' perspective fixes the focal length, and the focal length the
+        # true proportions. Returns { aspect: side along x / side along y,
+        # focal_px: } (focal_px nil when the view is too square-on to fix it; the
+        # sides' own ratio is right there), or nil for corners that make no rectangle.
+        def self.Na__PlanGeometry__RectangleAspect(corners, centre)
+            return nil unless corners.length == 4
+
+            m1, m2, m4, m3 = corners.map { |u, v| [u.to_f - centre[0], v.to_f - centre[1], 1.0] }
+            c14 = self.na_cross3(m1, m4)
+            d2 = self.na_dot3(self.na_cross3(m2, m4), m3)
+            d3 = self.na_dot3(self.na_cross3(m3, m4), m2)
+            return nil if d2.abs < NA_EPS || d3.abs < NA_EPS
+
+            k2 = self.na_dot3(c14, m3) / d2
+            k3 = self.na_dot3(c14, m2) / d3
+            n2 = [(k2 * m2[0]) - m1[0], (k2 * m2[1]) - m1[1], (k2 * m2[2]) - m1[2]]
+            n3 = [(k3 * m3[0]) - m1[0], (k3 * m3[1]) - m1[1], (k3 * m3[2]) - m1[2]]
+            flat2 = (n2[0] * n2[0]) + (n2[1] * n2[1])
+            flat3 = (n3[0] * n3[0]) + (n3[1] * n3[1])
+            return nil if flat2 < NA_EPS || flat3 < NA_EPS
+
+            depth = n2[2] * n3[2]
+            focal_sq = depth.abs > NA_EPS ? -((n2[0] * n3[0]) + (n2[1] * n3[1])) / depth : -1.0
+            if focal_sq.positive? && focal_sq.finite?
+                aspect_sq = ((flat2 / focal_sq) + (n2[2] * n2[2])) / ((flat3 / focal_sq) + (n3[2] * n3[2]))
+                return { aspect: Math.sqrt(aspect_sq), focal_px: Math.sqrt(focal_sq) }
+            end
+
+            { aspect: Math.sqrt(flat2 / flat3), focal_px: nil }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Solve a Rectangle's Unknown Height From Known Points
+        # ------------------------------------------------------------
+        # corners as above; width: the known side along x; points: [[[x, y], [u, v]],
+        # ...] positions measured from the origin corner along x and y (so they do not
+        # depend on the height) with their pixels, at least one. Each trial height
+        # gives a least-squares homography over corners and points; the height whose
+        # fit is tightest wins (a log scan from low to high, then golden section).
+        # Returns { height:, fit: } or nil.
+        def self.Na__PlanGeometry__SolveRectangleHeight(corners, width, points, low, high)
+            return nil if points.empty? || low <= 0.0 || high <= low
+
+            known = points.map { |pair| pair[0].map(&:to_f) }
+            dst = corners.map { |p| p.map(&:to_f) } + points.map { |pair| pair[1].map(&:to_f) }
+            fit_at = ->(height) { self.Na__PlanGeometry__FitHomography([[0.0, 0.0], [width, 0.0], [width, height], [0.0, height]] + known, dst) }
+            cost = lambda do |height|
+                fit = fit_at.call(height)
+                fit ? fit[:rms_px] : Float::INFINITY
+            end
+
+            steps = 160
+            samples = (0..steps).map { |index| low * ((high / low)**(index.to_f / steps)) }
+            costs = samples.map { |height| cost.call(height) }
+            best = (0..steps).min_by { |index| costs[index] }
+            return nil unless costs[best].finite?
+
+            a = samples[[best - 1, 0].max]
+            b = samples[[best + 1, steps].min]
+            golden = (Math.sqrt(5.0) - 1.0) / 2.0
+            c = b - (golden * (b - a))
+            d = a + (golden * (b - a))
+            fc = cost.call(c)
+            fd = cost.call(d)
+            100.times do
+                break if (b - a) < width * 1.0e-7
+
+                if fc < fd
+                    b = d
+                    d = c
+                    fd = fc
+                    c = b - (golden * (b - a))
+                    fc = cost.call(c)
+                else
+                    a = c
+                    c = d
+                    fc = fd
+                    d = a + (golden * (b - a))
+                    fd = cost.call(d)
+                end
+            end
+            height = (a + b) / 2.0
+            fit = fit_at.call(height)
+            fit ? { height: height, fit: fit } : nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A JPEG's EXIF Orientation
+        # ------------------------------------------------------------
+        # bytes: the start of the file (the EXIF block sits before the image data).
+        # Returns 1 to 8, or 1 when there is none. Sketchup::ImageRep loads the raw
+        # pixels and ignores it (SketchUp 2027, 12-Nov-2026: a portrait phone photo
+        # loads as 4000 x 3000), while every viewer shows the photo turned upright.
+        def self.Na__PlanGeometry__JpegOrientation(bytes)
+            return 1 unless bytes && bytes.bytesize > 4 && bytes.getbyte(0) == 0xFF && bytes.getbyte(1) == 0xD8
+
+            offset = 2
+            while offset + 4 <= bytes.bytesize
+                return 1 unless bytes.getbyte(offset) == 0xFF
+
+                marker = bytes.getbyte(offset + 1)
+                length = (bytes.getbyte(offset + 2) << 8) | bytes.getbyte(offset + 3)
+                return 1 if marker == 0xDA || length < 2
+
+                if marker == 0xE1 && bytes.byteslice(offset + 4, 6) == "Exif\0\0".b
+                    return self.na_tiff_orientation(bytes.byteslice(offset + 10, length - 8).to_s)
+                end
+
+                offset += 2 + length
+            end
+            1
+        end
+
+        def self.na_tiff_orientation(tiff)
+            return 1 if tiff.bytesize < 8
+
+            little = tiff.byteslice(0, 2) == 'II'
+            u16 = ->(at) { tiff.byteslice(at, 2).to_s.unpack1(little ? 'v' : 'n') }
+            u32 = ->(at) { tiff.byteslice(at, 4).to_s.unpack1(little ? 'V' : 'N') }
+            ifd = u32.call(4)
+            count = ifd && u16.call(ifd)
+            return 1 unless count
+
+            count.times do |index|
+                entry = ifd + 2 + (index * 12)
+                next unless u16.call(entry) == 0x0112
+
+                value = u16.call(entry + 8)
+                return value && (1..8).cover?(value) ? value : 1
+            end
+            1
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A Pixel as Viewers Show the Photo -> SketchUp's Raw Pixel
+        # ------------------------------------------------------------
+        # orientation: EXIF 1 to 8; raw_w, raw_h: the size ImageRep loads. Viewers
+        # turn the raw image by the orientation; this undoes that for one position
+        # (pixels from the top left, edges on whole numbers).
+        def self.Na__PlanGeometry__UprightToRaw(pixel, orientation, raw_w, raw_h)
+            u, v = pixel
+            case orientation
+            when 2 then [raw_w - u, v]
+            when 3 then [raw_w - u, raw_h - v]
+            when 4 then [u, raw_h - v]
+            when 5 then [v, u]
+            when 6 then [v, raw_h - u]
+            when 7 then [raw_w - v, raw_h - u]
+            when 8 then [raw_w - v, u]
+            else [u, v]
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Warp a Photo's Pixels Through a Homography
+        # ------------------------------------------------------------
+        # src: the photo's bytes as Sketchup::ImageRep#data gives them (top row first;
+        # BGR(A) on Windows, RGB(A) on macOS: the order is kept), with its width,
+        # height, bytes per pixel (3 or 4) and row stride in bytes. matrix maps an
+        # output position (pixels from the output's top left, pixel edges on whole
+        # numbers) to a photo position (the same convention). Returns the output's
+        # 32-bit bytes in the same channel order, top row first: bilinear inside the
+        # photo, alpha 0 outside it and beyond the horizon. Pure Ruby, about 1.4 s a
+        # megapixel inside SketchUp 2027 (12-Nov-2026).
+        def self.Na__PlanGeometry__WarpPixels(src, sw, sh, bpp, stride, matrix, dw, dh)
+            sign = self.Na__PlanGeometry__HomographyW(matrix, [dw / 2.0, dh / 2.0]).negative? ? -1.0 : 1.0
+            m = matrix.map { |row| row.map { |value| value * sign } }
+            out = ("\0" * (dw * dh * 4)).b
+            alpha = bpp >= 4
+            max_u = sw - 1.0
+            max_v = sh - 1.0
+            index = 0
+            dh.times do |row|
+                y = row + 0.5
+                a = (m[0][0] * 0.5) + (m[0][1] * y) + m[0][2]
+                b = (m[1][0] * 0.5) + (m[1][1] * y) + m[1][2]
+                c = (m[2][0] * 0.5) + (m[2][1] * y) + m[2][2]
+                dw.times do
+                    if c > 1.0e-12
+                        u = (a / c) - 0.5
+                        v = (b / c) - 0.5
+                        if u > -0.5 && v > -0.5 && u < sw - 0.5 && v < sh - 0.5
+                            u = 0.0 if u.negative?
+                            v = 0.0 if v.negative?
+                            u = max_u if u > max_u
+                            v = max_v if v > max_v
+                            x0 = u.to_i
+                            y0 = v.to_i
+                            fx = u - x0
+                            fy = v - y0
+                            x1 = x0 < sw - 1 ? x0 + 1 : x0
+                            y1 = y0 < sh - 1 ? y0 + 1 : y0
+                            p00 = (y0 * stride) + (x0 * bpp)
+                            p10 = (y0 * stride) + (x1 * bpp)
+                            p01 = (y1 * stride) + (x0 * bpp)
+                            p11 = (y1 * stride) + (x1 * bpp)
+                            w00 = (1.0 - fx) * (1.0 - fy)
+                            w10 = fx * (1.0 - fy)
+                            w01 = (1.0 - fx) * fy
+                            w11 = fx * fy
+                            out.setbyte(index, ((src.getbyte(p00) * w00) + (src.getbyte(p10) * w10) + (src.getbyte(p01) * w01) + (src.getbyte(p11) * w11) + 0.5).to_i)
+                            out.setbyte(index + 1, ((src.getbyte(p00 + 1) * w00) + (src.getbyte(p10 + 1) * w10) + (src.getbyte(p01 + 1) * w01) + (src.getbyte(p11 + 1) * w11) + 0.5).to_i)
+                            out.setbyte(index + 2, ((src.getbyte(p00 + 2) * w00) + (src.getbyte(p10 + 2) * w10) + (src.getbyte(p01 + 2) * w01) + (src.getbyte(p11 + 2) * w11) + 0.5).to_i)
+                            out.setbyte(index + 3, alpha ? ((src.getbyte(p00 + 3) * w00) + (src.getbyte(p10 + 3) * w10) + (src.getbyte(p01 + 3) * w01) + (src.getbyte(p11 + 3) * w11) + 0.5).to_i : 255)
+                        end
+                    end
+                    a += m[0][0]
+                    b += m[1][0]
+                    c += m[2][0]
+                    index += 4
+                end
+            end
+            out
+        end
+        # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 

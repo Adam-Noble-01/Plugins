@@ -506,7 +506,7 @@
             var path = Store.na_reachable()[pid];
             if (!path) return;
             if (Store.na_state().view === 'tree') Store.na_reveal(path);
-            else if (Store.na_state().view === 'tagtree') Store.na_reveal_tag_tree([path]);     // <-- Its own card (0.1.16)
+            else if (Store.na_card_spec()) Store.na_reveal_cards([path]);                     // <-- Its own card (0.1.16, 0.1.18)
             View.na_render();
             Bridge.na_call('select', { paths: [path], zoom: false });
         });

@@ -30,6 +30,156 @@ anything here waits for an agent, so Send reaches an agent on its next SketchUp 
 # VERSION HISTORY
 # =============================================================================
 
+## Version 0.1.18 - 12-Nov-2026 - Group by Category: Coloured Cards for the Naming Prefixes; for Agents (agent_outliner category_tree)
+
+### Asked For
+
+With screenshots of the Configure tab (the CATEGORY column ringed) and of the Outliner on Kann 0.0.1 (MASSING__Neighbour and
+MASSING__Existing objects among unnamed Groups): "Create a group by category that appears the same as the group by tag so
+coloured regions".
+
+Then, asked whether agents should read it too through the MCP: "Yes, add it".
+
+### What Changed
+
+- **Group by Category**, a new view beside Tree by Tag in the view picker. Each Configure category (CAD Elevations,
+  References, Drawing Planes, Guides, Massing ...) is a grey bar, as a tag folder is; inside it each naming prefix is a card
+  in the prefix's own colour (the swatch in Configure), holding the objects named with it as trees, with gaps between the
+  cards. Categories and prefixes keep the order Adam gives them in Configure (the Quick Name panel's order), not the
+  alphabet. **No Standard Name** comes last, in grey.
+- The rules are Tree by Tag's, with the prefix in place of the tag:
+  - an object heads its prefix's card unless something above it carries the same prefix (MASSING__Neighbour__Chimney
+    inside MASSING__Neighbour__...Blanking is listed inside it, once);
+  - No Standard Name lists only top-level unnamed objects; an unnamed part of a named object (the Groups inside
+    MASSING__Existing__OuterShell) is listed inside that object, in its prefix's card;
+  - a named object inside an unnamed group is listed in that group (under No Standard Name) and heads its own prefix's
+    card too.
+- A prefix is the one Ruby already reads off each name (the longest match; Elevation Faces are segments, never prefixes, so
+  that category never shows). A prefix no longer in Configure files under Other, in grey. A category or prefix with nothing
+  named with it is left out.
+- Everything Tree by Tag does works here: search and filters, Follow (to the object's own card), Reveal, Expand All, the
+  `[` and `]` level keys, the arrow keys, Colours. A card's tooltip says what the prefix means (Configure's meaning).
+- **One engine for both card views.** Tree by Tag's store code became the card views' engine, driven by a spec per view
+  (`NA_CARD_SPECS`: which group an object is in, the folders, the order, the colour, the name). Tree by Tag's keys are
+  unchanged, so what Adam has opened or closed stays as it was.
+- **`agent_outliner category_tree`** (with Na SketchUp MCP 1.0.32): Group by Category for agents, built in Ruby with the
+  view's rules (`Na__Payloads.Na__Payload__CategoryTree`): categories holding prefix cards in Configure's order, No Standard
+  Name last; `prefix` reads one card (any case, a trailing `__` allowed), `depth` 0 to 8, `limit`; each card's category,
+  colour and meaning; each object's `prefix` only when it carries another. Tree by Tag's Ruby (`tag_tree`) now shares the walk
+  and the card rules with it (`na_tree_rows`, `na_card_blocks`; `na_tag_root?` and `na_tag_tree_node` take the row key).
+
+### Checked
+
+- Page store suite 42 / 42 (13 new): Configure's order (not the alphabet), empty categories and prefixes left out, an old
+  prefix under Other, No Standard Name last; its top-level objects only; same-prefix parts inside, another prefix's part
+  listed twice; colours; counts and indents; keys apart from Tree by Tag's; following and revealing; Expand All; search;
+  reordering Configure reorders the view; Tree by Tag unchanged. The 29 earlier checks moved to the shared names.
+- 60 of 60 deliberate faults (5 new in the page: No Standard Name first, categories by name, colours ignored, prefixes
+  outside their category, cards sharing Tree by Tag's keys; 4 new in `category_tree`: categories by name, No Standard Name
+  first, a same-prefix part listed twice, a card without its colour; six anchors brought up to the shared code).
+- Offline Ruby suite 327 / 327 (9 new, `category_tree`: a read action the MCP is told about; who heads each card, any case;
+  category, colour and meaning from Configure; an unnamed part inside its named group, another prefix named; a same-prefix
+  part once; that part's own card with a trailing `__`; No Standard Name's top-level objects only; the whole view's order,
+  no faces, No Standard Name last; a prefix with nothing named refused). `node --check` on the page files.
+- MCP: BridgeCore 179 / 179, PythonServer 65 OK (the action, `prefix`, the description under 2048), ValidateApiUsage passed.
+- Browser harness (the real page, a Kann-like model): the cards, colours and order; Follow to an unnamed part inside
+  MASSING__Existing__OuterShell and to a named object inside an unnamed Group; the tooltips; Tree by Tag as before.
+
+### What Offline Cannot Prove
+
+- The view on a real model in SketchUp; `category_tree` through the MCP against a real model.
+
+### Files
+
+- `05__UserInterface/`: OutlinerModel (the card views region, the engine and the two specs), OutlinerView (the view in the
+  picker, the headings' tooltips, Follow), Inspector (Reveal)
+- `06__McpOperations/`: Main (`category_tree`), Payloads (`Na__Payload__CategoryTree`, the shared walk and card rules)
+- `tests/`: Store (13 checks, the shared names), Core (9 checks), RunChecks (9 faults, 6 anchors)
+
+### Checklist For Adam
+
+- [ ] Reload Plugin Data in Noble 3D Tools (or restart SketchUp) and reopen the Outliner.
+- [ ] Pick Group by Category in the view picker: a grey bar per category, a coloured card per prefix, No Standard Name last.
+- [ ] Reorder a prefix in Configure and save: the cards follow.
+- [ ] Click a named object in SketchUp: Follow scrolls to it in its prefix's card.
+- [ ] Reload Plugin Data in the MCP too; in a new agent session `agent_outliner {action: "category_tree"}` lists your
+      categories and prefix cards.
+
+Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027
+
+## Version 0.1.17 - 12-Nov-2026 - A Show or Hide Key You Bind; Tree by Tag for Agents (agent_outliner tag_tree)
+
+### Asked For
+
+1. "Add a bindable hotkey to open / close my outliner window, see how my other plugins handle hotkey management"
+2. With a screenshot of Tree by Tag running live on Corrett 1.0.1: "Update the MCP tools and the 3D Modeling expert skill to
+   ensure agents can also reference and see this and this struture as i belove this is a powerful way to categorise and
+   group things"
+
+### How His Plugins Handle Hotkeys (what this follows)
+
+- Noble 3D Tools: a command in the registry (`UiCommandRegistry__.json`, `commands` and `hotkey_bindings`, `expose_to_hotkeys`)
+  becomes a `UI::Command` in Extensions > Na__Noble3dModellingTools (`04__PluginHotkeyManager`), routed by `handler_key` in the
+  CommandRouter. Adam binds the key himself in Window > Preferences > Shortcuts: 190 bindings in his SharedPreferences.json,
+  most of them on these menu paths. No plugin sets a key itself (there is no API for it).
+- Every dialog of his opens with "bring it to the front if it is showing"; none closed from the same command. The toggle
+  follows the Point Cloud Viewer's naming ("Show or Hide Point Clouds").
+
+### What Changed
+
+- **Show or Hide Agent Outliner**, a new Noble 3D Tools command (`toggle_agent_outliner`; `quick_launch: false`, so it stays
+  off the quick-launch row). Open, or close when open (`Na__AgentOutliner__ToggleDialog`, `DialogManager.Na__Dialog__Toggle`).
+  The old Agent Outliner command, the Entity Utils card and the toolbar button still only open it.
+- **The same key closes it from inside.** A focused HtmlDialog takes the keyboard, so SketchUp never sees its shortcut while
+  the Outliner is in front. Ruby reads the binding for `Extensions/Na__Noble3dModellingTools/Show or Hide Agent Outliner`
+  from SketchUp's SharedPreferences.json (read only, re-read only when the file changes; `Na__Dialog__ToggleKeys`), turns
+  SketchUp's key names into the browser's `KeyboardEvent.code` (letters, digits, NumPad, F-keys, arrows, punctuation) and
+  sends them in the state (`toggle_keys`). The page listens (capture phase) and asks Ruby to close (`closeDialog`, done on a
+  later tick). A key with no Ctrl or Alt is left to a text field being typed in. A key it cannot name (Escape) is left out.
+- **`agent_outliner tag_tree`** (with MCP 1.0.31): Tree by Tag for agents, built in Ruby with the view's rules
+  (`Na__Payloads.Na__Payload__TagTree`): tag folders, tags, each tag's objects as trees; `tag` reads one card, `depth` 0 to 8,
+  `limit`; each object's `id`, `name`, `type`, `tag` (only when on another tag), `hidden`, `within`, `children`, `inside`.
+
+### Checked
+
+- Offline Ruby suite 318 / 318 (18 new): Show or Hide opens then closes; only the Show or Hide bindings are read (any case),
+  with modifiers, codes and characters; Escape is left out; a broken or missing file gives none; the state carries them;
+  `closeDialog` closes on a later tick; `tag_tree` (10): a read action the MCP is told about, who heads each card, `within`, untagged parts inside their group,
+  another tag named, a card read by tag in any case, Untagged's top objects only, depth 0 counts, limit, the whole view's
+  folders and order, an empty tag refused.
+- Page store suite 29 / 29 (4 new: the key matcher, Shift turning 9 into "(", a UK backslash by its character).
+- 51 of 51 deliberate faults (8 new: the toggle never closes, every binding counts, modifiers ignored, no closeDialog
+  route; an untagged part heading Untagged, a same-tag part listed twice, another tag hidden, depth ignored).
+- `su_ruby.py syntax` 251/251 for Noble 3D Tools; `su_lint` clean; `node --check`; the registry parses with the command and
+  its hotkey entry; MCP: BridgeCore 179/179, PythonServer 65 OK, ValidateApiUsage passed.
+
+### What Offline Cannot Prove
+
+- The new menu item needs a SketchUp RESTART: Noble 3D Tools registers its menu once (Reload Plugin Data re-syncs the
+  toolbar, not the menu).
+- When SketchUp writes a new binding to SharedPreferences.json (on OK in Preferences, or only on exit). Until it does,
+  the key works from the model but not from inside the Outliner.
+- `tag_tree` against a real model through the MCP.
+
+### Files
+
+- Noble 3D Tools: `UiCommandRegistry__.json` (the command and its hotkey entry), `PublicAPI__CommandRouter__.rb`
+- `01__AppCore/`: Main (0.1.17, ToggleDialog), DialogManager (Toggle, ToggleKeys, the state), ActionRouter (closeDialog)
+- `05__UserInterface/Na__AgentOutliner__UiSystem__MainShell__.js` (the key)
+- `06__McpOperations/`: Main (`tag_tree`), Payloads (`Na__Payload__TagTree` and helpers)
+- `tests/`: Core (18 checks), Store (4), RunChecks (8 faults, one anchor brought up to date)
+
+### Checklist For Adam
+
+- [ ] Restart SketchUp (the new menu item only appears after a restart).
+- [ ] Window > Preferences > Shortcuts: filter "Show or Hide Agent", pick Extensions/Na__Noble3dModellingTools/Show or Hide
+      Agent Outliner, give it a key (free in your list: Ctrl+Shift+6 to 0, Ctrl+Shift+J, K, N, Q, X, Y; Ctrl+Alt+5, 6, J, N, Y).
+- [ ] Press it in the model: the Outliner opens. Press it again: it closes.
+- [ ] Open it, click inside it, press the key: it closes (if not, restart SketchUp once so the binding is written).
+- [ ] In a new agent session: `agent_outliner {action: "tag_tree"}` lists your folders and tag cards.
+
+Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027
+
 ## Version 0.1.16 - 12-Nov-2026 - Tree by Tag: Each Tag a Coloured Card Holding Its Objects as Trees
 
 ### Asked For

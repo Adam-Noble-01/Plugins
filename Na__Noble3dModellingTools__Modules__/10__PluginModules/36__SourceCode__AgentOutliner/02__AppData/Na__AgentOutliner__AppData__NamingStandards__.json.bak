@@ -1,0 +1,206 @@
+{
+    "schema"   : 1,
+    "about"    : "Na Agent Outliner naming standards: the Quick Name prefixes and the flag types. Edited in the dialog's Configure tab and shared between PCs through the Plugins repo. Agents read every 'meaning' through agent_outliner {action: 'prefixes'}, so write each one as an instruction to an agent.",
+    "updated"  : "12-Nov-2026",
+    "prefixes" : [
+        {
+            "id"       : "cad_front_elevation",
+            "label"    : "CAD__FrontElevation",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#2563eb",
+            "meaning"  : "The CAD linework of the front elevation. Take sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_side_elevation_left",
+            "label"    : "CAD__SideElevation__Left",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#0284c7",
+            "meaning"  : "The CAD linework of the left side elevation (left as seen from the front). Take sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_side_elevation_right",
+            "label"    : "CAD__SideElevation__Right",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#0891b2",
+            "meaning"  : "The CAD linework of the right side elevation (right as seen from the front). Take sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_rear_elevation",
+            "label"    : "CAD__RearElevation",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#4f46e5",
+            "meaning"  : "The CAD linework of the rear elevation. Take sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "ref",
+            "label"    : "REF",
+            "category" : "References",
+            "mode"     : "prefix",
+            "colour"   : "#0d9488",
+            "meaning"  : "A reference Adam placed to be read, such as REF__SideElevation. Look at it when he points you to it. Never change it."
+        },
+        {
+            "id"       : "ref_drawing_plane_front_elevation",
+            "label"    : "REF__DrawingPlane__FrontElevation",
+            "category" : "Drawing Planes",
+            "mode"     : "replace",
+            "colour"   : "#0f766e",
+            "meaning"  : "The plane Adam draws the front elevation on (often carrying the CAD or survey image). Draw the front elevation linework on it. Never move, edit, hide or delete the plane itself."
+        },
+        {
+            "id"       : "ref_drawing_plane_right_elevation",
+            "label"    : "REF__DrawingPlane__RightElevation",
+            "category" : "Drawing Planes",
+            "mode"     : "replace",
+            "colour"   : "#0e7490",
+            "meaning"  : "The plane Adam draws the right elevation on (often carrying the CAD or survey image). Draw the right elevation linework on it. Never move, edit, hide or delete the plane itself."
+        },
+        {
+            "id"       : "ref_drawing_plane_left_elevation",
+            "label"    : "REF__DrawingPlane__LeftElevation",
+            "category" : "Drawing Planes",
+            "mode"     : "replace",
+            "colour"   : "#047857",
+            "meaning"  : "The plane Adam draws the left elevation on (often carrying the CAD or survey image). Draw the left elevation linework on it. Never move, edit, hide or delete the plane itself."
+        },
+        {
+            "id"       : "ref_drawing_plane_rear_elevation",
+            "label"    : "REF__DrawingPlane__RearElevation",
+            "category" : "Drawing Planes",
+            "mode"     : "replace",
+            "colour"   : "#155e75",
+            "meaning"  : "The plane Adam draws the rear elevation on (often carrying the CAD or survey image). Draw the rear elevation linework on it. Never move, edit, hide or delete the plane itself."
+        },
+        {
+            "id"       : "ref_drawing_plane_plan_view",
+            "label"    : "REF__DrawingPlane__PlanView",
+            "category" : "Drawing Planes",
+            "mode"     : "replace",
+            "colour"   : "#3f6212",
+            "meaning"  : "The plane Adam draws the plan view on (often carrying the CAD or survey image). Draw the plan view linework on it. Never move, edit, hide or delete the plane itself."
+        },
+        {
+            "id"       : "edit",
+            "label"    : "EDIT",
+            "category" : "Guides",
+            "mode"     : "prefix",
+            "colour"   : "#b45309",
+            "meaning"  : "Adam's rough working geometry, such as EDIT__MASSING. Use it for position and extent only: take real sizes from the CAD and concept drawings, never from this."
+        },
+        {
+            "id"       : "face_front",
+            "label"    : "Front",
+            "category" : "Elevation Faces",
+            "mode"     : "face",
+            "colour"   : "#dc2626",
+            "meaning"  : "The Front elevation face: faces -Y, what SketchUp's Front view looks at. A face is a SEGMENT inside a name, never a prefix (Adam's standard, 11-Nov-2026): assets SUB__<Building>__<Asset>__Front__01 numbered left to right as you face that side, linework one group per face SUB__LineworkDetailing__Front__<Feature>. When the model has an orientation (which way Front faces), the cardinal follows the face word, e.g. Front__South."
+        },
+        {
+            "id"       : "face_back",
+            "label"    : "Back",
+            "category" : "Elevation Faces",
+            "mode"     : "face",
+            "colour"   : "#9333ea",
+            "meaning"  : "The Back elevation face: faces +Y, what SketchUp's Back view looks at. A face is a SEGMENT inside a name, never a prefix (Adam's standard, 11-Nov-2026): assets SUB__<Building>__<Asset>__Back__01 numbered left to right as you face that side, linework one group per face SUB__LineworkDetailing__Back__<Feature>. When the model has an orientation (which way Front faces), the cardinal follows the face word, e.g. Front__South."
+        },
+        {
+            "id"       : "face_left",
+            "label"    : "Left",
+            "category" : "Elevation Faces",
+            "mode"     : "face",
+            "colour"   : "#16a34a",
+            "meaning"  : "The Left elevation face: faces -X, what SketchUp's Left view looks at. A face is a SEGMENT inside a name, never a prefix (Adam's standard, 11-Nov-2026): assets SUB__<Building>__<Asset>__Left__01 numbered left to right as you face that side, linework one group per face SUB__LineworkDetailing__Left__<Feature>. When the model has an orientation (which way Front faces), the cardinal follows the face word, e.g. Front__South."
+        },
+        {
+            "id"       : "face_right",
+            "label"    : "Right",
+            "category" : "Elevation Faces",
+            "mode"     : "face",
+            "colour"   : "#ca8a04",
+            "meaning"  : "The Right elevation face: faces +X, what SketchUp's Right view looks at. A face is a SEGMENT inside a name, never a prefix (Adam's standard, 11-Nov-2026): assets SUB__<Building>__<Asset>__Right__01 numbered left to right as you face that side, linework one group per face SUB__LineworkDetailing__Right__<Feature>. When the model has an orientation (which way Front faces), the cardinal follows the face word, e.g. Front__South."
+        },
+        {
+            "id"       : "face_top",
+            "label"    : "Top",
+            "category" : "Elevation Faces",
+            "mode"     : "face",
+            "colour"   : "#0369a1",
+            "meaning"  : "The Top elevation face: the roof and anything seen from above, what SketchUp's Top view looks at. A face is a SEGMENT inside a name, never a prefix (Adam's standard, 11-Nov-2026): assets SUB__<Building>__<Asset>__Top__01 numbered left to right as you face that side, linework one group per face SUB__LineworkDetailing__Top__<Feature>. When the model has an orientation (which way Front faces), the cardinal follows the face word, e.g. Front__South."
+        },
+        {
+            "id"       : "massing_existing",
+            "label"    : "MASSING__Existing",
+            "category" : "Massing",
+            "mode"     : "prefix",
+            "colour"   : "#eb2438",
+            "meaning"  : "Rough Existing Building Massing"
+        },
+        {
+            "id"       : "massing_proposed",
+            "label"    : "MASSING__Proposed",
+            "category" : "Massing",
+            "mode"     : "prefix",
+            "colour"   : "#24eb70",
+            "meaning"  : "Rough Proposed Building Massing"
+        },
+        {
+            "id"       : "massing_neighbour",
+            "label"    : "MASSING__Neighbour",
+            "category" : "Massing",
+            "mode"     : "replace",
+            "colour"   : "#2563eb",
+            "meaning"  : "Rough Neighbouring Buildings Massing"
+        }
+    ],
+    "flags"    : [
+        {
+            "id"      : "for_agent",
+            "label"   : "For Agent",
+            "colour"  : "#7c3aed",
+            "inbox"   : true,
+            "meaning" : "Adam wants an agent to work on this object. Its comment thread says what to do."
+        },
+        {
+            "id"      : "question",
+            "label"   : "Question",
+            "colour"  : "#0891b2",
+            "inbox"   : true,
+            "meaning" : "There is a question about this object. Answer it in the object's thread."
+        },
+        {
+            "id"      : "check_this",
+            "label"   : "Check This",
+            "colour"  : "#ea580c",
+            "inbox"   : true,
+            "meaning" : "Something about this object may be wrong. Check it and report in its thread."
+        },
+        {
+            "id"      : "reference",
+            "label"   : "Reference",
+            "colour"  : "#0d9488",
+            "inbox"   : false,
+            "meaning" : "A source of truth. Measure and copy from it; never change it."
+        },
+        {
+            "id"      : "do_not_touch",
+            "label"   : "Do Not Touch",
+            "colour"  : "#475569",
+            "inbox"   : false,
+            "meaning" : "Never change, move, hide, rename or delete this object."
+        },
+        {
+            "id"      : "done",
+            "label"   : "Done",
+            "colour"  : "#16a34a",
+            "inbox"   : false,
+            "meaning" : "Finished and approved. Leave it as it is unless Adam asks again."
+        }
+    ],
+    "handoff"  : {
+        "footer" : "For the agent: the ids are persistent ids for the Na SketchUp MCP (entity_get, selection_set, entity_query). Read each object's whole thread with agent_outliner {action: \"inbox\"} and answer in it with agent_outliner_edit {action: \"reply\", ids: [...], text: \"...\"}."
+    }
+}

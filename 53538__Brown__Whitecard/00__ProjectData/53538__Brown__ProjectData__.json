@@ -1,0 +1,239 @@
+[
+  {
+    "Project__MetaData": {
+      "Project__Name": "Brown",
+      "Project__Number": "53538",
+      "Project__Type": "Whitecard",
+      "Project__Status": "Active",
+      "Project__StartDate": "05-Nov-2026",
+      "Project__DeliveryDate": "DD-MMM-YYYY",
+      "Project__Designer": "Gary",
+      "Project__ConceptArtist": "Amy",
+      "Project__Description": "New Vale project"
+    }
+  },
+  {
+    "Project__PrivateLinksIndex": {
+      "Link__MainLocalDirectory": {
+        "Link__WindowsPath": "C:\\01__ValeProjects\\ValeProjects__2026\\53538__Brown__Whitecard",
+        "Link__Location": "Local Machine, i.e. my own work station",
+        "Link__Description": "This is the main project directory hosting the larger project production files such as SketchUp files, CAD files, Photoshop files, etc."
+      },
+      "Link__MainLocalDataFile": {
+        "Link__WindowsPath": "C:\\01__ValeProjects\\ValeProjects__2026\\53538__Brown__Whitecard\\00__ProjectData\\53538__Brown__ProjectData__.json",
+        "Link__Location": "Local Machine, i.e. my own work station",
+        "Link__Description": "This is the master project data file (This file) with all of the project data including private sensitive project data not exposed to the web."
+      },
+      "Link__ValeServerProjectDirectory": {
+        "Link__WindowsPath": "N:\\Sales\\Gary Hood\\Gary 2023\\Brown53538 NEW DB",
+        "Link__Location": "Vale Garden Houses Office Network & physical private server",
+        "Link__Usage": "The builder places a .url shortcut to this folder in `/60__ValeServerLinks`.",
+        "Link__Description": "This is the main project directory used by Vale's team to store all departmental project files, I only usually place my final content here."
+      }
+    }
+  },
+  {
+    "Project__PublicLinksIndex": {
+      "Link__ProjectsMasterLibrary": {
+        "Link__LibraryProjectId": "53538__Brown",
+        "Link__WindowsPath": "D:\\10_CoreLib__ValeCodebase\\WebApps\\Vale__VirtualServer\\Vale__Projects__MasterLibrary\\ValeProjects__2026\\53538__Brown",
+        "Link__Location": "Vale__VirtualServer on this PC, pushed to the Vale app server (app.valegardenhouses.com) by the Vale Virtual Server Manager.",
+        "Link__Description": "The project's folder in the Vale Projects Master Library: the shared project record (ProjectData__53538__Brown__.json) plus each app's images and models. ValeVision Cloud Sync creates it on the first sync from SketchUp.",
+        "Link__ImportantNote": "The library record can be read on the web: keep client details (names, addresses, phone numbers) in this local file, never in the library."
+      },
+      "Link__ValeVisionGallery": {
+        "Link__Url": "https://app.valegardenhouses.com/project-gallery/?id=53538__Brown",
+        "Link__Location": "Vale app server (sign-in with a Vale account)",
+        "Link__Description": "The project's page in ValeVision Gallery: the delivered images for review and quality control."
+      },
+      "Link__ValeVision3D": {
+        "Link__Url": "https://app.valegardenhouses.com/valevision/?project=53538__Brown",
+        "Link__Location": "Vale app server (viewing is open to anyone with the link)",
+        "Link__Description": "The project's 3D model in ValeVision 3D."
+      }
+    }
+  },
+  {
+    "Project__SiteData": {
+      "Site__AddressLine1": "",
+      "Site__StreetName": "",
+      "Site__Town": "",
+      "Site__City": "",
+      "Site__County": "",
+      "Site__Postcode": "",
+      "Site__Latitude": "",
+      "Site__Longitude": ""
+    }
+  },
+  {
+    "ValeVison3D__SketchUpCameraData": {
+      "captured_at": "06-Nov-2026 at 10:12",
+      "model_name": "Brown__WhiteCardModel__0.2.1__",
+      "coordinate_system": "SketchUp_Z_up",
+      "units": "mm",
+      "note": "Axis swap (Z-up -> Y-up) is handled by the ValeVision3D web app.",
+      "scenes": [
+        {
+          "scene_name": "IMG01__3dView__MainShot__",
+          "scene_description": "View-01",
+          "include_in_animation": true,
+          "camera": {
+            "eye": {
+              "x": 5471.2838,
+              "y": -9803.2416,
+              "z": 2785.0
+            },
+            "target": {
+              "x": 24029.2899,
+              "y": 25809.23,
+              "z": 2785.0
+            },
+            "up": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 1.0
+            },
+            "direction": {
+              "x": 0.462127,
+              "y": 0.886814,
+              "z": 0.0
+            },
+            "fov_degrees": 33.3985,
+            "fov_is_height": true,
+            "is_perspective": true,
+            "aspect_ratio": 0.0,
+            "image_width": 0.0
+          },
+          "model_layer_visibility": {
+            "ValeVision__MainBuildingModel__Existing": true,
+            "ValeVision__LandscapeEnvironment": true,
+            "ValeVision__MainBuildingModel__Proposed": true,
+            "ValeVision__01__OrbitHelperCube": false,
+            "ValeVision__SiteBoundaries": true
+          },
+          "section_planes": null
+        },
+        {
+          "scene_name": "IMG02__3dView__AltShot__",
+          "scene_description": "View-02",
+          "include_in_animation": true,
+          "camera": {
+            "eye": {
+              "x": 44853.8317,
+              "y": 6410.8604,
+              "z": 2356.186
+            },
+            "target": {
+              "x": 25321.3569,
+              "y": 15915.1626,
+              "z": 1836.975
+            },
+            "up": {
+              "x": -0.021487,
+              "y": 0.010455,
+              "z": 0.999714
+            },
+            "direction": {
+              "x": -0.898942,
+              "y": 0.437416,
+              "z": -0.023896
+            },
+            "fov_degrees": 33.3985,
+            "fov_is_height": true,
+            "is_perspective": true,
+            "aspect_ratio": 0.0,
+            "image_width": 0.0
+          },
+          "model_layer_visibility": {
+            "ValeVision__MainBuildingModel__Existing": true,
+            "ValeVision__LandscapeEnvironment": true,
+            "ValeVision__MainBuildingModel__Proposed": true,
+            "ValeVision__01__OrbitHelperCube": false,
+            "ValeVision__SiteBoundaries": true
+          },
+          "section_planes": null
+        },
+        {
+          "scene_name": "IMG03__3dView__AltShot__",
+          "scene_description": "View-03",
+          "include_in_animation": true,
+          "camera": {
+            "eye": {
+              "x": 49921.3795,
+              "y": 33986.2329,
+              "z": 2285.0
+            },
+            "target": {
+              "x": 26272.444,
+              "y": 19429.9773,
+              "z": 2285.0
+            },
+            "up": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 1.0
+            },
+            "direction": {
+              "x": -0.851609,
+              "y": -0.524177,
+              "z": 0.0
+            },
+            "fov_degrees": 33.3985,
+            "fov_is_height": true,
+            "is_perspective": true,
+            "aspect_ratio": 0.0,
+            "image_width": 0.0
+          },
+          "model_layer_visibility": {
+            "ValeVision__MainBuildingModel__Existing": true,
+            "ValeVision__LandscapeEnvironment": true,
+            "ValeVision__MainBuildingModel__Proposed": true,
+            "ValeVision__01__OrbitHelperCube": false,
+            "ValeVision__SiteBoundaries": true
+          },
+          "section_planes": null
+        },
+        {
+          "scene_name": "IMG04__3dView__Birdeye__",
+          "scene_description": "Birds-eye View",
+          "include_in_animation": true,
+          "camera": {
+            "eye": {
+              "x": 47538.0638,
+              "y": -2042.3275,
+              "z": 19213.3693
+            },
+            "target": {
+              "x": 32656.0604,
+              "y": 9252.0916,
+              "z": 8119.1821
+            },
+            "up": {
+              "x": -0.406719,
+              "y": 0.308672,
+              "z": 0.859826
+            },
+            "direction": {
+              "x": -0.684913,
+              "y": 0.519802,
+              "z": -0.510587
+            },
+            "fov_degrees": 26.0232,
+            "fov_is_height": true,
+            "is_perspective": true,
+            "aspect_ratio": 0.0,
+            "image_width": 0.0
+          },
+          "model_layer_visibility": {
+            "ValeVision__MainBuildingModel__Existing": true,
+            "ValeVision__LandscapeEnvironment": true,
+            "ValeVision__MainBuildingModel__Proposed": true,
+            "ValeVision__01__OrbitHelperCube": false,
+            "ValeVision__SiteBoundaries": true
+          },
+          "section_planes": null
+        }
+      ]
+    }
+  }
+]

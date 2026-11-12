@@ -3,6 +3,15 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.47 - 12-Nov-2026 - Agent Outliner 0.1.15 to 0.1.18: Follow, Red Selection, Colours, Quick Name Panel, Icons, Tree by Tag, a Show or Hide Key, Group by Category
+
+- Agent Outliner 0.1.15, 0.1.16 and 0.1.17. The full entries and checklists are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **0.1.15:** Follow the SketchUp selection (a switch, on by default), red selected rows, a Colours switch, Quick Name in a left pop-out panel, 25 icons.
+- **0.1.16:** Tree by Tag: tag folders, tags, each tag a card in its colour holding its objects as trees (ran live on Corrett 1.0.1).
+- **0.1.17, in this plugin:** a new command, **Show or Hide Agent Outliner** (`toggle_agent_outliner` in the registry's `commands` and `hotkey_bindings`, `quick_launch: false`; routed in the CommandRouter). Bind it in Window > Preferences > Shortcuts. It appears after a SketchUp restart: the menu is registered once. Also `agent_outliner tag_tree` for agents (with Na SketchUp MCP 1.0.31).
+- **0.1.18:** Group by Category: each naming category (Configure) a grey bar, each prefix a card in its own colour holding the objects named with it, in Configure's order; No Standard Name last. Tree by Tag and it share one engine. Agents read it with `agent_outliner category_tree` (Na SketchUp MCP 1.0.32).
+- **Validation.** 327 of 327 offline Ruby checks, 42 page checks, 60 of 60 deliberate faults; 251 of 251 Ruby files compile. The Show or Hide key not yet pressed in SketchUp; Group by Category not yet seen on a real model.
+
 ## Na Noble3d Modelling Tools | Version 0.9.46 - 11-Nov-2026 - Agent Outliner 0.1.14: A Reasoning Effort on Each Message
 
 - Agent Outliner 0.1.14. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
