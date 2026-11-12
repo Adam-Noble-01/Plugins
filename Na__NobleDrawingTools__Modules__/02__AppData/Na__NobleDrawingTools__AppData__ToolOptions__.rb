@@ -255,7 +255,7 @@ module Na__NobleDrawingTools
                 :values   => %w[by_grip uniform non_uniform].freeze,
                 :captions => { 'by_grip' => 'By Grip', 'uniform' => 'Uniform', 'non_uniform' => 'Non-Uniform' }.freeze,
                 :default  => 'by_grip',
-                :summary  => 'By Grip: corners uniform, faces and edges non-uniform. Or every grip one way. The UNIFORM and NON-UNIFORM buttons on the view set this too'
+                :summary  => 'By Grip: corners uniform, faces and edges non-uniform. Or every grip one way until the tool is put down. The UNIFORM and NON-UNIFORM buttons on the view set this too'
             },
             {
                 :id      => 'scale_planes',

@@ -49,6 +49,8 @@
 #   SHIFT+TAB can go to a stretch and back to the mode it left, and nothing below
 #   the one question na_scale__uniform? asks has to know: a mode here reaches
 #   the model by the same uniform and free pulls SHIFT has always made.
+# - Since 5.2.35 the stored mode lasts while the tool is in hand: activate puts
+#   it back to By Grip (na_scale__forget_grip_mode).
 # - A typed size follows too: under UNIFORM one size scales everything.
 #
 # WHERE IT SHOWS (the drawing is in the Preview file):
@@ -348,6 +350,27 @@ module Na__NobleDrawingTools
             na_scale__say(Na__NobleDrawingTools.Na__ToolOptions__CaptionFor(NA_SCALE_OPTION_GRIP_MODE))
             na_drawn__update_status_text
             true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Picking the Tool Up Starts By Grip Again
+        # ------------------------------------------------------------
+        # A pill clicked once used to outlive the tool and SketchUp itself,
+        # so a week later every face and edge grip scaled uniform with only a
+        # lit pill to say why (5.2.35). The choice now lasts while the tool is
+        # in hand. A Shortcuts command for a mode still works from cold: it
+        # starts the tool first, then sets the mode. Stretch Planes is its own
+        # switch and is left as it was.
+        # ------------------------------------------------------------
+        def na_scale__forget_grip_mode
+            current = Na__NobleDrawingTools.Na__ToolOptions__Value(NA_SCALE_OPTION_GRIP_MODE).to_s
+            return false if current == NA_SCALE_GRIP_MODE_BY_GRIP
+
+            Na__NobleDrawingTools.Na__ToolOptions__SetValue(NA_SCALE_OPTION_GRIP_MODE, NA_SCALE_GRIP_MODE_BY_GRIP)
+            Na__NobleDrawingTools.Na__RightClickPopup__RefreshOption(NA_SCALE_OPTION_GRIP_MODE)
+            true
+        rescue StandardError
+            false
         end
         # ---------------------------------------------------------------
 

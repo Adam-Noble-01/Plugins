@@ -76,7 +76,9 @@
 #   saying NOT A STRETCH when a scale is what the planes were set up to avoid.
 # - The strip is also a switch (5.2.23): click UNIFORM, NON-UNIFORM or STRETCH
 #   and every grip takes that mode. Click the lit one to go back to grips going
-#   by their kind. Remembered between sessions, and also in the right-click menu.
+#   by their kind. Also in the right-click menu. Since 5.2.35 the choice lasts
+#   while the tool is in hand: picking Deep Scale up starts By Grip again
+#   (corners uniform, faces and edges non-uniform, SHIFT swaps one pull).
 #
 # =============================================================================
 
@@ -331,6 +333,7 @@ module Na__NobleDrawingTools
             @na_ctrl_held  = false
             @na_shift_held = false
             @na_axis_lock  = nil
+            na_scale__forget_grip_mode                                        # <-- Grips go by their kind again (5.2.35)
             Na__NobleDrawingTools.Na__Scale__SetActiveTool(self)              # <-- The Shortcuts commands act on this one
             na_drawn__reset_pick_state
             na_drawn__print_activation_banner

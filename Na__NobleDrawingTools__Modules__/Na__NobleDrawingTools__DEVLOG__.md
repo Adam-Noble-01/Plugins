@@ -3,6 +3,56 @@
 
 # =============================================================================
 
+## Version 5.2.35 - 10-Nov-2026 - Deep Scale: Picking the Tool Up Starts By Grip Again
+
+### Asked For
+*"My scale plugin, make none uniform scale the default and hold shift to uniform when use grabs the inline
+handles. IF corner handles then use uniform by default and shift makes non uniform"*
+
+### What Was Wrong
+That was already the default, and always had been: corners uniform, face and edge grips non-uniform,
+SHIFT swapping one pull, as SketchUp's own Scale tool does. But the UNIFORM pill (5.2.23) was saved
+between sessions. Adam's registry held `ScaleGripMode = uniform` from an earlier click, so every grip on a
+post scaled uniform, inline grips included, with SHIFT making them non-uniform: exactly the wrong way
+round. The only clue was a lit pill.
+
+### What It Does Now
+- **Picking Deep Scale up always starts By Grip.** Corner grips scale uniform, face and edge grips
+  scale on their own axes, and SHIFT swaps one pull either way.
+- **A pill still works while the tool is in hand.** Click UNIFORM or NON-UNIFORM and every grip takes
+  it until the tool is put down. The right-click menu's `Grips Scale` is the same setting and lasts as long.
+- **A Shortcuts command for a mode still works from cold.** It starts the tool first and sets the mode
+  after, so the reset does not swallow it.
+- **Stretch Planes is unchanged.** It has its own switch (SHIFT+TAB) and is kept as it was.
+- An old `uniform` or `non_uniform` left in the registry is cleared the first time the tool is picked
+  up after Reload Plugin Data.
+
+### How It Was Done
+`activate` calls a new `na_scale__forget_grip_mode` (Mode file), which writes `by_grip` back to
+`scale_grip_mode` if anything else is stored and refreshes an open popup. Nothing else changed: every
+grip still asks the one question `na_scale__uniform?`. No geometry, maths or coordinates are touched,
+so the Coordinate Rule does not come into it.
+
+### Checked Offline
+The renamed Deep Scale kit, on SketchUp 2026's Ruby 3.2:
+- **Syntax:** 123 of 123 files compile.
+- **Suite L (pills):** its stage helpers now store a mode after `activate`, as a click or a shortcut
+  does. Its "remembered between sessions" checks are replaced by new R checks:
+  - a pill holds for the use it was clicked in;
+  - the next pick-up goes back to By Grip;
+  - a `uniform` read cold from the registry is let go;
+  - after that, a face grip is non-uniform and SHIFT makes it uniform, and a corner is uniform and
+    SHIFT frees it;
+  - Stretch Planes survives a pick-up.
+  Result: 243 passed, 1 failed. The new R checks fail on HEAD, as they should. The one failure
+  (`T the object is still held and still selected`) fails on HEAD too: the doubles do not hand a
+  selection back.
+- **Suites C, E, F, G, J and K:** same as HEAD (C 82/7 and G 35/1, both failing on HEAD too; E 39,
+  F 44, J 1131 and K 185 all pass).
+- **Not checked in SketchUp.**
+
+# =============================================================================
+
 ## Version 5.2.34 - 06-Nov-2026 - Retype After the Fact Everywhere: Picked Faces Across Groups Retype, and Every Tool Replays the Change
 
 ### Asked For
