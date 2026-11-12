@@ -140,6 +140,8 @@
         // Live: every change rebuilds the bound trace with the drawing as its
         // own local profile (Element Assembly Studio Pro's Live Mode). One
         // update in flight at a time; changes made meanwhile go in the next.
+        // Off until a trace is bound; binding one turns it on (v1.6.17, the
+        // config's defaults.drawProfileLiveDefault, true unless set false).
         live       : { on : false, inFlight : false, pending : false, timer : null, state : 'idle', message : '', syncedSig : '', sentSig : '' }
     };
 
@@ -281,7 +283,8 @@
         // reload of the dialog, not across days.
         var fresh = Number(draft.savedAt) && (Date.now() - Number(draft.savedAt)) < 8 * 3600 * 1000;
         ui.ed.bind = fresh ? (draft.bind || null) : null;
-        ui.ed.Hint('Your last drawing was restored.');
+        ui.live.on = !!BoundIds() && LiveDefault();
+        ui.ed.Hint('Your last drawing was restored.' + (ui.live.on ? ' Live is on: your next change rebuilds the bound trace.' : ''));
     }
 
     // endregion ----------------------------------------------------------------
@@ -1069,6 +1072,12 @@
         return bind && bind.traceIds && bind.traceIds.length ? bind.traceIds.slice() : null;
     }
 
+    // Live is the default for a bound trace (v1.6.17): set by the bootstrap
+    // from the config's defaults.drawProfileLiveDefault, on unless it is false.
+    function LiveDefault() {
+        return window.Na__ProfilePathTracer__DrawLiveDefault !== false;
+    }
+
     function DocSig() { return D.Serialize(ui.ed.doc); }
 
     // What the trace's own profile is called: the drawing's name, never a
@@ -1359,11 +1368,13 @@
 
         if (payload.kind === 'trace') {
             if (payload.bind && payload.bind.primaryProfileKey) ui.usage[payload.bind.primaryProfileKey] = payload.keyUsageCount;
-            // A newly bound trace never starts in Live: the first push to it
-            // is always one the user asked for.
+            // A newly bound trace starts in Live (v1.6.17, Adam's default), but
+            // nothing is pushed on binding: the first update is the first change
+            // the user makes to the drawing.
             var bindIt = function (inSync) {
                 StopLive();
                 ed.bind = payload.bind;
+                ui.live.on = LiveDefault();
                 ui.live.syncedSig = inSync ? DocSig() : '';
                 ui.live.state = inSync ? 'synced' : 'idle';
                 ed.SaveDraft();
@@ -1375,7 +1386,7 @@
                 return;
             }
             var record = payload.profileRecord;
-            var loadIt = function () { OpenRecord(record, false); bindIt(true); ed.Hint(payload.statusMessage); };
+            var loadIt = function () { OpenRecord(record, false); bindIt(true); ed.Hint(payload.statusMessage + (ui.live.on ? ' Live is on: every change rebuilds the trace.' : '')); };
             if (ed.dirty && HasDrawing()) {
                 Confirm('Open ' + (payload.bind.primaryTraceId || 'the trace') + '\'s profile? Your drawing has unsaved changes.', [
                     { label : 'Open its profile', kind : 'primary', run : loadIt },

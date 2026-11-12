@@ -284,8 +284,14 @@ module Na__ProfileTools__ProfilePathTracer
         # rebuild opens its own, transparent, so both land as one undo step).
         # That leaves a window where the stored key could outrun the geometry if
         # the rebuild fails, so a failed rebuild rolls the dictionary back.
-        def self.Na__SwapEngine__SwapOneTrace(model, trace_id, requested_key, overrides)
-            parent_group = self.Na__SwapEngine__ResolveTraceById(trace_id)
+        #
+        # The MCP seam's keywords (v1.6.17): wrap_in_operation false when the
+        # caller owns the undo step (no operation is opened here, and the
+        # rebuild and any roll back join the caller's), and parent_group to
+        # name the assembly itself rather than the first one carrying trace_id
+        # (an unrepaired copy shares its original's id).
+        def self.Na__SwapEngine__SwapOneTrace(model, trace_id, requested_key, overrides, wrap_in_operation: true, parent_group: nil)
+            parent_group ||= self.Na__SwapEngine__ResolveTraceById(trace_id)
             return { isSwapped: false, reason: 'trace not found in the model' } unless parent_group
 
             previous_payload = Na__DataSerializer.Na__DataSerializer__ReadParentPayload(parent_group)
@@ -319,25 +325,25 @@ module Na__ProfileTools__ProfilePathTracer
                 updates['EndOffset']   = swapped ? typed_offsets['start'] : typed_offsets['end']
             end
 
-            model.start_operation('Na__ProfilePathTracer__SwapProfile', true)
+            model.start_operation('Na__ProfilePathTracer__SwapProfile', true) if wrap_in_operation
             Na__DataSerializer.Na__DataSerializer__UpdateParentPlacement(parent_group, updates)
             Na__DataSerializer.Na__DataSerializer__ClearLocalProfile(parent_group) unless requested_key.empty?
             self.Na__SwapEngine__RenameForProfile(parent_group, next_key, previous_key)
-            model.commit_operation
+            model.commit_operation if wrap_in_operation
 
-            return { isSwapped: true, reason: nil } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(parent_group)
+            return { isSwapped: true, reason: nil } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(parent_group, wrap_in_operation: wrap_in_operation)
 
-            self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local)
-            { isSwapped: false, reason: 'rebuild failed — the previous profile has been restored' }
+            self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local, wrap_in_operation: wrap_in_operation)
+            { isSwapped: false, reason: "rebuild failed (#{Na__RegenEngine.Na__RegenEngine__LastFailure}) — the previous profile has been restored" }
         rescue => error
-            model.abort_operation rescue nil
+            (model.abort_operation rescue nil) if wrap_in_operation
             { isSwapped: false, reason: error.message }
         end
 
-        def self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local = nil)
+        def self.Na__SwapEngine__RestorePreviousPlacement(model, parent_group, previous_payload, previous_name, previous_local = nil, wrap_in_operation: true)
             return unless Na__DataSerializer.Na__DataSerializer__GroupValid?(parent_group)
 
-            model.start_operation('Na__ProfilePathTracer__SwapProfileRevert', true, false, true)
+            model.start_operation('Na__ProfilePathTracer__SwapProfileRevert', true, false, true) if wrap_in_operation
             Na__DataSerializer.Na__DataSerializer__UpdateParentPlacement(
                 parent_group,
                 'ProfileKey'   => previous_payload['ProfileKey'].to_s,
@@ -351,9 +357,9 @@ module Na__ProfileTools__ProfilePathTracer
                 Na__DataSerializer.Na__DataSerializer__WriteLocalProfileJson(parent_group, previous_local['json'], previous_local['name'])
             end
             parent_group.name = previous_name unless previous_name.empty?
-            model.commit_operation
+            model.commit_operation if wrap_in_operation
         rescue => error
-            model.abort_operation rescue nil
+            (model.abort_operation rescue nil) if wrap_in_operation
             Na__DebugTools.Na__Debug__Warn("SwapEngine: rollback skipped: #{error.message}")
         end
 

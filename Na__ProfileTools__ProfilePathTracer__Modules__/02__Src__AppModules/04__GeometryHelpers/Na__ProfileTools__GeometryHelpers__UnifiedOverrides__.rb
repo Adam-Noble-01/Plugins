@@ -646,12 +646,17 @@ module Na__ProfileTools__ProfilePathTracer
         # is unchanged. The flip moves the instance, not its contents, so the
         # stored path keeps its un-flipped coordinates, which is what lets the
         # regeneration engine rebuild in un-flipped parent space.
-        def self.Na__Geometry__ApplyReverseFlip(parent_group, path_points = [])
+        #
+        # base_transformation (v1.6.17, the MCP seam): the pin a trace built
+        # into a CLOSED container was given instead of the identity (that
+        # container's reported-to-world, inverted). The flip then goes on top
+        # of it, so the trace's WORLD placement is the flip exactly as above.
+        def self.Na__Geometry__ApplyReverseFlip(parent_group, path_points = [], base_transformation = nil)
             bounds = Geom::BoundingBox.new
             bounds.add(parent_group.definition.bounds)
             Array(path_points).each { |point| bounds.add(point) }
             flip_transform = self.Na__Geometry__BuildReverseFlipTransform(bounds)
-            parent_group.transformation = flip_transform
+            parent_group.transformation = base_transformation ? base_transformation * flip_transform : flip_transform
         end
 
     # endregion ----------------------------------------------------------------
@@ -666,7 +671,24 @@ module Na__ProfileTools__ProfilePathTracer
         # "Start" was the traversal END (an Interactive run the canonical
         # direction rule reversed), so a bound trace shows the offsets the way
         # they were typed.
-        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil, path_offsets: nil, offset_ends_swapped: false)
+        #
+        # THE MCP SEAM'S KEYWORDS (v1.6.17), each defaulting to the dialog's
+        # behaviour:
+        #   target_entities:       the entities to build in (the active context
+        #                          when nil)
+        #   parent_transformation: the trace's pin when it is built into a
+        #                          CLOSED container: that container's
+        #                          reported-to-world, inverted, so the trace's
+        #                          world placement is still the identity and
+        #                          parent space is still world space as built
+        #   wrap_in_operation:     false when the caller owns the undo step
+        #                          (the MCP router or a batch): SketchUp does
+        #                          not nest operations, and starting one here
+        #                          would end the caller's. A failure then erases
+        #                          the half-built group instead of aborting.
+        # The result carries the new group itself as 'group'.
+        def self.Na__Geometry__BuildProfileAlongPath(model:, profile_data:, path_data:, start_point:, rotation_step:, toggle_states: {}, reverse_direction: false, origin_offset: nil, path_offsets: nil, offset_ends_swapped: false,
+                                                     target_entities: nil, parent_transformation: nil, wrap_in_operation: true)
             return { 'isBuilt' => false, 'reason' => 'No active model.' } unless model
             unless self.Na__Geometry__ProfileType(profile_data) == 'na_unified_asset'
                 return { 'isBuilt' => false, 'reason' => 'Only unified schema profiles are supported.' }
@@ -704,11 +726,15 @@ module Na__ProfileTools__ProfilePathTracer
             return { 'isBuilt' => false, 'reason' => 'Path frame could not be built.' } unless frame_transform
 
             profile_key = profile_data['profileKey'] || 'Unnamed'
-            model.start_operation('Na__ProfilePathTracer__GenerateUnifiedProfile', true)
+            model.start_operation('Na__ProfilePathTracer__GenerateUnifiedProfile', true) if wrap_in_operation
 
-            parent_group = model.active_entities.add_group
+            parent_group = (target_entities || model.active_entities).add_group
             parent_group.name = "Na__ProfileTrace__#{profile_key}"
-            self.Na__Geometry__PinGroupToWorld(parent_group)
+            if parent_transformation
+                parent_group.transformation = parent_transformation
+            else
+                self.Na__Geometry__PinGroupToWorld(parent_group)
+            end
 
             solid_group = parent_group.entities.add_group
             solid_group.name = 'Na__ProfileTrace__SweptSolid'
@@ -729,12 +755,12 @@ module Na__ProfileTools__ProfilePathTracer
                 origin_offset:      origin_offset
             )
             unless swept['isSwept']
-                self.Na__Geometry__AbortOperationSafely(model)
+                self.Na__Geometry__UndoFailedBuild(model, parent_group, wrap_in_operation)
                 return { 'isBuilt' => false, 'reason' => swept['reason'] }
             end
             styled_edge_count = swept['styledEdgeCount']
 
-            self.Na__Geometry__ApplyReverseFlip(parent_group, ordered_points) if reverse_direction
+            self.Na__Geometry__ApplyReverseFlip(parent_group, ordered_points, parent_transformation) if reverse_direction
 
             # @delegate: ../02__AppData/Na__ProfileTools__AppData__DataSerializer__
             self.Na__Geometry__StampAssemblyDictionaries(
@@ -753,12 +779,22 @@ module Na__ProfileTools__ProfilePathTracer
                 offset_ends_swapped: offset_ends_swapped == true && !is_closed_loop
             )
 
-            model.commit_operation
+            model.commit_operation if wrap_in_operation
 
-            { 'isBuilt' => true, 'groupName' => parent_group.name, 'styledEdgeCount' => styled_edge_count }
+            { 'isBuilt' => true, 'groupName' => parent_group.name, 'styledEdgeCount' => styled_edge_count, 'group' => parent_group }
         rescue => error
-            self.Na__Geometry__AbortOperationSafely(model)
+            self.Na__Geometry__UndoFailedBuild(model, parent_group, wrap_in_operation)
             { 'isBuilt' => false, 'reason' => error.message }
+        end
+
+        # A failed build leaves nothing behind: its own operation is aborted,
+        # or, inside a caller's operation (which must not be aborted from
+        # here), the half-built group is erased.
+        def self.Na__Geometry__UndoFailedBuild(model, parent_group, wrap_in_operation)
+            return self.Na__Geometry__AbortOperationSafely(model) if wrap_in_operation
+            parent_group.erase! if parent_group && parent_group.valid?
+        rescue => error
+            Na__DebugTools.Na__Debug__Warn("Failed build clean-up warning: #{error.message}")
         end
 
         def self.Na__Geometry__SweepProfileIntoGroup(target_entities:, model:, profile_data:,

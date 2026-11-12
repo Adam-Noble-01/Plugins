@@ -206,19 +206,12 @@ module Na__ProfileTools__ProfilePathTracer
             trace_ids.each do |trace_id|
                 group = Na__SwapEngine.Na__SwapEngine__ResolveTraceById(trace_id)
                 next failures << "#{trace_id} is no longer in the model" unless group
-                previous_local = Na__DataSerializer.Na__DataSerializer__ReadLocalProfileRaw(group)
-                next unless previous_local
-
-                model.start_operation('Na__ProfilePathTracer__RevertLocalProfile', true)
-                Na__DataSerializer.Na__DataSerializer__ClearLocalProfile(group)
-                model.commit_operation
-                if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group)
+                outcome = self.Na__TraceBridge__RevertLocalOne(model, group)
+                next if outcome[:unchanged]
+                if outcome[:ok]
                     reverted += 1
                 else
-                    model.start_operation('Na__ProfilePathTracer__RevertLocalProfileUndo', true, false, true)
-                    Na__DataSerializer.Na__DataSerializer__WriteLocalProfileJson(group, previous_local['json'], previous_local['name'])
-                    model.commit_operation
-                    failures << "#{trace_id}: its library profile would not rebuild, so it keeps its own"
+                    failures << "#{trace_id}: #{outcome[:reason]}"
                 end
             end
 
@@ -255,30 +248,57 @@ module Na__ProfileTools__ProfilePathTracer
         # The dictionary write and the rebuild are two operations, the rebuild's
         # transparent, so they undo as one - the swap engine's own pattern. A
         # failed rebuild puts back whatever profile the trace had before.
-        def self.Na__TraceBridge__ApplyLocalToOne(model, trace_id, asset_data, display_name)
-            group = Na__SwapEngine.Na__SwapEngine__ResolveTraceById(trace_id)
+        #
+        # The MCP seam's keywords (v1.6.17): wrap_in_operation false when the
+        # caller owns the undo step, parent_group to name the assembly itself
+        # rather than the first one carrying trace_id.
+        def self.Na__TraceBridge__ApplyLocalToOne(model, trace_id, asset_data, display_name, wrap_in_operation: true, parent_group: nil)
+            group = parent_group || Na__SwapEngine.Na__SwapEngine__ResolveTraceById(trace_id)
             return { ok: false, reason: "#{trace_id} is no longer in the model" } unless group
             readiness = Na__SwapEngine.Na__SwapEngine__CheckPathReady(group)
             return { ok: false, reason: "#{trace_id}: #{readiness[:reason]}" } unless readiness[:isReady]
 
             previous_local = Na__DataSerializer.Na__DataSerializer__ReadLocalProfileRaw(group)
-            model.start_operation('Na__ProfilePathTracer__LocalProfileEdit', true)
+            model.start_operation('Na__ProfilePathTracer__LocalProfileEdit', true) if wrap_in_operation
             Na__DataSerializer.Na__DataSerializer__WriteLocalProfile(group, asset_data, display_name)
-            model.commit_operation
+            model.commit_operation if wrap_in_operation
 
-            return { ok: true } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group)
+            return { ok: true } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group, wrap_in_operation: wrap_in_operation)
 
-            model.start_operation('Na__ProfilePathTracer__LocalProfileEditUndo', true, false, true)
+            model.start_operation('Na__ProfilePathTracer__LocalProfileEditUndo', true, false, true) if wrap_in_operation
             if previous_local
                 Na__DataSerializer.Na__DataSerializer__WriteLocalProfileJson(group, previous_local['json'], previous_local['name'])
             else
                 Na__DataSerializer.Na__DataSerializer__ClearLocalProfile(group)
             end
-            model.commit_operation
-            { ok: false, reason: "#{trace_id} would not rebuild with that outline (the status bar says why); it keeps its previous profile" }
+            model.commit_operation if wrap_in_operation
+            { ok: false, reason: "#{trace_id} would not rebuild with that outline (#{Na__RegenEngine.Na__RegenEngine__LastFailure}); it keeps its previous profile" }
         rescue => error
-            model.abort_operation rescue nil
+            (model.abort_operation rescue nil) if wrap_in_operation
             { ok: false, reason: "#{trace_id}: #{error.message}" }
+        end
+
+        # One trace back on its library profile, a failed rebuild putting its
+        # own back: what Revert to Library does per trace (split out in
+        # v1.6.17 so the MCP seam reverts the same way, inside its own undo
+        # step when wrap_in_operation is false).
+        # { ok:, unchanged:, reason: }
+        def self.Na__TraceBridge__RevertLocalOne(model, group, wrap_in_operation: true)
+            previous_local = Na__DataSerializer.Na__DataSerializer__ReadLocalProfileRaw(group)
+            return { ok: true, unchanged: true, reason: nil } unless previous_local
+
+            model.start_operation('Na__ProfilePathTracer__RevertLocalProfile', true) if wrap_in_operation
+            Na__DataSerializer.Na__DataSerializer__ClearLocalProfile(group)
+            model.commit_operation if wrap_in_operation
+            return { ok: true, unchanged: false, reason: nil } if Na__RegenEngine.Na__RegenEngine__RegenerateTrace(group, wrap_in_operation: wrap_in_operation)
+
+            model.start_operation('Na__ProfilePathTracer__RevertLocalProfileUndo', true, false, true) if wrap_in_operation
+            Na__DataSerializer.Na__DataSerializer__WriteLocalProfileJson(group, previous_local['json'], previous_local['name'])
+            model.commit_operation if wrap_in_operation
+            { ok: false, unchanged: false, reason: "its library profile would not rebuild (#{Na__RegenEngine.Na__RegenEngine__LastFailure}), so it keeps its own" }
+        rescue => error
+            (model.abort_operation rescue nil) if wrap_in_operation
+            { ok: false, unchanged: false, reason: error.message }
         end
 
         # Where a local profile takes its edge colour from: the trace's current

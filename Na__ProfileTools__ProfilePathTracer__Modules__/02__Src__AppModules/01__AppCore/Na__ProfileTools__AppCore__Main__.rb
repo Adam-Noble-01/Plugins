@@ -105,6 +105,12 @@ require_relative 'Na__ProfileTools__AppCore__DialogManager__'
 require_relative 'Na__ProfileTools__AppCore__PublicApi__'
 require_relative 'Na__ProfileTools__AppCore__ContextMenuHandlers__'
 
+# -------------------------------------------------------------------------
+# REGION | System - MCP Operations (the Na SketchUp MCP's seam, v1.6.17)
+# -------------------------------------------------------------------------
+
+require_relative '../60__System__McpOperations/Na__ProfileTracer__McpOperations__Main__'
+
 # =============================================================================
 
 module Na__ProfileTools__ProfilePathTracer

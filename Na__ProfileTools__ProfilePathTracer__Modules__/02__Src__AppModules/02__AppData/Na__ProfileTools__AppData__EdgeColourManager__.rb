@@ -35,9 +35,12 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Module State
     # -------------------------------------------------------------------------
 
-        @na_flat_registry = {}
-        @na_palette       = []
-        @na_load_status   = :pending
+        # Kept across Reload Plugin Files (v1.6.17): a reload used to drop a
+        # loaded registry back to :pending, and a sweep run before the dialog
+        # opened again fell back to raw hex materials.
+        @na_flat_registry ||= {}
+        @na_palette       ||= []
+        @na_load_status   ||= :pending
 
         NA_CACHE_KEY                 = :edge_materials
         NA_MTE_PATTERN               = /^MTE\d{3}__/.freeze
@@ -48,6 +51,28 @@ module Na__ProfileTools__ProfilePathTracer
     # -------------------------------------------------------------------------
     # REGION | Strict Loader
     # -------------------------------------------------------------------------
+
+        # The registry for a sweep run with the dialog closed (the MCP seam,
+        # v1.6.17): the local DataLib cache when there is one, so a build never
+        # waits on a download; else the dialog's own load. A registry already
+        # loaded is kept as it is.
+        def self.Na__EdgeColours__EnsureLoaded
+            return @na_load_status unless @na_load_status == :pending || @na_load_status == :failed
+
+            cached = Na__DataLib__CacheData.Na__Cache__ReadAnyCache(NA_CACHE_KEY)
+            if cached
+                @na_flat_registry = self.Na__EdgeColours__Flatten(cached)
+                @na_palette = self.Na__EdgeColours__BuildPalette(cached)
+                @na_load_status = :cache_stale
+                return @na_load_status
+            end
+
+            self.Na__EdgeColours__ForceRefreshFromUrl
+            @na_load_status
+        rescue => error
+            puts "⚠ [Na__EdgeColourManager] EnsureLoaded failed: #{error.message}"
+            @na_load_status
+        end
 
         def self.Na__EdgeColours__ForceRefreshFromUrl
             fetched = Na__DataLib__CacheData.Na__Cache__FetchFromUrl(NA_CACHE_KEY)

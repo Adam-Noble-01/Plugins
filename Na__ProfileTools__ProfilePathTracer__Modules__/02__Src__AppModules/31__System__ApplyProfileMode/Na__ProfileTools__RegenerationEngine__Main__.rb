@@ -98,7 +98,12 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Public Entry Point
     # -------------------------------------------------------------------------
 
-        def self.Na__RegenEngine__RegenerateTrace(parent_group)
+        # wrap_in_operation (v1.6.17, the MCP seam): false when the caller owns
+        # the undo step (the MCP router or a batch). The rebuild then opens no
+        # operation of its own, and the caller must have left the trace closed:
+        # stepping out of it changes the active path, which would split the
+        # caller's operation, so a trace still open is refused instead.
+        def self.Na__RegenEngine__RegenerateTrace(parent_group, wrap_in_operation: true)
             return false unless Na__DataSerializer.Na__DataSerializer__GroupValid?(parent_group)
             return false if @na_in_progress
             @na_last_failure = ''
@@ -106,7 +111,12 @@ module Na__ProfileTools__ProfilePathTracer
             payload = Na__DataSerializer.Na__DataSerializer__ReadParentPayload(parent_group)
             return false unless payload
 
-            unless self.Na__RegenEngine__LeaveAssemblyContext(parent_group)
+            left = if wrap_in_operation
+                       self.Na__RegenEngine__LeaveAssemblyContext(parent_group)
+                   else
+                       !Array(Sketchup.active_model && Sketchup.active_model.active_path).include?(parent_group)
+                   end
+            unless left
                 self.Na__RegenEngine__ReportFailure('the trace is open for editing and could not be closed — click outside it, then regenerate.')
                 return false
             end
@@ -132,7 +142,8 @@ module Na__ProfileTools__ProfilePathTracer
                 profile_data: profile_data,
                 runs:         path_result[:runs],
                 payload:      payload,
-                source:       path_result[:source]
+                source:       path_result[:source],
+                wrap_in_operation: wrap_in_operation
             )
         rescue => error
             self.Na__RegenEngine__ReportFailure("unexpected error — #{error.message}")
@@ -305,7 +316,7 @@ module Na__ProfileTools__ProfilePathTracer
     # REGION | Private - Rebuild Operation
     # -------------------------------------------------------------------------
 
-        def self.Na__RegenEngine__ExecuteRebuild(model:, parent_group:, profile_data:, runs:, payload:, source: :stored)
+        def self.Na__RegenEngine__ExecuteRebuild(model:, parent_group:, profile_data:, runs:, payload:, source: :stored, wrap_in_operation: true)
             @na_in_progress = true
 
             rotation_step = payload['RotationStep'].to_i
@@ -336,7 +347,7 @@ module Na__ProfileTools__ProfilePathTracer
 
             new_solid_group = nil
             old_erased      = false
-            model.start_operation('Na__ProfilePathTracer__Regenerate', true, false, true)
+            model.start_operation('Na__ProfilePathTracer__Regenerate', true, false, true) if wrap_in_operation
 
             # A copy of a trace shares its definition until something makes it
             # unique; rebuilding a shared one would rebuild every copy, only one
@@ -389,7 +400,7 @@ module Na__ProfileTools__ProfilePathTracer
                 # touched, so taking the empty group away leaves the trace as
                 # it was.
                 parent_group.entities.erase_entities([new_solid_group]) if new_solid_group.valid?
-                model.commit_operation
+                model.commit_operation if wrap_in_operation
                 self.Na__RegenEngine__ReportFailure("no run could be swept — #{first_failure}")
                 @na_in_progress = false
                 return false
@@ -406,7 +417,7 @@ module Na__ProfileTools__ProfilePathTracer
             parent_group.entities.erase_entities(edit_groups) unless edit_groups.empty?
             Na__DataSerializer.Na__DataSerializer__RetireLegacyHelpers(parent_group)
 
-            model.commit_operation
+            model.commit_operation if wrap_in_operation
             @na_in_progress = false
             self.Na__RegenEngine__ReportSuccess(parent_group, runs, swept_run_count, first_failure, source)
             true
@@ -421,7 +432,7 @@ module Na__ProfileTools__ProfilePathTracer
             rescue
                 nil
             end
-            model.commit_operation rescue nil
+            (model.commit_operation rescue nil) if wrap_in_operation
             self.Na__RegenEngine__ReportFailure("rebuild operation failed — #{error.message}")
             @na_in_progress = false
             false

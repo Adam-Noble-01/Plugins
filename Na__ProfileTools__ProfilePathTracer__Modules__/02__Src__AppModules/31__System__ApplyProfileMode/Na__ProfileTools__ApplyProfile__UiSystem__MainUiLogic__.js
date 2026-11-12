@@ -801,6 +801,9 @@
             Na__UiState.toggleDefinitions = payload.toggleDefinitions || {};
             Na__UiState.edgeMaterialsStatus = payload.edgeMaterialsStatus || 'pending';
             Na__UiState.sceneProfileStatus = payload.sceneProfileStatus || Na__UiState.sceneProfileStatus;
+            // Draw Profile reads this when a trace is bound: Live on unless the
+            // config's defaults.drawProfileLiveDefault is false (v1.6.17).
+            window.Na__ProfilePathTracer__DrawLiveDefault = payload.drawProfileLiveDefault !== false;
 
             if (Na__UiState.sceneProfileStatus && Na__UiState.sceneProfileStatus.isValid === true && Na__UiState.sceneProfileStatus.profileData) {
                 Na__UiState.profiles[Na__UiState.sceneProfileStatus.profileData.profileKey] = Na__UiState.sceneProfileStatus.profileData;

@@ -4,6 +4,64 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.17 - 11-Nov-2026 - The MCP Seam, Live by Default, Edge Colours Without the Dialog
+
+### Summary
+Agents now drive the tracer through the Na SketchUp MCP (1.0.24): three tools, `profile_tracer`
+(read), `profile_tracer_edit` (traces in the model) and `profile_tracer_library` (the profile files),
+backed by a new folder, `60__System__McpOperations`. Adam's rule (11-Nov-2026): every standard profile
+(entablatures, wall cappings, cornices, covings, skirtings, window boards) is made with the tracer,
+from the closest library profile, and a new profile goes into the library only when he asks.
+**Draw Profile now binds a trace in Live mode by default.**
+
+### What changes in use
+| Before | Now |
+|---|---|
+| Binding a trace in Draw Profile left Live off | Live is on as soon as a trace is bound (From Model, Edit Profile, a restored draft). Nothing is pushed on binding; the first change you make rebuilds the trace. `defaults.drawProfileLiveDefault: false` in the config switches it back |
+| A Reload Plugin Files dropped the edge colour registry back to "pending" until the dialog opened again; a sweep in between fell back to raw `Na__ProfileEdge__<hex>` materials | The registry survives a reload, and `Na__EdgeColours__EnsureLoaded` loads it from the local DataLib cache (no download, under 1 ms) before any sweep the dialog did not start |
+| Every engine opened its own undo operation | Each takes `wrap_in_operation:` (default true, the dialog's behaviour). The MCP passes false and owns one step for the whole call, or a batch's |
+
+### How it works
+- **The seam** (`60__System__McpOperations`): `Main` (entry points, action lists replaced on every
+  load, the refusal type `Na__McpOperationsError`), `Profiles` (library reads, profile sources,
+  reshaping), `Traces` (reads, paths, every model edit), `Library` (the files). It reuses the
+  plugin's own engines and writers throughout and opens no operation itself.
+- **Engine keywords**, each defaulting to what the dialog does:
+  - `Na__Geometry__BuildProfileAlongPath(target_entities:, parent_transformation:, wrap_in_operation:)`,
+    returning the new group as `'group'`. A failed build inside a caller's operation erases its
+    half-built group instead of aborting (`Na__Geometry__UndoFailedBuild`).
+  - `Na__Geometry__ApplyReverseFlip(parent_group, points, base_transformation)`: the flip on top of a
+    closed container's pin.
+  - `Na__RegenEngine__RegenerateTrace(group, wrap_in_operation:)` and `ExecuteRebuild`; with false, an
+    open trace is refused rather than stepped out of (changing the active path would split the
+    caller's operation).
+  - `Na__SwapEngine__SwapOneTrace(..., wrap_in_operation:, parent_group:)` and
+    `RestorePreviousPlacement(..., wrap_in_operation:)`.
+  - `Na__TraceBridge__ApplyLocalToOne(..., wrap_in_operation:, parent_group:)`, and
+    `Na__TraceBridge__RevertLocalOne`, split out of Revert to Library so both revert the same way.
+- **The Coordinate Rule.** A trace built into a CLOSED container is pinned with that container's
+  reported-to-world, inverted, so its parent space is still world space as built, exactly what the
+  dialog makes with that container open. Reverse puts the flip on top of the pin. Reading back,
+  world = the trace's world transform x the stored point (where Edit Path draws its red line).
+- **Reshaping a profile** (`profile_edit`): scale, size, stretch (points beyond a cut move by a
+  distance: a capping made deeper or taller without distorting its mouldings), flip and datum
+  (Edit Profile's own writers). Arcs a scale or stretch distorts lose their stored radius.
+
+### Validation
+- Offline: every changed file compiles; the MCP's BridgeCore suite loads this seam and checks its
+  action lists, edge chaining, stretch and scale (136 of 136); `ValidateApiUsage` checks the four
+  seam files against the SketchUp API index (no invented API).
+- Live, Brown 60795 (pid 549572): a 14-step zero-trace trial of every edit action; every library
+  action on a throwaway profile, removed after; then the real parapet capping, identical to Adam's
+  REFERENCE CAPPING HERE trace (NPT0005) 10 m lower: same bounds, 0.8989339 m3, 159 faces, 369 edges,
+  71 L20 + 298 L40.
+
+### Checklist for Adam
+- [ ] Reload Plugin Files (Settings), or restart SketchUp.
+- [ ] Select a trace, Draw Profile > From Model: Live shows on; drag a point and the trace rebuilds.
+- [ ] Reload Plugin Files, then without opening the dialog ask an agent for a trace: its edges carry
+      the MTE edge materials, not `Na__ProfileEdge__...`.
+
 ## Profile Path Tracer - v1.6.16 - 13-Oct-2026 - The Path Is Data: No Helper Linework, No Helper Tag
 
 ### Summary

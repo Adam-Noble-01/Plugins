@@ -10,7 +10,8 @@
         "pathMode"          : "interactive",
         "rotationStep"      : 0,
         "isPreviewEnabled"  : true,
-        "isHeadless"        : false
+        "isHeadless"        : false,
+        "drawProfileLiveDefault" : true
     },
     "toggles" : {
         "flipXCenter": {
