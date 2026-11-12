@@ -147,6 +147,15 @@ module Na__NobleDrawingTools
             view.drawing_color = NA_DRAWN_VOLUME_FILL_COLOR
             view.draw(GL_QUADS, quads)
 
+            # A ball corner (three round-overs meeting, 5.2.37) in the same
+            # amber, carried by one of its three solves.
+            [:ball0, :ball1].each do |key|
+                triangles = world[key]
+                next unless triangles && triangles.length >= 3
+
+                view.draw(GL_TRIANGLES, Na__NobleDrawingTools.Na__DrawnPreview__ToDrawSpace(triangles))
+            end
+
             view.line_stipple  = ''
             view.line_width    = 2
             view.drawing_color = NA_DRAWN_VOLUME_BORDER_COLOR
@@ -284,7 +293,7 @@ module Na__NobleDrawingTools
                 scaled[key] = pull.call(world[key], base) if world[key]
             end
 
-            [[:profile0, v0], [:profile1, v1]].each do |key, base|
+            [[:profile0, v0], [:profile1, v1], [:ball0, v0], [:ball1, v1]].each do |key, base|
                 scaled[key] = world[key].map { |point| pull.call(point, base) } if world[key]
             end
 

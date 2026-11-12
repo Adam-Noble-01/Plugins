@@ -27,6 +27,15 @@
 #   sections — the cut STOPS there instead of clipping anything (see the
 #   Stops region). Deep Chamfer sends every stopped cut through here too,
 #   as the two-point profile [a, b], so all three tools stop the same way.
+# - Where the corner finishes on a face NOT square to it — a hip, a valley,
+#   a ridge dying into another slope, a raking gable band — each end's
+#   profile is slid along the edge onto that face, so the cut finishes on it
+#   flat instead of being refused (5.2.36; see the Ends region). Deep
+#   Chamfer's cuts get the same, through the same member solve.
+# - Where THREE banked round-overs meet at one corner (a ridge and its two
+#   hips, a box corner), the corner is the rolling ball's: each round ends
+#   on the ball and a patch of the ball closes the corner (5.2.37; see the
+#   Ball Corners region).
 #
 # THE SOLVE A PROFILE TOOL HANDS BACK (Na__ProfileSweep__SolveHash builds it):
 #   every key the chamfer tool reads — :cos_half, :v0/:v1, :a0/:a1/:b0/:b1,
@@ -308,6 +317,128 @@ module Na__NobleDrawingTools
 
 
     # -----------------------------------------------------------------------------
+    # REGION | Ends — Where the Corner Finishes on a Face Not Square to It
+    # -----------------------------------------------------------------------------
+    #
+    # Each end's profile is laid in the plane square to the edge through its
+    # corner vertex, and spliced into every other face at that vertex. That is
+    # exact only where the face the corner finishes on is square to the edge:
+    # the end of a board, a box corner. At a hip, a valley, a ridge dying into
+    # another roof's slope or a gable band that rakes, the spliced points lie
+    # off that face's plane, add_face refuses them and the whole cut is
+    # refused. On the Corrett roof (64610, 12-Nov-2026) all four ridge ends
+    # came out 42 to 111 mm off.
+    #
+    # So an end that finishes on ONE plane not square to the edge has its
+    # profile slid along the edge onto that plane. Point a rides face A's
+    # plane and the end plane at once, so it lands on the hip or valley line
+    # between them, and likewise b; every point between lands on the end face,
+    # whose new outline is therefore flat. Each facet still runs between two
+    # lines parallel to the edge, so it stays flat too, and the moulding
+    # finishes on the end face exactly as a mitre would. A square end slides
+    # nowhere, so boards and boxes cut exactly as before.
+    #
+    # Left square, as before: a stopped or through end (the Stops region), a
+    # corner another banked edge meets (the mitres decide it), an open end
+    # with no face, an end on two or more planes at once, and an end face so
+    # close to running along the edge that the slide would run away.
+    # -----------------------------------------------------------------------------
+
+    NA_SWEEP_SLIDE_SQUARE   = 1.0 - 1.0e-9                                    # <-- |cos| above this: the end face is square already, nothing moves
+    NA_SWEEP_SLIDE_MIN_COS  = 0.0872                                          # <-- cos 85 deg: an end face nearer to running along the edge is not slid onto
+    NA_SWEEP_SLIDE_COPLANAR = 1.0 - 1.0e-6                                    # <-- End faces at one vertex with normals this parallel are one plane
+    NA_SWEEP_SLIDE_MIN_RUN  = 0.004                                           # <-- Inches (~0.1 mm); each facet must still run this far along the edge
+
+    # FUNCTION | The One Plane an End Finishes On, as [point, normal], or nil
+    # ------------------------------------------------------------
+    # Every face at the vertex other than A and B. They all touch the vertex,
+    # so parallel normals mean one plane. In the space the edge reports.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__EndPlane(target, vertex)
+        end_faces = vertex.faces.to_a - (target[:faces] || [])
+        return nil if end_faces.empty?
+
+        normal = end_faces.first.normal
+        return nil unless normal.length.to_f > 0.0
+        return nil unless end_faces.all? { |face| face.normal.dot(normal).to_f.abs > NA_SWEEP_SLIDE_COPLANAR }
+
+        [vertex.position, normal]
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Slide Each Free End's Profile Onto the Face It Finishes On
+    # ------------------------------------------------------------
+    # Mutates and returns the solve, after the stops are settled (a stopped or
+    # through end is left alone). :slid0 / :slid1 mark the ends that moved. A
+    # short edge between two raking ends, cut big, can slide its two ends past
+    # each other: that records :refusal, which the planners raise before
+    # anything is erased (Na__ProfileSweep__RaiseRefusal). batch_edges are the
+    # edges cut together; a corner one of them shares is a mitre's to decide.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__SlideEnds(target, solve, batch_edges = nil)
+        return solve unless solve
+
+        edge = target[:edge]
+        return solve unless edge && edge.valid? && target[:faces]
+
+        Na__NobleDrawingTools.Na__ProfileSweep__EnsureProfile(target, solve)
+
+        heading = solve[:v1] - solve[:v0]
+        return solve unless heading.length.to_f > 0.0
+        along  = heading.normalize
+        others = (batch_edges || []).reject { |other| other == edge || !other.valid? }
+
+        [[0, edge.start], [1, edge.end]].each do |end_index, vertex|
+            next if solve[end_index.zero? ? :stop0 : :stop1] || solve[end_index.zero? ? :through0 : :through1]
+            next if others.any? { |other| other.vertices.include?(vertex) }   # <-- A banked corner: the mitre decides it
+
+            plane = Na__NobleDrawingTools.Na__ProfileSweep__EndPlane(target, vertex)
+            next unless plane
+
+            on_plane, normal = plane
+            facing = along.dot(normal).to_f
+            next if facing.abs > NA_SWEEP_SLIDE_SQUARE || facing.abs < NA_SWEEP_SLIDE_MIN_COS
+
+            key  = end_index.zero? ? :profile0 : :profile1
+            slid = solve[key].map do |point|
+                travel = (on_plane - point).dot(normal).to_f / facing         # <-- Along the edge until the point lies on the end plane
+                Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(point, along, travel)
+            end
+
+            Na__NobleDrawingTools.Na__ProfileSweep__SetEnd(solve, end_index, slid, target[:transformation])
+            solve[end_index.zero? ? :slid0 : :slid1] = true
+        end
+
+        if solve[:slid0] || solve[:slid1]
+            crossed = solve[:profile0].each_index.any? do |index|
+                (solve[:profile1][index] - solve[:profile0][index]).dot(along).to_f < NA_SWEEP_SLIDE_MIN_RUN
+            end
+            solve[:refusal] = 'its two ends would cross on so short an edge — try a smaller size' if crossed
+        end
+
+        solve
+    rescue StandardError
+        solve
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Raise the Refusal a Solve Carries, Before Anything Is Planned
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__RaiseRefusal(solves)
+        [solves].flatten.each do |solve|
+            raise solve[:refusal] if solve.is_a?(Hash) && solve[:refusal]
+        end
+
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
     # REGION | Plan
     # -----------------------------------------------------------------------------
 
@@ -398,6 +529,8 @@ module Na__NobleDrawingTools
     # before anything is erased costs the model nothing.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__BuildPlans(target, solve)
+        Na__NobleDrawingTools.Na__ProfileSweep__RaiseRefusal(solve)
+
         edge           = target[:edge]
         face_a, face_b = target[:faces]
 
@@ -611,8 +744,9 @@ module Na__NobleDrawingTools
     #
     # Refused, with a message: a corner not square in the third direction (a
     # pair of lines does not cross), two asymmetric profiles starting from
-    # different kinds of face (they would not meet), and three or more profiled
-    # edges at one corner (the curved three-way junction is not built).
+    # different kinds of face (they would not meet), and four or more profiled
+    # edges at one corner. THREE at one corner are the Ball Corners region's:
+    # three round-overs meet on a ball (5.2.37); anything else refuses there.
     # -----------------------------------------------------------------------------
 
     # FUNCTION | Overwrite One End's Profile, Local and World
@@ -667,10 +801,20 @@ module Na__NobleDrawingTools
         end
 
         patches = []
+        balls   = []
 
         ends.each do |vertex, members|
             next if members.length < 2
-            return 'three profiled edges meet at one corner — the curved three-way mitre is not built yet' if members.length > 2
+            return 'more than three profiled edges meet at one corner — cut them in stages' if members.length > 3
+
+            if members.length == 3
+                corner = Na__NobleDrawingTools.Na__ProfileSweep__BallCorner(vertex, members, targets, solves)
+                return corner if corner.is_a?(String)
+
+                patches.concat(corner[:patches])
+                balls << corner
+                next
+            end
 
             index_a, end_a = members[0]
             index_b, end_b = members[1]
@@ -716,10 +860,17 @@ module Na__NobleDrawingTools
                 line_a = [sequence_a[index], heading_a]
                 line_b = [sequence_b[index], heading_b]
                 joint  = Geom.intersect_line_line(line_a, line_b)
-                return 'edges are parallel where they meet — no mitre exists there' unless joint
+
+                # SketchUp answers nil for lines that miss each other as well
+                # as for parallel ones: on a corner that is not square they miss.
+                unless joint
+                    return 'edges are parallel where they meet — no mitre exists there' if heading_a.parallel?(heading_b)
+
+                    return Na__NobleDrawingTools.Na__ProfileSweep__NotSquareNote(vertex, solve_a, solve_b)
+                end
 
                 if joint.distance_to_line(line_a) > NA_CHAMFER_MITRE_TOL || joint.distance_to_line(line_b) > NA_CHAMFER_MITRE_TOL
-                    return 'this corner is not square enough to mitre a profile — do these edges separately'
+                    return Na__NobleDrawingTools.Na__ProfileSweep__NotSquareNote(vertex, solve_a, solve_b)
                 end
 
                 joint
@@ -733,9 +884,392 @@ module Na__NobleDrawingTools
             Na__NobleDrawingTools.Na__ProfileSweep__PatchEnd(solve, end_index, profile_ab, xform)
         end
 
+        balls.each { |corner| Na__NobleDrawingTools.Na__ProfileSweep__AttachBall(corner) }
+
+        # A ball pulls its ends along their edges; on a short edge with a ball
+        # at each end, or a ball and a slid end, the two can pass each other.
+        rounded = balls.flat_map { |corner| corner[:solves] }.uniq(&:object_id)
+        if rounded.any? { |solve| Na__NobleDrawingTools.Na__ProfileSweep__EndsCross?(solve) }
+            return 'the rounds at the two ends of an edge would overlap — try a smaller size'
+        end
+
         nil
     rescue StandardError => error
         "mitre solving failed: #{error.message}"
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Why a Two-Way Corner Is Not Square Enough, and What Would Work
+    # Two round-overs on a corner that is not square (a ridge and one of its
+    # hips) have no picture-frame mitre — but banking the third edge there too
+    # turns the corner as a ball, so the refusal says so.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__NotSquareNote(vertex, solve_a, solve_b)
+        rounds = [solve_a, solve_b].all? { |solve| solve[:kind] == :round && solve[:convex] != false }
+        if rounds && vertex.faces.length == 3
+            return 'this corner is not square enough to mitre — bank the third edge at this corner too and the round-overs meet on a ball'
+        end
+
+        'this corner is not square enough to mitre a profile — do these edges separately'
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
+    # REGION | Ball Corners — Three Round-Overs Meeting at One Corner
+    # -----------------------------------------------------------------------------
+    #
+    # Three round-overs of one radius meeting at a corner (a ridge and its two
+    # hips, a box corner) are the rolling ball's corner. A ball of the radius
+    # rolled along an edge touches both its faces; at the corner it touches
+    # all THREE faces at once, and its centre C is the one point the radius
+    # inside every one of them. Each edge's round is a cylinder whose axis runs
+    # through C, so each round ENDS in the plane through C square to its edge,
+    # where its section is an arc of the ball itself. The three end arcs bound
+    # a three-sided patch of the ball, and that patch is the corner. The ball
+    # touches each face at one point T, where the two rounds on that face
+    # cross: T becomes that face's new corner, exactly as a mitre's P does.
+    #
+    # So each end's profile slides along its edge into C's plane (on a hipped
+    # end pitched like the main roof the ridge's does not move at all), the
+    # faces take the T points, and the patch is laid out row by row from one
+    # arc to the opposite T, every row a great circle of the ball, as
+    # triangles that share the mouldings' own end points exactly. Every seam
+    # of the patch is softened: the ridge, the hips and the ball shade as one.
+    #
+    # Solved in WORLD space, where the radius is a radius, and carried back
+    # through target[:transformation]'s inverse exactly as the fillet lays its
+    # section, so a ball in a scaled group is still a ball.
+    #
+    # Refused, with a message: coves, ovolos, ogees and chamfers through the
+    # sweep (their three-way corners are not balls), a corner with an inside
+    # edge, rounds of different sizes or side counts, a fourth face at the
+    # corner, and a ball too big for a face it must touch.
+    # -----------------------------------------------------------------------------
+
+    NA_SWEEP_BALL_FIT_TOL = 0.004                                             # <-- Inches (0.1 mm): every slid end point must lie this close to the ball
+    NA_SWEEP_BALL_MIN_DET = 1.0e-6                                            # <-- Three faces this near to sharing a line hold no one ball
+    NA_SWEEP_BALL_MIN_GAP = 0.001                                             # <-- Inches: SketchUp merges triangle corners this close into one point
+
+    # FUNCTION | Why Three Solves Cannot Turn Their Corner as a Ball, or nil
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__BallRefusal(picks)
+        solves = picks.map { |pick| pick[:solve] }
+
+        if solves.any? { |solve| solve[:kind] == :cove }
+            return 'a cove cannot turn a three-way corner — TAB swaps to the round-over, which rounds it as a ball'
+        end
+
+        unless solves.all? { |solve| solve[:kind] == :round && solve[:radius_world] }
+            return "only Deep Fillet's round-over turns a corner where three edges meet — cut these edges separately"
+        end
+
+        unless solves.all? { |solve| solve[:convex] != false }
+            return 'a three-way corner with an inside edge cannot be rounded as a ball — cut these edges separately'
+        end
+
+        radius = solves[0][:radius_world].to_f
+        unless solves.all? { |solve| (solve[:radius_world].to_f - radius).abs <= 1.0e-6 * [radius.abs, 1.0].max }
+            return 'the round-overs at this corner differ in size'
+        end
+
+        counts = picks.map { |pick| (pick[:end].zero? ? pick[:solve][:profile0] : pick[:solve][:profile1]).length }
+        return 'the round-overs at this corner have different side counts' unless counts.uniq.length == 1 && counts[0] >= 2
+
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Solve the Ball Where Three Round-Overs Meet
+    # Returns a String refusal, or a Hash: :patches (each end's slid profile,
+    # for PatchEnd), the patch triangles in :local and :world, its centre, the
+    # solve and end that carry it (:owner, :owner_end) and all three :solves.
+    # Nothing is written to any solve here.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__BallCorner(vertex, members, targets, solves)
+        picks = members.map do |index, end_index|
+            { :index => index, :end => end_index, :target => targets[index], :solve => solves[index] }
+        end
+
+        refusal = Na__NobleDrawingTools.Na__ProfileSweep__BallRefusal(picks)
+        return refusal if refusal
+
+        faces = picks.map { |pick| pick[:target][:faces] }.flatten.uniq
+        unless faces.length == 3 && (vertex.faces.to_a - faces).empty?
+            return 'the three-way corner carries extra faces — cut those edges separately'
+        end
+
+        # The corner and each edge's direction away from it, in world.
+        corner_key   = picks[0][:end].zero? ? :v0 : :v1
+        world_corner = picks[0][:solve][:world][corner_key]
+
+        picks.each do |pick|
+            world = pick[:solve][:world]
+            away  = pick[:end].zero? ? world[:v1] - world[:v0] : world[:v0] - world[:v1]
+            return 'a corner edge has no length' unless away.length > 0
+
+            pick[:away] = away.normalize
+        end
+
+        # Each face's normal pointing INTO the material: the cross of the two
+        # edges it carries, turned toward the third, which runs into the
+        # material from a convex corner.
+        inward = {}
+        faces.each do |face|
+            pair  = picks.select { |pick| pick[:target][:faces].include?(face) }
+            third = picks.reject { |pick| pair.any? { |member| member.equal?(pick) } }
+            return 'each pair of edges at a three-way corner must share exactly one face' unless pair.length == 2 && third.length == 1
+
+            normal = pair[0][:away].cross(pair[1][:away])
+            return 'two edges at this corner run in line' unless normal.length > 0
+            normal.normalize!
+
+            lean = normal.dot(third[0][:away]).to_f
+            return 'the three faces at this corner hold no ball' unless lean.abs > NA_SWEEP_BALL_MIN_DET
+
+            normal.reverse! if lean < 0.0
+            inward[face] = normal
+        end
+
+        # C is the radius inside all three faces: n . (C - corner) = r for each.
+        n1, n2, n3 = faces.map { |face| inward[face] }
+        det = n1.dot(n2.cross(n3)).to_f
+        return 'the three faces at this corner hold no ball' unless det.abs > NA_SWEEP_BALL_MIN_DET
+
+        radius = picks[0][:solve][:radius_world].to_f
+        sum    = n2.cross(n3) + n3.cross(n1) + n1.cross(n2)
+        reach  = Geom::Vector3d.new(sum.x.to_f * radius / det, sum.y.to_f * radius / det, sum.z.to_f * radius / det)
+        centre = Na__NobleDrawingTools.Na__ProfileSweep__Shifted(world_corner, reach, 1.0)
+
+        contact = {}
+        faces.each do |face|
+            contact[face] = Na__NobleDrawingTools.Na__ProfileSweep__Shifted(centre, inward[face], -radius)
+        end
+
+        inverse       = picks[0][:target][:transformation].inverse
+        contact_local = {}
+        faces.each { |face| contact_local[face] = contact[face].transform(inverse) }
+
+        faces.each do |face|
+            next if face.classify_point(contact_local[face]) == Sketchup::Face::PointInside
+
+            return 'the round is too big for the faces at this three-way corner — try a smaller size'
+        end
+
+        # Each end's profile slides along its edge into C's plane, where it is
+        # an arc of the ball from one contact point to the other.
+        picks.each do |pick|
+            key    = pick[:end].zero? ? :profile0 : :profile1
+            travel = reach.dot(pick[:away]).to_f
+            moved  = pick[:solve][:world][key].map do |point|
+                Na__NobleDrawingTools.Na__ProfileSweep__Shifted(point, pick[:away], travel)
+            end
+
+            face_a, face_b = pick[:target][:faces]
+            off_ball = moved.map { |point| (point.distance(centre).to_f - radius).abs }.max
+            off_ends = [moved.first.distance(contact[face_a]).to_f, moved.last.distance(contact[face_b]).to_f].max
+            return 'the round-overs at this corner do not meet on one ball' if off_ball > NA_SWEEP_BALL_FIT_TOL || off_ends > NA_SWEEP_BALL_FIT_TOL
+
+            moved[0]  = contact[face_a]                                       # <-- Exactly the shared T, so the faces' substitutions agree
+            moved[-1] = contact[face_b]
+
+            local     = moved.map { |point| point.transform(inverse) }
+            local[0]  = contact_local[face_a]
+            local[-1] = contact_local[face_b]
+
+            pick[:world_end] = moved
+            pick[:local_end] = local
+        end
+
+        # The patch: rows from the first edge's arc up to the opposite T. Each
+        # row runs between matching points of the two side arcs along a great
+        # circle, one point fewer each time. Boundary points are the arcs' own.
+        base      = picks[0]
+        apex_face = (faces - base[:target][:faces]).first
+        side      = lambda do |from_face|
+            pick   = picks.find { |other| !other.equal?(base) && other[:target][:faces].include?(from_face) }
+            starts = pick[:target][:faces][0] == from_face
+            world  = starts ? pick[:world_end] : pick[:world_end].reverse
+            local  = starts ? pick[:local_end] : pick[:local_end].reverse
+            world.zip(local)
+        end
+
+        side_a = side.call(base[:target][:faces][0])
+        side_b = side.call(base[:target][:faces][1])
+        count  = base[:world_end].length - 1
+        return 'the ball corner is out of step with its arcs' unless side_a.last[0].distance(contact[apex_face]).to_f < NA_SWEEP_BALL_FIT_TOL
+
+        rows = [base[:world_end].zip(base[:local_end])]
+        (1..count).each do |step|
+            left  = side_a[step]
+            right = side_b[step]
+            span  = count - step
+            row   = [left]
+
+            (1...span).each do |index|
+                world = Na__NobleDrawingTools.Na__ProfileSweep__BallArc(centre, radius, left[0], right[0], index.to_f / span)
+                row << [world, world.transform(inverse)]
+            end
+
+            row << right if span > 0
+            rows << row
+        end
+
+        world_triangles = []
+        local_triangles = []
+        lay = lambda do |corners|
+            corners.each do |world, local|
+                world_triangles << world
+                local_triangles << local
+            end
+        end
+
+        (0...count).each do |step|
+            lower = rows[step]
+            upper = rows[step + 1]
+
+            (0...(lower.length - 1)).each do |index|
+                lay.call([lower[index], lower[index + 1], upper[index]])
+                lay.call([lower[index + 1], upper[index + 1], upper[index]]) if index < upper.length - 1
+            end
+        end
+
+        {
+            :patches      => picks.map { |pick| [pick[:solve], pick[:end], pick[:local_end], pick[:target][:transformation]] },
+            :owner        => base[:solve],
+            :owner_end    => base[:end],
+            :world        => world_triangles,
+            :local        => local_triangles,
+            :centre_local => centre.transform(inverse),
+            :solves       => picks.map { |pick| pick[:solve] }
+        }
+    rescue StandardError => error
+        "the ball corner failed: #{error.message}"
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Point Moved a Distance Along a Direction
+    # Plain float arithmetic: a Vector3d times a number is a cross product in
+    # SketchUp, never a scale.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__Shifted(point, direction, distance)
+        Geom::Point3d.new(
+            point.x.to_f + (direction.x.to_f * distance),
+            point.y.to_f + (direction.y.to_f * distance),
+            point.z.to_f + (direction.z.to_f * distance)
+        )
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Point on the Great Circle of a Ball Between Two of Its Points
+    # share runs 0 at from to 1 at to, in equal angles, the short way round.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__BallArc(centre, radius, from, to, share)
+        u = from - centre
+        v = to - centre
+        return from unless u.length > 0 && v.length > 0
+        u = u.normalize
+        v = v.normalize
+
+        angle = Math.acos([[u.dot(v).to_f, 1.0].min, -1.0].max)
+        return from if angle < 1.0e-9
+
+        sine   = Math.sin(angle)
+        weight_u = Math.sin((1.0 - share) * angle) / sine
+        weight_v = Math.sin(share * angle) / sine
+
+        Geom::Point3d.new(
+            centre.x.to_f + (radius * ((u.x.to_f * weight_u) + (v.x.to_f * weight_v))),
+            centre.y.to_f + (radius * ((u.y.to_f * weight_u) + (v.y.to_f * weight_v))),
+            centre.z.to_f + (radius * ((u.z.to_f * weight_u) + (v.z.to_f * weight_v)))
+        )
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Hand a Solved Ball to the Solve That Builds and Draws It
+    # :ball0 / :ball1 are the patch's triangles (three points each, local) at
+    # that end, :ball_centre0 / 1 its centre, and the world copies feed the
+    # preview and the retype ghost, which scales them about the same corner.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__AttachBall(corner)
+        solve      = corner[:owner]
+        key        = corner[:owner_end].zero? ? :ball0 : :ball1
+        centre_key = corner[:owner_end].zero? ? :ball_centre0 : :ball_centre1
+
+        solve[key]         = corner[:local]
+        solve[centre_key]  = corner[:centre_local]
+        solve[:world][key] = corner[:world]
+        solve
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Do a Solve's Two Ends Pass Each Other Along Its Edge?
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__EndsCross?(solve)
+        heading = solve[:v1] - solve[:v0]
+        return false unless heading.length.to_f > 0.0
+        along = heading.normalize
+
+        solve[:profile0].each_index.any? do |index|
+            (solve[:profile1][index] - solve[:profile0][index]).dot(along).to_f < NA_SWEEP_SLIDE_MIN_RUN
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Build the Ball Patches a Solve Carries
+    # Triangles facing out of the ball (a round-over is convex: the air is
+    # outside it), dressed like the moulding, and every seam softened — the
+    # patch's own and the three it shares with the mouldings' ends — so the
+    # whole corner shades as one surface. A triangle whose corners SketchUp
+    # would merge into one point is nothing and is skipped; any other that
+    # cannot be made raises, which aborts the operation untouched.
+    # ------------------------------------------------------------
+    def self.Na__ProfileSweep__AddBallCorners(entities, solve, dress, build_transform)
+        facets = []
+
+        [[:ball0, :ball_centre0], [:ball1, :ball_centre1]].each do |key, centre_key|
+            triangles = solve[key]
+            next unless triangles && triangles.length >= 3 && solve[centre_key]
+
+            centre = solve[centre_key].transform(build_transform)
+
+            triangles.each_slice(3) do |corners|
+                points = corners.map { |point| point.transform(build_transform) }
+                next if points.combination(2).any? { |one, two| one.distance(two).to_f < NA_SWEEP_BALL_MIN_GAP }   # <-- Floats: a Length compares with SketchUp's tolerance
+
+                facet = entities.add_face(points)
+                raise 'a ball corner facet could not be created here' unless facet
+
+                middle = Geom::Point3d.new(
+                    (points[0].x.to_f + points[1].x.to_f + points[2].x.to_f) / 3.0,
+                    (points[0].y.to_f + points[1].y.to_f + points[2].y.to_f) / 3.0,
+                    (points[0].z.to_f + points[1].z.to_f + points[2].z.to_f) / 3.0
+                )
+                outward = middle - centre
+                facet.reverse! if outward.valid? && facet.normal.dot(outward) < 0.0
+
+                if dress
+                    facet.material      = dress[:material]      if dress[:material]
+                    facet.back_material = dress[:back_material] if dress[:back_material]
+                    facet.layer         = dress[:layer]         if dress[:layer]
+                end
+
+                facets << facet
+            end
+        end
+
+        facets.each do |facet|
+            facet.edges.each do |seam|
+                next unless seam.faces.length == 2
+
+                seam.soft   = true
+                seam.smooth = true
+            end
+        end
+
+        facets
     end
     # ---------------------------------------------------------------
 
@@ -756,6 +1290,8 @@ module Na__NobleDrawingTools
     # begins.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__BuildGroupPlans(targets, solves)
+        Na__NobleDrawingTools.Na__ProfileSweep__RaiseRefusal(solves)
+
         accumulators = {}
         fetch        = lambda { |face| accumulators[face] ||= { :singles => [], :runs => [], :stops => [] } }
 
@@ -838,6 +1374,11 @@ module Na__NobleDrawingTools
         targets.each_index do |index|
             Na__NobleDrawingTools.Na__ProfileSweep__AddMoulding(entity_set[index], solves[index], dress[index], build_transform)
             Na__NobleDrawingTools.Na__ProfileSweep__AddStops(entity_set[index], solves[index], dress[index], build_transform)
+        end
+
+        # After every moulding, so each ball finds the facets it softens into.
+        targets.each_index do |index|
+            Na__NobleDrawingTools.Na__ProfileSweep__AddBallCorners(entity_set[index], solves[index], dress[index], build_transform)
         end
 
         true

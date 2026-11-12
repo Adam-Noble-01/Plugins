@@ -3,6 +3,233 @@
 
 # =============================================================================
 
+## Version 5.2.37 - 12-Nov-2026 - Deep Fillet: a Ridge and Its Hips Round Together, Meeting on a Ball
+
+### Asked For
+*"Multiple at once fails. If i do just the top it works"*: Deep Fillet with the ridge and both hips banked at a
+hipped end (3 of 3 edges together, R30 and R95), after 5.2.36 made the ridge on its own work.
+
+### What Was Wrong
+- **The profile tools refused every corner where three banked edges meet.** Deep Fillet, Ogee and Ovolo go
+  through the profile sweep's mitres, which built only two-way picture-frame mitres and answered three with
+  *"the curved three-way mitre is not built yet"*. A ridge and its two hips meet three at the hip's apex.
+  (Deep Chamfer has always turned that corner with its own three-way mitre. Checked again on the same roof:
+  it does.)
+- **The screenshots' Fillet was set to cove** (*"cove (TAB swaps)"* on the status line): a hollow centred on each
+  edge, not a round-over. Three coves have no clean corner (see below). TAB swaps back to the round-over.
+- **Ridge and one hip gave a wrong reason.** SketchUp's `Geom.intersect_line_line` answers nil for lines that
+  miss each other as well as for parallel ones, so a two-way corner that is not square said *"edges are parallel
+  where they meet"*.
+
+### What It Does Now
+- **Three round-overs meeting at a corner turn it as a ball**, the rolling-ball corner. A ball of the fillet's
+  radius rolled along each edge touches both its faces; at the corner it touches all three at once. Each round
+  ends where the ball sits, its end arc is an arc of the ball, and a three-sided patch of the ball closes the
+  corner. Each face's new corner is the one point where the ball touches it. A ridge banked with both hips,
+  a whole hipped roof (ridge and four hips) and a box with all twelve edges rounded all build as one closed solid,
+  every seam softened so ridge, hips and ball shade as one surface. The preview shows the ball in amber while
+  dragging, and the retype ghost scales it.
+- On a hipped end pitched like the main slopes, the ridge's round runs right to the apex. Where the hip end is
+  steeper, the ridge's round ends a little short of it, and where it is shallower, a little past it, as the
+  ball decides.
+- **Refused, saying what would work:**
+  - Three coves: *"a cove cannot turn a three-way corner — TAB swaps to the round-over, which rounds it as a
+    ball"*.
+  - Ovolo, ogee, or a stopped chamfer through the sweep: only Deep Fillet's round-over turns a three-way corner.
+  - A three-way corner with an inside edge, rounds of different sizes or side counts, or a fourth face at the
+    corner.
+  - A ball too big for a face it must touch.
+  - Two balls that would overlap on a short ridge.
+  - Ridge and ONE hip (round-overs): *"bank the third edge at this corner too and the round-overs meet on a
+    ball"*.
+
+### How It Was Done
+- `Na__NobleDrawingTools__DrawnProfileSweep__.rb`, new **Ball Corners** region:
+  - `BallRefusal` decides whether the three cuts can make a ball at all.
+  - `BallCorner` solves it. The centre is the point one radius inside all three faces' world planes, with
+    each plane taken from the cross of its two world edge directions and turned toward the third edge. Each
+    end's world profile slides along its edge into the centre's plane, and every point is checked to lie on
+    the ball within 0.1 mm. Each contact point is checked to lie inside its face. The patch is laid row by row:
+    the first edge's arc, then great circles between matching points of the other two arcs, one point fewer per
+    row, n² triangles, sharing the arcs' own points exactly.
+  - `Shifted` and `BallArc` (equal-angle great circle) are the arithmetic, with no `Vector3d *`, which is a
+    cross product in SketchUp.
+  - `AttachBall` hands the patch to one solve (`:ball0` / `:ball1`, local and world, plus its centre).
+  - `EndsCross?` catches overlapping ends.
+  - `AddBallCorners` builds the patch after every moulding, each triangle facing out of the ball and dressed
+    like face A, then softens and smooths every seam.
+- `Na__ProfileSweep__MitreBatch`:
+  - Three members at a vertex go to `BallCorner`, and four or more refuse.
+  - The balls attach after the two-way patches, then overlap is checked.
+  - A nil crossing is told apart as parallel or skew, and skew gives `NotSquareNote`.
+- `Na__ProfileSweep__BuildGroup` calls `AddBallCorners`. The face plans need nothing new: a ball end is
+  flagged mitred, so it clips no end face, and both rounds on a face hand it the same contact point, which
+  `MergeSingles` dedupes.
+- `Na__NobleDrawingTools__DrawnProfileSweepTool__.rb`: `na_drawn__draw_cut_faces` draws `:ball0` / `:ball1`
+  as `GL_TRIANGLES`, and `na_revise__scaled_world` scales them about their corner.
+- **Coordinate Rule:** solved in world, where the radius is a radius, and carried back through
+  `target[:transformation].inverse`, exactly as the fillet lays its section. Built through the build transform
+  the tool already chose. In a scaled group the ball is a true ball in world.
+- **Not built: coves at a three-way corner.** Three cove cylinders meet along curves in their bisector planes
+  that do not line up facet for facet on a corner that is not square. Making them meet needs a polyhedral
+  boolean, not a mitre.
+
+### Checked Offline
+On SketchUp 2026's Ruby 3.2:
+- **New suite `ball_corners`, 109 checks, the real tools on the doubles:**
+  - **Hipped roof, ridge and both hips at R200.** Run at the root, in a closed group two deep moved and rotated,
+    in an OPEN group three deep moved and rotated, and in a closed group scaled 1 x 1.4 x 0.8. In every one:
+    - One ball, 144 triangles.
+    - Every preview point, every built point through the transform, and every slid end profile within 0.01 mm
+      of the ball, whose centre is worked out independently in the test.
+    - Both rounds on each face end at the same contact point.
+    - The preview draws the triangles and the ghost scales them about the corner.
+    - Every rebuilt face is flat; the result is a closed solid with no loose edges.
+    - 144 ball faces, all facing the air, every seam soft and smooth.
+  - **Fully hipped roof, ridge and four hips at R150:** a ball at each ridge end, closed. A 50 mm ridge
+    between 78-degree hip ends builds at R10 and is refused as overlapping at R40.
+  - **Box 300 x 200 x 100, all twelve edges at R20:** eight balls, each end slid in exactly 20 mm, the origin
+    ball centred at (20, 20, 20), closed, no loose edges.
+  - **Refusals:** three coves name TAB, three ovolos name the round-over, ridge and one hip names the third
+    edge.
+  - **Deep Chamfer at the same hip corner,** in all four placements: solves, builds, closed.
+- **With the ball corner switched off in a copy,** the suite fails 20 checks (F, G, H and I). The chamfer
+  passes on both.
+- **Earlier suites:** `ridge_ends` (5.2.36) still passes 142 of 142, and the harness's coordinate self-test 8
+  of 8.
+- **Lint:** 0 errors, 0 warnings on both changed files.
+- **The harness doubles were missing four things SketchUp has:**
+  - `Geom.intersect_line_line`, answering nil for skew lines as SketchUp does.
+  - `Point3d#distance_to_line`.
+  - `distance_to_plane` taking `[point, normal]`.
+  - `GL_TRIANGLE_FAN` and the other strip constants.
+
+### What Offline Cannot Prove
+- SketchUp's own merging of the small triangles near the patch's tip on a very small radius. Triangles whose
+  corners SketchUp would merge are skipped by design.
+- How the ball shades on screen.
+- The Corrett roof itself. If its hip apex carries a fourth face (a split or a stray line), the corner refuses
+  with *"carries extra faces"*.
+
+### Files
+- `04__GeometryHelpers/Na__NobleDrawingTools__DrawnProfileSweep__.rb`
+- `06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnProfileSweepTool__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Deep Fillet: press TAB until the status line says **round-over**, not cove.
+- [ ] Corrett `SUB__HostDwelling__Roof`: SHIFT-bank the ridge and both hips at its hipped end, drag. The preview
+      shows the ball in amber at the apex.
+- [ ] Type 95, Enter: the ridge and hips round over and meet on a smooth ball, no seam lines. The faces stay
+      flat, and one Ctrl+Z undoes it.
+- [ ] Ridge and only ONE hip: refused, saying to bank the third edge.
+- [ ] TAB to cove with all three banked: refused, naming TAB.
+- [ ] A plain box, all twelve edges, Deep Fillet R10: a rounded box.
+- [ ] Deep Chamfer with the ridge and both hips: as before, a flat three-way corner.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
+## Version 5.2.36 - 12-Nov-2026 - Deep Chamfer and Fillet: Roof Ridges Round Off, Ends Finish on Hips and Valleys
+
+### Asked For
+*"My Chamfer / Fillet etc tools in noble drawing tools. Investigate why they cant round off the tops of roof
+ridges"* (Corrett 64610, `SUB__HostDwelling__Roof`), then *"Fix the plugin only I will use it"*
+
+### What Was Wrong
+Two faults, both in the code Deep Chamfer shares with Deep Fillet, Ogee and Ovolo, found on the Corrett roof with
+read-only checks:
+- **The size limit read 0.17 mm.** Each slope's reach was clipped to a band padded 0.1 mm past both ends of the
+  ridge. A hip leaving the ridge end at a shallow rake left a sliver in that padding whose distance across the
+  slope is 0.1 mm times the cotangent of its rake, so it counted as the slope's nearest boundary. Main ridge
+  0.166 mm, wing ridge 0.145 mm: the drag never opened and every typed size was refused.
+- **Every cut ended square to its edge.** Each end's profile was laid in the plane square to the ridge and spliced
+  into the face the ridge ends on. All four ridge ends on that roof finish on a face that is not square: a hip,
+  the raked north gable band, and the wing dying into the main slope. Their rebuilt outlines came out 42 to
+  111 mm off their own planes, add_face refused them, and the cut was aborted.
+- A third gap showed while fixing those: the limit measured only the two slopes, never the material behind them.
+  That roof is an 85 mm slab over an attic, 140 mm deep under the ridge, so a round sized by the slopes alone
+  would have run straight through into the attic.
+
+### What It Does Now
+- **The limit opens on ridges.** The band alongside the edge is the edge's own length, exactly. Only an end edge
+  square to the edge is still taken whole, so boards and boxes measure exactly as before.
+- **Ends finish on the face they meet.** An end that finishes on one plane not square to the edge has its profile
+  slid along the edge onto that plane. The first and last points ride the hip or valley lines, every point
+  between lands on the end face, and every facet stays flat. Square ends do not move. Chamfer, Fillet, Ogee and
+  Ovolo all get it, in the preview as well as the cut.
+- **A cut cannot break through the material.** From three points along the edge, rays run from the corner toward
+  every point of the profile and the middle of every facet. The first other face of the same context they meet
+  caps the size too. On the Corrett main ridge that should be about R200 for a fillet and 174 mm for a chamfer:
+  a bigger roll needs a thicker slab.
+- **Left square, as before:** stopped and through ends, a corner shared with another banked edge (the mitres
+  decide those), open ends, and ends on two planes at once. A ridge banked with its hips still refuses at that
+  corner: the curved three-way join is not built.
+- A short edge between two inward-raking ends, cut so big its slid ends would cross, is refused with a message
+  before anything is touched.
+
+### How It Was Done
+- `Na__DrawnChamfer__ClipToBand` (Limit): clips exactly to 0..length. The tolerance now only decides whether a
+  segment lies wholly within it of one end, an end edge square to the edge.
+- New Material region in the Limit file: `Na__DrawnChamfer__DepthSize` with `DepthRays`, `FacesNear` and
+  `FirstHit`. It sounds rays in the space the edge reports. Along one ray every length scales by the same factor
+  under any instance scale, so the ratio is the world size at any nesting. Faces farther than the slopes' own
+  limit are skipped by a box test, and a context with more than 20,000 faces is not sounded at all.
+  `Na__DrawnChamfer__MaxSize` now takes the smaller of the slopes and the material.
+- New Ends region in the profile sweep: `Na__ProfileSweep__EndPlane`, `SlideEnds` and `RaiseRefusal`. The slide
+  reads only reported positions and normals; world copies go through `target[:transformation]` by `SetEnd`, as
+  the stops and mitres already do.
+- `na_drawn__solve_member` (Chamfer tool) slides after the stops, so the drag, the bank check and single and batch
+  commits all get it. `na_drawn__plan_cut`, `na_drawn__plan_group` and the sweep's planners raise a refusal first.
+- Coordinate Rule: nothing is converted. Every read is in the space the edge reports, and every add goes through
+  the build transform the tool already chose.
+
+### Checked Offline
+On SketchUp 2026's Ruby 3.2 (2027's Ruby does not boot embedded):
+- **Syntax:** 122 of 122 files compile. **Lint:** 0 errors, 0 warnings on the chamfer folder and the profile sweep.
+- **New suite `ridge_ends`, 142 checks, the real tools on the doubles:**
+  - A hipped solid roof at the root, in a closed group two deep moved and rotated, in an OPEN group three deep
+    moved and rotated, and in a closed group scaled 1 x 1.4 x 0.8: the limit is the slope (3,124.1 mm); the hip end
+    slides onto the hip plane with a and b on the hip lines; the gable end stays square; world copies match;
+    every rebuilt face is flat; a fillet and a chamfer both build and leave a closed solid.
+  - A thin shell gable roof 180 mm deep under the ridge: the chamfer is capped at exactly 234.31 mm (the chord's
+    middle on the inner ridge); the fillet just under its arc limit of R320.3, in the slab at the cap and through
+    into the attic 10% over it.
+  - A board 500 x 100 x 18: chamfer and fillet limits still 18, nothing slides, the fillet still closes.
+  - A wing ridge dying into a main slope: the junction end slides onto the main slope, every rebuilt face is flat,
+    and the fillet builds with no loose edges.
+  - A 100 mm ridge between two inward-raked ends: a small round slides both ends; one far too big is refused
+    before planning.
+- **Against HEAD:** the same suite fails 57 checks, every one on a fixed path (limits of 0.11 to 0.18 mm, end
+  profiles 96 to 156 mm off their planes, no slab cap). The board passes on both.
+- **Not run:** the older suites (C, E, F, G, J, K and L live in earlier scratchpads), and anything in SketchUp.
+
+### What Offline Cannot Prove
+- SketchUp's own `classify_point` on the far faces. The doubles' version was taught PointOnEdge for this suite.
+- The real Corrett limits. About R200 and 174 mm are predicted from the slab depth; the slopes' reach to the wing
+  junction or the dormers may say less.
+- How the slid ends and their preview look on screen.
+
+### Files
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamfer__Limit__.rb`
+- `04__GeometryHelpers/Na__NobleDrawingTools__DrawnProfileSweep__.rb`
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamferTool__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Corrett `SUB__HostDwelling__Roof`, Deep Fillet, grab the main ridge: the drag opens (a quarter of the limit,
+      not nothing) and the status line names a limit near R200.
+- [ ] Type 150, Enter: the ridge rounds from the north gable band to the south hip, both ends finish flat on the
+      band and the hip, and one Ctrl+Z undoes it.
+- [ ] The wing ridge at R150: the east end finishes on its hip, the west end dies into the main slope.
+- [ ] Type 300 on a ridge: refused, with the limit named.
+- [ ] Deep Chamfer on a ridge, then Ogee and Ovolo by SHIFT+TAB: the same ends.
+- [ ] A plain box edge with each tool: the limit and the cut exactly as before.
+- [ ] A ridge in a group moved and rotated, nested, and one in a scaled group: the round lands on the preview.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
 ## Version 5.2.35 - 10-Nov-2026 - Deep Scale: Picking the Tool Up Starts By Grip Again
 
 ### Asked For

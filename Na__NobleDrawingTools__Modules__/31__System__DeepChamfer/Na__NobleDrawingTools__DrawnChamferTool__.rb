@@ -62,6 +62,11 @@
 # - Every plan is built and validated BEFORE anything is erased, and any
 #   failure raises — the surrounding operation aborts and the model is left
 #   exactly as it was. Failing loudly beats cutting wrongly.
+# - An end whose corner finishes on a face NOT square to the edge (a hip, a
+#   valley, a ridge dying into another slope, a raking gable band) slides
+#   its offset points along the edge onto that face, so the end face's new
+#   outline stays flat (5.2.36). Square ends slide nowhere. See the Ends
+#   region of Na__NobleDrawingTools__DrawnProfileSweep__.rb.
 #
 # THE OPEN-CONTEXT COORDINATE RULE (corrected in 5.1.2; see the DeepPick hub):
 # - "When changing the active entities in SketchUp, the coordinate system also
@@ -346,17 +351,22 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Solve One Member of the Cut: Its Shape, Then Its Stops
+        # FUNCTION | Solve One Member of the Cut: Its Shape, Its Stops, Its Ends
         # Every solve the drag, the bank check and the commit ask for comes
         # through here, so a stop at a section applies to whichever tool is
         # cutting — see the Stops region of Na__NobleDrawingTools__DrawnProfile-
         # Sweep__.rb. The batch being cut tells a stop from a through joint: an
         # arris carrying on into another banked edge is not stopped at all.
+        # Then any end finishing on a face not square to the edge (a hip, a
+        # valley, a raking gable) slides onto that face — the Ends region of
+        # the same file (5.2.36) — so the preview shows what will be built.
         # ------------------------------------------------------------
         def na_drawn__solve_member(target, setback)
-            Na__NobleDrawingTools.Na__ProfileSweep__ApplyStops(
+            solve = Na__NobleDrawingTools.Na__ProfileSweep__ApplyStops(
                 target, na_drawn__solve_cut(target, setback), na_drawn__batch_edges
             )
+
+            Na__NobleDrawingTools.Na__ProfileSweep__SlideEnds(target, solve, na_drawn__batch_edges)
         end
         # ---------------------------------------------------------------
 
@@ -394,6 +404,7 @@ module Na__NobleDrawingTools
         # sweep, which plans the stop; an ordinary one keeps the chamfer planner.
         # ------------------------------------------------------------
         def na_drawn__plan_cut(target, solve)
+            Na__NobleDrawingTools.Na__ProfileSweep__RaiseRefusal(solve)      # <-- Slid ends that would cross: refused before anything is touched
             return Na__NobleDrawingTools.Na__ProfileSweep__BuildPlans(target, solve) if Na__NobleDrawingTools.Na__ProfileSweep__Stopped?(solve)
 
             Na__NobleDrawingTools.Na__DrawnChamfer__BuildPlans(target, solve)
@@ -414,6 +425,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Plan Every Face a Batch Group Touches
         # ------------------------------------------------------------
         def na_drawn__plan_group(targets, solves)
+            Na__NobleDrawingTools.Na__ProfileSweep__RaiseRefusal(solves)
             return Na__NobleDrawingTools.Na__ProfileSweep__BuildGroupPlans(targets, solves) if na_drawn__any_stopped?(solves)
 
             Na__NobleDrawingTools.Na__DrawnChamfer__BuildGroupPlans(targets, solves)

@@ -23,6 +23,21 @@
 #   just reaches the nearer of the two faces' reach, read through the tool's
 #   own solve so a chamfer, a round, a cove and an ogee each get their own
 #   answer. A batch takes the smallest of its edges.
+# - The band alongside the edge is the edge's own length, exactly (5.2.36).
+#   It used to be padded by a hair past both ends, and a hip leaving the end
+#   of a ridge at a shallow rake slipped a sliver into the padding that
+#   counted as the face's nearest boundary: the Corrett roof's ridges
+#   measured 0.17 mm, so the drag never opened and every typed size was
+#   refused. Only an end edge square to the edge is still taken whole.
+#
+# THE MATERIAL BEHIND THE EDGE IS MEASURED TOO (5.2.36):
+# - Faces A and B say nothing about how thick the material is behind them.
+#   A roof modelled as a shell (an 85 mm thatch slab over an attic) has two
+#   long slopes at its ridge and its underside a hand's width below, and a
+#   round sized by the slopes alone runs straight through into the attic.
+#   So rays are sounded into the material from three points along the edge,
+#   toward every point of the profile, and the first face they meet caps the
+#   size too. See the Material region below.
 #
 # THE DRAG RUNS UP TO THE LIMIT:
 # - 5.1.18 eased the corner drag into it with a tanh curve. Since 5.1.22 the
@@ -93,16 +108,30 @@ module Na__NobleDrawingTools
 
     # FUNCTION | The Ends of a Segment's Piece Lying Alongside the Edge
     # Returns zero or two points.
+    #
+    # Clipped to the edge's own length EXACTLY. The tolerance only decides
+    # whether a segment is an end edge square to the edge (it lies wholly
+    # within the tolerance of one end, float noise and all), which is taken
+    # whole. Padding the band for every segment let a hip or valley raking
+    # back past the end leave a sliver inside the padding whose distance
+    # across the face is the tolerance times the cotangent of its rake: more
+    # than the tolerance under 45 degrees, so it won as the face's reach.
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__ClipToBand(start, finish, origin, along, length)
         s_start = (start - origin).dot(along).to_f
         s_end   = (finish - origin).dot(along).to_f
         span    = s_end - s_start
-        low     = -NA_CHAMFER_REACH_TOL
-        high    = length.to_f + NA_CHAMFER_REACH_TOL
+        low     = 0.0
+        high    = length.to_f
 
         if span.abs < 1.0e-9
-            return (s_start >= low && s_start <= high) ? [start, finish] : []
+            return (s_start >= low - NA_CHAMFER_REACH_TOL && s_start <= high + NA_CHAMFER_REACH_TOL) ? [start, finish] : []
+        end
+
+        [low, high].each do |end_along|
+            next unless (s_start - end_along).abs <= NA_CHAMFER_REACH_TOL && (s_end - end_along).abs <= NA_CHAMFER_REACH_TOL
+
+            return [start, finish]                                            # <-- An end edge square to the edge: all of it lies alongside
         end
 
         t_low  = (low  - s_start) / span
@@ -124,7 +153,8 @@ module Na__NobleDrawingTools
     # probe is the tool's solve at size 1 (without stops). Its a and b points
     # say how far the cut reaches across face A and face B per unit of size,
     # whatever the profile, and each face's reach divided by that rate is the
-    # size that just consumes it. nil when neither face could be measured.
+    # size that just consumes it. The material behind the edge caps it too
+    # (Na__DrawnChamfer__DepthSize). nil when nothing could be measured.
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__MaxSize(target, probe)
         return nil unless target && probe && probe[:world]
@@ -156,9 +186,175 @@ module Na__NobleDrawingTools
             sizes << (reach / rate) if reach
         end
 
-        sizes.min
+        faces_allow = sizes.min
+        depth_allow = Na__NobleDrawingTools.Na__DrawnChamfer__DepthSize(target, probe, faces_allow)
+
+        [faces_allow, depth_allow].compact.min
     rescue StandardError
         nil
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
+    # REGION | Measuring the Material Behind the Edge
+    # -----------------------------------------------------------------------------
+    #
+    # The cut removes exactly what lies between the corner and its profile, so
+    # it breaks through only if a face of the material lies in that region.
+    # From three points along the edge a ray runs from the corner toward every
+    # point of the profile at size 1, and toward the middle of every flat facet
+    # between them (a chamfer is one facet, whose middle is the deepest point
+    # it reaches). The first face of the edge's own context that a ray meets,
+    # A and B aside, is the far side of the material in that direction, and the
+    # size at which that profile point would reach it is the most that
+    # direction allows. On a box this never says less than the faces do: a ray
+    # running along face B meets the bottom face exactly where face B's reach
+    # ends. On a shell roof the ray under the ridge meets the slab's underside.
+    #
+    # Everything is in the space the edge REPORTS, like the probe. Along one
+    # ray every length scales by the same factor under any instance scale, so
+    # the ratio is the size in world units whatever the nesting. Faces farther
+    # off than the faces' own limit allows are skipped before any ray is cast,
+    # and a context with more faces than NA_CHAMFER_DEPTH_MAX_FACES is not
+    # sounded at all, so a grab never stalls on a huge mesh.
+    # -----------------------------------------------------------------------------
+
+    NA_CHAMFER_DEPTH_STATIONS  = [0.25, 0.5, 0.75].freeze                     # <-- Fractions along the edge the material is sounded at
+    NA_CHAMFER_DEPTH_MIN_HIT   = 0.01                                         # <-- Inches (~0.25 mm); a face met this close to the arris is the arris
+    NA_CHAMFER_DEPTH_MAX_FACES = 20000                                        # <-- More faces than this in the context: not sounded
+    NA_CHAMFER_DEPTH_MARGIN    = 1.25                                         # <-- Look this far past the faces' own limit for the far side
+    NA_CHAMFER_DEPTH_HITS      = [
+        Sketchup::Face::PointInside, Sketchup::Face::PointOnEdge, Sketchup::Face::PointOnVertex
+    ].freeze
+
+    # FUNCTION | The Largest Size Before the Cut Breaks Through, or nil
+    # ------------------------------------------------------------
+    # probe is the tool's solve at size 1, in the space the edge reports.
+    # bound is the size the faces allow, used only to skip faces too far away
+    # to matter. nil when nothing behind the edge is met.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__DepthSize(target, probe, bound = nil)
+        edge = target[:edge]
+        return nil unless edge && edge.valid? && probe && probe[:v0] && probe[:v1]
+
+        parent = edge.parent
+        return nil unless parent.respond_to?(:entities)
+
+        faces = parent.entities.grep(Sketchup::Face) - (target[:faces] || [])
+        return nil if faces.empty? || faces.length > NA_CHAMFER_DEPTH_MAX_FACES
+
+        corner  = probe[:v0]
+        heading = probe[:v1] - corner
+        return nil unless heading.length.to_f > 0.0
+
+        rays = Na__NobleDrawingTools.Na__DrawnChamfer__DepthRays(probe, corner)
+        return nil if rays.empty?
+
+        stations = NA_CHAMFER_DEPTH_STATIONS.map do |share|
+            Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(corner, heading, share)
+        end
+
+        if bound && bound.to_f > 0.0
+            look  = bound.to_f * rays.map { |_direction, rate| rate }.max * NA_CHAMFER_DEPTH_MARGIN
+            faces = Na__NobleDrawingTools.Na__DrawnChamfer__FacesNear(faces, stations, look)
+        end
+        return nil if faces.empty?
+
+        walls = faces.map { |face| [face, face.outer_loop.vertices.first.position, face.normal] }
+        least = nil
+
+        stations.each do |station|
+            rays.each do |direction, rate|
+                distance = Na__NobleDrawingTools.Na__DrawnChamfer__FirstHit(walls, station, direction)
+                next unless distance
+
+                size  = distance / rate
+                least = size if least.nil? || size < least
+            end
+        end
+
+        least
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Every Direction the Cut Reaches Into, With Its Reach per Unit Size
+    # ------------------------------------------------------------
+    # [unit direction, length at size 1] for each profile point and the middle
+    # of each facet, seen from the corner. A chamfer solve carries no profile:
+    # it is the two points a and b.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__DepthRays(probe, corner)
+        profile = probe[:profile0] || [probe[:a0], probe[:b0]]
+        return [] unless profile && profile.compact.length >= 2
+
+        samples = []
+        profile.each_with_index do |point, index|
+            samples << point
+            following = profile[index + 1]
+            next unless following
+
+            samples << Geom::Point3d.new(
+                (point.x.to_f + following.x.to_f) * 0.5,
+                (point.y.to_f + following.y.to_f) * 0.5,
+                (point.z.to_f + following.z.to_f) * 0.5
+            )
+        end
+
+        samples.map do |point|
+            offset = point - corner
+            rate   = offset.length.to_f
+            rate > 1.0e-9 ? [offset.normalize, rate] : nil
+        end.compact
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Faces Whose Outline Comes Within Reach of the Stations
+    # A box test on each face's outer loop: cheap, and generous.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__FacesNear(faces, stations, reach)
+        low  = [0, 1, 2].map { |axis| stations.map { |point| point.to_a[axis].to_f }.min - reach }
+        high = [0, 1, 2].map { |axis| stations.map { |point| point.to_a[axis].to_f }.max + reach }
+
+        faces.select do |face|
+            corners = face.outer_loop.vertices.map { |vertex| vertex.position.to_a }
+
+            [0, 1, 2].all? do |axis|
+                values = corners.map { |corner| corner[axis].to_f }
+                values.max >= low[axis] && values.min <= high[axis]
+            end
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | How Far Along a Ray the First Face Is Met, or nil
+    # ------------------------------------------------------------
+    # walls holds [face, a point on its plane, its normal]. A ray running
+    # along a face's plane never meets it; a meeting closer than
+    # NA_CHAMFER_DEPTH_MIN_HIT is the arris the ray starts on.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__FirstHit(walls, origin, direction)
+        nearest = nil
+
+        walls.each do |face, on_plane, normal|
+            facing = direction.dot(normal).to_f
+            next if facing.abs < 1.0e-9
+
+            distance = (on_plane - origin).dot(normal).to_f / facing
+            next if distance <= NA_CHAMFER_DEPTH_MIN_HIT
+            next if nearest && distance >= nearest
+
+            point = Na__NobleDrawingTools.Na__DrawnGrid__OffsetPoint(origin, direction, distance)
+            next unless NA_CHAMFER_DEPTH_HITS.include?(face.classify_point(point))
+
+            nearest = distance
+        end
+
+        nearest
     end
     # ---------------------------------------------------------------
 
