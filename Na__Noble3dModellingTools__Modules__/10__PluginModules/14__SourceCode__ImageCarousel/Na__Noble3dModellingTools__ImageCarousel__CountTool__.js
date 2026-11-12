@@ -22,7 +22,10 @@
 //              snapping), takes the photo's known directions from
 //              window.Na__ImageViewer__Perspective and its maths from
 //              window.Na__ImageViewer__PerspectiveSolver. Counts are kept
-//              per image path for the session.
+//              per image path, and in the model through the Core
+//              (registerPersist, ToolStatePersistence.rb, tool 'count'):
+//                { counts:[ { id, kind, a, b, n, vp } ] }  photo pixels from
+//              the top-left, vp homogeneous in the same frame.
 //
 // INTERACTION: C or the Count Spans button, Shift+C or the Count Points button:
 //              the one that is lit decides what the next line counts. Drag
@@ -188,6 +191,31 @@
     function Na__ImageViewerCount__Restore(key, snap) {
         if (snap && snap.length) na_countsByKey[key] = snap.map(Na__ImageViewerCount__Clone);
         else                     delete na_countsByKey[key];
+    }
+
+    // The model's copy of a photo's counts (the one being drawn is left out).
+    function Na__ImageViewerCount__Serialise(key, conv) {
+        var list = na_countsByKey[key] || [];
+        if (!list.length) return null;
+        return {
+            counts: list.map(function(c) {
+                return { id: c.id, kind: c.kind, a: conv.pt(c.a), b: conv.pt(c.b), n: c.n, vp: c.vp ? conv.vp(c.vp) : null };
+            })
+        };
+    }
+
+    function Na__ImageViewerCount__Materialise(key, state, conv) {
+        if (!state || !Array.isArray(state.counts)) return;
+        var list = [];
+        state.counts.forEach(function(raw) {
+            if (!raw || (raw.kind !== NA_KIND_SPANS && raw.kind !== NA_KIND_POINTS)) return;
+            var a = conv.unpt(raw.a), b = conv.unpt(raw.b), n = Math.round(Number(raw.n));
+            if (!a || !b || !(n >= 1)) return;
+            var id = Number(raw.id) > 0 ? Math.round(Number(raw.id)) : na_nextId++;
+            na_nextId = Math.max(na_nextId, id + 1);
+            list.push({ id: id, kind: raw.kind, a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, n: n, vp: raw.vp ? conv.unvp(raw.vp) : null });
+        });
+        if (list.length) na_countsByKey[key] = list;
     }
 
     function Na__ImageViewerCount__OnHistoryChanged(reason) {
@@ -1503,6 +1531,12 @@
             restore  : Na__ImageViewerCount__Restore
         });
         na_core.onHistoryChanged(Na__ImageViewerCount__OnHistoryChanged);
+        if (typeof na_core.registerPersist === 'function') {
+            na_core.registerPersist('count', {
+                serialise   : Na__ImageViewerCount__Serialise,
+                materialise : Na__ImageViewerCount__Materialise
+            });
+        }
         if (typeof na_core.registerSnap === 'function') na_core.registerSnap(Na__ImageViewerCount__ProvideSnap);
         na_core.onImageChanged(function() {
             Na__ImageViewerCount__CancelLive();

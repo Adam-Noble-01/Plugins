@@ -25,12 +25,13 @@ function check(name, cond, detail) {
 }
 
 // Sizes: portrait screens, a half-width window, the dialog's smallest, its default, a wide one.
-var SIZES = [[1080, 1920], [900, 1400], [861, 1300], [860, 1300], [720, 1280], [640, 600], [1200, 800], [1920, 1080]];
+var LABELS_ABOVE = 980;   // the narrow-window breakpoint in Styles.css: names show above it
+var SIZES = [[1080, 1920], [981, 1300], [980, 1300], [900, 1400], [861, 1300], [860, 1300], [720, 1280], [640, 600], [1200, 800], [1920, 1080]];
 var ROWS = [null, 'view', 'measure'];
 var EVERY_TOOL = {
     home: ['btnChoose', 'btnMarkup'],
     view: ['btnFit', 'btnFill', 'btn100', 'btnZoomIn', 'btnZoomOut', 'btnRotateL', 'btnRotateR', 'btnFull'],
-    measure: ['btnMeasure', 'btnSetRef', 'btnCount', 'btnCountPoints', 'btnPerspective', 'btnSelect', 'btnDeleteSelected', 'btnClearDims'],
+    measure: ['btnMeasure', 'btnSetRef', 'btnCount', 'btnCountPoints', 'btnPerspective', 'btnProtractor', 'btnSelect', 'btnDeleteSelected', 'btnClearDims'],
     pins: ['btnPrev', 'btnNext', 'btnUndo', 'btnRedo']
 };
 
@@ -87,8 +88,8 @@ var EVERY_TOOL = {
             check(tag + ': every button is whole, separate and named', a.bad.length === 0, a.bad);
             check(tag + ': the page does not scroll sideways', !a.pageScrolls);
             check(tag + ': the bar is not more than two lines', a.height <= 100, a.height);
-            if (SIZES[s][0] > 860) check(tag + ': with the names showing it fits on one line', a.height <= 60, a.height);
-            check(tag + ': names show only where there is room', a.labels === (SIZES[s][0] > 860), a.labels);
+            if (SIZES[s][0] > LABELS_ABOVE) check(tag + ': with the names showing it fits on one line', a.height <= 60, a.height);
+            check(tag + ': names show only where there is room', a.labels === (SIZES[s][0] > LABELS_ABOVE), a.labels);
             if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'bar_' + SIZES[s].join('x') + '_' + (ROWS[r] || 'home') + '.png'), clip: { x: 0, y: 0, width: SIZES[s][0], height: Math.min(a.height + 40, SIZES[s][1]) } });
         }
     }
@@ -97,7 +98,7 @@ var EVERY_TOOL = {
     // ------------------------------------------------------------ what shows where
     await home(); await settle();
     var flat = [].concat(EVERY_TOOL.home, EVERY_TOOL.view, EVERY_TOOL.measure, EVERY_TOOL.pins);
-    check('all 21 of the old bar\'s tools and Count Points exist', flat.length === 22 && (await page.evaluate(function(ids) { return ids.every(function(i) { return !!document.getElementById('naImageViewer_' + i); }); }, flat)));
+    check('all 21 of the old bar\'s tools, Count Points and the Protractor exist', flat.length === 23 && (await page.evaluate(function(ids) { return ids.every(function(i) { return !!document.getElementById('naImageViewer_' + i); }); }, flat)));
     var i;
     for (i = 0; i < EVERY_TOOL.home.length; i++) check(EVERY_TOOL.home[i] + ' is on the home row', await visible(EVERY_TOOL.home[i]));
     for (i = 0; i < EVERY_TOOL.view.length; i++) check(EVERY_TOOL.view[i] + ' is nested at home', !(await visible(EVERY_TOOL.view[i])));

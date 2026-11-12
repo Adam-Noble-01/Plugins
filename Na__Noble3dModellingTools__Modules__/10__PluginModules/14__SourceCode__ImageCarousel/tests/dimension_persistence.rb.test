@@ -1,0 +1,263 @@
+# Image Viewer dimensions: what is kept in the model, and the dialog callbacks
+# that keep it, in SketchUp's own bundled Ruby (no SketchUp model needed: a
+# model double stands in, and refuses any write made outside an undo operation).
+#
+# Run tests/measure_persist.ui.test.js first (it leaves the dialog's real
+# payload in tests/out/dims_payload.json), then:
+#   python tests/run_ruby_checks.py tests/dimension_persistence.rb.test
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+Encoding.default_external = Encoding.find('UTF-8')
+require 'json'
+
+MODULE_DIR = File.expand_path('..', __dir__)
+OUT_DIR    = File.join(__dir__, 'out')
+
+$passes = 0
+$fails = 0
+def check(name, cond, detail = nil)
+  if cond
+    $passes += 1
+  else
+    $fails += 1
+    puts "FAIL  #{name}#{detail ? '  ' + detail.inspect : ''}"
+  end
+end
+
+Dir.glob(File.join(MODULE_DIR, '*.rb')).sort.each do |f|
+  begin
+    RubyVM::InstructionSequence.compile_file(f)
+    check("compiles #{File.basename(f)}", true)
+  rescue SyntaxError => e
+    check("compiles #{File.basename(f)}", false, e.message)
+  end
+end
+
+# ----------------------------------------------------------------------------- doubles
+module UI
+  @timers = {}
+  @next_timer = 1
+  def self.start_timer(seconds, repeat, &block)
+    id = @next_timer
+    @next_timer += 1
+    @timers[id] = { 'seconds' => seconds, 'repeat' => repeat, 'block' => block }
+    id
+  end
+  def self.stop_timer(id); @timers.delete(id); end
+  def self.timers; @timers; end
+  def self.fire_timers
+    due = @timers.values
+    @timers.clear
+    due.each { |t| t['block'].call }
+  end
+end
+
+class FakeDictionary
+  def initialize(model); @model = model; @h = {}; end
+  def [](k); @h[k]; end
+  def []=(k, v); @model.guard!; @h[k] = v; end
+  def delete_key(k); @model.guard!; @h.delete(k); end
+  def key?(k); @h.key?(k); end
+  def length; @h.length; end
+  def keys; @h.keys; end
+end
+
+class FakeDictionaries
+  def initialize(model); @model = model; end
+  def delete(name); @model.guard!; @model.dicts.delete(name); end
+end
+
+class FakeModel
+  attr_reader :dicts, :operations, :aborted
+  attr_accessor :fail_next_write, :fail_next_read
+  def initialize; @dicts = {}; @operations = []; @open = nil; @aborted = 0; @fail_next_write = false; @fail_next_read = false; end
+  def guard!
+    raise 'write outside an undo operation' unless @open
+    if @fail_next_write
+      @fail_next_write = false
+      raise 'disk full'
+    end
+  end
+  def start_operation(name, _disable_ui = false, *)
+    raise 'operations cannot be nested' if @open
+    @open = name
+    true
+  end
+  def commit_operation; raise 'no operation open' unless @open; @operations << @open; @open = nil; true; end
+  attr_reader :abort_calls
+  def abort_operation
+    @abort_calls = (@abort_calls || 0) + 1
+    raise 'abort_operation with no operation open would undo the user\'s last step' unless @open
+    @open = nil
+    @aborted += 1
+    true
+  end
+  def set_attribute(dict, key, value)
+    guard!
+    (@dicts[dict] ||= FakeDictionary.new(self))[key] = value
+  end
+  def get_attribute(dict, key, default = nil)
+    if @fail_next_read
+      @fail_next_read = false
+      raise 'model unreadable'
+    end
+    d = @dicts[dict]
+    d && d.key?(key) ? d[key] : default
+  end
+  def attribute_dictionary(name, create = false)
+    @dicts[name] = FakeDictionary.new(self) if create && !@dicts[name]
+    @dicts[name]
+  end
+  def attribute_dictionaries; @dicts.empty? ? nil : FakeDictionaries.new(self); end
+end
+
+$model = FakeModel.new
+module Sketchup
+  def self.platform; :platform_win; end
+  def self.active_model; $model; end
+  def self.read_default(*_args); 'C:/'; end
+  def self.write_default(*_args); true; end
+end
+
+class FakeDialog
+  attr_reader :scripts, :callbacks, :html
+  def initialize(*_args, **_opts); @scripts = []; @callbacks = {}; @visible = false; end
+  def execute_script(s); @scripts << s; end
+  def add_action_callback(name, &block); @callbacks[name] = block; end
+  def set_html(html); @html = html; end
+  def set_on_closed(&block); @on_closed = block; end
+  def show; @visible = true; end
+  def bring_to_front; end
+  def visible?; @visible; end
+  def close; @visible = false; end
+  def fire_closed; @on_closed.call; end
+  def saved_notices
+    @scripts.map { |s| s[/MarkupOnSaved\((\{.*\})\);\z/, 1] }.compact.map { |j| JSON.parse(j) }
+  end
+end
+
+# the dialog class the manager builds, swapped for the double
+module UI
+  class HtmlDialog
+    STYLE_DIALOG = 0
+    def self.new(*args, **opts); (@made ||= []) << FakeDialog.new(*args, **opts); @made.last; end
+    def self.made; @made ||= []; end
+  end
+end
+
+class FakeDialog
+  def dims_notices
+    @scripts.map { |s| s[/DimensionsOnSaved\((\{.*\})\);\z/, 1] }.compact.map { |j| JSON.parse(j) }
+  end
+end
+
+# ----------------------------------------------------------------------------- load the real modules
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__MarkupPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DimensionPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
+DP = Na__Noble3dModellingTools::Na__ImageCarousel__DimensionPersistence
+MD = Na__Noble3dModellingTools::Na__ImageCarousel__ModelPersistence
+DM = Na__Noble3dModellingTools::Na__ImageCarousel__DialogManager
+DICT  = 'Na__Noble3dModellingTools__ImageCarousel__Dimensions'
+ROOT  = 'C:/Site/Photos'
+PHOTO = 'C:/Site/Photos/Front/IMG_0001.jpg'
+
+loader = File.read(File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__Loader__.rb'))
+check('the loader loads DimensionPersistence before the DialogManager',
+      loader.index('DimensionPersistence__') && loader.index('DimensionPersistence__') < loader.index('DialogManager__'))
+
+def pending? = DP.Na__ImageCarousel__DimensionPersistence__HasPending
+def discard = DP.Na__ImageCarousel__DimensionPersistence__DiscardPending
+
+# The dialog's real payload, or one like it.
+real_file = File.join(OUT_DIR, 'dims_payload.json')
+real = File.file?(real_file) ? JSON.parse(File.read(real_file)) : nil
+check('dims_payload.json present (run measure_persist.ui.test.js first)', !real.nil?, real_file)
+real ||= { 'w' => 4032, 'h' => 3024, 'dims' => [[800, 2600, 2800, 2600], [1000, 1000, 2200, 1000]],
+           'scale' => { 'pxPerMm' => 1, 'unit' => 'mm', 'ref' => [800, 2600, 2800, 2600, 2000] } }
+payload = real.merge('path' => PHOTO)
+
+# ----------------------------------------------------------------------------- queue, flush, read back
+$model = FakeModel.new
+discard
+q = DP.Na__ImageCarousel__DimensionPersistence__Queue(payload.to_json, ROOT)
+check('the payload is accepted', q['ok'] && q['key'] == 'front/img_0001.jpg' && q['dims'] == real['dims'].length && q['scale'], q)
+check('held, not yet in the model', pending? && !$model.dicts.key?(DICT))
+read = DP.Na__ImageCarousel__DimensionPersistence__LoadForPaths($model, [PHOTO], ROOT)
+check('what is held is read back before it is written', read[PHOTO] && read[PHOTO]['dims'] == real['dims'], read)
+f = DP.Na__ImageCarousel__DimensionPersistence__Flush($model)
+check('flush writes in one undo step', f['ok'] && $model.operations == ['Image Viewer: Dimensions'], [f, $model.operations])
+stored = JSON.parse($model.get_attribute(DICT, 'front/img_0001.jpg'))
+check('stored as versioned JSON, by name and size', stored['schema'] == 1 && stored['name'] == 'IMG_0001.jpg' && stored['w'] == real['w'] && stored['h'] == real['h'], stored.reject { |k, _| k == 'dims' })
+check('every dimension kept exactly', stored['dims'] == real['dims'], [stored['dims'], real['dims']])
+check('the scale and reference kept exactly', stored['scale'] == real['scale'], [stored['scale'], real['scale']])
+read = DP.Na__ImageCarousel__DimensionPersistence__LoadForPaths($model, [PHOTO, 'C:/Site/Photos/none.jpg'], ROOT)
+check('read back from the model for the photo, and only it', read.keys == [PHOTO] && read[PHOTO]['dims'] == real['dims'] && read[PHOTO]['scale'] == real['scale'], read)
+check('found again from another machine (same folder, other drive)',
+      DP.Na__ImageCarousel__DimensionPersistence__LoadForPaths($model, ['E:/Moved/Photos/front/img_0001.JPG'], 'E:/Moved/Photos').length == 1)
+f = DP.Na__ImageCarousel__DimensionPersistence__Flush($model)
+check('a flush with nothing held does nothing', f['ok'] && $model.operations.length == 1)
+DP.Na__ImageCarousel__DimensionPersistence__Queue(payload.to_json, ROOT)
+DP.Na__ImageCarousel__DimensionPersistence__Flush($model)
+check('the same again adds no undo step', $model.operations.length == 1)
+check('the markup dictionary is not touched', !$model.dicts.key?('Na__Noble3dModellingTools__ImageCarousel__Markup'))
+
+# ----------------------------------------------------------------------------- what is refused or cleaned
+q = DP.Na__ImageCarousel__DimensionPersistence__Queue('garbage', ROOT)
+check('garbage is refused', q['ok'] == false && !q['error'].to_s.empty?, q)
+q = DP.Na__ImageCarousel__DimensionPersistence__Queue(payload.merge('w' => -1).to_json, ROOT)
+check('a bad photo size is refused', q['ok'] == false, q)
+q = DP.Na__ImageCarousel__DimensionPersistence__Queue(payload.merge('dims' => [[1, 2, 3], [1, 2, 3, 'x'], [1, 2, 3, 4]], 'scale' => { 'pxPerMm' => 0 }).to_json, ROOT)
+check('broken lines and a zero scale are dropped, good ones kept', q['ok'] && q['dims'] == 1 && !q['scale'], q)
+discard
+check('a newer schema is not read', DP.na_read_entry({ 'schema' => 9, 'w' => 10, 'h' => 10, 'dims' => [[0, 0, 1, 1]] }.to_json).nil?)
+
+# empty: the key goes, and the dictionary with it
+DP.Na__ImageCarousel__DimensionPersistence__Queue(payload.merge('dims' => [], 'scale' => nil).to_json, ROOT)
+DP.Na__ImageCarousel__DimensionPersistence__Flush($model)
+check('Clear All removes the photo and the empty dictionary', !$model.dicts.key?(DICT) && $model.operations.length == 2, $model.dicts.keys)
+
+# ----------------------------------------------------------------------------- the dialog, as the manager drives it
+$model = FakeModel.new
+MD.Na__ImageCarousel__ModelPersistence__SaveFolder($model, ROOT)
+discard
+dialog = DM.Na__ImageCarousel__DialogManager__ShowDialog
+check('the manager registers dimensions_save', dialog.callbacks.key?('dimensions_save'))
+UI.timers.clear
+dialog.callbacks['dimensions_save'].call(nil, payload.to_json)
+check('a save is held and a flush timed', pending? && UI.timers.length == 1)
+UI.fire_timers
+check('when it fires the dimensions are in the model', $model.get_attribute(DICT, 'front/img_0001.jpg') && $model.operations.last == 'Image Viewer: Dimensions', $model.operations)
+note = dialog.dims_notices.last
+check('and the dialog is told', note && note['ok'] && note['saved'][0]['written'], note)
+dialog.callbacks['dimensions_save'].call(nil, 'garbage')
+check('a refusal is told at once', dialog.dims_notices.last['ok'] == false && UI.timers.empty?)
+
+# a dimension and a mark in the same moment: both written, one step each
+UI.timers.clear
+dialog.callbacks['dimensions_save'].call(nil, payload.merge('path' => 'C:/Site/Photos/Back.png').to_json)
+dialog.callbacks['markup_save'].call(nil, { 'path' => 'C:/Site/Photos/Back.png', 'w' => 4032, 'h' => 3024, 'strokes' => [{ 'k' => 'pen', 'c' => '#e23b2e', 'w' => 4, 'p' => [0, 0, 10, 10] }] }.to_json)
+check('one timer for both', UI.timers.length == 1)
+ops = $model.operations.length
+UI.fire_timers
+check('both are written, in their own steps', $model.get_attribute(DICT, 'back.png') && $model.get_attribute('Na__Noble3dModellingTools__ImageCarousel__Markup', 'back.png') && $model.operations.length == ops + 2, $model.operations)
+
+# closing the dialog writes what is held
+dialog.callbacks['dimensions_save'].call(nil, payload.merge('path' => 'C:/Site/Photos/Last.png').to_json)
+dialog.fire_closed
+check('closing writes what is held and stops the timer', !pending? && UI.timers.empty? && $model.get_attribute(DICT, 'last.png'))
+
+# a folder's dimensions go to the dialog with its images, ahead of the list
+dialog = DM.Na__ImageCarousel__DialogManager__ShowDialog
+DM.na_push_folder_images_to_dialog(dialog, [PHOTO, 'C:/Site/Photos/none.jpg'])
+script = dialog.scripts.last
+sent = script[/OnDimensionsLoaded\((\{.*?\})\);/m, 1]
+got  = sent && JSON.parse(sent)
+check('the folder list carries the model\'s dimensions', got && got.keys == [PHOTO] && got[PHOTO]['dims'] == real['dims'] && got[PHOTO]['scale'] == real['scale'], got)
+check('ahead of the image list', script.index('OnDimensionsLoaded') < script.index('SKP_onFolderChosen'))
+
+puts "\n#{$passes} passed, #{$fails} failed"
+raise 'ruby checks failed' if $fails > 0

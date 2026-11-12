@@ -42,15 +42,25 @@
 
       <div class="naImageViewer__ToolRow" data-toolset="measure">
         <button type="button" data-toolset-back class="naImageViewer__Btn naImageViewer__ToolBack" title="Back to all tools (Esc)" aria-label="Back to all tools"><span class="naImageViewer__ToolBackArrow">{{ICON:Icon__ImageViewer__Prev__}}</span><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Tape__}}</span><span class="naImageViewer__TileLabel">Measure</span></button>
-        <button type="button" id="naImageViewer_btnMeasure" class="naImageViewer__Btn naImageViewer__Tile" title="Measure (click two points, Esc to stop)" aria-label="Dimension"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Dimension__}}</span><span class="naImageViewer__TileLabel">Dimension</span></button>
         <button type="button" id="naImageViewer_btnSetRef" class="naImageViewer__Btn naImageViewer__Tile" title="Set a reference length to scale measurements" aria-label="Reference"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__SetScale__}}</span><span class="naImageViewer__TileLabel">Reference</span></button>
+        <button type="button" id="naImageViewer_btnMeasure" class="naImageViewer__Btn naImageViewer__Tile" title="Dimension (D): click two points, Esc to stop" aria-label="Dimension"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Dimension__}}</span><span class="naImageViewer__TileLabel">Dimension</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
         <button type="button" id="naImageViewer_btnCount" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--wide" title="Count Spans (C): counts the spaces between points. For panels, panes, bricks and courses." aria-label="Count Spans"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__CountSpans__}}</span><span class="naImageViewer__TileLabel">Count Spans</span></button>
         <button type="button" id="naImageViewer_btnCountPoints" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--wide" title="Count Points (Shift+C): counts the items at the points, both ends included. For transoms, mullions, glazing bars and brick joints." aria-label="Count Points"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__CountPoints__}}</span><span class="naImageViewer__TileLabel">Count Points</span></button>
+        <span class="naImageViewer__ToolbarDivider"></span>
         <button type="button" id="naImageViewer_btnPerspective" class="naImageViewer__Btn naImageViewer__Tile" title="Perspective angle: true roof pitches and angles, corrected for the camera" aria-label="Angle"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Angle__}}</span><span class="naImageViewer__TileLabel">Angle</span></button>
+        <button type="button" id="naImageViewer_btnProtractor" class="naImageViewer__Btn naImageViewer__Tile naImageViewer__Tile--wide" title="Protractor (P): the angle between two lines on a drawing, as drawn (no camera correction). Click the corner, then a point on each line." aria-label="Protractor"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Protractor__}}</span><span class="naImageViewer__TileLabel">Protractor</span></button>
         <span class="naImageViewer__ToolbarDivider"></span>
         <button type="button" id="naImageViewer_btnSelect" class="naImageViewer__Btn naImageViewer__Tile" title="Select a dimension (click a line, Esc to stop)" aria-label="Select"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Select__}}</span><span class="naImageViewer__TileLabel">Select</span></button>
         <button type="button" id="naImageViewer_btnDeleteSelected" class="naImageViewer__Btn naImageViewer__Tile" title="Delete selected dimension (Delete)" aria-label="Delete" disabled><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Delete__}}</span><span class="naImageViewer__TileLabel">Delete</span></button>
-        <button type="button" id="naImageViewer_btnClearDims" class="naImageViewer__Btn naImageViewer__Tile" title="Clear all dimensions on this image" aria-label="Clear All"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__ClearAll__}}</span><span class="naImageViewer__TileLabel">Clear All</span></button>
+        <button type="button" id="naImageViewer_btnClearDims" class="naImageViewer__Btn naImageViewer__Tile" title="Clear all dimensions and protractor angles on this image" aria-label="Clear All"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__ClearAll__}}</span><span class="naImageViewer__TileLabel">Clear All</span></button>
+        <!-- Tool options: the running tool's own settings, after their own divider.
+             Shown only while a tool that has options is on (Measurement.js). -->
+        <span class="naImageViewer__ToolbarDivider naImageViewer__ToolOptionsDivider" id="naImageViewer_toolOptionsDivider"></span>
+        <div class="naImageViewer__ToolOptions" id="naImageViewer_toolOptions" role="group" aria-label="Tool options">
+          <button type="button" id="naImageViewer_btnOrtho" class="naImageViewer__Btn naImageViewer__Tile" title="Ortho (F8): lock the line level or plumb, whichever way you drag. Hold Shift for ortho on the fly." aria-label="Ortho" aria-pressed="false"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Ortho__}}</span><span class="naImageViewer__TileLabel">Ortho</span></button>
+          <button type="button" id="naImageViewer_btnRounding" class="naImageViewer__Btn naImageViewer__Tile" title="Rounding: snap each dimension to a whole step. Click to cycle Off, 5, 10, 50, 100, 500, 1000 mm (right-click steps back)." aria-label="Rounding"><span class="naImageViewer__TileIcon">{{ICON:Icon__ImageViewer__Rounding__}}</span><span class="naImageViewer__TileLabel naImageViewer__TileLabel--keep" id="naImageViewer_roundingLabel">Round Off</span></button>
+        </div>
       </div>
 
       <div class="naImageViewer__ToolPins">
@@ -66,6 +76,9 @@
     <div class="naImageViewer__Main">
 
       <div class="naImageViewer__Thumbs" id="naImageViewer_thumbs"></div>
+
+      <!-- Fold the thumbnails away for more photo; open by default, remembered -->
+      <button type="button" class="naImageViewer__ThumbsFold" id="naImageViewer_thumbsFold" title="Hide the thumbnails" aria-label="Hide the thumbnails" aria-controls="naImageViewer_thumbs" aria-expanded="true"><svg viewBox="0 0 10 16" width="8" height="13" aria-hidden="true"><polyline points="7 2 2 8 7 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 
       <div class="naImageViewer__ViewerPane">
         <div class="naImageViewer__CanvasWrap">
@@ -171,6 +184,7 @@
         <!-- Status bar -->
         <div class="naImageViewer__StatusBar">
           <div class="naImageViewer__StatusText" id="naImageViewer_meta">No folder selected</div>
+          <button id="naImageViewer_btnSaveImage" class="naImageViewer__Btn" title="Save Image (Ctrl+S): this photo with its dimensions and marks, full size, beside the original as name__DimensionsAdded__.ext">Save Image</button>
           <button id="naImageViewer_btnReveal" class="naImageViewer__Btn" title="Reveal in file explorer">Reveal</button>
           <button id="naImageViewer_btnCopy"   class="naImageViewer__Btn" title="Copy file path to clipboard">Copy Path</button>
         </div>
@@ -321,6 +335,10 @@
 
   <script>
     {{MEASUREMENT_SCRIPT}}
+  </script>
+
+  <script>
+    {{PROTRACTOR_SCRIPT}}
   </script>
 
   <script>

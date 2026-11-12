@@ -1,0 +1,121 @@
+# Image Viewer: Save Image writes <name>__DimensionsAdded__<ext> beside the
+# photo, in SketchUp's own bundled Ruby (no SketchUp model needed).
+#
+# Run from the module folder, after tests/measure_options.ui.test.js (which
+# leaves the dialog's real payload in tests/out/save_payload.json):
+#   python tests/run_ruby_checks.py tests/dimensioned_save.rb.test
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+Encoding.default_external = Encoding.find('UTF-8')
+require 'json'
+
+MODULE_DIR = File.expand_path('..', __dir__)
+OUT_DIR    = File.join(__dir__, 'out')
+WORK_DIR   = File.join(OUT_DIR, 'dimensioned_save')
+
+$passes = 0
+$fails = 0
+def check(name, cond, detail = nil)
+  if cond
+    $passes += 1
+  else
+    $fails += 1
+    puts "FAIL  #{name}#{detail ? '  ' + detail.inspect : ''}"
+  end
+end
+
+module UI; class HtmlDialog; STYLE_DIALOG = 0; end; end
+module Sketchup
+  def self.platform; :platform_win; end
+  def self.active_model; nil; end
+end
+check('DialogManager compiles', (RubyVM::InstructionSequence.compile_file(File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')) rescue nil))
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__MarkupPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
+DM = Na__Noble3dModellingTools::Na__ImageCarousel__DialogManager
+
+Dir.mkdir(OUT_DIR) unless File.directory?(OUT_DIR)
+Dir.mkdir(WORK_DIR) unless File.directory?(WORK_DIR)
+Dir.glob(File.join(WORK_DIR, '*')).each { |f| File.delete(f) }
+
+PNG_1PX  = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+JPEG_HDR = [255, 216, 255, 224].pack('C*')
+def payload(path, ext, type, b64) = { 'path' => path, 'ext' => ext, 'data' => "data:image/#{type};base64,#{b64}" }.to_json
+
+# ---- the real payload from the dialog (a 4032 x 3024 PNG with the dimensions on it)
+real = File.join(OUT_DIR, 'save_payload.json')
+if File.file?(real)
+  sent  = JSON.parse(File.read(real))
+  photo = File.join(WORK_DIR, 'House Photo b&w.png')
+  File.binwrite(photo, File.binread(sent['path']))
+  sent['path'] = photo
+  r = DM.na_save_dimensioned_image(sent.to_json)
+  target = File.join(WORK_DIR, 'House Photo b&w__DimensionsAdded__.png')
+  check('real payload saved', r['ok'] == true, r)
+  check('named <name>__DimensionsAdded__.png beside the photo', r['path'] == target && File.file?(target), r)
+  bytes = File.binread(target)
+  check('it is a PNG', bytes[0, 8] == "\x89PNG\r\n\x1a\n".b, bytes[0, 8])
+  check('4032 x 3024', bytes[16, 8].unpack('NN') == [4032, 3024], bytes[16, 8].unpack('NN'))
+  check('the original is untouched', File.binread(photo) == File.binread(JSON.parse(File.read(real))['path']))
+  check('first save is not a replace', r['replaced'] == false, r)
+  r2 = DM.na_save_dimensioned_image(sent.to_json)
+  check('second save replaces', r2['ok'] && r2['replaced'] == true, r2)
+  File.binwrite(File.join(OUT_DIR, 'dimensioned_preview.png'), bytes)
+else
+  check('save_payload.json present (run measure_options.ui.test.js first)', false, real)
+end
+
+# ---- names, types and refusals
+jpg = File.join(WORK_DIR, 'A2Q-15263-3 b&w.JPG')
+File.binwrite(jpg, JPEG_HDR)
+r = DM.na_save_dimensioned_image(payload(jpg, '.JPG', 'jpeg', [JPEG_HDR].pack('m0')))
+check('.JPG keeps its own case', r['ok'] && r['name'] == 'A2Q-15263-3 b&w__DimensionsAdded__.JPG', r)
+
+jpeg = File.join(WORK_DIR, 'site.jpeg')
+File.binwrite(jpeg, JPEG_HDR)
+r = DM.na_save_dimensioned_image(payload(jpeg, '.jpeg', 'jpeg', [JPEG_HDR].pack('m0')))
+check('.jpeg stays .jpeg', r['ok'] && r['name'] == 'site__DimensionsAdded__.jpeg', r)
+
+bmp = File.join(WORK_DIR, 'scan.bmp')
+File.binwrite(bmp, 'BM')
+r = DM.na_save_dimensioned_image(payload(bmp, '.png', 'png', PNG_1PX))
+check('a BMP the browser cannot write is saved as .png', r['ok'] && r['name'] == 'scan__DimensionsAdded__.png', r)
+
+r = DM.na_save_dimensioned_image(payload(jpg, '.JPG', 'png', PNG_1PX))
+check('PNG data under a .jpg name is refused', r['ok'] == false && r['error'].include?('png'), r)
+
+r = DM.na_save_dimensioned_image(payload(File.join(WORK_DIR, 'gone.jpg'), '.jpg', 'jpeg', PNG_1PX))
+check('a missing photo is refused', r['ok'] == false && r['error'].include?('not found'), r)
+
+txt = File.join(WORK_DIR, 'notes.txt')
+File.write(txt, 'x')
+r = DM.na_save_dimensioned_image(payload(txt, '.txt', 'png', PNG_1PX))
+check('a non-image is refused', r['ok'] == false && r['error'].include?('not an image'), r)
+
+r = DM.na_save_dimensioned_image({ 'path' => jpg, 'ext' => '.JPG', 'data' => 'nonsense' }.to_json)
+check('no picture data is refused', r['ok'] == false, r)
+
+check('nothing written outside the photo folder',
+      Dir.glob(File.join(WORK_DIR, '*__DimensionsAdded__*')).sort.map { |f| File.basename(f) } ==
+      ['A2Q-15263-3 b&w__DimensionsAdded__.JPG', 'House Photo b&w__DimensionsAdded__.png', 'scan__DimensionsAdded__.png', 'site__DimensionsAdded__.jpeg'].sort,
+      Dir.glob(File.join(WORK_DIR, '*')).map { |f| File.basename(f) })
+
+# ---- read_image_data: the photo's bytes as a data URL
+class FakeDialog
+  attr_reader :scripts
+  def initialize; @scripts = []; end
+  def execute_script(s); @scripts << s; end
+end
+d = FakeDialog.new
+DM.na_send_image_data(d, jpg)
+check('read_image_data answers once', d.scripts.length == 1, d.scripts.length)
+check('as a JPEG data URL', d.scripts[0].include?('Na__ImageViewer__OnImageData') && d.scripts[0].include?('data:image/jpeg;base64,'), d.scripts[0][0, 120])
+d = FakeDialog.new
+DM.na_send_image_data(d, txt)
+check('read_image_data refuses a non-image', d.scripts[0].include?('not an image'), d.scripts[0])
+
+puts "\n#{$passes} passed, #{$fails} failed"
+raise 'ruby checks failed' if $fails > 0

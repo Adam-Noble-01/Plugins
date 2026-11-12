@@ -53,6 +53,19 @@
     // guides, the Count tool's ticks) offer a point near the pointer; the
     // Core picks one and draws its marker.
     var na_snapProviders    = [];     // fn(cx, cy) -> { img, screen, kind, label } | null
+
+    // Keeping the tools' work in the model (ToolStatePersistence.rb). A tool
+    // registers { serialise(key, conv) -> state|null, materialise(key, state, conv) };
+    // the Core sends a photo's state a moment after the picture settles (and at
+    // once before another photo or folder), converts points to photo pixels
+    // from the top-left and back, and scales a smaller copy's.
+    var na_persisters       = {};     // tool name -> provider
+    var na_persistSent      = {};     // tool name -> image key -> last JSON given to (or read from) Ruby
+    var na_persistStored    = {};     // tool name -> image key -> the model's entry, until the photo is shown
+    var na_persistJob       = null;   // { key, w, h } waiting to be sent
+    var na_persistTimer     = null;
+    var NA_PERSIST_DELAY_MS = 350;
+    var NA_ASPECT_TOL       = 0.01;
     var na_snapMarker       = null;
 
     // endregion ---------------------------------------------------------------
@@ -115,6 +128,7 @@
 
         Na__ImageViewer__RunOverlayRenderers();
         Na__ImageViewer__DrawSnapMarker();
+        if (!na_exportRatio) Na__ImageViewer__PersistSchedule();
     }
 
     function Na__ImageViewer__RunOverlayRenderers() {
@@ -123,6 +137,175 @@
             catch (e) { /* a feature overlay must never break the base draw */ }
         }
     }
+
+    // The photo at its own size, with every overlay drawn on it, onto a fresh
+    // canvas. The view is swapped for the photo's own frame (zoom 1, no
+    // rotation, centred) while the overlays draw, so they need no export code
+    // of their own; getRatio() returns a size so lines and labels read on the
+    // full-size picture as they do on screen at fit. The view comes back as
+    // it was, whatever happens. `source` may be another Image of the same
+    // photo (a data URL when the file itself would taint the canvas).
+    var na_exportRatio = 0;
+
+    function Na__ImageViewer__RenderExport(source) {
+        var img = source || na_viewer.img;
+        var W   = na_viewer.imgW, H = na_viewer.imgH;
+        if (!img || !W || !H) return null;
+
+        var out = document.createElement('canvas');
+        out.width  = W;
+        out.height = H;
+        var octx = out.getContext('2d');
+
+        var kept = {
+            canvas: na_canvas, ctx: na_ctx, marker: na_snapMarker,
+            zoom: na_viewer.zoom, rotation: na_viewer.rotation, offX: na_viewer.offX, offY: na_viewer.offY
+        };
+        try {
+            na_canvas = out;
+            na_ctx    = octx;
+            na_snapMarker      = null;
+            na_viewer.zoom     = 1;
+            na_viewer.rotation = 0;
+            na_viewer.offX     = 0;
+            na_viewer.offY     = 0;
+            na_exportRatio     = Math.max(1, Math.max(W, H) / 1200);
+
+            octx.drawImage(img, 0, 0, W, H);
+            Na__ImageViewer__RunOverlayRenderers();
+        } finally {
+            na_canvas = kept.canvas;
+            na_ctx    = kept.ctx;
+            na_snapMarker      = kept.marker;
+            na_viewer.zoom     = kept.zoom;
+            na_viewer.rotation = kept.rotation;
+            na_viewer.offX     = kept.offX;
+            na_viewer.offY     = kept.offY;
+            na_exportRatio     = 0;
+            Na__ImageViewer__Draw();
+        }
+        return out;
+    }
+
+    // endregion ---------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
+    // REGION | Keeping The Tools' Work In The Model
+    // -------------------------------------------------------------------------
+
+    function Na__ImageViewer__Round3(v) { return Math.round(v * 1000) / 1000; }
+
+    // Converters for a photo of size w x h, and a stored size sw x sh (k = w / sw).
+    function Na__ImageViewer__PersistConv(w, h, k) {
+        var hw = w / 2, hh = h / 2;
+        k = k || 1;
+        return {
+            k    : k,
+            // viewer image space (centred) -> photo pixels from the top-left
+            pt   : function(p) { var r = { x: Na__ImageViewer__Round3(p.x + hw), y: Na__ImageViewer__Round3(p.y + hh) }; if (typeof p.prec === 'number') r.prec = p.prec; return r; },
+            // homogeneous vanishing point (x, y, w), same move
+            vp   : function(v) { return { x: v.x + hw * v.w, y: v.y + hh * v.w, w: v.w }; },
+            // and back, scaled to this photo
+            unpt : function(p) {
+                var x = Number(p && p.x), y = Number(p && p.y);
+                if (!isFinite(x) || !isFinite(y)) return null;
+                var r = { x: x * k - hw, y: y * k - hh };
+                if (typeof p.prec === 'number' && isFinite(p.prec)) r.prec = p.prec * k;
+                return r;
+            },
+            unvp : function(v) {
+                var x = Number(v && v.x), y = Number(v && v.y), ww = Number(v && v.w);
+                if (!isFinite(x) || !isFinite(y) || !isFinite(ww)) return null;
+                return { x: x * k - hw * ww, y: y * k - hh * ww, w: ww };
+            }
+        };
+    }
+
+    function Na__ImageViewer__PersistSchedule() {
+        var key = Na__ImageViewer__ImageKey();
+        if (!key || !na_viewer.imgW || !Object.keys(na_persisters).length) return;
+        if (na_persistJob && na_persistJob.key !== key) Na__ImageViewer__PersistFlush();
+        na_persistJob = { key: key, w: na_viewer.imgW, h: na_viewer.imgH };
+        clearTimeout(na_persistTimer);
+        na_persistTimer = setTimeout(Na__ImageViewer__PersistFlush, NA_PERSIST_DELAY_MS);
+    }
+
+    // Send what changed for the photo waiting, now.
+    function Na__ImageViewer__PersistFlush() {
+        clearTimeout(na_persistTimer);
+        na_persistTimer = null;
+        var job = na_persistJob;
+        na_persistJob = null;
+        if (!job) return;
+        var conv = Na__ImageViewer__PersistConv(job.w, job.h, 1);
+        Object.keys(na_persisters).forEach(function(name) {
+            var state = null;
+            try { state = na_persisters[name].serialise(job.key, conv); }
+            catch (e) { return; }
+            var sent   = na_persistSent[name] || (na_persistSent[name] = {});
+            var stored = na_persistStored[name] || {};
+            if (state === null || state === undefined) {
+                if (stored[job.key]) return;           // the model's, not shown yet: leave it
+                if (!sent[job.key]) return;            // nothing there before either
+                state = null;
+            }
+            var text = JSON.stringify({ tool: name, path: job.key, w: job.w, h: job.h, state: state });
+            if (sent[job.key] === text) return;
+            if (state === null && sent[job.key] === 'null') return;
+            sent[job.key] = state === null ? 'null' : text;
+            if (window.sketchup && typeof window.sketchup.tool_state_save === 'function') {
+                window.sketchup.tool_state_save(text);
+            }
+        });
+    }
+
+    // A photo is showing: hand each tool the model's work for it, if it has none.
+    function Na__ImageViewer__PersistMaterialise(key) {
+        if (!key || !na_viewer.imgW) return;
+        Object.keys(na_persisters).forEach(function(name) {
+            var stored = na_persistStored[name];
+            var entry  = stored && stored[key];
+            if (!entry) return;
+            var provider = na_persisters[name];
+            var sw = Number(entry.w), sh = Number(entry.h), k;
+            if (!(sw > 0) || !(sh > 0)) { delete stored[key]; return; }
+            if (sw === na_viewer.imgW && sh === na_viewer.imgH) k = 1;
+            else if (Math.abs(sw / sh - na_viewer.imgW / na_viewer.imgH) <= NA_ASPECT_TOL * (sw / sh)) k = na_viewer.imgW / sw;
+            else return;                               // another shape: left in the model
+
+            var conv = Na__ImageViewer__PersistConv(na_viewer.imgW, na_viewer.imgH, k);
+            try {
+                var has = provider.serialise(key, Na__ImageViewer__PersistConv(na_viewer.imgW, na_viewer.imgH, 1));
+                if (has === null || has === undefined) provider.materialise(key, entry.state, conv);
+            } catch (e) { /* a tool's restore must never break the viewer */ }
+            delete stored[key];
+            try {
+                var now = provider.serialise(key, Na__ImageViewer__PersistConv(na_viewer.imgW, na_viewer.imgH, 1));
+                (na_persistSent[name] || (na_persistSent[name] = {}))[key] = now === null || now === undefined ? 'null'
+                    : JSON.stringify({ tool: name, path: key, w: na_viewer.imgW, h: na_viewer.imgH, state: now });
+            } catch (e) { /* ignore */ }
+        });
+    }
+
+    // Ruby's answer to a folder choice: { tool: { path: { w, h, state } } }.
+    function Na__ImageViewer__OnToolStateLoaded(map) {
+        if (!map || typeof map !== 'object') return;
+        Object.keys(map).forEach(function(name) {
+            var byPath = map[name];
+            if (!byPath || typeof byPath !== 'object') return;
+            var stored = na_persistStored[name] || (na_persistStored[name] = {});
+            Object.keys(byPath).forEach(function(path) { if (byPath[path] && byPath[path].state) stored[path] = byPath[path]; });
+        });
+        if (na_viewer.imgW) {
+            Na__ImageViewer__PersistMaterialise(Na__ImageViewer__ImageKey());
+            Na__ImageViewer__Draw();
+        }
+    }
+
+    var na_persistLastSaved = null;
+    window.Na__ImageViewer__OnToolStateLoaded = Na__ImageViewer__OnToolStateLoaded;
+    window.Na__ImageViewer__ToolStateOnSaved  = function(result) { na_persistLastSaved = result || null; };
 
     // endregion ---------------------------------------------------------------
 
@@ -234,6 +417,7 @@
 
     function Na__ImageViewer__LoadAt(i) {
         if (i < 0 || i >= na_images.length) return;
+        Na__ImageViewer__PersistFlush();
         na_index = i;
         na_snapMarker = null;
 
@@ -247,6 +431,7 @@
             Na__ImageViewer__Fit();
             Na__ImageViewer__UpdateStatus();
             Na__ImageViewer__HighlightThumb();
+            Na__ImageViewer__PersistMaterialise(Na__ImageViewer__ImageKey());
             Na__ImageViewer__FireImageChanged();
         };
 
@@ -430,8 +615,15 @@
                 Na__ImageViewer__Draw();
             });
 
+            // The middle button always pans, whatever tool is drawing (a tool that
+            // turns panning off only takes the left button). No autoscroll.
+            // A tool holding the canvas (claimTool) always keeps the left button,
+            // whatever another tool's setPanEnabled last said: one tool's refresh
+            // must never hand the left drag back to panning under another.
             na_canvas.addEventListener('mousedown', function(e) {
-                if (!na_panEnabled) return;
+                var middle = e.button === 1;
+                if (middle) e.preventDefault();
+                if ((!na_panEnabled || na_toolOwner) && !middle) return;
                 na_viewer.isPanning = true;
                 na_viewer.startX    = e.clientX;
                 na_viewer.startY    = e.clientY;
@@ -451,6 +643,9 @@
         window.addEventListener('mouseup', function() {
             na_viewer.isPanning = false;
         });
+
+        // A middle press must not start the browser's autoscroll anywhere over the photo.
+        if (na_canvas) na_canvas.addEventListener('auxclick', function(e) { if (e.button === 1) e.preventDefault(); });
 
         window.addEventListener('resize', Na__ImageViewer__ResizeCanvas);
 
@@ -503,6 +698,7 @@
     }
 
     function Na__ImageViewer__OnFolderChosen(list) {
+        Na__ImageViewer__PersistFlush();
         Na__ImageViewer__ShowRestoreNote('');
         if (!list || !list.length) {
             na_images = [];
@@ -705,7 +901,9 @@
         getImageSize     : function() { return { w: na_viewer.imgW, h: na_viewer.imgH }; },
         getZoom          : function() { return na_viewer.zoom; },
         getRotation      : function() { return na_viewer.rotation; },
-        getRatio         : function() { return window.devicePixelRatio || 1; },
+        getRatio         : function() { return na_exportRatio || window.devicePixelRatio || 1; },
+        renderExport     : Na__ImageViewer__RenderExport,
+        isExporting      : function() { return na_exportRatio > 0; },
         imgToScreen      : Na__ImageViewer__ImgToScreen,
         screenToImg      : Na__ImageViewer__ScreenToImg,
         requestDraw      : Na__ImageViewer__Draw,
@@ -729,7 +927,13 @@
         getSnapMarker    : function() { return na_snapMarker; },
         pushHistory      : Na__ImageViewer__PushHistory,
         undo             : Na__ImageViewer__Undo,
-        redo             : Na__ImageViewer__Redo
+        redo             : Na__ImageViewer__Redo,
+        setThumbsFolded  : Na__ImageViewer__SetThumbsFolded,
+        registerPersist  : function(name, provider) {
+            if (provider && typeof provider.serialise === 'function' && typeof provider.materialise === 'function') na_persisters[String(name)] = provider;
+        },
+        persistNow       : function() { Na__ImageViewer__PersistSchedule(); Na__ImageViewer__PersistFlush(); },
+        persistSaved     : function() { return na_persistLastSaved; }
     };
 
     // endregion ---------------------------------------------------------------
@@ -739,6 +943,52 @@
     // REGION | Initialisation
     // -------------------------------------------------------------------------
 
+    // The thumbnail strip folds away for more photo. Open by default; the
+    // choice is remembered where the dialog allows storage.
+    var NA_STORE_THUMBS_FOLDED = 'Na__ImageViewer__ThumbsFolded';
+
+    function Na__ImageViewer__SetThumbsFolded(folded) {
+        var main = document.querySelector('.naImageViewer__Main');
+        var btn  = Na__ImageViewer__El('naImageViewer_thumbsFold');
+        if (!main) return;
+        main.classList.toggle('naImageViewer__Main--thumbsFolded', !!folded);
+        if (btn) {
+            var label = folded ? 'Show the thumbnails' : 'Hide the thumbnails';
+            btn.setAttribute('aria-expanded', folded ? 'false' : 'true');
+            btn.setAttribute('aria-label', label);
+            btn.title = label;
+        }
+        try { if (window.localStorage) window.localStorage.setItem(NA_STORE_THUMBS_FOLDED, folded ? '1' : '0'); } catch (_e) { /* session only */ }
+        Na__ImageViewer__ResizeCanvas();
+        if (!folded) Na__ImageViewer__HighlightThumb();
+    }
+
+    // The strip's scrollbar shows only while it is in use: pointer over it, or scrolling.
+    function Na__ImageViewer__InitQuietScrollbar() {
+        var el = na_thumbsEl, timer = null, over = false;
+        if (!el) return;
+        function set(on) { if (el.classList.contains('naImageViewer__Thumbs--inUse') !== on) el.classList.toggle('naImageViewer__Thumbs--inUse', on); }
+        el.addEventListener('mouseenter', function() { over = true; set(true); });
+        el.addEventListener('mouseleave', function() { over = false; if (!timer) set(false); });
+        el.addEventListener('scroll', function() {
+            set(true);
+            clearTimeout(timer);
+            timer = setTimeout(function() { timer = null; if (!over) set(false); }, 900);
+        }, { passive: true });
+    }
+
+    function Na__ImageViewer__InitThumbsFold() {
+        var btn = Na__ImageViewer__El('naImageViewer_thumbsFold');
+        if (!btn) return;
+        var folded = false;
+        try { folded = !!window.localStorage && window.localStorage.getItem(NA_STORE_THUMBS_FOLDED) === '1'; } catch (_e) { folded = false; }
+        btn.addEventListener('click', function() {
+            var main = document.querySelector('.naImageViewer__Main');
+            Na__ImageViewer__SetThumbsFolded(!(main && main.classList.contains('naImageViewer__Main--thumbsFolded')));
+        });
+        if (folded) Na__ImageViewer__SetThumbsFolded(true);
+    }
+
     function Na__ImageViewer__Init() {
         na_canvas   = Na__ImageViewer__El('naImageViewer_canvas');
         na_thumbsEl = Na__ImageViewer__El('naImageViewer_thumbs');
@@ -746,6 +996,8 @@
         na_ctx      = na_canvas ? na_canvas.getContext('2d') : null;
 
         Na__ImageViewer__RegisterEvents();
+        Na__ImageViewer__InitThumbsFold();
+        Na__ImageViewer__InitQuietScrollbar();
         Na__ImageViewer__ResizeCanvas();
         Na__ImageViewer__UpdateStatus();
 

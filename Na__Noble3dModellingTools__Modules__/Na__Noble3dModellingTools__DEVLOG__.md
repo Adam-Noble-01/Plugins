@@ -3,6 +3,134 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.35 - 11-Nov-2026 - Image Viewer: Measure Row Grouped; 2D Protractor
+
+- **What Adam asked for.** Two more dividers to group the Measure row (marked on his screenshot: after Dimension, and between Count Points and Angle). Then a 2D protractor tool for angle measurements on drawings.
+- **Grouping.** The Measure row is now: Back, then Reference and Dimension, | Count Spans and Count Points, | Angle and Protractor, | Select, Delete and Clear All, then the options.
+- **Breakpoint.** The row with its names now needs about 960 px with the pins, so tiles drop their names below 980 px (was 860; tooltips stay). `toolbar.ui.test.js` reads the breakpoint from one constant and now also tries 980 and 981 px.
+- **Protractor** (new `ProtractorTool__.js`, inlined after Measurement, `{{PROTRACTOR_SCRIPT}}` in DialogManager and the test harness). It reads the angle between two lines as drawn: plain 2D, no camera correction. The Angle tool is still the one for photos in perspective.
+  - **Use.** P or the button. Click the corner, then a point on each line. It reads 0 to 180°, to 0.1°, with an arc and a magenta tag (`#c2185b`, distinct from the dimensions' red and the Angle tool's purple).
+  - **Ortho, Shift and snapping.** Ortho (F8) or Shift holds an arm level or plumb from the corner, so a roof pitch is the corner, a level arm, then the roof line. Points snap to dimension ends, guides and count ticks. The middle button pans.
+  - **Editing.** Esc steps back a point, then the selection, then leaves the tool. Clicking an arm selects; the corner or an arm's end drags with square grips (3 px threshold, one undo step; Esc puts a drag back). Delete removes.
+  - **Clear All.** It clears protractors together with the dimensions in the one undo step (its tooltip says so).
+  - **Kept in the model** through the Core as tool `protractor` (ToolStatePersistence: dictionary `…__Protractors`, step "Image Viewer: Protractor"). It is drawn on Save Image, with the selection colour left off.
+  - **Icon.** `Icon__ImageViewer__Protractor__.svg`, a half-disc with a needle and arc, in the house line style.
+- **Fixed in passing (Core).** One tool's refresh could hand the left button back to panning under another tool. The Measure tool's F8 refresh turned panning on while the Protractor held the canvas, so dragging a grip panned the photo with it and the point never moved. A tool holding the canvas (`claimTool`) now always keeps the left button; the middle button still pans. The tools that capture on the wrapper (Count, Markup, Angle) were never exposed to this.
+- **Validation.**
+  - `node tests/protractor.ui.test.js <playwright> <chrome.exe> [shots]` 32 of 32: the row's grouping; P; the hints; 40° and 135° read within 0.4; Ortho level and a 47.5° pitch; Shift plumb and 90°; Esc steps; middle pan while placing; select, corner drag, undo; Esc mid-drag; Delete and undo; snapping onto a dimension's end; Clear All with one undo; kept in the model and shown again in a fresh dialog.
+  - Toolbar 208, the Ruby tool-state test with three tools, and every other suite pass.
+  - Not yet tried in SketchUp: Reload Plugin Data or restart.
+
+## Na Noble3d Modelling Tools | Version 0.9.34 - 11-Nov-2026 - Image Viewer: Ortho Guides
+
+- **What Adam asked for.** In Ortho, draw dashed vertical and horizontal guide lines across the view (as he sketched over an elevation's wall), so a dimension's end can be lined up with the photo: x red, y green, 50% opaque and dashed so they do not hinder seeing the photo.
+- **What it does.** While Ortho is in effect (F8 on, or Shift held with it off), a red level line and a green plumb line run the full width and height of the view through:
+  - the end being placed;
+  - the pointer, before the first point;
+  - the end being dragged in Select.
+  The colours are the Angle tool's red and green axes (`#d4291c`, `#178a3a`), dashed 7 on 6, at 50% opacity. The lines are drawn at whole device pixels on the pixel grid: a 1.25 px line straddling two rows anti-aliased to about 30%, not the half asked for, as the first test caught. They come and go with F8 and Shift at once, leave when the pointer leaves the photo, and are never on Save Image (they are drawn after the export cut-off).
+- **Files.** `Measurement__.js`; checks added to `tests/measure_edit.ui.test.js`.
+- **Validation.** `measure_edit.ui.test.js` 55 of 55 (+13). It checks:
+  - no guides with Ortho off;
+  - through the pointer before the first point;
+  - crossing at the free end, level with the first point;
+  - green and red each measured as a 50% blend over the photo (±14 per channel) against a screenshot without them;
+  - dashed;
+  - running the full height;
+  - Shift brings them, releasing takes them away;
+  - through a dragged end in Select, gone once dropped.
+  Every other browser suite still passes. Not yet tried in SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.33 - 11-Nov-2026 - Image Viewer: Middle-Button Pan While Measuring; Reference First
+
+- **What Adam asked for.** Pan with the middle mouse button while drawing dimensions, and put the Reference button first, on the left.
+- **Pan.** Dimension, Reference and Select turn panning off so that left-clicks place points. The Core's pan now always takes the middle button whatever tool is on; a tool that turns panning off only takes the left. The middle press is `preventDefault`ed and `auxclick` is swallowed, so CEF does not start its autoscroll. A half-drawn dimension waits through the pan, its first point staying on the photo, and is finished where it was started. Count, Markup and Angle already panned with right or middle and are unchanged.
+- **Reference first.** The Measure row is now Back, Reference, Dimension, Count Spans, Count Points, Angle, then Select, Delete, Clear All. You set the scale before you dimension.
+- **Files.** `UiBridge__.js`, `UiLayout__.html`; checks added to `tests/measure_edit.ui.test.js`.
+- **Validation.** `measure_edit.ui.test.js` 42 of 42 (+6): middle-drag pans by the drag exactly in Dimension with a point placed, in Reference and in Select, where it does not move the dimension under it; the dimension finishes where it was started; a left drag in Dimension still does not pan; Reference then Dimension in the row. Every other browser suite still passes. Not yet tried in SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.32 - 11-Nov-2026 - Image Viewer: Dimensions Edited After They Are Drawn
+
+- **What Adam asked for.** Edit a dimension's points after it is made, with the Select tool, as the TrueVision Layout Editor does: "make dimensions more forgiving if they need updating".
+- **Taken from the Layout Editor** (`SheetTools__Grips__`, `__HitResolution__`, `__PointerDrag__`; DEVLOG v2.59-2.60):
+  - square end grips;
+  - a 14 px grab reach (its `GrabRadiusPx`), and the selected dimension's ends are found first;
+  - the other end stays put;
+  - object snap while dragging, never onto itself;
+  - Ortho and Shift;
+  - the reading follows live;
+  - a typed exact length;
+  - a small drag threshold (3 px);
+  - one undo step per edit.
+- **Kept simpler or more forgiving here.**
+  - No double-click to "open" the dimension: a photo dimension is two points, so the first press on an end grabs it, selected or not.
+  - Esc mid-drag puts it back (the Layout Editor commits).
+  - Ortho is held from the fixed end, which is what keeps a dimension level or plumb.
+  - Dragging the line moves the whole dimension (Shift or Ortho keeps the move level or plumb).
+  - Rounding applies to a dragged end, as when drawing.
+- **Typed length.** With a dimension selected and a scale set, type digits (optionally `mm`, `cm` or `m`), then Enter. The end last grabbed moves along the line, and the hint shows what has been typed. The digits never reach Fit (0) or 100% (1), and `c` never reaches Count once a digit has been typed. Esc clears the typing. Backspace edits it, or deletes the dimension when nothing is typed.
+- **The reference.** Dragging the reference line's end re-scales the photo and keeps its known length, so every other dimension reads in the new scale. Typing a length on the reference re-states its known length and re-scales. Both are one undo step, scale included.
+- **Snapping.** Dimension ends are now a snap point (`registerSnap`, "Dimension end") for every tool: new dimensions, counts and Angle lines snap onto them too.
+- **Cursors.** A crosshair over an end and a move cursor over a line. They are set by canvas class, because the other tools reset the inline cursor as the pointer moves.
+- **Every edit** is handed to the model (`dimensions_save`), as in 0.9.30.
+- **Files.** `Measurement__.js` (editing region, `EndFrom` shared by drawing and dragging, grip drawing), `Styles__.css`; new `tests/measure_edit.ui.test.js`.
+- **Validation.**
+  - `node tests/measure_edit.ui.test.js <playwright> <chrome.exe> [shots]` 36 of 36. It covers: an unselected dimension's end grabbed 10 px off and dragged; the other end fixed; one undo and redo; a 1.5 px press moving nothing; Esc putting a drag back; the line moving it all; Ortho; Shift; Rounding 50; snapping onto another dimension's end; a typed `1250` and `125cm`; Esc and Backspace; moving and typing the reference re-scaling, with undo; deselecting; the cursors; no page errors.
+  - Every other suite still passes.
+  - Not yet tried in SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.31 - 11-Nov-2026 - Image Viewer: Counts and Angle Work Kept in the Model; Thumbnails Fold Away
+
+- **What Adam asked for.** Keep the Count tool and the Angle tool's work in the model as dimensions now are. The thumbnail strip should fold away to save space (open by default), and its scrollbar should be less obvious when not in use.
+- **Thumbnails.** A slim fold tab (14 px, a chevron) between the strip and the photo. It folds the strip away and the photo takes the room (the canvas resizes); click again to open. Open by default, remembered (`Na__ImageViewer__ThumbsFolded`, localStorage where allowed). The scrollbar is 6 px wide with no arrows. It shows soft grey only while the pointer is over the strip, or while it scrolls and for 0.9 s after. That is done with a class (`--inUse`), because Chromium does not repaint a custom scrollbar for a `:hover` on its box (found by screenshot with scrollbars switched on).
+- **Counts and Angle work, how.** It goes through the Core, not separate code per tool. A tool registers `registerPersist(name, { serialise(key, conv), materialise(key, state, conv) })`, and the Core does the rest:
+  - It sends a photo's state 350 ms after the picture settles, which also catches drags and the wheel. It sends at once before another photo or folder is shown, and never sends the same state twice.
+  - It converts points to photo pixels from the top-left and back. Homogeneous vanishing points (x, y, w) move the same way.
+  - It scales the state to a resized copy of the same shape and leaves any other shape in the model.
+  - It does not send a photo's empty state over the model's copy before that copy has been shown.
+- **Ruby.** New `ToolStatePersistence__.rb`, one store for listed tools with one dictionary each: `…__Counts` ("Image Viewer: Counts") and `…__AngleGuides` ("Image Viewer: Angle Guides"). Keys are the photo's path under the folder, as the marks use. Each entry is versioned JSON `{ schema, tool, name, w, h, state }`. The checks are generic: only plain JSON is accepted, depth at most 8, 10,000 items, strings up to 200 characters, 2 MB per photo. A null state removes the photo's key. It is written by the markup's timer and on close, one step per tool, and a failed tool keeps its state for the next try without stopping the other. The folder list carries it (`Na__ImageViewer__OnToolStateLoaded`). All of it is guarded, so it is never in the way of the folder, the marks or the dimensions.
+- **Count.** `{ counts:[ { id, kind, a, b, n, vp } ] }`. The count being drawn is left out. Ids are kept and the id counter moves past them.
+- **Angle.** `{ lines, meas, guides, lens }`, with points' precision scaled. The lens is kept only when it was set by hand. Restoring solves the photo again, at once when it is already showing.
+- **Files.** New `ToolStatePersistence__.rb` (in the Loader), `DialogManager__.rb`, `UiBridge__.js`, `CountTool__.js`, `PerspectiveAngle__.js`, `UiLayout__.html`, `Styles__.css`. New suites: `tests/tool_state_persist.ui.test.js`, `tests/tool_state_persistence.rb.test`, `tests/thumbs_fold.ui.test.js`.
+- **Validation.**
+  - `tool_state_persist.ui.test.js` 20 of 20: the calibration and the count reach Ruby; a change is sent before the next photo; a fresh dialog shows the same count spaced in the same solved perspective, ticks within 0.01 px; a quarter-size copy takes it scaled, a hand-set vanishing point included; nothing is echoed; deleting the last count sends an empty state.
+  - Then `python tests/run_ruby_checks.py tests/tool_state_persistence.rb.test` 44 of 44: the real payloads are written exactly, one step per tool; refusals; removal; one tool failing; the timer, close and folder push.
+  - `thumbs_fold.ui.test.js` 15 of 15.
+  - Not yet tried in SketchUp: Reload Plugin Data (new Ruby file) or restart.
+
+## Na Noble3d Modelling Tools | Version 0.9.30 - 11-Nov-2026 - Image Viewer: Dimensions and the Reference Scale Are Kept in the Model
+
+- **What Adam found.** Dimensions per image were not recalled when the Image Viewer was opened again. "Are they being serialised to the SketchUp model dictionary, like the image paths?"
+- **Cause.** They never were. Only the folder (ModelPersistence) and Markup's strokes (MarkupPersistence) were kept in the model; dimensions and the reference scale lived only in the dialog's memory and went when it closed. Counts and Perspective Angle guides are still in memory only.
+- **Now.** New `DimensionPersistence__.rb`, built like MarkupPersistence, in its own dictionary `Na__Noble3dModellingTools__ImageCarousel__Dimensions`: one key per photo (its path under the model's image folder, lower case, the key the marks use), one versioned JSON string `{ schema, name, w, h, dims:[[ax,ay,bx,by]...], scale:{ pxPerMm, unit, ref:[ax,ay,bx,by,mm] } }`, photo pixels from the top-left. Everything the dialog sends is checked and rounded; a photo with nothing left loses its key, and the dictionary goes when empty.
+- **When it is written.** Measurement.js sends a photo's dimensions (`dimensions_save`) after every change: reference set, dimension added or deleted, Clear All, undo, redo; never the same twice. The markup's timer writes them a second after the last change, as the undo step "Image Viewer: Dimensions", and the dialog's close writes anything still held. They are in the .skp from the next save of the model.
+- **When it comes back.** The folder's image list carries the model's dimensions (`Na__ImageViewer__OnDimensionsLoaded`), ahead of the list. A photo takes them when shown: the same size as they are, another size of the same shape scaled (scale too), any other shape left in the model. This session's dimensions win over the model's. Loading sends nothing back.
+- **Robust.** A dimensions failure can never stop a folder loading or the marks being written (guarded, logged).
+- **Files.** New `DimensionPersistence__.rb` (in the Loader before the DialogManager), `DialogManager__.rb`, `Measurement__.js`; new suites `tests/measure_persist.ui.test.js` and `tests/dimension_persistence.rb.test`; `markup_persistence.rb.test` loads the new file as the Loader does.
+- **Validation.** `node tests/measure_persist.ui.test.js <playwright> <chrome.exe>` 21 of 21 (every change sent; a fresh dialog shows the same lines within 0.001 px, the same scale and readings, a quarter-size copy scaled; nothing echoed), then `python tests/run_ruby_checks.py tests/dimension_persistence.rb.test` 37 of 37 (the dialog's real payload written in one step and read back exactly, refusals, Clear All removes the key, one timer with the marks, close writes, the folder push). Markup persistence 87 (also without the new file loaded), measure options 51, toolbar 185, markup 113, count 121, guides 37, perspective 31, save 19, photo info 63. Not yet tried in SketchUp: Reload Plugin Data (a new Ruby file) or restart, then measure, close and reopen the viewer.
+
+## Na Noble3d Modelling Tools | Version 0.9.29 - 11-Nov-2026 - Image Viewer: Save Image With Its Dimensions, Beside the Original
+
+- **What Adam asked for.** Save a dimensioned version of the image in its own folder beside the original, named `{{ImageName}}__DimensionsAdded__.{{ImageExtension}}`.
+- **Where.** A Save Image button in the status bar beside Reveal and Copy Path (file actions live there, and the Measure row was full: a tile there wrapped the bar to two lines at 861-900 px), and Ctrl+S.
+- **What is saved.** The photo at its own size, unrotated, with everything drawn on it: dimensions and reference, counts, angles and markup. Half-drawn lines and the markup brush ring are left off. The Core draws it (`renderExport`): the view is swapped for the photo's own frame while the overlays draw, so no tool has export code of its own, and lines and labels are sized as they look at fit (`getRatio` = longest side / 1200). The view comes back exactly as it was.
+- **Name and type.** JPG/JPEG (quality 0.92), PNG and WebP keep their type and the extension's own case (`A2Q-15263-3 b&w.JPG` gives `A2Q-15263-3 b&w__DimensionsAdded__.JPG`). GIF, BMP, TIFF and HEIC, which a browser cannot write, are saved as `.png`. A second save replaces the first; the hint says Saved or Replaced, or why not.
+- **Tainted canvas.** A photo drawn straight from disk taints the canvas in a file page (headless Chromium does; SketchUp's dialog very likely does). The dialog then asks Ruby for the photo's bytes (`read_image_data`, a data URL) and draws again from those.
+- **Ruby.** `save_dimensioned_image` (DialogManager) checks the photo exists and is an image, that the picture's type matches the name, writes only that derived name in the photo's folder (`File.binwrite`), and answers `Na__ImageViewer__OnImageSaved`. Base64 through `pack`/`unpack1('m')`, no `base64` gem. The new file is listed once the folder is loaded again.
+- **Files.** `UiBridge__.js` (renderExport, isExporting), `Measurement__.js` (save flow, Ctrl+S), `MarkupTool__.js` (no brush ring on the saved picture), `DialogManager__.rb`, `UiLayout__.html`; new `tests/dimensioned_save.rb.test`.
+- **Validation.** `measure_options.ui.test.js` 51 of 51 (the saved picture is 4032 x 3024, the dimensions are on it where they should be, the view unchanged, the taint fallback, Ctrl+S); then `python tests/run_ruby_checks.py tests/dimensioned_save.rb.test` 19 of 19 (writes the dialog's real payload, names, case, PNG fallback, refusals, replace). Toolbar 185, markup 113, count 121, photo info 63, all passing. Not yet tried in SketchUp: that is with Adam (reopen the Image Viewer, measure, Save Image).
+
+## Na Noble3d Modelling Tools | Version 0.9.28 - 11-Nov-2026 - Image Viewer: Dimension Rounding, Ortho on F8, D for a New Dimension
+
+- **What Adam asked for.** Once the reference is set, a rounding button in a new tool options section after its own divider, cycling 5, 10, 50, 100, 500 and 1000 mm snapping; Ortho on F8 as in AutoCAD, locked in the direction of the drag, as in the TrueVision Layout Editor; D for a new dimension; Shift held also ortho.
+- **Tool options section.** A divider and a group at the end of the Measure row, shown only while a tool with options is on: Ortho with Dimension or Reference, Rounding with Dimension once the photo has a reference scale. Options set show with a light-blue fill and underline (`--toggled`), never `--active`, so the toolbar does not read a set option as a running tool (Esc still steps home).
+- **Rounding.** Click cycles Off, 5, 10, 50, 100, 500, 1000 mm, Off; right-click steps back. The second point slides along the line so the length is a whole number of steps, at least one, in the preview and on the click, so the stored dimension is exact, not just its label. Below 860 px wide the step stays readable under the icon.
+- **Ortho.** Ported from the Layout Editor (`32__System__OrthoMode`): Ortho XOR Shift, so Shift locks with Ortho off and frees with Ortho on; the free cursor picks the axis (|dx| >= |dy| goes level) and a snap gives only the coordinate along it; F8 ignores key repeat and re-aims the line at once, as does Shift with the pointer still. Level and plumb are the screen's, so they follow a rotated photo. The hint reads "Ortho on (F8)" and the rounding step; with no tool on F8 shows `<Ortho on>` / `<Ortho off>`.
+- **D.** Starts Dimension (opening the Measure set); pressed mid-line it drops the half-drawn dimension and starts again.
+- **Kept.** Ortho and the rounding step are stored in localStorage (`Na__ImageViewer__Measure__Ortho`, `Na__ImageViewer__Measure__RoundingMm`) where the dialog allows it; otherwise for the session.
+- **Files.** `Measurement__.js`, `UiLayout__.html`, `Styles__.css`; new icons `Icon__ImageViewer__Ortho__.svg` and `Icon__ImageViewer__Rounding__.svg`; new suite `tests/measure_options.ui.test.js`.
+- **Validation.** `node tests/measure_options.ui.test.js <playwright> <chrome.exe> [shots]`: 39 of 39 in headless Chromium (D, section visibility, the cycle, whole steps at 50/100/500, one step minimum, F8, the button, Shift both ways, Ortho with Rounding, a rotated photo, no page errors). Existing suites unchanged: toolbar 185, count 121, perspective guides 37, perspective 31, markup 113, all passing. Not yet tried in SketchUp itself: that is with Adam (reopen the Image Viewer).
+
 ## Na Noble3d Modelling Tools | Version 0.9.24 - 05-Nov-2026 - Component Editor Tools: Library Save `rename_in_model` Renames the Placed Copy
 
 - Component Editor Tools 0.6.8. The full entry and checklist are in `10__PluginModules/21__SourceCode__ComponentEditorTools/Na__Noble3dModellingTools__ComponentEditorTools__DEVLOG__.md`.

@@ -1,0 +1,273 @@
+# Image Viewer counts and Angle work: what is kept in the model, and the dialog callbacks
+# that keep it, in SketchUp's own bundled Ruby (no SketchUp model needed: a
+# model double stands in, and refuses any write made outside an undo operation).
+#
+# Run tests/tool_state_persist.ui.test.js first (it leaves the dialog's real
+# payloads in tests/out/tool_state_payload.json), then:
+#   python tests/run_ruby_checks.py tests/tool_state_persistence.rb.test
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+Encoding.default_external = Encoding.find('UTF-8')
+require 'json'
+
+MODULE_DIR = File.expand_path('..', __dir__)
+OUT_DIR    = File.join(__dir__, 'out')
+
+$passes = 0
+$fails = 0
+def check(name, cond, detail = nil)
+  if cond
+    $passes += 1
+  else
+    $fails += 1
+    puts "FAIL  #{name}#{detail ? '  ' + detail.inspect : ''}"
+  end
+end
+
+Dir.glob(File.join(MODULE_DIR, '*.rb')).sort.each do |f|
+  begin
+    RubyVM::InstructionSequence.compile_file(f)
+    check("compiles #{File.basename(f)}", true)
+  rescue SyntaxError => e
+    check("compiles #{File.basename(f)}", false, e.message)
+  end
+end
+
+# ----------------------------------------------------------------------------- doubles
+module UI
+  @timers = {}
+  @next_timer = 1
+  def self.start_timer(seconds, repeat, &block)
+    id = @next_timer
+    @next_timer += 1
+    @timers[id] = { 'seconds' => seconds, 'repeat' => repeat, 'block' => block }
+    id
+  end
+  def self.stop_timer(id); @timers.delete(id); end
+  def self.timers; @timers; end
+  def self.fire_timers
+    due = @timers.values
+    @timers.clear
+    due.each { |t| t['block'].call }
+  end
+end
+
+class FakeDictionary
+  def initialize(model); @model = model; @h = {}; end
+  def [](k); @h[k]; end
+  def []=(k, v); @model.guard!; @h[k] = v; end
+  def delete_key(k); @model.guard!; @h.delete(k); end
+  def key?(k); @h.key?(k); end
+  def length; @h.length; end
+  def keys; @h.keys; end
+end
+
+class FakeDictionaries
+  def initialize(model); @model = model; end
+  def delete(name); @model.guard!; @model.dicts.delete(name); end
+end
+
+class FakeModel
+  attr_reader :dicts, :operations, :aborted
+  attr_accessor :fail_next_write, :fail_next_read
+  def initialize; @dicts = {}; @operations = []; @open = nil; @aborted = 0; @fail_next_write = false; @fail_next_read = false; end
+  def guard!
+    raise 'write outside an undo operation' unless @open
+    if @fail_next_write
+      @fail_next_write = false
+      raise 'disk full'
+    end
+  end
+  def start_operation(name, _disable_ui = false, *)
+    raise 'operations cannot be nested' if @open
+    @open = name
+    true
+  end
+  def commit_operation; raise 'no operation open' unless @open; @operations << @open; @open = nil; true; end
+  attr_reader :abort_calls
+  def abort_operation
+    @abort_calls = (@abort_calls || 0) + 1
+    raise 'abort_operation with no operation open would undo the user\'s last step' unless @open
+    @open = nil
+    @aborted += 1
+    true
+  end
+  def set_attribute(dict, key, value)
+    guard!
+    (@dicts[dict] ||= FakeDictionary.new(self))[key] = value
+  end
+  def get_attribute(dict, key, default = nil)
+    if @fail_next_read
+      @fail_next_read = false
+      raise 'model unreadable'
+    end
+    d = @dicts[dict]
+    d && d.key?(key) ? d[key] : default
+  end
+  def attribute_dictionary(name, create = false)
+    @dicts[name] = FakeDictionary.new(self) if create && !@dicts[name]
+    @dicts[name]
+  end
+  def attribute_dictionaries; @dicts.empty? ? nil : FakeDictionaries.new(self); end
+end
+
+$model = FakeModel.new
+module Sketchup
+  def self.platform; :platform_win; end
+  def self.active_model; $model; end
+  def self.read_default(*_args); 'C:/'; end
+  def self.write_default(*_args); true; end
+end
+
+class FakeDialog
+  attr_reader :scripts, :callbacks, :html
+  def initialize(*_args, **_opts); @scripts = []; @callbacks = {}; @visible = false; end
+  def execute_script(s); @scripts << s; end
+  def add_action_callback(name, &block); @callbacks[name] = block; end
+  def set_html(html); @html = html; end
+  def set_on_closed(&block); @on_closed = block; end
+  def show; @visible = true; end
+  def bring_to_front; end
+  def visible?; @visible; end
+  def close; @visible = false; end
+  def fire_closed; @on_closed.call; end
+  def saved_notices
+    @scripts.map { |s| s[/MarkupOnSaved\((\{.*\})\);\z/, 1] }.compact.map { |j| JSON.parse(j) }
+  end
+end
+
+# the dialog class the manager builds, swapped for the double
+module UI
+  class HtmlDialog
+    STYLE_DIALOG = 0
+    def self.new(*args, **opts); (@made ||= []) << FakeDialog.new(*args, **opts); @made.last; end
+    def self.made; @made ||= []; end
+  end
+end
+
+class FakeDialog
+  def tool_notices
+    @scripts.map { |s| s[/ToolStateOnSaved\((\{.*\})\);\z/, 1] }.compact.map { |j| JSON.parse(j) }
+  end
+end
+
+# ----------------------------------------------------------------------------- load the real modules
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__MarkupPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DimensionPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ToolStatePersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
+TS = Na__Noble3dModellingTools::Na__ImageCarousel__ToolStatePersistence
+MD = Na__Noble3dModellingTools::Na__ImageCarousel__ModelPersistence
+DM = Na__Noble3dModellingTools::Na__ImageCarousel__DialogManager
+COUNTS = 'Na__Noble3dModellingTools__ImageCarousel__Counts'
+ANGLES = 'Na__Noble3dModellingTools__ImageCarousel__AngleGuides'
+ROOT   = 'C:/Site/Photos'
+PHOTO  = 'C:/Site/Photos/Front/IMG_0001.jpg'
+
+loader = File.read(File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__Loader__.rb'))
+check('the loader loads ToolStatePersistence before the DialogManager',
+      loader.index('ToolStatePersistence__') && loader.index('ToolStatePersistence__') < loader.index('DialogManager__'))
+check('three tools: count, angle and protractor', TS.Na__ImageCarousel__ToolStatePersistence__Tools == %w[count angle protractor])
+
+def pending? = TS.Na__ImageCarousel__ToolStatePersistence__HasPending
+def discard = TS.Na__ImageCarousel__ToolStatePersistence__DiscardPending
+def queue(p) = TS.Na__ImageCarousel__ToolStatePersistence__Queue(p.to_json, ROOT)
+def flush = TS.Na__ImageCarousel__ToolStatePersistence__Flush($model)
+
+real_file = File.join(OUT_DIR, 'tool_state_payload.json')
+real = File.file?(real_file) ? JSON.parse(File.read(real_file)) : nil
+check('tool_state_payload.json present (run tool_state_persist.ui.test.js first)', !real.nil?, real_file)
+real ||= {
+  'count' => { 'tool' => 'count', 'w' => 4032, 'h' => 3024, 'state' => { 'counts' => [{ 'id' => 1, 'kind' => 'spans', 'a' => { 'x' => 1, 'y' => 2 }, 'b' => { 'x' => 3, 'y' => 400 }, 'n' => 12, 'vp' => nil }] } },
+  'angle' => { 'tool' => 'angle', 'w' => 4032, 'h' => 3024, 'state' => { 'lines' => [], 'meas' => [], 'guides' => [], 'lens' => { 'mode' => 'auto', 'mm' => 26, 'userSet' => true } } }
+}
+count = real['count'].merge('path' => PHOTO)
+angle = real['angle'].merge('path' => PHOTO)
+
+# ----------------------------------------------------------------------------- queue, flush, read back
+$model = FakeModel.new
+discard
+q = queue(count)
+check('the count is accepted', q['ok'] && q['tool'] == 'count' && q['key'] == 'front/img_0001.jpg' && !q['empty'], q)
+q = queue(angle)
+check('the Angle work is accepted', q['ok'] && q['tool'] == 'angle', q)
+check('held, not yet in the model', pending? && $model.dicts.empty?)
+read = TS.Na__ImageCarousel__ToolStatePersistence__LoadForPaths($model, [PHOTO], ROOT)
+check('what is held is read back before it is written', read['count'] && read['count'][PHOTO]['state'] == count['state'], read.keys)
+f = flush
+check('flush writes one undo step per tool', f['ok'] && $model.operations == ['Image Viewer: Counts', 'Image Viewer: Angle Guides'], [f, $model.operations])
+c = JSON.parse($model.get_attribute(COUNTS, 'front/img_0001.jpg'))
+check('stored as versioned JSON, by tool, name and size', c['schema'] == 1 && c['tool'] == 'count' && c['name'] == 'IMG_0001.jpg' && c['w'] == count['w'] && c['h'] == count['h'], c.reject { |k, _| k == 'state' })
+check('the count kept exactly', c['state'] == count['state'])
+a = JSON.parse($model.get_attribute(ANGLES, 'front/img_0001.jpg'))
+check('the Angle lines, guides and lens kept exactly', a['state'] == angle['state'] && a['state']['lines'].length == angle['state']['lines'].length)
+read = TS.Na__ImageCarousel__ToolStatePersistence__LoadForPaths($model, [PHOTO, 'C:/Site/Photos/none.jpg'], ROOT)
+check('read back per tool, for that photo only', read.keys.sort == %w[angle count] && read['count'].keys == [PHOTO] && read['angle'][PHOTO]['state'] == angle['state'] && read['count'][PHOTO]['w'] == count['w'], read.keys)
+queue(count)
+flush
+check('the same again adds no undo step', $model.operations.length == 2)
+check('the marks and dimensions dictionaries are not touched', ($model.dicts.keys - [COUNTS, ANGLES]).empty?, $model.dicts.keys)
+
+# ----------------------------------------------------------------------------- refused or cleaned
+check('an unknown tool is refused', queue(count.merge('tool' => 'eraser'))['ok'] == false)
+check('garbage is refused', TS.Na__ImageCarousel__ToolStatePersistence__Queue('garbage', ROOT)['ok'] == false)
+check('a bad photo size is refused', queue(count.merge('w' => 0))['ok'] == false)
+check('no photo path is refused', queue(count.merge('path' => ''))['ok'] == false)
+deep = { 'a' => { 'b' => { 'c' => { 'd' => { 'e' => { 'f' => { 'g' => { 'h' => { 'i' => { 'j' => 1 } } } } } } } } } }
+check('nesting too deep is refused', queue(count.merge('state' => deep))['ok'] == false)
+check('a long string is refused', queue(count.merge('state' => { 'x' => 'y' * 500 }))['ok'] == false)
+check('too much on one photo is refused', queue(count.merge('state' => { 'p' => Array.new(9_000) { |i| Array.new(20) { |j| i * 1000.123456 + j } } }))['ok'] == false)
+discard
+
+# empty: the key goes, and the dictionary with it
+q = queue(count.merge('state' => nil))
+check('an empty state is accepted as a removal', q['ok'] && q['empty'], q)
+flush
+check('the photo goes from the counts, and the empty dictionary with it', !$model.dicts.key?(COUNTS) && $model.dicts.key?(ANGLES) && $model.operations.last == 'Image Viewer: Counts', $model.dicts.keys)
+check('a newer schema is not read', TS.na_read_entry({ 'schema' => 9, 'w' => 10, 'h' => 10, 'state' => {} }.to_json).nil?)
+
+# a failure in one tool's write leaves the other's and keeps what failed
+$model = FakeModel.new
+discard
+queue(count)
+queue(angle)
+$model.fail_next_write = true
+f = flush
+check('a failed write is reported, the other tool still written', f['ok'] == false && f['errors'].length == 1 && $model.dicts.key?(ANGLES) && !$model.dicts.key?(COUNTS), f)
+check('and what failed is still held for another try', pending?)
+flush
+check('which then lands', $model.dicts.key?(COUNTS) && !pending?)
+
+# ----------------------------------------------------------------------------- the dialog, as the manager drives it
+$model = FakeModel.new
+MD.Na__ImageCarousel__ModelPersistence__SaveFolder($model, ROOT)
+discard
+dialog = DM.Na__ImageCarousel__DialogManager__ShowDialog
+check('the manager registers tool_state_save', dialog.callbacks.key?('tool_state_save'))
+UI.timers.clear
+dialog.callbacks['tool_state_save'].call(nil, count.to_json)
+dialog.callbacks['tool_state_save'].call(nil, angle.to_json)
+check('held, one flush timed', pending? && UI.timers.length == 1)
+UI.fire_timers
+check('when it fires both tools are in the model', $model.get_attribute(COUNTS, 'front/img_0001.jpg') && $model.get_attribute(ANGLES, 'front/img_0001.jpg'))
+note = dialog.tool_notices.last
+check('and the dialog is told', note && note['ok'] && note['saved'].length == 2, note)
+dialog.callbacks['tool_state_save'].call(nil, 'garbage')
+check('a refusal is told at once', dialog.tool_notices.last['ok'] == false && UI.timers.empty?)
+dialog.callbacks['tool_state_save'].call(nil, count.merge('path' => 'C:/Site/Photos/Last.png').to_json)
+dialog.fire_closed
+check('closing writes what is held', !pending? && $model.get_attribute(COUNTS, 'last.png'))
+
+dialog = DM.Na__ImageCarousel__DialogManager__ShowDialog
+DM.na_push_folder_images_to_dialog(dialog, [PHOTO, 'C:/Site/Photos/none.jpg'])
+script = dialog.scripts.last
+sent = script[/OnToolStateLoaded\((\{.*?\})\);\n/m, 1]
+got  = sent && JSON.parse(sent)
+check('the folder list carries the model\'s counts and Angle work', got && got['count'][PHOTO]['state'] == count['state'] && got['angle'][PHOTO]['state'] == angle['state'], got && got.keys)
+check('ahead of the image list', script.index('OnToolStateLoaded') < script.index('SKP_onFolderChosen'))
+
+puts "\n#{$passes} passed, #{$fails} failed"
+raise 'ruby checks failed' if $fails > 0

@@ -30,6 +30,13 @@
 #   to the model dictionary by a timer a moment after the last change, and again
 #   when the dialog closes. The model's marks for a folder go to the dialog with
 #   that folder's image list.
+# - Dimensions and the reference scale (Measurement.js) go the same way, in
+#   their own dictionary (DimensionPersistence): dimensions_save holds them,
+#   the same timer and the same close write them, and the folder's list comes
+#   with the model's dimensions for its photos.
+# - The Count tool's counts and the Perspective Angle tool's work go the same
+#   way through ToolStatePersistence (tool_state_save), one dictionary per
+#   tool, sent by the viewer's Core a moment after a change.
 # - The top bar's nesting (ToolbarMenu.js) is inlined before the tools, so its
 #   Esc listener runs first. Toolbar icons are inlined from
 #   UiIcons__MenuIcons__ImageViewer through {{ICON:name}} placeholders.
@@ -119,6 +126,7 @@ module Na__Noble3dModellingTools
             solver_path      = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveSolver__.js')
             perspective_path = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__PerspectiveAngle__.js')
             count_path       = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__CountTool__.js')
+            protractor_path  = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__ProtractorTool__.js')
             toolbar_path     = File.join(__dir__, 'Na__Noble3dModellingTools__ImageCarousel__ToolbarMenu__.js')
 
             template = na_inline_icons(File.read(layout_path))
@@ -128,6 +136,7 @@ module Na__Noble3dModellingTools
                 .gsub('{{TOOLBAR_MENU_SCRIPT}}')       { File.read(toolbar_path) }
                 .gsub('{{MARKUP_SCRIPT}}')             { File.read(markup_path) }
                 .gsub('{{MEASUREMENT_SCRIPT}}')        { File.read(measurement_path) }
+                .gsub('{{PROTRACTOR_SCRIPT}}')         { File.read(protractor_path) }
                 .gsub('{{PERSPECTIVE_SOLVER_SCRIPT}}') { File.read(solver_path) }
                 .gsub('{{PERSPECTIVE_ANGLE_SCRIPT}}')  { File.read(perspective_path) }
                 .gsub('{{COUNT_TOOL_SCRIPT}}')         { File.read(count_path) }
@@ -191,6 +200,41 @@ module Na__Noble3dModellingTools
                 end
             end
 
+            dialog.add_action_callback('read_image_data') do |_ctx, path|
+                begin
+                    na_send_image_data(dialog, path)
+                rescue => error
+                    puts "[Na__ImageCarousel] read_image_data error: #{error.class}: #{error.message}"
+                    na_execute_safely(dialog, 'Na__ImageViewer__OnImageData', { 'path' => path.to_s, 'error' => error.message })
+                end
+            end
+
+            dialog.add_action_callback('save_dimensioned_image') do |_ctx, payload|
+                result = begin
+                    na_save_dimensioned_image(payload)
+                rescue => error
+                    puts "[Na__ImageCarousel] save_dimensioned_image error: #{error.class}: #{error.message}"
+                    { 'ok' => false, 'error' => error.message }
+                end
+                na_execute_safely(dialog, 'Na__ImageViewer__OnImageSaved', result)
+            end
+
+            dialog.add_action_callback('dimensions_save') do |_ctx, payload|
+                begin
+                    na_queue_dimensions(dialog, payload)
+                rescue => error
+                    puts "[Na__ImageCarousel] dimensions_save error: #{error.class}: #{error.message}"
+                end
+            end
+
+            dialog.add_action_callback('tool_state_save') do |_ctx, payload|
+                begin
+                    na_queue_tool_state(dialog, payload)
+                rescue => error
+                    puts "[Na__ImageCarousel] tool_state_save error: #{error.class}: #{error.message}"
+                end
+            end
+
             dialog.add_action_callback('markup_save') do |_ctx, payload|
                 begin
                     na_queue_markup(dialog, payload)
@@ -245,12 +289,20 @@ module Na__Noble3dModellingTools
         def self.na_push_folder_images_to_dialog(dialog, paths)
             image_json  = paths.to_json
             markup_json = na_markup_for_paths(paths).to_json
+            dims_json   = na_dimensions_for_paths(paths).to_json
+            tools_json  = na_tool_state_for_paths(paths).to_json
             script = <<~JS
                 (function() {
                     var imagePaths = #{image_json};
                     var statusEl = document.getElementById('naImageViewer_meta');
                     if (window.Na__ImageViewer__OnMarkupLoaded) {
                         window.Na__ImageViewer__OnMarkupLoaded(#{markup_json});
+                    }
+                    if (window.Na__ImageViewer__OnDimensionsLoaded) {
+                        window.Na__ImageViewer__OnDimensionsLoaded(#{dims_json});
+                    }
+                    if (window.Na__ImageViewer__OnToolStateLoaded) {
+                        window.Na__ImageViewer__OnToolStateLoaded(#{tools_json});
                     }
                     if (statusEl) {
                         statusEl.textContent = 'Loading ' + imagePaths.length + ' image(s)...';
@@ -285,6 +337,53 @@ module Na__Noble3dModellingTools
         def self.na_markup_for_paths(paths)
             model = Sketchup.active_model
             Na__ImageCarousel__MarkupPersistence.Na__ImageCarousel__MarkupPersistence__LoadForPaths(model, paths, na_markup_root(model))
+        end
+
+        # The model's dimensions for the photos of the folder just chosen or restored.
+        # Never in the way of the folder itself: no dimensions rather than no photos.
+        def self.na_dimensions_for_paths(paths)
+            return {} unless defined?(Na__ImageCarousel__DimensionPersistence)
+
+            model = Sketchup.active_model
+            Na__ImageCarousel__DimensionPersistence.Na__ImageCarousel__DimensionPersistence__LoadForPaths(model, paths, na_markup_root(model))
+        rescue => error
+            puts "[Na__ImageCarousel] read dimensions error: #{error.class}: #{error.message}"
+            {}
+        end
+
+        # The model's counts and angle work for the photos of a folder. Never in
+        # the way of the folder itself.
+        def self.na_tool_state_for_paths(paths)
+            return {} unless defined?(Na__ImageCarousel__ToolStatePersistence)
+
+            model = Sketchup.active_model
+            Na__ImageCarousel__ToolStatePersistence.Na__ImageCarousel__ToolStatePersistence__LoadForPaths(model, paths, na_markup_root(model))
+        rescue => error
+            puts "[Na__ImageCarousel] read tool state error: #{error.class}: #{error.message}"
+            {}
+        end
+
+        # A photo's state for one tool: checked and held now, written with the marks.
+        def self.na_queue_tool_state(dialog, payload)
+            root   = na_markup_root(Sketchup.active_model)
+            result = Na__ImageCarousel__ToolStatePersistence.Na__ImageCarousel__ToolStatePersistence__Queue(payload, root)
+            if result['ok']
+                na_schedule_markup_flush(dialog)
+            else
+                na_execute_safely(dialog, 'Na__ImageViewer__ToolStateOnSaved', result)
+            end
+        end
+
+        # A photo's dimensions from the dialog: checked and held now, written
+        # with the marks once the dialog has been quiet for a moment.
+        def self.na_queue_dimensions(dialog, payload)
+            root   = na_markup_root(Sketchup.active_model)
+            result = Na__ImageCarousel__DimensionPersistence.Na__ImageCarousel__DimensionPersistence__Queue(payload, root)
+            if result['ok']
+                na_schedule_markup_flush(dialog)
+            else
+                na_execute_safely(dialog, 'Na__ImageViewer__DimensionsOnSaved', result)
+            end
         end
 
         # The model's image folder, which a photo's marks are named under.
@@ -326,13 +425,43 @@ module Na__Noble3dModellingTools
 
         # Write the marks held to the model now, and tell the dialog (when it is
         # still there) how it went.
+        # Dimensions held are written here too, in their own undo step.
         def self.na_flush_markup(dialog)
             na_stop_markup_timer
+            na_flush_dimensions(dialog)
+            na_flush_tool_state(dialog)
+
             persistence = Na__ImageCarousel__MarkupPersistence
             return unless persistence.Na__ImageCarousel__MarkupPersistence__HasPending
 
             result = persistence.Na__ImageCarousel__MarkupPersistence__Flush(Sketchup.active_model)
             na_notify_markup_saved(dialog, result)
+        end
+
+        # Counts and angle work held: one undo step per tool. Never in the way of the marks.
+        def self.na_flush_tool_state(dialog)
+            return unless defined?(Na__ImageCarousel__ToolStatePersistence)
+
+            store = Na__ImageCarousel__ToolStatePersistence
+            return unless store.Na__ImageCarousel__ToolStatePersistence__HasPending
+
+            result = store.Na__ImageCarousel__ToolStatePersistence__Flush(Sketchup.active_model)
+            na_execute_safely(dialog, 'Na__ImageViewer__ToolStateOnSaved', result)
+        rescue => error
+            puts "[Na__ImageCarousel] tool state flush error: #{error.class}: #{error.message}"
+        end
+
+        # A problem here must never stop the marks being written.
+        def self.na_flush_dimensions(dialog)
+            return unless defined?(Na__ImageCarousel__DimensionPersistence)
+
+            dims = Na__ImageCarousel__DimensionPersistence
+            return unless dims.Na__ImageCarousel__DimensionPersistence__HasPending
+
+            result = dims.Na__ImageCarousel__DimensionPersistence__Flush(Sketchup.active_model)
+            na_execute_safely(dialog, 'Na__ImageViewer__DimensionsOnSaved', result)
+        rescue => error
+            puts "[Na__ImageCarousel] dimensions flush error: #{error.class}: #{error.message}"
         end
 
         def self.na_notify_markup_saved(dialog, result)
@@ -341,6 +470,70 @@ module Na__Noble3dModellingTools
             dialog.execute_script("window.Na__ImageViewer__MarkupOnSaved && window.Na__ImageViewer__MarkupOnSaved(#{result.to_json});")
         rescue => error
             puts "[Na__ImageCarousel] markup notice skipped: #{error.class}: #{error.message}"
+        end
+
+        # ---- Save Dimensioned Image -------------------------------------------
+        # The dialog draws the photo with its dimensions and marks at full size
+        # and sends it as a data URL; it is written beside the original as
+        # <name>__DimensionsAdded__<ext>. Only the photo's own folder is written
+        # to, only that one derived name, and an earlier one is replaced.
+
+        NA_DIMENSIONED_SUFFIX = '__DimensionsAdded__'.freeze unless const_defined?(:NA_DIMENSIONED_SUFFIX)
+        NA_DIMENSIONED_TYPES  = { '.png' => 'png', '.jpg' => 'jpeg', '.jpeg' => 'jpeg', '.webp' => 'webp' }.freeze unless const_defined?(:NA_DIMENSIONED_TYPES)
+
+        def self.na_dimensioned_path(source_path, ext)
+            dir  = File.dirname(source_path)
+            base = File.basename(source_path, File.extname(source_path))
+            File.join(dir, "#{base}#{NA_DIMENSIONED_SUFFIX}#{ext}")
+        end
+
+        def self.na_save_dimensioned_image(payload)
+            data   = JSON.parse(payload.to_s)
+            source = data['path'].to_s.tr('\\', '/')
+            ext    = data['ext'].to_s
+            return { 'ok' => false, 'error' => 'no photo given' } if source.empty?
+            return { 'ok' => false, 'error' => "photo not found: #{na_native_path(source)}" } unless File.file?(source)
+            return { 'ok' => false, 'error' => 'not an image file' } unless Na__ImageCarousel__FolderScanner.na_supported_extension?(source)
+
+            # The original's extension (and its case) unless the dialog had to write PNG.
+            ext = File.extname(source) if ext.casecmp?(File.extname(source))
+            type = NA_DIMENSIONED_TYPES[ext.downcase]
+            return { 'ok' => false, 'error' => "cannot save as #{ext}" } unless type
+
+            match = %r{\Adata:image/(png|jpeg|webp);base64,(.+)\z}m.match(data['data'].to_s)
+            return { 'ok' => false, 'error' => 'the picture did not arrive' } unless match
+            return { 'ok' => false, 'error' => "picture is #{match[1]}, name says #{ext}" } unless match[1] == type
+
+            target   = na_dimensioned_path(source, ext)
+            replaced = File.exist?(target)
+            bytes    = match[2].unpack1('m')
+            File.binwrite(target, bytes)
+            puts "[Na__ImageCarousel] saved dimensioned image: #{na_native_path(target)} (#{bytes.bytesize} bytes#{replaced ? ', replaced' : ''})"
+            { 'ok' => true, 'path' => target, 'name' => File.basename(target), 'replaced' => replaced, 'bytes' => bytes.bytesize }
+        end
+
+        # The photo's bytes for the dialog, when drawing the file itself would
+        # taint its canvas. Only image files are read.
+        def self.na_send_image_data(dialog, path)
+            file_path = path.to_s
+            info = if !File.file?(file_path)
+                { 'path' => file_path, 'error' => 'photo not found' }
+            elsif !Na__ImageCarousel__FolderScanner.na_supported_extension?(file_path)
+                { 'path' => file_path, 'error' => 'not an image file' }
+            else
+                mime = { '.png' => 'image/png', '.gif' => 'image/gif', '.bmp' => 'image/bmp', '.webp' => 'image/webp' }
+                       .fetch(File.extname(file_path).downcase, 'image/jpeg')
+                { 'path' => file_path, 'data' => "data:#{mime};base64,#{[File.binread(file_path)].pack('m0')}" }
+            end
+            na_execute_safely(dialog, 'Na__ImageViewer__OnImageData', info)
+        end
+
+        def self.na_execute_safely(dialog, function_name, payload)
+            return unless dialog
+
+            dialog.execute_script("window.#{function_name} && window.#{function_name}(#{payload.to_json});")
+        rescue => error
+            puts "[Na__ImageCarousel] #{function_name} notice skipped: #{error.class}: #{error.message}"
         end
 
         def self.na_native_path(path)

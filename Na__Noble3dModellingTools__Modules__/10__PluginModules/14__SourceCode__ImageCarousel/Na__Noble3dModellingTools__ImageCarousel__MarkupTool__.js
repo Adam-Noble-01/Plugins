@@ -561,7 +561,8 @@
             if (na_live) Na__ImageViewerMarkup__DrawStroke(ctx, na_live);
             ctx.restore();
         }
-        if (na_active && na_cursor && !na_press) Na__ImageViewerMarkup__DrawBrush(ctx);
+        var exporting = typeof na_core.isExporting === 'function' && na_core.isExporting();
+        if (na_active && na_cursor && !na_press && !exporting) Na__ImageViewerMarkup__DrawBrush(ctx);
     }
 
     // A ring at the pointer the size of the mark it would make (the eraser's disc).

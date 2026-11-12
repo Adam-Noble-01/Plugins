@@ -226,8 +226,9 @@ body {
     font-size                           : 12px;
 }
 
-/* A narrow window drops the words: symbols only, with the names kept as tooltips */
-@media (max-width: 860px) {
+/* A narrow window drops the words: symbols only, with the names kept as tooltips.
+   980 px: the Measure row with its names (and the pins) needs about 960. */
+@media (max-width: 980px) {
     .naImageViewer__Tile {
         width                           : 38px;
         height                          : 38px;
@@ -250,6 +251,13 @@ body {
 
     .naImageViewer__TileLabel {
         display                         : none;
+    }
+
+    /* The rounding step is the setting itself: keep it readable, small */
+    .naImageViewer__TileLabel.naImageViewer__TileLabel--keep {
+        display                         : block;
+        font-size                       : 9px;
+        line-height                     : 10px;
     }
 }
 
@@ -305,6 +313,71 @@ body {
     .naImageViewer__Thumbs {
         width                           : 130px;
     }
+}
+
+/* Folded away: the strip goes, the fold tab stays */
+.naImageViewer__Main--thumbsFolded .naImageViewer__Thumbs {
+    display                             : none;
+}
+
+/* The fold tab: a slim strip between the thumbnails and the photo */
+.naImageViewer__ThumbsFold {
+    appearance                          : none;
+    flex-shrink                         : 0;
+    width                               : 14px;
+    padding                             : 0;
+    border                              : 0;
+    border-right                        : 1px solid var(--naImageViewer__Border);
+    background                          : var(--naImageViewer__PanelBg);
+    color                               : var(--naImageViewer__MutedText);
+    cursor                              : pointer;
+    display                             : flex;
+    align-items                         : center;
+    justify-content                     : center;
+    transition                          : background-color 120ms ease, color 120ms ease;
+}
+
+.naImageViewer__ThumbsFold:hover {
+    background                          : #f0f5ff;
+    color                               : var(--naImageViewer__Accent);
+}
+
+.naImageViewer__ThumbsFold svg {
+    display                             : block;
+    transition                          : transform 140ms ease;
+}
+
+.naImageViewer__Main--thumbsFolded .naImageViewer__ThumbsFold svg {
+    transform                           : rotate(180deg);
+}
+
+/* A quiet scrollbar: thin, no arrows, only seen while the pointer is over the
+   strip or it is scrolling (--inUse, set by UiBridge: Chromium does not repaint
+   a scrollbar for a :hover on its box) */
+.naImageViewer__Thumbs::-webkit-scrollbar {
+    width                               : 6px;
+}
+
+.naImageViewer__Thumbs::-webkit-scrollbar-button {
+    display                             : none;
+    height                              : 0;
+}
+
+.naImageViewer__Thumbs::-webkit-scrollbar-track {
+    background                          : transparent;
+}
+
+.naImageViewer__Thumbs::-webkit-scrollbar-thumb {
+    background                          : transparent;
+    border-radius                       : 3px;
+}
+
+.naImageViewer__Thumbs--inUse::-webkit-scrollbar-thumb {
+    background                          : rgba(23, 43, 58, 0.22);
+}
+
+.naImageViewer__Thumbs::-webkit-scrollbar-thumb:hover {
+    background                          : rgba(23, 43, 58, 0.4);
 }
 
 .naImageViewer__Thumb {
@@ -419,6 +492,42 @@ body {
     background                          : var(--naImageViewer__Accent);
     border-color                        : var(--naImageViewer__Accent);
     color                               : #ffffff;
+}
+
+/* Tool options: hidden until a tool with options is on */
+.naImageViewer__ToolOptionsDivider,
+.naImageViewer__ToolOptions {
+    display                             : none;
+}
+
+.naImageViewer__ToolOptions {
+    align-items                         : center;
+    gap                                 : 4px;
+}
+
+.naImageViewer__ToolOptionsDivider.naImageViewer__ToolOptions--shown {
+    display                             : block;
+}
+
+.naImageViewer__ToolOptions.naImageViewer__ToolOptions--shown {
+    display                             : inline-flex;
+}
+
+/* An option that is set (Ortho on, Rounding not Off). Not --active, which the
+   toolbar reads as "a tool is running". */
+.naImageViewer__Btn--toggled {
+    background                          : #e5eeff;
+    border-color                        : var(--naImageViewer__Accent);
+    box-shadow                          : inset 0 -3px 0 var(--naImageViewer__Accent);
+}
+
+/* Select over a dimension: an end to drag, or the line to move */
+.naImageViewer__Canvas--grip {
+    cursor                              : crosshair;
+}
+
+.naImageViewer__Canvas--moveDim {
+    cursor                              : move;
 }
 
 .naImageViewer__Btn--active:hover {

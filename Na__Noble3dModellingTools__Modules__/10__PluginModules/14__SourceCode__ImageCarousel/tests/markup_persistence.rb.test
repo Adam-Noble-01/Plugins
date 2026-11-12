@@ -150,6 +150,7 @@ end
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__FolderScanner__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__ModelPersistence__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__MarkupPersistence__.rb')
+load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DimensionPersistence__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__PhotoInfo__.rb')
 load File.join(MODULE_DIR, 'Na__Noble3dModellingTools__ImageCarousel__DialogManager__.rb')
 MP = Na__Noble3dModellingTools::Na__ImageCarousel__MarkupPersistence

@@ -30,6 +30,7 @@ function assemble(file) {
         .replace('{{TOOLBAR_MENU_SCRIPT}}',       function() { return part('ToolbarMenu__.js'); })
         .replace('{{MARKUP_SCRIPT}}',             function() { return part('MarkupTool__.js'); })
         .replace('{{MEASUREMENT_SCRIPT}}',        function() { return part('Measurement__.js'); })
+        .replace('{{PROTRACTOR_SCRIPT}}',         function() { return part('ProtractorTool__.js'); })
         .replace('{{PERSPECTIVE_SOLVER_SCRIPT}}', function() { return part('PerspectiveSolver__.js'); })
         .replace('{{PERSPECTIVE_ANGLE_SCRIPT}}',  function() { return part('PerspectiveAngle__.js'); })
         .replace('{{COUNT_TOOL_SCRIPT}}',         function() { return part('CountTool__.js'); });

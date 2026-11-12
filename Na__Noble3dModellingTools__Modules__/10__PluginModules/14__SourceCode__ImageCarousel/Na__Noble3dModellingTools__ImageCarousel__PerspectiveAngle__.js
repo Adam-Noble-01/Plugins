@@ -223,6 +223,69 @@
         if (na_selected && !Na__ImageViewerPerspective__FindItem(na_selected.kind, na_selected.id)) na_selected = null;
     }
 
+    // ---- Kept in the model through the Core (registerPersist, tool 'angle'):
+    // { lines:[ {id, axis, a, b} ], meas:[ {id, kind, plane, pts} ],
+    //   guides:[ {id, dir, p, q?, vp?, measId?, plane?, deg?, side?} ], lens }
+    // Points are photo pixels from the top-left (with their precision); vanishing
+    // points homogeneous in that frame. A photo with nothing drawn and the lens
+    // left alone keeps nothing.
+    function Na__ImageViewerPerspective__Serialise(key, conv) {
+        var st = na_stateByKey[key];
+        if (!st) return null;
+        var guides = st.guides || [];
+        if (!st.lines.length && !st.meas.length && !guides.length && !(st.lens && st.lens.userSet)) return null;
+        return {
+            lines  : st.lines.map(function(l) { return { id: l.id, axis: l.axis, a: conv.pt(l.a), b: conv.pt(l.b) }; }),
+            meas   : st.meas.map(function(m) { return { id: m.id, kind: m.kind, plane: m.plane, pts: m.pts.map(conv.pt) }; }),
+            guides : guides.map(function(g) {
+                var c = { id: g.id, dir: g.dir, p: conv.pt(g.p) };
+                if (g.q)  c.q  = conv.pt(g.q);
+                if (g.vp) c.vp = conv.vp(g.vp);
+                if (g.measId !== undefined) c.measId = g.measId;
+                if (g.plane) { c.plane = g.plane; c.deg = g.deg; c.side = g.side; }
+                return c;
+            }),
+            lens   : { mode: st.lens.mode, mm: st.lens.mm, userSet: !!st.lens.userSet }
+        };
+    }
+
+    function Na__ImageViewerPerspective__Materialise(key, state, conv) {
+        if (!state || typeof state !== 'object') return;
+        var maxId = 0;
+        function id(v) { var n = Math.round(Number(v)); if (n > maxId) maxId = n; return n; }
+        function pt(p) { var q = conv.unpt(p); return q ? { x: q.x, y: q.y, prec: q.prec } : null; }
+        var lines = (Array.isArray(state.lines) ? state.lines : []).map(function(l) {
+            var a = l && pt(l.a), b = l && pt(l.b);
+            return a && b ? { id: id(l.id), axis: l.axis, a: a, b: b } : null;
+        }).filter(Boolean);
+        var meas = (Array.isArray(state.meas) ? state.meas : []).map(function(m) {
+            if (!m || !Array.isArray(m.pts)) return null;
+            var pts = m.pts.map(pt);
+            return pts.every(Boolean) ? { id: id(m.id), kind: m.kind, plane: m.plane, pts: pts } : null;
+        }).filter(Boolean);
+        var guides = (Array.isArray(state.guides) ? state.guides : []).map(function(g) {
+            var p = g && pt(g.p);
+            if (!p) return null;
+            var c = { id: id(g.id), dir: g.dir, p: p };
+            if (g.q)  { c.q = pt(g.q); if (!c.q) return null; }
+            if (g.vp) { c.vp = conv.unvp(g.vp); if (!c.vp) return null; }
+            if (g.measId !== undefined && g.measId !== null) c.measId = g.measId;
+            if (g.plane) { c.plane = g.plane; c.deg = g.deg; c.side = g.side; }
+            return c;
+        }).filter(Boolean);
+        var lensIn = state.lens || {};
+        var lens = Na__ImageViewerPerspective__DefaultLens(key);
+        if (lensIn.userSet) lens = { mode: String(lensIn.mode || lens.mode), mm: Number(lensIn.mm) > 0 ? Number(lensIn.mm) : lens.mm, userSet: true };
+        na_stateByKey[key] = { lines: lines, meas: meas, guides: guides, lens: lens };
+        delete na_analysisByKey[key];
+        na_nextId = Math.max(na_nextId, maxId + 1);
+        // Showing now (the model's state came after the photo): solve it at once.
+        if (key === Na__ImageViewerPerspective__Key()) {
+            Na__ImageViewerPerspective__Analyse(key, true);
+            Na__ImageViewerPerspective__RefreshPanel();
+        }
+    }
+
     function Na__ImageViewerPerspective__OnHistoryChanged(reason) {
         if (reason !== 'undo' && reason !== 'redo') return;
         var key = Na__ImageViewerPerspective__Key();
@@ -1908,6 +1971,12 @@
             restore  : Na__ImageViewerPerspective__Restore
         });
         na_core.onHistoryChanged(Na__ImageViewerPerspective__OnHistoryChanged);
+        if (typeof na_core.registerPersist === 'function') {
+            na_core.registerPersist('angle', {
+                serialise   : Na__ImageViewerPerspective__Serialise,
+                materialise : Na__ImageViewerPerspective__Materialise
+            });
+        }
         if (typeof na_core.registerSnap === 'function') na_core.registerSnap(Na__ImageViewerPerspective__ProvideSnap);
         na_core.onImageChanged(function() {
             na_lensEditing = false;
