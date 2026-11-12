@@ -55,7 +55,8 @@ module Na__Noble3dModellingTools
     end
 
     # Every launch path comes through here, so this is where tool use is counted.
-    # source: 'dialog', 'quick_launch' or 'menu_hotkey' (menus and hotkeys share UI::Command).
+    # source: 'dialog', 'quick_launch', 'menu_hotkey' (menus and hotkeys share UI::Command)
+    # or 'toolbar' (the registry's toolbar_items).
     def self.Na__Noble3dModellingTools__RunCommandById(command_id, source = 'menu_hotkey')
         Na__StandardDataCache.Na__Noble3dModellingTools__PrimeStandardCache
         feature_modules_loaded = Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules

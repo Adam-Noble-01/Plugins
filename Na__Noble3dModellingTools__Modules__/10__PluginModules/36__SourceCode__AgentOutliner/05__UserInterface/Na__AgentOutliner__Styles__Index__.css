@@ -1,0 +1,274 @@
+/* =============================================================================
+   NA AGENT OUTLINER - CORE UI STYLES - INDEX
+   =============================================================================
+   FILE       : Na__AgentOutliner__Styles__Index__.css
+   PURPOSE    : Master stylesheet. Imports the feature style sheets and
+                defines the shared variables, base layout, form controls and
+                buttons (the Point Cloud Viewer / PainterlyNPR Assets family).
+   NOTE       : @import rules MUST appear before all other rules per CSS spec.
+   CREATED    : 10-Nov-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Feature Stylesheet Imports (MUST be first) */
+/* ----------------------------------------------------------------- */
+
+@import url("Na__AgentOutliner__Styles__Shell__.css");
+@import url("Na__AgentOutliner__Styles__Outliner__.css");
+@import url("Na__AgentOutliner__Styles__Inspector__.css");
+@import url("Na__AgentOutliner__Styles__Configure__.css");
+@import url("Na__AgentOutliner__Styles__Chat__.css");
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | CSS Variables */
+/* ----------------------------------------------------------------- */
+
+:root {
+    --na-bg             : #f4f5f7;
+    --na-panel          : #ffffff;
+    --na-border         : #d6d9de;
+    --na-border-soft    : #e7e9ed;
+    --na-text           : #20242b;
+    --na-subtle         : #5f6773;
+    --na-faint          : #8a919c;
+    --na-accent         : #1a73e8;
+    --na-accent-hover   : #155fc0;
+    --na-accent-soft    : rgba(26, 115, 232, 0.12);
+    --na-tab-strip-bg   : #f0f2f5;
+    --na-status-bg      : #eef3fb;
+    --na-success        : #008f5a;
+    --na-warn           : #b06000;
+    --na-danger         : #b3261e;
+    --na-agent          : #7c3aed;
+    --na-user           : #d97706;
+    --na-select         : #dc2626;                 /* Selected rows: red, as blue sat too close to the agent violet (0.1.15) */
+    --na-select-soft    : rgba(220, 38, 38, 0.16);
+    --na-ink            : #172b3a;                 /* The house icon ink */
+    --na-row-h          : 26px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Base Reset + Layout Shell */
+/* ----------------------------------------------------------------- */
+
+* {
+    box-sizing          : border-box;
+}
+
+[hidden] {
+    display             : none !important;
+}
+
+html,
+body {
+    margin              : 0;
+    height              : 100%;
+}
+
+body {
+    font-family         : "Segoe UI", Tahoma, sans-serif;
+    font-size           : 13px;
+    background          : var(--na-bg);
+    color               : var(--na-text);
+    overflow            : hidden;
+}
+
+.na-app-shell {
+    display             : flex;
+    flex-direction      : column;
+    height              : 100vh;
+    overflow            : hidden;
+}
+
+.na-tab-panels-container {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+    overflow            : hidden;
+}
+
+.na-panel-body {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 12px;
+    padding             : 14px 16px 18px;
+}
+
+.na-hidden {
+    display             : none !important;
+}
+
+code {
+    font-family         : Consolas, "Cascadia Mono", monospace;
+    font-size           : 12px;
+    background          : #eef0f3;
+    border-radius       : 3px;
+    padding             : 0 4px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Form Controls */
+/* ----------------------------------------------------------------- */
+
+.naFormRow {
+    display               : grid;
+    grid-template-columns : 170px 1fr;
+    gap                   : 10px;
+    align-items           : center;
+    margin                : 8px 0;
+}
+
+.naFormRow > label {
+    font-weight         : 600;
+    font-size           : 12px;
+}
+
+.naInput,
+.naSelect,
+.naTextarea {
+    width               : 100%;
+    padding             : 6px 8px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 4px;
+    background          : #fff;
+    font-size           : 13px;
+    font-family         : inherit;
+    color               : var(--na-text);
+}
+
+.naInput:focus,
+.naSelect:focus,
+.naTextarea:focus {
+    outline             : none;
+    border-color        : var(--na-accent);
+    box-shadow          : 0 0 0 2px var(--na-accent-soft);
+}
+
+.naInput.naInput--short,
+.naSelect.naInput--short {
+    width               : 320px;
+    max-width           : 100%;
+}
+
+.naInput.naInput--tiny {
+    width               : 80px;
+}
+
+.naInput.naInput--bad {
+    border-color        : var(--na-danger);
+    background          : #fdf3f2;
+}
+
+.naTextarea {
+    resize              : vertical;
+    min-height          : 46px;
+    line-height         : 1.4;
+}
+
+.na-check {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 7px;
+    font-size           : 12.5px;
+    cursor              : pointer;
+    margin              : 4px 14px 4px 0;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Buttons */
+/* ----------------------------------------------------------------- */
+
+.naButton {
+    border              : 1px solid var(--na-accent);
+    background          : var(--na-accent);
+    color               : #fff;
+    border-radius       : 4px;
+    padding             : 7px 14px;
+    cursor              : pointer;
+    font-size           : 13px;
+    font-family         : inherit;
+    font-weight         : 500;
+    transition          : background 0.12s, border-color 0.12s;
+}
+
+.naButton:hover {
+    background          : var(--na-accent-hover);
+    border-color        : var(--na-accent-hover);
+}
+
+.naButton.naButton--danger {
+    background          : var(--na-danger);
+    border-color        : var(--na-danger);
+}
+
+.naButtonSecondary {
+    border              : 1px solid var(--na-border);
+    background          : var(--na-panel);
+    color               : var(--na-text);
+    border-radius       : 4px;
+    padding             : 7px 14px;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+}
+
+.naButtonSecondary:hover {
+    background          : var(--na-bg);
+}
+
+.naButton.na-button--small,
+.naButtonSecondary.na-button--small {
+    padding             : 4px 10px;
+    font-size           : 12px;
+}
+
+.naButton[disabled],
+.naButtonSecondary[disabled] {
+    opacity             : 0.45;
+    cursor              : default;
+}
+
+.na-icon-btn {
+    border              : 1px solid var(--na-border);
+    background          : var(--na-panel);
+    color               : var(--na-subtle);
+    border-radius       : 50%;
+    width               : 24px;
+    height              : 24px;
+    padding             : 0;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-weight         : 700;
+    flex-shrink         : 0;
+}
+
+.na-button-row {
+    display             : flex;
+    gap                 : 8px;
+    flex-wrap           : wrap;
+    align-items         : center;
+    margin-top          : 10px;
+}
+
+.na-button-row--tight {
+    margin-top          : 0;
+}
+
+.na-button-row--end {
+    justify-content     : flex-end;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- =============================================================================
+     NA AGENT OUTLINER - UI LAYOUT
+     =============================================================================
+     FILE       : Na__AgentOutliner__UiLayout__.html
+     PURPOSE    : HtmlDialog layout: brand header, the tab strip, the three tab
+                  panels, the shared status bar, the menu, the in-dialog
+                  confirm and prompt, the Copy for Agent panel and the search
+                  help. From 0.1.15 the buttons carry icons (data-na-icon,
+                  filled in by MainShell from Ruby's 'icons' channel) and
+                  Quick Name is a panel that pops out on the table's left.
+     TABS       : Outliner (default) | Configure | Settings
+     DATA       : None in the markup. Ruby pushes state as JSON through
+                  window.Na__AgentOutliner__Receive (big payloads in parts
+                  through window.Na__AgentOutliner__ReceivePart); the scripts
+                  render it. The Noble logo loads from the shared
+                  Na__Common__PluginDependencies folder (a set_file page).
+     CREATED    : 10-Nov-2026
+     ============================================================================= -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Na Agent Outliner by Noble Architecture</title>
+    <link rel="stylesheet" href="Na__AgentOutliner__Styles__Index__.css">
+</head>
+
+<body>
+
+<div class="na-app-shell">
+
+    <!-- ==========================================================================
+         REGION | Brand Header
+         ========================================================================== -->
+    <header class="na-brand-header">
+        <div class="na-brand-header__left">
+            <img src="../../../../Na__Common__PluginDependencies/IMG01__PNG__NaCompanyLogo.png"
+                 class="na-brand-header__logo" alt="Noble Architecture" onerror="this.style.display='none'">
+        </div>
+        <div class="na-brand-header__right">
+            <span class="na-brand-header__title">Agent Outliner</span>
+            <span class="na-brand-header__subtitle" id="na-brand-version">by Noble Architecture</span>
+        </div>
+    </header>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
+         REGION | Tab Strip (with the model and the agent bridge on the right)
+         ========================================================================== -->
+    <div class="na-tab-strip">
+        <nav id="na-tab-bar" class="na-tab-bar" role="tablist">
+            <button type="button" class="na-tab na-tab-active" role="tab" data-na-tab-id="outliner"><span class="na-svg-icon" data-na-icon="Outliner"></span>Outliner</button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="chat" title="Every chat with agents on this model"><span class="na-svg-icon" data-na-icon="Chat"></span>Chat<span class="na-tab-badge na-hidden" id="na-chat-badge"></span></button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="configure"><span class="na-svg-icon" data-na-icon="Configure"></span>Configure</button>
+            <button type="button" class="na-tab" role="tab" data-na-tab-id="settings"><span class="na-svg-icon" data-na-icon="Settings"></span>Settings</button>
+        </nav>
+        <div class="na-tab-strip__right">
+            <span id="na-model-chip" class="na-model-chip">No model</span>
+            <span id="na-mcp-chip" class="na-mcp-chip na-mcp-chip--off">Agent bridge</span>
+        </div>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <div class="na-tab-panels-container">
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Outliner
+             Built by ...UiSystem__OutlinerView__.js and ...Inspector__.js
+             ====================================================================== -->
+        <div id="na-tab-outliner" class="na-tab-panel na-tab-panel--outliner" role="tabpanel" data-na-tab-id="outliner">
+
+            <div class="na-ol-toolbar">
+                <div class="na-ol-search">
+                    <input type="search" id="na-ol-search" class="naInput" autocomplete="off" spellcheck="false"
+                           placeholder="Search names, or tag:06__Drawings  is:new  by:agent  flag:for_agent  -is:hidden  a | b"
+                           aria-label="Search the outliner">
+                    <button type="button" class="na-tool-btn na-tool-btn--round" id="na-ol-search-help" title="How to search" aria-label="How to search"><span class="na-svg-icon" data-na-icon="Help"></span></button>
+                    <span class="na-ol-match-count" id="na-ol-match-count"></span>
+                </div>
+                <select id="na-ol-view" class="naSelect na-ol-view" title="Tree, a flat list, or grouped"></select>
+                <div class="na-ol-toolbar__buttons">
+                    <div class="na-tool-group" role="group" aria-label="Open and close the tree">
+                        <button type="button" class="na-tool-btn" id="na-ol-expand" aria-label="Expand all" title="Expand all: open every row (stops at 5,000 so a big model cannot freeze). Keys: ] opens one level, Shift+] every level"><span class="na-svg-icon" data-na-icon="ExpandAll"></span></button>
+                        <button type="button" class="na-tool-btn" id="na-ol-collapse" aria-label="Collapse all" title="Collapse all: close every row. Keys: [ closes one level, Shift+[ every level"><span class="na-svg-icon" data-na-icon="CollapseAll"></span></button>
+                    </div>
+                    <div class="na-tool-group" role="group" aria-label="SketchUp's selection">
+                        <button type="button" class="na-tool-btn" id="na-ol-reveal" aria-label="Reveal selection" title="Reveal Selection: find what is selected in SketchUp in the table, once"><span class="na-svg-icon" data-na-icon="RevealSelection"></span></button>
+                        <button type="button" class="na-tool-btn na-tool-btn--toggle" id="na-ol-follow" aria-pressed="true" aria-label="Follow the SketchUp selection" title="Follow Selection is on: whatever you select in SketchUp is found in the table and scrolled into view. Click to turn it off."><span class="na-svg-icon" data-na-icon="FollowSelection"></span><span class="na-tool-btn__label">Follow</span></button>
+                    </div>
+                    <div class="na-tool-group" role="group" aria-label="The table">
+                        <button type="button" class="na-tool-btn na-tool-btn--toggle" id="na-ol-colours" aria-pressed="true" aria-label="Status colours" title="Status Colours are on: rows are tinted by who changed them (agent violet, you amber). Click to turn them off."><span class="na-svg-icon" data-na-icon="StatusColours"></span><span class="na-tool-btn__label">Colours</span></button>
+                        <button type="button" class="na-tool-btn" id="na-ol-columns" aria-label="Columns" title="Choose the columns (or right-click the headings)"><span class="na-svg-icon" data-na-icon="Columns"></span></button>
+                        <button type="button" class="na-tool-btn" id="na-ol-refresh" aria-label="Refresh" title="Refresh: read the whole model again"><span class="na-svg-icon" data-na-icon="Refresh"></span></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="na-ol-chips" id="na-ol-chips" role="group" aria-label="Quick filters"></div>
+
+            <div class="na-ol-agentbar">
+                <div class="na-ol-agent-actions">
+                    <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-ol-flag" title="Flag the selected rows for an agent"><span class="na-svg-icon" data-na-icon="Flag"></span>Flag<span class="na-btn-caret">&#9662;</span></button>
+                    <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-ol-tag" title="Put the selected rows on a tag: type to find one, or a new name to make it (T)"><span class="na-svg-icon" data-na-icon="Tag"></span>Tag<span class="na-btn-caret">&#9662;</span></button>
+                    <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-ol-comment" title="Write a comment for an agent on the selected rows"><span class="na-svg-icon" data-na-icon="Comment"></span>Comment</button>
+                    <span class="na-bar-gap"></span>
+                    <button type="button" class="naButton na-button--small na-btn-icon" id="na-ol-copy-agent" title="Copy the selected rows (or what waits for an agent) straight to the clipboard, as text to paste into Claude (Ctrl+C)"><span class="na-svg-icon" data-na-icon="CopyForAgent"></span>Copy for Agent</button>
+                    <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-ol-copy-ids" title="Copy the persistent ids of the selected rows"><span class="na-svg-icon" data-na-icon="CopyIds"></span>Copy IDs</button>
+                    <span class="na-bar-gap"></span>
+                    <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-ol-model-thread" title="The thread for the whole model: agents post summaries here"><span class="na-svg-icon" data-na-icon="ModelThread"></span>Model Thread</button>
+                    <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-ol-mark-seen" title="Everything changed so far counts as seen (the Unseen filter starts again)"><span class="na-svg-icon" data-na-icon="MarkSeen"></span>Mark Seen</button>
+                </div>
+            </div>
+
+            <div class="na-ol-body" id="na-ol-body">
+                <!-- The side rail: a pop-out panel per button (Quick Name from 0.1.15) -->
+                <nav class="na-ol-rail" aria-label="Panels">
+                    <button type="button" class="na-rail-btn" id="na-qn-rail" aria-pressed="false" aria-controls="na-qn-panel" title="Quick Name: give the selected rows a standard name (Q)"><span class="na-svg-icon" data-na-icon="QuickName"></span><span class="na-rail-btn__label">Name</span></button>
+                </nav>
+                <aside class="na-qn-panel na-hidden" id="na-qn-panel" aria-label="Quick Name">
+                    <div class="na-qn-panel__head">
+                        <span class="na-svg-icon" data-na-icon="QuickName"></span>
+                        <span class="na-qn-panel__title">Quick Name</span>
+                        <button type="button" class="na-tool-btn na-tool-btn--bare" id="na-qn-close" aria-label="Close Quick Name" title="Close (Q)"><span class="na-svg-icon" data-na-icon="PanelClose"></span></button>
+                    </div>
+                    <div class="na-qn-panel__target" id="na-qn-target"></div>
+                    <input type="search" id="na-qn-filter" class="naInput na-qn-filter" autocomplete="off" spellcheck="false" placeholder="Filter names" aria-label="Filter the standard names">
+                    <div class="na-qn-panel__list" id="na-qn-list" role="list"></div>
+                    <div class="na-qn-panel__foot">
+                        <label class="na-qn-orient-row" title="Which way this model's Front faces in the real world. Set it and the face buttons add the cardinal (Front__South, Left__West ...). Stored in the model, one undo step.">
+                            <span class="na-svg-icon" data-na-icon="Compass"></span>
+                            <select id="na-qn-orient" class="naSelect na-qn-orient" aria-label="Which way the Front faces"></select>
+                        </label>
+                        <div class="na-qn-panel__actions">
+                            <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-qn-strip" title="Take any standard prefix off the selected names"><span class="na-svg-icon" data-na-icon="Strip"></span>Strip Prefix</button>
+                            <button type="button" class="naButtonSecondary na-button--small na-btn-icon" id="na-qn-edit" title="Add or change the standard names in the Configure tab"><span class="na-svg-icon" data-na-icon="Edit"></span>Edit Names</button>
+                        </div>
+                    </div>
+                </aside>
+                <div class="na-ol-tablewrap" id="na-ol-tablewrap" tabindex="0">
+                    <div class="na-ol-head" id="na-ol-head"></div>
+                    <div class="na-ol-canvas" id="na-ol-canvas"></div>
+                </div>
+                <div class="na-ol-splitter" id="na-ol-splitter" title="Drag to widen or narrow the panel"></div>
+                <aside class="na-ol-inspector" id="na-ol-inspector">
+                    <button type="button" class="na-inspector-toggle" id="na-inspector-toggle" title="Show or hide this panel">&#8646;</button>
+                    <div class="na-inspector-body" id="na-inspector-body"></div>
+                </aside>
+            </div>
+
+            <div class="na-ol-footer">
+                <span id="na-ol-footer-counts" class="na-ol-footer__counts"></span>
+                <span id="na-ol-inbox" class="na-ol-footer__inbox"></span>
+                <span class="na-ol-footer__legend" id="na-ol-legend">
+                    <span class="na-legend-swatch na-legend-swatch--agent"></span>Agent
+                    <span class="na-legend-swatch na-legend-swatch--user"></span>You
+                    <span class="na-legend-note">colour fades with age (Settings)</span>
+                </span>
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Configure
+             Built by ...UiSystem__Configure__.js
+             ====================================================================== -->
+        <div id="na-tab-chat" class="na-tab-panel na-tab-panel--chat na-hidden" role="tabpanel" data-na-tab-id="chat">
+            <div class="na-chat">
+                <aside class="na-chat-side">
+                    <div class="na-chat-side__head">
+                        <input type="text" id="na-chat-search" class="naInput na-chat-search" placeholder="Search chats" spellcheck="false">
+                        <button type="button" class="naButton na-button--small" id="na-chat-new" title="Start a chat about the objects selected in the Outliner (or in SketchUp)">New Chat</button>
+                    </div>
+                    <div class="na-chat-filters" id="na-chat-filters"></div>
+                    <div class="na-chat-agents" id="na-chat-agents"></div>
+                    <div class="na-chat-list" id="na-chat-list"></div>
+                    <div class="na-chat-side__foot" id="na-chat-bridge"></div>
+                </aside>
+                <section class="na-chat-main" id="na-chat-main">
+                    <header class="na-chat-head" id="na-chat-head"></header>
+                    <div class="na-chat-messages" id="na-chat-messages"></div>
+                    <div class="na-chat-composer" id="na-chat-composer"></div>
+                    <div class="na-chat-drop na-hidden" id="na-chat-drop">Drop pictures to attach them</div>
+                </section>
+            </div>
+        </div>
+
+        <div id="na-tab-configure" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="configure">
+            <div class="na-panel-body">
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Naming Prefixes (Quick Name)</h3>
+                        <div class="na-button-row na-button-row--tight">
+                            <button type="button" class="naButtonSecondary na-button--small" id="na-cfg-add-prefix">Add Prefix</button>
+                        </div>
+                    </div>
+                    <p class="na-hint">Each prefix becomes a button in the Outliner tab's Quick Name panel (the Name button on the table's left, or Q). <b>Name it exactly</b> gives the selected objects that name (CAD__FrontElevation); <b>Put in front</b> keeps their names after it (REF__SideElevation). <b>Elevation face</b> sets the face segment inside a name (SUB__Orangery__DoorHandle__<b>Front</b>__01), with the cardinal after it once the model's orientation is set. Quick Name only ever changes names, never tags. Agents read the meaning with agent_outliner prefixes, so write it as an instruction.</p>
+                    <datalist id="na-cfg-categories"></datalist>
+                    <div id="na-cfg-prefixes" class="na-cfg-table"></div>
+                </section>
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Flag Types</h3>
+                        <div class="na-button-row na-button-row--tight">
+                            <button type="button" class="naButtonSecondary na-button--small" id="na-cfg-add-flag">Add Flag Type</button>
+                        </div>
+                    </div>
+                    <p class="na-hint">A flag marked <b>waits for an agent</b> puts the object in the agent inbox (agent_outliner inbox) until an agent acknowledges it or the thread is resolved. The id is stored on flagged objects: keep it once in use.</p>
+                    <div id="na-cfg-flags" class="na-cfg-table"></div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Copy for Agent: Closing Note</h3>
+                    <p class="na-hint">The last paragraph of the text Copy for Agent puts on the clipboard: how the agent should answer.</p>
+                    <textarea id="na-cfg-footer" class="naTextarea" rows="3"></textarea>
+                </section>
+
+                <p class="na-fault na-hidden" id="na-cfg-issues"></p>
+                <div class="na-button-row na-button-row--end">
+                    <span class="na-cfg-status" id="na-cfg-status">Saved</span>
+                    <button type="button" class="naButtonSecondary" id="na-cfg-open-folder" title="Open the folder holding the standards file">Open Folder</button>
+                    <button type="button" class="naButtonSecondary" id="na-cfg-revert">Revert</button>
+                    <button type="button" class="naButton" id="na-cfg-save" disabled>Save Standards</button>
+                </div>
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+        <!-- ======================================================================
+             REGION | Tab Panel - Settings
+             Built by ...UiSystem__Settings__.js
+             ====================================================================== -->
+        <div id="na-tab-settings" class="na-tab-panel na-hidden" role="tabpanel" data-na-tab-id="settings">
+            <div class="na-panel-body">
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Plugin</h3>
+                    <div class="na-kv" id="na-set-version"></div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButton" id="na-set-reload" title="Reload this tool's Ruby, then reopen the dialog so its HTML, CSS and JS reload">Reload Plugin Data</button>
+                        <button type="button" class="naButtonSecondary" id="na-set-reload-all" title="Reload every Noble 3D Tools module">Reload All Noble 3D Tools</button>
+                        <button type="button" class="naButtonSecondary" id="na-set-open-module">Open Plugin Folder</button>
+                    </div>
+                    <p class="na-hint">Reload Plugin Data reloads without restarting SketchUp. A new menu item, or a file renamed or deleted, still needs a restart.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">You</h3>
+                    <div class="naFormRow">
+                        <label for="na-set-user-name">Your name in threads</label>
+                        <input type="text" id="na-set-user-name" class="naInput naInput--short" maxlength="60">
+                    </div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Change Tracking</h3>
+                    <label class="na-check"><input type="checkbox" id="na-set-track-enabled"> Track what is made and changed, and whether an agent or you did it</label>
+                    <label class="na-check"><input type="checkbox" id="na-set-track-visibility"> Count hiding and showing as a change</label>
+                    <label class="na-check"><input type="checkbox" id="na-set-track-lock"> Count locking and unlocking as a change</label>
+                    <div class="naFormRow">
+                        <label for="na-set-track-days">Keep history for</label>
+                        <span><input type="number" id="na-set-track-days" class="naInput naInput--tiny" min="1" max="365"> days</span>
+                    </div>
+                    <div class="naFormRow">
+                        <label for="na-set-track-max">Keep at most</label>
+                        <span><input type="number" id="na-set-track-max" class="naInput naInput--tiny" min="100" max="50000" step="100"> changes per model</span>
+                    </div>
+                    <div class="na-kv" id="na-set-tracking-info"></div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-set-mark-seen">Mark All Changes Seen</button>
+                        <button type="button" class="naButtonSecondary" id="na-set-clear-history">Clear This Model's History</button>
+                    </div>
+                    <p class="na-hint">Agents are told apart from you by the Na SketchUp MCP's own code on the call stack: anything an agent does through the MCP (ruby_eval included) is the agent's. History is kept on this PC beside the model, never inside it, so tracking adds no undo steps and never marks the model as changed.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Colour Grading</h3>
+                    <p class="na-hint">A new or changed object is tinted in the colour of who did it, strongest at first, fading through four bands. Past the last band it is plain again; the second band is what Recent means.</p>
+                    <div class="naFormRow">
+                        <label>Bands (minutes)</label>
+                        <span class="na-set-bands">
+                            <input type="number" id="na-set-band-0" class="naInput naInput--tiny" min="1">
+                            <input type="number" id="na-set-band-1" class="naInput naInput--tiny" min="1">
+                            <input type="number" id="na-set-band-2" class="naInput naInput--tiny" min="1">
+                            <input type="number" id="na-set-band-3" class="naInput naInput--tiny" min="1">
+                        </span>
+                    </div>
+                    <div class="naFormRow">
+                        <label for="na-set-agent-colour">Agent colour</label>
+                        <input type="color" id="na-set-agent-colour" class="na-cfg-colour">
+                    </div>
+                    <div class="naFormRow">
+                        <label for="na-set-user-colour">Your colour</label>
+                        <input type="color" id="na-set-user-colour" class="na-cfg-colour">
+                    </div>
+                    <label class="na-check"><input type="checkbox" id="na-set-status-colours"> Colour the rows by status (also the Colours switch above the table)</label>
+                    <div class="na-legend" id="na-set-legend"></div>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Selecting</h3>
+                    <div class="naFormRow">
+                        <label for="na-set-select-mode">Clicking a nested row</label>
+                        <select id="na-set-select-mode" class="naSelect naInput--short">
+                            <option value="open_context">Opens its group and selects it (like SketchUp)</option>
+                            <option value="top_level">Selects its top-level object</option>
+                        </select>
+                    </div>
+                    <label class="na-check"><input type="checkbox" id="na-set-follow"> Follow what is selected in SketchUp: open the tree to it and scroll it into view (also the Follow switch above the table)</label>
+                    <label class="na-check"><input type="checkbox" id="na-set-zoom-double"> Double-click a row to zoom to it</label>
+                    <label class="na-check"><input type="checkbox" id="na-set-show-images"> List images</label>
+                    <label class="na-check"><input type="checkbox" id="na-set-show-sections"> List section planes</label>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Agent Bridge</h3>
+                    <div class="na-kv" id="na-set-mcp"></div>
+                    <p class="na-hint">Agents start with <b>agent_outliner {action: "summary"}</b>, read what waits for them with <b>inbox</b>, what you changed with <b>changes</b> (by: "user"), what each standard name means with <b>prefixes</b>, and answer with <b>agent_outliner_edit</b> (reply, comment, flag, resolve, acknowledge, name). Their comments and flags show here in the agent colour.</p>
+                </section>
+
+                <section class="na-card">
+                    <h3 class="na-card__title">Where Data Lives</h3>
+                    <div class="na-kv" id="na-set-paths"></div>
+                </section>
+
+                <section class="na-card">
+                    <div class="na-card__header">
+                        <h3 class="na-card__title">Technical Log</h3>
+                        <div class="na-button-row na-button-row--tight">
+                            <label class="na-check"><input type="checkbox" id="na-set-dev-mode"> Dev Mode (echo to the Ruby Console)</label>
+                            <button type="button" class="naButtonSecondary na-button--small" id="na-set-log-refresh">Refresh</button>
+                        </div>
+                    </div>
+                    <pre class="na-log" id="na-set-log"></pre>
+                </section>
+
+                <div class="na-button-row na-button-row--end">
+                    <button type="button" class="naButton" id="na-set-save">Save Settings</button>
+                </div>
+            </div>
+        </div>
+        <!-- endregion ========================================================== -->
+
+    </div>
+
+    <!-- ==========================================================================
+         REGION | Status Bar (shared across tabs)
+         ========================================================================== -->
+    <div id="na-status-bar" class="na-status-bar na-hidden">
+        <span id="na-status-message"></span>
+    </div>
+    <!-- endregion ============================================================== -->
+
+</div>
+
+<!-- ==========================================================================
+     REGION | Menu (rows, flags, columns)
+     ========================================================================== -->
+<div id="na-menu" class="na-menu na-hidden" role="menu"></div>
+<div id="na-chat-lightbox" class="na-chat-lightbox na-hidden" role="dialog" aria-label="Picture"></div>
+<!-- endregion ============================================================== -->
+
+<!-- ==========================================================================
+     REGION | Search Help
+     ========================================================================== -->
+<div id="na-search-help" class="na-popover na-hidden" role="dialog" aria-label="How to search">
+    <div class="na-popover__head">
+        <h3 class="na-card__title">How to Search</h3>
+        <button type="button" class="na-icon-btn" id="na-search-help-close">&times;</button>
+    </div>
+    <table class="na-help-table">
+        <tr><td><code>window w01</code></td><td>words match the name, definition, tag, prefix, id, flag, material or latest comment; all must match</td></tr>
+        <tr><td><code>"front wall"</code></td><td>a phrase</td></tr>
+        <tr><td><code>tag:06__Drawings</code></td><td>tag contains (also <code>name: def: mat: note: prefix: id:</code>)</td></tr>
+        <tr><td><code>type:component</code></td><td>group, component, image or section</td></tr>
+        <tr><td><code>is:new</code></td><td>new, updated, changed, recent, unseen, hidden, visible, locked, flagged, unread, waiting, unnamed, resolved, open, selected</td></tr>
+        <tr><td><code>by:agent</code></td><td>last made or changed by an agent (<code>by:me</code> for you)</td></tr>
+        <tr><td><code>flag:for_agent</code></td><td>a flag (<code>flag:any</code> for any); <code>has:notes</code>, <code>has:prefix</code></td></tr>
+        <tr><td><code>-is:hidden</code></td><td>a minus leaves matches out</td></tr>
+        <tr><td><code>/^W0[1-5]$/</code></td><td>a pattern on the names</td></tr>
+        <tr><td><code>is:new | is:updated</code></td><td>either side matches (OR)</td></tr>
+    </table>
+    <p class="na-hint">Matches keep their parents on screen, dimmed, so you always see where they sit. Agents can run the same search: agent_outliner {action: "find", query: "..."}.</p>
+</div>
+<!-- endregion ============================================================== -->
+
+
+<!-- ==========================================================================
+     REGION | In-Dialog Prompt (Cancel first, the action last)
+     ========================================================================== -->
+<div id="na-prompt" class="na-loading-overlay na-hidden" role="dialog" aria-modal="true" aria-labelledby="na-prompt-title">
+    <div class="na-loading-card na-confirm-card">
+        <h2 class="na-loading-title" id="na-prompt-title"></h2>
+        <label class="na-prompt-label" id="na-prompt-label" for="na-prompt-input"></label>
+        <input type="text" id="na-prompt-input" class="naInput" autocomplete="off">
+        <textarea id="na-prompt-area" class="naTextarea na-prompt-area na-hidden" rows="5"></textarea>
+        <label class="na-check na-hidden" id="na-prompt-extra"><input type="checkbox" id="na-prompt-extra-box"> <span id="na-prompt-extra-label"></span></label>
+        <p class="na-hint" id="na-prompt-hint"></p>
+        <div class="na-button-row na-button-row--end">
+            <button type="button" class="naButtonSecondary" id="na-prompt-cancel">Cancel</button>
+            <button type="button" class="naButton" id="na-prompt-go">Save</button>
+        </div>
+    </div>
+</div>
+<!-- endregion ============================================================== -->
+
+<!-- ==========================================================================
+     REGION | In-Dialog Confirm (Cancel first, the action last)
+     ========================================================================== -->
+<div id="na-confirm" class="na-loading-overlay na-hidden" role="dialog" aria-modal="true" aria-labelledby="na-confirm-title">
+    <div class="na-loading-card na-confirm-card">
+        <h2 class="na-loading-title" id="na-confirm-title"></h2>
+        <p class="na-confirm-text" id="na-confirm-text"></p>
+        <div class="na-button-row na-button-row--end">
+            <button type="button" class="naButtonSecondary" id="na-confirm-cancel">Cancel</button>
+            <button type="button" class="naButton" id="na-confirm-go">Continue</button>
+        </div>
+    </div>
+</div>
+<!-- endregion ============================================================== -->
+
+<!-- ==========================================================================
+     REGION | JavaScript Includes (load order matters)
+       1. BridgeBase     - window.sketchup wrapper
+       2. MainShell      - receive dispatcher, tabs, status bar, modals, helpers
+       3. OutlinerModel  - the data store: tree, search, filters, sorting
+       4. OutlinerView   - the table, toolbar, menus, keys
+       5. Inspector      - the side panel: details, flag, thread, history
+       6. AgentHandoff   - Copy for Agent
+       7. Configure      - the naming standards editor
+       8. Settings       - reload, tracking, grading, bridge, data, log
+     ========================================================================== -->
+<script src="Na__AgentOutliner__UiSystem__BridgeBase__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__MainShell__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__OutlinerModel__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__OutlinerView__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__Inspector__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__AgentHandoff__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__Chat__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__Configure__.js"></script>
+<script src="Na__AgentOutliner__UiSystem__Settings__.js"></script>
+<!-- endregion ============================================================== -->
+
+</body>
+</html>
+<!-- =============================================================================
+     END OF FILE
+     ============================================================================= -->

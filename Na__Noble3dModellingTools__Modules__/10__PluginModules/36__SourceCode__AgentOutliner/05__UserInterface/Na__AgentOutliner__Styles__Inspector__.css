@@ -1,0 +1,361 @@
+/* =============================================================================
+   NA AGENT OUTLINER - INSPECTOR STYLES
+   =============================================================================
+   FILE       : Na__AgentOutliner__Styles__Inspector__.css
+   PURPOSE    : The side panel: an object's heading, actions and facts, the
+                flag chips, the comment thread (Adam on the right, agents on
+                the left in the agent colour) and composer, the change history
+                and the recent activity feed.
+   CREATED    : 10-Nov-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Frame */
+/* ----------------------------------------------------------------- */
+
+.na-ol-inspector {
+    position            : relative;
+    width               : 380px;
+    flex-shrink         : 0;
+    display             : flex;
+    flex-direction      : column;
+    background          : #fbfbfc;
+    min-height          : 0;
+}
+
+.na-inspector-toggle {
+    position            : absolute;
+    top                 : 4px;
+    right               : 4px;
+    z-index             : 2;
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+    border-radius       : 4px;
+    width               : 20px;
+    height              : 20px;
+    padding             : 0;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    cursor              : pointer;
+}
+
+.na-inspector-body {
+    flex                : 1;
+    overflow-y          : auto;
+    padding             : 12px 14px 16px;
+    min-height          : 0;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Heading, Actions, Facts */
+/* ----------------------------------------------------------------- */
+
+.na-insp-head {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    padding-right       : 22px;
+}
+
+.na-insp-head .na-ol-icon {
+    width               : 20px;
+    height              : 20px;
+}
+
+.na-insp-title {
+    font-size           : 15px;
+    font-weight         : 600;
+    line-height         : 1.3;
+    word-break          : break-word;
+}
+
+.na-insp-sub {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    margin              : 4px 0 8px 28px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+}
+
+.na-insp-id {
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+    border-radius       : 10px;
+    padding             : 0 8px;
+    font-family         : Consolas, "Cascadia Mono", monospace;
+    font-size           : 11px;
+    cursor              : pointer;
+}
+
+.na-insp-actions {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 5px;
+    margin              : 6px 0 8px;
+}
+
+.na-insp-facts {
+    display             : grid;
+    grid-template-columns : 96px 1fr;
+    gap                 : 4px 10px;
+    margin              : 8px 0;
+    font-size           : 12px;
+}
+
+.na-insp-facts dt {
+    color               : var(--na-subtle);
+    font-weight         : 600;
+}
+
+.na-insp-facts dd {
+    margin              : 0;
+    word-break          : break-word;
+}
+
+.na-insp-crumbs__sep    { color: var(--na-faint); margin: 0 4px; }
+.na-insp-crumbs__here   { font-weight: 600; }
+
+.na-insp-section {
+    margin              : 14px 0 6px;
+    font-size           : 11px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-insp-section-row {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    margin-top          : 6px;
+}
+
+.na-insp-section-row .na-insp-section {
+    margin              : 8px 0 6px;
+    flex                : 1;
+}
+
+.na-insp-flags {
+    display             : flex;
+    flex-wrap           : wrap;
+    gap                 : 5px;
+}
+
+.na-flag-chip {
+    --na-flag           : #64748b;
+    border              : 1px solid var(--na-flag);
+    color               : var(--na-flag);
+    background          : #fff;
+    border-radius       : 12px;
+    padding             : 2px 10px;
+    font-family         : inherit;
+    font-size           : 11.5px;
+    font-weight         : 600;
+    cursor              : pointer;
+}
+
+.na-flag-chip--on {
+    background          : var(--na-flag);
+    color               : #fff;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | The Thread and the Composer */
+/* ----------------------------------------------------------------- */
+
+.na-thread-status {
+    font-size           : 10.5px;
+    font-weight         : 700;
+    border-radius       : 8px;
+    padding             : 1px 7px;
+}
+
+.na-thread-status--open     { background: #e8f0fe; color: var(--na-accent); }
+.na-thread-status--resolved { background: #e7f7ee; color: #1a5e3a; }
+
+.na-thread {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 6px;
+    max-height          : 360px;
+    overflow-y          : auto;
+    padding             : 2px 2px 6px;
+}
+
+.na-entry {
+    max-width           : 88%;
+    border-radius       : 8px;
+    padding             : 6px 9px;
+    font-size           : 12.5px;
+    line-height         : 1.45;
+    border              : 1px solid transparent;
+}
+
+.na-entry--user {
+    align-self          : flex-end;
+    background          : #e8f0fe;
+    border-color        : #d2e0fb;
+}
+
+.na-entry--agent {
+    align-self          : flex-start;
+    background          : rgba(124, 58, 237, 0.08);
+    border-color        : rgba(124, 58, 237, 0.22);
+}
+
+.na-entry--new {
+    box-shadow          : 0 0 0 2px var(--na-agent);
+}
+
+.na-entry__meta {
+    display             : flex;
+    align-items         : center;
+    gap                 : 6px;
+    font-size           : 10.5px;
+    color               : var(--na-subtle);
+    margin-bottom       : 2px;
+}
+
+.na-entry__author       { font-weight: 700; }
+.na-entry--agent .na-entry__author { color: var(--na-agent); }
+
+.na-entry__new {
+    background          : var(--na-agent);
+    color               : #fff;
+    border-radius       : 6px;
+    padding             : 0 5px;
+    font-weight         : 700;
+}
+
+.na-entry__waiting      { color: var(--na-user); }
+
+.na-entry__delete {
+    margin-left         : auto;
+    border              : none;
+    background          : transparent;
+    color               : var(--na-faint);
+    cursor              : pointer;
+    font-size           : 13px;
+    line-height         : 1;
+    padding             : 0 2px;
+    visibility          : hidden;
+}
+
+.na-entry:hover .na-entry__delete { visibility: visible; }
+
+.na-entry__text {
+    white-space         : pre-wrap;
+    word-break          : break-word;
+}
+
+.na-entry-system {
+    align-self          : center;
+    font-size           : 11px;
+    color               : var(--na-subtle);
+    background          : #f1f3f6;
+    border-radius       : 10px;
+    padding             : 2px 10px;
+    max-width           : 95%;
+    text-align          : center;
+}
+
+.na-entry-system--agent { color: var(--na-agent); }
+
+.na-composer {
+    margin-top          : 6px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    background          : #fff;
+    padding             : 6px;
+}
+
+.na-composer__text {
+    border              : none;
+    min-height          : 64px;
+    padding             : 4px;
+}
+
+.na-composer__text:focus { box-shadow: none; }
+
+.na-composer__bar {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    justify-content     : flex-end;
+}
+
+.na-composer__bar .na-check { margin-right: auto; }
+
+.na-composer__keys {
+    font-size           : 10.5px;
+    color               : var(--na-faint);
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | History and Recent Activity */
+/* ----------------------------------------------------------------- */
+
+.na-history,
+.na-activity {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 2px;
+    font-size           : 12px;
+}
+
+.na-history__line,
+.na-activity__line {
+    display             : grid;
+    gap                 : 8px;
+    align-items         : baseline;
+    padding             : 3px 6px;
+    border-radius       : 4px;
+    box-shadow          : inset 3px 0 0 transparent;
+}
+
+.na-history__line       { grid-template-columns: 84px 44px 1fr; }
+.na-activity__line      { grid-template-columns: 44px 1fr auto; }
+
+.na-history__line--agent,
+.na-activity__line--agent { box-shadow: inset 3px 0 0 var(--na-agent); }
+.na-history__line--user,
+.na-activity__line--user  { box-shadow: inset 3px 0 0 var(--na-user); }
+
+.na-activity__line--agent.na-activity__line--band0 { background: rgba(124, 58, 237, 0.14); }
+.na-activity__line--agent.na-activity__line--band1 { background: rgba(124, 58, 237, 0.09); }
+.na-activity__line--agent.na-activity__line--band2 { background: rgba(124, 58, 237, 0.05); }
+.na-activity__line--user.na-activity__line--band0  { background: rgba(217, 119, 6, 0.14); }
+.na-activity__line--user.na-activity__line--band1  { background: rgba(217, 119, 6, 0.09); }
+.na-activity__line--user.na-activity__line--band2  { background: rgba(217, 119, 6, 0.05); }
+
+.na-activity__line--link { cursor: pointer; }
+.na-activity__line--link:hover { outline: 1px solid var(--na-accent-soft); }
+
+.na-history__when,
+.na-activity__when      { color: var(--na-faint); font-size: 11px; white-space: nowrap; }
+.na-history__who,
+.na-activity__who       { font-weight: 700; font-size: 11px; }
+.na-history__line--agent .na-history__who,
+.na-activity__line--agent .na-activity__who { color: var(--na-agent); }
+.na-history__line--user .na-history__who,
+.na-activity__line--user .na-activity__who  { color: var(--na-user); }
+
+.na-activity__text {
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+    white-space         : nowrap;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

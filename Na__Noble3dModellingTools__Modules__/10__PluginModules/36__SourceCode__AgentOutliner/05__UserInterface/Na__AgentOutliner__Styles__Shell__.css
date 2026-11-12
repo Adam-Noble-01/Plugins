@@ -1,0 +1,618 @@
+/* =============================================================================
+   NA AGENT OUTLINER - SHELL STYLES
+   =============================================================================
+   FILE       : Na__AgentOutliner__Styles__Shell__.css
+   PURPOSE    : The Noble Architecture brand header, the tab strip with its
+                model and agent bridge chips, the shared status bar, white
+                cards, key and value rows, notes, faults, the menu, the
+                overlays (confirm, prompt, Copy for Agent) and the search help;
+                from 0.1.15 the inline icons and the icon buttons.
+   CREATED    : 10-Nov-2026
+   ============================================================================= */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Brand Header */
+/* ----------------------------------------------------------------- */
+
+.na-brand-header {
+    display              : flex;
+    align-items          : center;
+    justify-content      : space-between;
+    padding              : 10px 16px;
+    border-bottom        : 1px solid #d8d8d8;
+    background           : #ffffff;
+    flex-shrink          : 0;
+}
+
+.na-brand-header__left {
+    display              : flex;
+    align-items          : center;
+    gap                  : 12px;
+}
+
+.na-brand-header__logo {
+    height               : 32px;
+    width                : auto;
+    display              : block;
+}
+
+.na-brand-header__right {
+    display              : flex;
+    flex-direction       : column;
+    align-items          : flex-end;
+    gap                  : 3px;
+}
+
+.na-brand-header__title {
+    font-size            : 18px;
+    font-weight          : 600;
+    color                : #1a1a1a;
+    line-height          : 1;
+    letter-spacing       : 0.2px;
+}
+
+.na-brand-header__subtitle {
+    font-size            : 11px;
+    color                : #6a6a6a;
+    line-height          : 1;
+    letter-spacing       : 0.3px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Tab Strip and Panels */
+/* ----------------------------------------------------------------- */
+
+.na-tab-strip {
+    display             : flex;
+    align-items         : stretch;
+    background          : var(--na-tab-strip-bg);
+    border-bottom       : 1px solid var(--na-border);
+    flex-shrink         : 0;
+}
+
+.na-tab-bar {
+    display             : flex;
+    align-items         : stretch;
+    flex                : 1;
+    overflow-x          : auto;
+}
+
+.na-tab {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 7px;
+    padding             : 10px 18px;
+    background          : transparent;
+    border              : none;
+    border-bottom       : 3px solid transparent;
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 13px;
+    font-weight         : 500;
+    color               : var(--na-subtle);
+    white-space         : nowrap;
+    transition          : color 0.15s, border-color 0.15s;
+}
+
+.na-tab:hover {
+    color               : var(--na-text);
+    background          : rgba(0, 0, 0, 0.04);
+}
+
+.na-tab.na-tab-active {
+    color               : var(--na-accent);
+    border-bottom-color : var(--na-accent);
+    font-weight         : 600;
+}
+
+.na-tab-strip__right {
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    padding             : 0 12px;
+    min-width           : 0;
+}
+
+.na-model-chip {
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    max-width           : 280px;
+    white-space         : nowrap;
+    overflow            : hidden;
+    text-overflow       : ellipsis;
+}
+
+.na-mcp-chip {
+    font-size           : 11px;
+    font-weight         : 600;
+    border-radius       : 10px;
+    padding             : 2px 9px 2px 20px;
+    position            : relative;
+    white-space         : nowrap;
+    border              : 1px solid var(--na-border);
+    background          : #fff;
+}
+
+.na-mcp-chip::before {
+    content             : "";
+    position            : absolute;
+    left                : 7px;
+    top                 : 50%;
+    width               : 8px;
+    height              : 8px;
+    margin-top          : -4px;
+    border-radius       : 50%;
+    background          : #9aa1ab;
+}
+
+.na-mcp-chip--on       { color: #155e3b; }
+.na-mcp-chip--on::before      { background: #16a34a; }
+.na-mcp-chip--partial  { color: #7a4a00; }
+.na-mcp-chip--partial::before { background: #f59e0b; }
+.na-mcp-chip--off      { color: var(--na-subtle); }
+
+.na-tab-panel {
+    display             : flex;
+    flex-direction      : column;
+    flex                : 1;
+    min-height          : 0;
+    overflow-y          : auto;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Icons and Icon Buttons (0.1.15) */
+/* The SVGs come inline from UiIcons__DialogIcons__AgentOutliner (house ink */
+/* #172b3a in the files); here they take the colour of the text around */
+/* them, so a pressed switch or the blue button draws them white. */
+/* ----------------------------------------------------------------- */
+
+.na-svg-icon {
+    display             : inline-flex;
+    align-items         : center;
+    justify-content     : center;
+    width               : 16px;
+    height              : 16px;
+    flex-shrink         : 0;
+    pointer-events      : none;
+}
+
+.na-svg-icon:empty      { display: none; }                      /* No picture yet (or none on disk): the label and tooltip still say it */
+
+.na-svg-icon svg {
+    display             : block;
+    width               : 100%;
+    height              : 100%;
+    stroke              : currentColor;
+}
+
+.na-svg-icon svg [stroke="#172b3a"] { stroke: currentColor; }
+.na-svg-icon svg [fill="#172b3a"]   { fill: currentColor; }
+
+/* A square button with an icon, sometimes a short label */
+.na-tool-btn {
+    display             : inline-flex;
+    align-items         : center;
+    justify-content     : center;
+    gap                 : 5px;
+    height              : 28px;
+    min-width           : 28px;
+    padding             : 0 5px;
+    border              : 1px solid var(--na-border);
+    border-radius       : 5px;
+    background          : #fff;
+    color               : var(--na-ink);
+    cursor              : pointer;
+    font-family         : inherit;
+    font-size           : 11.5px;
+    font-weight         : 600;
+    flex-shrink         : 0;
+    transition          : background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.na-tool-btn .na-svg-icon { width: 18px; height: 18px; }
+.na-tool-btn:hover      { background: #eef1f5; border-color: #b9c0ca; }
+.na-tool-btn:active     { background: #e3e7ec; }
+.na-tool-btn__label     { padding-right: 2px; }
+
+.na-tool-btn--round     { border-radius: 50%; width: 28px; padding: 0; }
+.na-tool-btn--round .na-svg-icon { width: 20px; height: 20px; }
+.na-tool-btn--bare      { border-color: transparent; background: transparent; }
+
+/* A switch: navy when on, plain when off */
+.na-tool-btn--toggle[aria-pressed="true"] {
+    background          : var(--na-ink);
+    border-color        : var(--na-ink);
+    color               : #fff;
+}
+
+.na-tool-btn--toggle[aria-pressed="true"]:hover { background: #24405a; border-color: #24405a; }
+.na-tool-btn--toggle[aria-pressed="false"] { color: var(--na-subtle); }
+
+.na-tool-group {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 4px;
+    padding-left        : 8px;
+    border-left         : 1px solid var(--na-border-soft);
+}
+
+.na-tool-group:first-child { border-left: none; padding-left: 0; }
+
+/* A text button with an icon in front */
+.na-btn-icon {
+    display             : inline-flex;
+    align-items         : center;
+    gap                 : 6px;
+}
+
+.naButtonSecondary.na-btn-icon .na-svg-icon { color: var(--na-ink); }
+
+.na-btn-caret {
+    font-size           : 9px;
+    color               : var(--na-faint);
+    margin-left         : -2px;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Status Bar */
+/* ----------------------------------------------------------------- */
+
+.na-status-bar {
+    background          : var(--na-status-bg);
+    border-top          : 1px solid var(--na-border);
+    padding             : 6px 16px;
+    font-size           : 12px;
+    color               : var(--na-subtle);
+    min-height          : 28px;
+    display             : flex;
+    align-items         : center;
+    flex-shrink         : 0;
+    transition          : opacity 0.6s;
+}
+
+.na-status-bar--success { background: #e7f7ee; color: #1a5e3a; }
+.na-status-bar--warn    { background: #fff4e5; color: #7a4a00; }
+.na-status-bar--error   { background: #fdecea; color: #8f1d17; }
+.na-status-bar--quiet   { opacity: 0.55; }
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Cards, Rows, Notes, Faults */
+/* ----------------------------------------------------------------- */
+
+.na-card {
+    background          : var(--na-panel);
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    padding             : 12px 14px;
+}
+
+.na-card__header {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    gap                 : 10px;
+    margin-bottom       : 8px;
+}
+
+.na-card__title {
+    margin              : 0;
+    font-size           : 11px;
+    font-weight         : 700;
+    color               : var(--na-subtle);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-card > .na-card__title {
+    margin-bottom       : 8px;
+}
+
+.na-hint {
+    margin              : 8px 0 0;
+    font-size           : 11.5px;
+    color               : var(--na-subtle);
+    line-height         : 1.45;
+}
+
+.na-note {
+    margin              : 8px 0 0;
+    border-left         : 3px solid var(--na-warn);
+    background          : #fff4e5;
+    border-radius       : 4px;
+    padding             : 6px 10px;
+    font-size           : 12px;
+    color               : #6b4100;
+}
+
+.na-note--inline {
+    margin              : 8px 0;
+}
+
+.na-fault {
+    margin              : 0;
+    border-left         : 3px solid var(--na-danger);
+    background          : #fdecea;
+    border-radius       : 4px;
+    padding             : 7px 10px;
+    font-size           : 12px;
+    color               : #8f1d17;
+}
+
+.na-kv {
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 4px;
+    margin-top          : 6px;
+}
+
+.na-kv-row {
+    display             : grid;
+    grid-template-columns : 190px 1fr auto;
+    gap                 : 10px;
+    align-items         : baseline;
+    font-size           : 12px;
+}
+
+.na-kv-key {
+    color               : var(--na-subtle);
+    font-weight         : 600;
+}
+
+.na-kv-value--good  { color: #155e3b; }
+.na-kv-value--bad   { color: var(--na-danger); }
+.na-kv-value--path  { font-family: Consolas, "Cascadia Mono", monospace; font-size: 11.5px; word-break: break-all; }
+
+.na-log {
+    margin              : 6px 0 0;
+    max-height          : 260px;
+    overflow            : auto;
+    background          : #1e2228;
+    color               : #d6dae0;
+    font-family         : Consolas, "Cascadia Mono", monospace;
+    font-size           : 11.5px;
+    border-radius       : 6px;
+    padding             : 8px 10px;
+    white-space         : pre-wrap;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Menu (rows, flags, columns) */
+/* ----------------------------------------------------------------- */
+
+.na-menu {
+    position            : fixed;
+    z-index             : 60;
+    min-width           : 200px;
+    background          : #fff;
+    border              : 1px solid var(--na-border);
+    border-radius       : 6px;
+    box-shadow          : 0 8px 24px rgba(15, 23, 42, 0.18);
+    padding             : 4px 0;
+    font-size           : 12.5px;
+}
+
+.na-menu__item {
+    position            : relative;
+    display             : flex;
+    align-items         : center;
+    gap                 : 8px;
+    padding             : 5px 14px;
+    cursor              : pointer;
+    white-space         : nowrap;
+}
+
+.na-menu__item:hover {
+    background          : var(--na-accent-soft);
+}
+
+.na-menu__item--disabled {
+    color               : var(--na-faint);
+    cursor              : default;
+}
+
+.na-menu__item--disabled:hover {
+    background          : transparent;
+}
+
+.na-menu__item--sub::after {
+    content             : "\25B8";
+    margin-left         : auto;
+    color               : var(--na-faint);
+}
+
+.na-menu__label {
+    flex                : 1;
+}
+
+.na-menu__keys {
+    color               : var(--na-faint);
+    font-size           : 11px;
+}
+
+.na-menu__dot {
+    width               : 9px;
+    height              : 9px;
+    border-radius       : 50%;
+    flex-shrink         : 0;
+}
+
+.na-menu__sep {
+    height              : 1px;
+    background          : var(--na-border-soft);
+    margin              : 4px 0;
+}
+
+.na-menu__heading {
+    padding             : 6px 14px 2px;
+    font-size           : 10.5px;
+    font-weight         : 700;
+    color               : var(--na-faint);
+    text-transform      : uppercase;
+    letter-spacing      : 0.06em;
+}
+
+.na-menu--flyout {
+    display             : none;
+    position            : absolute;
+    left                : 100%;
+    top                 : -5px;
+    max-height          : 70vh;
+    overflow-y          : auto;
+}
+
+.na-menu--flip .na-menu--flyout {
+    left                : auto;
+    right               : 100%;
+}
+
+.na-menu__item--sub:hover > .na-menu--flyout {
+    display             : block;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* ----------------------------------------------------------------- */
+/* REGION | Overlays: Confirm, Prompt, Copy for Agent, Search Help */
+/* ----------------------------------------------------------------- */
+
+.na-loading-overlay {
+    position            : fixed;
+    inset               : 0;
+    z-index             : 50;
+    background          : rgba(15, 23, 42, 0.35);
+    display             : flex;
+    align-items         : center;
+    justify-content     : center;
+}
+
+.na-loading-card {
+    background          : #fff;
+    border-radius       : 10px;
+    box-shadow          : 0 16px 48px rgba(15, 23, 42, 0.28);
+    padding             : 18px 20px;
+    width               : min(520px, calc(100vw - 40px));
+    display             : flex;
+    flex-direction      : column;
+    gap                 : 10px;
+}
+
+.na-loading-title {
+    margin              : 0;
+    font-size           : 15px;
+    font-weight         : 600;
+}
+
+.na-confirm-text {
+    margin              : 0;
+    font-size           : 12.5px;
+    color               : var(--na-subtle);
+    line-height         : 1.5;
+}
+
+.na-prompt-label {
+    font-size           : 12px;
+    font-weight         : 600;
+}
+
+.na-prompt-area {
+    min-height          : 110px;
+}
+
+/* A short note that fades away: "Copied ... for the agent" (0.1.13). */
+.na-toast {
+    position            : fixed;
+    left                : 50%;
+    bottom              : 64px;
+    z-index             : 80;
+    display             : flex;
+    align-items         : center;
+    gap                 : 10px;
+    max-width           : min(560px, calc(100vw - 40px));
+    padding             : 10px 16px 10px 12px;
+    border-radius       : 8px;
+    background          : #172b3a;
+    color               : #ffffff;
+    font-size           : 13px;
+    line-height         : 1.35;
+    box-shadow          : 0 8px 24px rgba(23, 43, 58, 0.28);
+    opacity             : 0;
+    transform           : translate(-50%, 10px);
+    pointer-events      : none;
+    transition          : opacity 0.18s ease, transform 0.18s ease;
+}
+
+.na-toast--shown {
+    opacity             : 1;
+    transform           : translate(-50%, 0);
+}
+
+.na-toast__mark {
+    flex                : none;
+    display             : inline-flex;
+    align-items         : center;
+    justify-content     : center;
+    width               : 20px;
+    height              : 20px;
+    border-radius       : 50%;
+    background          : var(--na-success);
+    font-size           : 12px;
+    font-weight         : 700;
+}
+
+.na-toast--warn .na-toast__mark {
+    background          : var(--na-warn);
+}
+
+.na-popover {
+    position            : fixed;
+    z-index             : 55;
+    top                 : 150px;
+    left                : 50%;
+    transform           : translateX(-50%);
+    width               : min(640px, calc(100vw - 30px));
+    background          : #fff;
+    border              : 1px solid var(--na-border);
+    border-radius       : 8px;
+    box-shadow          : 0 12px 32px rgba(15, 23, 42, 0.2);
+    padding             : 12px 14px;
+}
+
+.na-popover__head {
+    display             : flex;
+    align-items         : center;
+    justify-content     : space-between;
+    margin-bottom       : 6px;
+}
+
+.na-help-table {
+    border-collapse     : collapse;
+    font-size           : 12px;
+    width               : 100%;
+}
+
+.na-help-table td {
+    padding             : 4px 6px;
+    border-bottom       : 1px solid var(--na-border-soft);
+    vertical-align      : top;
+}
+
+.na-help-table td:first-child {
+    white-space         : nowrap;
+    width               : 1%;
+}
+
+/* endregion ----------------------------------------------------------------- */
+
+/* =============================================================================
+   END OF FILE
+   ============================================================================= */

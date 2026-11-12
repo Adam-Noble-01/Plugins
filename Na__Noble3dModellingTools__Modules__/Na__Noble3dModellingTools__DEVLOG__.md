@@ -3,6 +3,90 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.46 - 11-Nov-2026 - Agent Outliner 0.1.14: A Reasoning Effort on Each Message
+
+- Agent Outliner 0.1.14. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **An effort picker beside Send** (Auto, Low, Medium, High, Extra High, Max). The effort travels on the message, in the agents' notice and in the inbox signal.
+- **A dispatcher session applies it.** It sets each waking agent's effort with the Claude app's own tool (`set_session_effort`), because a session can't change its own effort. Send's line says whether a dispatcher is running.
+- **Validation.** 278 of 278 offline checks; 29 of 29 deliberate faults; 13 of 13 checks of the watcher's exchange; the picker in a browser.
+
+## Na Noble3d Modelling Tools | Version 0.9.45 - 11-Nov-2026 - Agent Outliner 0.1.13: Copy for Agent Copies Straight Away
+
+- Agent Outliner 0.1.13. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Copy for Agent no longer opens a panel.** It copies the full text to the clipboard at once and says so in a toast.
+- The panel's markup, styles and code are removed.
+- **Validation.** Real clicks and keys on the dialog page in a browser. Not yet clicked inside SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.44 - 11-Nov-2026 - Agent Outliner 0.1.12: [ and ] Open and Close the Tree a Level at a Time
+
+- Agent Outliner 0.1.12. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **The keys:** ] opens the next level of the tree, and [ closes the deepest open one. Shift does every level, like the Expand and Collapse buttons. In the grouped views they open and close the groups.
+- **Where they work:** anywhere on the Outliner tab except a text field.
+- **Validation.** Real key presses on the dialog page in a browser, fed a three-level model. Not yet pressed inside SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.43 - 11-Nov-2026 - Agent Outliner 0.1.11: Undo and Redo Credited Right; Dead Watches Let Go
+
+- Agent Outliner 0.1.11. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Fixed:** an agent's undo or redo could be recorded as Adam's (for two minutes in the Assembly Studio testbed after a hot reload). The undo's own call stack now decides: it is read at the undo's notice and held for its events, and a held answer expires.
+- **Fixed:** the change tracker kept watching component definitions erased later (an undone build, a rebuild): about 200 in the testbed, each one logging "Releasing an observer" when the model closed. They are now dropped after each full pass and skipped quietly on close.
+- **Validation.** 267 of 267 offline checks, 25 of 25 deliberate faults caught. Proved live in the testbed window with the fault planted on purpose.
+
+## Na Noble3d Modelling Tools | Version 0.9.42 - 11-Nov-2026 - Agent Outliner 0.1.10: Send Says Who Will See It
+
+- Agent Outliner 0.1.10. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Send says who will see it:** the agent working here, the agents whose inbox watcher is running (named), or, in amber, nobody.
+- The footer's "last call" no longer counts the bridge starting or a ping as an agent.
+- **Validation.** 254 of 254 offline checks, 18 of 18 deliberate faults caught. Proved live in a throwaway SketchUp window with a watcher.
+
+## Na Noble3d Modelling Tools | Version 0.9.41 - 11-Nov-2026 - Agent Outliner 0.1.9: Send Reaches the Agents Working Here
+
+- Agent Outliner 0.1.9. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Send reaches the agents.** While anything waits for an agent, every Na SketchUp MCP (1.0.28) result carries a short notice of it, so the agent at work hears Adam on its next SketchUp call. It is cached, so it costs microseconds.
+- Send's status line says so, or names the reload needed. An idle agent can wait on a watcher script (the inbox signal file).
+- **Agents' pictures** sent back to the chat are kept in their own folder, `ChatFromAgents`.
+- **Validation.** 249 of 249 offline checks, 16 of 16 deliberate faults caught. Proved live in a throwaway SketchUp window.
+
+## Na Noble3d Modelling Tools | Version 0.9.40 - 11-Nov-2026 - Agent Outliner 0.1.8: Point at an Object for the Chat
+
+- Agent Outliner 0.1.8. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Pick button** in the Chat composer: press it, click an object in SketchUp, and "NAME (id 12345)" goes in the message at the cursor. A pick tool highlights the deepest named object under the cursor; right-click steps out, Ctrl takes the part under the cursor, Shift+click picks several, Esc cancels.
+- **Id chips:** "(id 12345)" in any message selects the object (double-click zooms).
+- **Validation.** 220 of 220 offline checks, 4 of 4 deliberate faults caught; the composer driven in a browser preview. Not yet run in SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.39 - 11-Nov-2026 - Agent Outliner 0.1.7: Deleted Definitions Skipped by the Observer
+
+- Agent Outliner 0.1.7. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Fixed:** a component definition added and erased in one operation (a rollback trial, a temporary copy) made the Outliner's
+  observer log "onComponentAdded failed again ... reference to deleted ComponentDefinition" every time. It now skips it.
+- **Validation.** 198 of 198 offline checks. Seen working in SketchUp 2027 on 11-Nov-2026: Element Assembly Studio window builds,
+  undo and redo in the testbed window, with no Outliner errors. A window opened before the fix keeps logging the lines until
+  Reload Plugin Data or a restart.
+
+## Na Noble3d Modelling Tools | Version 0.9.38 - 11-Nov-2026 - Agent Outliner 0.1.6: The Chat Tab, With Pictures
+
+- Agent Outliner 0.1.6. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Chat tab:** every conversation with agents on the model as a chat app: the Model Chat and every object thread, the agents who took part (by the name they sign with), bubbles, unread badge, filters and search.
+- **Pictures:** paste (Ctrl+V), drop or choose; kept in `91__UserConfig__LocalOnly/ChatCache` on this PC; agents get each picture's path and can attach their own (Na SketchUp MCP 1.0.26).
+- **Fixed:** new dialog actions answered "Unknown action" after Reload Plugin Data (a guarded route table); now replaced on every load.
+- **Validation.** 197 of 197 offline checks; MCP suites pass; the tab driven in a browser preview with pasted, dropped and large pictures. Not yet seen in SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.37 - 11-Nov-2026 - Agent Outliner 0.1.5: The Tag Picker, Tags for Agents, Name Rename Fixed
+
+- Agent Outliner 0.1.5. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Fixed:** double-clicking a Name opened nothing unless the row was already selected (the selecting click redrew the row, so the browser never fired its double-click). The Outliner now tells a double-click itself.
+- **Tag picker:** type to find a tag (or make one) for every selected row; from the Tag cell, a Tag button, T, the row menu or the inspector. One undo step.
+- **For agents** (Na SketchUp MCP 1.0.25): `agent_outliner tags` and `agent_outliner_edit tag`.
+- **Validation.** 171 of 171 offline checks; MCP suites pass; the dialog driven with real mouse clicks in a browser preview. Not yet seen in SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.36 - 11-Nov-2026 - Agent Outliner 0.1.4: Rename in Place, Instance Name Column, Drawing Plane Names
+
+- Agent Outliner 0.1.4. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **Fixed:** the Front faces picker sat on its own row with clipped text; it is now small and inline.
+- **Rename:** a double-click anywhere in the Name cell renames (before, only on the text, and often it zoomed instead).
+- **New column:** Instance Name beside Definition, edited in place by double-click or a click on the selected row.
+- **New quick names:** REF__DrawingPlane__FrontElevation, __RightElevation, __LeftElevation, __RearElevation, __PlanView.
+- **Validation.** 159 of 159 offline checks; the dialog driven in a browser preview with no console errors. Not yet seen in SketchUp.
+
 ## Na Noble3d Modelling Tools | Version 0.9.35 - 11-Nov-2026 - Image Viewer: Measure Row Grouped; 2D Protractor
 
 - **What Adam asked for.** Two more dividers to group the Measure row (marked on his screenshot: after Dimension, and between Count Points and Angle). Then a 2D protractor tool for angle measurements on drawings.
@@ -130,6 +214,34 @@
 - **Kept.** Ortho and the rounding step are stored in localStorage (`Na__ImageViewer__Measure__Ortho`, `Na__ImageViewer__Measure__RoundingMm`) where the dialog allows it; otherwise for the session.
 - **Files.** `Measurement__.js`, `UiLayout__.html`, `Styles__.css`; new icons `Icon__ImageViewer__Ortho__.svg` and `Icon__ImageViewer__Rounding__.svg`; new suite `tests/measure_options.ui.test.js`.
 - **Validation.** `node tests/measure_options.ui.test.js <playwright> <chrome.exe> [shots]`: 39 of 39 in headless Chromium (D, section visibility, the cycle, whole steps at 50/100/500, one step minimum, F8, the button, Shift both ways, Ortho with Rounding, a rotated photo, no page errors). Existing suites unchanged: toolbar 185, count 121, perspective guides 37, perspective 31, markup 113, all passing. Not yet tried in SketchUp itself: that is with Adam (reopen the Image Viewer).
+
+## Na Noble3d Modelling Tools | Version 0.9.27 - 10-Nov-2026 - Agent Outliner Toolbar Button: a Second Way In
+
+- **What Adam asked for.** "Add A SketchUp UI Icon as a second launch point to open our outliner".
+- **What it is.** A second button on the 3D Modelling Tools toolbar, after the NA company icon, that opens the Agent Outliner. Tooltip "Open Agent Outliner"; status bar "Open the Agent Outliner".
+- **The icon.** New: an outliner tree (a parent row and two child rows on a trunk) with a speech bubble top-right for the two way threads, where Cube carries its plus. Drawn in the Noble Drawing Tools family (stroke 34, round caps, dots r46, ink #172b3a); one SVG serves both icon sizes. `10__PluginModules/36__SourceCode__AgentOutliner/UiIcons__ToolbarIcons__AgentOutliner/Icon__Noble3dToolbar__AgentOutliner__.svg`; spec and QA in the vector skill's `01__ProductionFiles`.
+- **Config-first.** Buttons after the main one now come from a new registry list, `toolbar_items` (`toolbar_item_id`, `command_id`, `toolbar_order`, optional `tooltip`, `icon_file` relative to the Modules folder). Each runs through `RunCommandById`, so its launches are counted under a new source, `toolbar`. A missing icon falls back to the NA company icon, and so does an SVG on a Mac before 2027.
+- **Reloads.** SketchUp cannot take a button off a toolbar at run time, so the toolbar keeps the ids of the buttons on it in module variables that survive a reload. Reload Plugin Data appends new registry items and never adds one twice; a removed item stays until a restart.
+- **The first reload counts.** The reload that brings this code in is still running the old `ReloadPluginData`, so a step added to that method would only run from the second reload. The sync therefore runs at the start of `na_reset_feature_dialogs_after_reload`, which the old method calls by name after the files have loaded: the button appears on the first Reload Plugin Data.
+- **Files.** `ToolbarIconLoader` (rewritten), `ConfigLoader`, `ToolUsageTracker`, `ReloadManager`, `UiCommandRegistry` (the item and a schema note), `CoreAppLoaders__Main` (a comment).
+- **Validation.** 247 of 247 Ruby files compile; lint 0 errors; 30 of 30 offline toolbar checks against SketchUp doubles, and 6 of 6 in a first-reload rehearsal (SketchUp started on the old files, then Reload Plugin Data); 10 of 10 deliberate faults caught. The icon lints clean (coverage 13.0%, smallest gap 34) and renders the same in a browser as in resvg (soft IoU 0.997). SketchUp has not drawn the button yet: that is with Adam (Reload Plugin Data, or a restart).
+
+## Na Noble3d Modelling Tools | Version 0.9.26 - 10-Nov-2026 - Agent Outliner 0.1.1: Every Flag and Every Thread for Agents, and a History That Saves
+
+- Agent Outliner 0.1.1. The full entry and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **For agents** (Na SketchUp MCP 1.0.23): `agent_outliner flags` (every flagged object by type, Do Not Touch and Reference included), `agent_outliner threads` (every thread, and whether it waits on an agent or on Adam) and `agent_outliner_edit strip` (the Strip button).
+- **Fixed, found live:** no change history had ever been saved. Its file paths were 274 to 292 characters long, and SketchUp's Ruby cannot open 260 or more on Windows, so the New / Updated marks were lost at every restart. File names are now short.
+- **Fixed:** a plain Reference, Do Not Touch or Done flag counted as waiting for an agent, against Configure's "waits for an agent" setting.
+- **Validation.** 135 of 135 offline checks, 12 of 12 deliberate faults caught; the MCP actions proved in a throwaway SketchUp 2027 window and undone. The dialog itself has still not been opened in SketchUp: that is with Adam.
+
+## Na Noble3d Modelling Tools | Version 0.9.25 - 10-Nov-2026 - Agent Outliner 0.1.0: an Outliner Built for Working With Claude
+
+- New module `10__PluginModules/36__SourceCode__AgentOutliner` (own namespace `Na__AgentOutliner`, as Component Editor Tools keeps its own). The full entry, research table and checklist are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.
+- **What Adam asked for.** "build a new improved sketchup outline tailored for helping me working with Claude MCP Agents", with Outliner | Configure | Settings tabs, the hot reloader, quick standard names (CAD__FrontElevation ...: names, not tags), flags, a two way comment system, New / Recent / Updated marks with clear colour grading, columns organised by clicking them, and robust MCP handling.
+- **What it is.** A table drawn only where it is on screen, with sortable, resizable, movable columns, a search language, quick filters and grouped views; Quick Name from shared standards; flags and threads on objects and on the model; change tracking that knows an agent's changes (the MCP plugin on the call stack) from Adam's, coloured violet and amber and fading over four bands; Copy for Agent.
+- **For agents.** Na SketchUp MCP 1.0.22 adds `agent_outliner` and `agent_outliner_edit`, a thin seam into `06__McpOperations`.
+- **Registration.** `ModuleLoaders` (require), `CommandRouter` (`open_agent_outliner`), `UiCommandRegistry` (command, Entity Utils button, shortcut), `ReloadManager` (the Agent Outliner reopens after a reload, its observers kept).
+- **Validation.** 247 of 247 Ruby files compile; lint clean; 99 of 99 offline checks with 6 of 6 deliberate faults caught; the dialog driven in a browser against a stub bridge with no console errors. Nothing has been run inside SketchUp yet: that is with Adam.
 
 ## Na Noble3d Modelling Tools | Version 0.9.24 - 05-Nov-2026 - Component Editor Tools: Library Save `rename_in_model` Renames the Placed Copy
 

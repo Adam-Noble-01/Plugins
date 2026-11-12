@@ -150,6 +150,9 @@ module Na__Noble3dModellingTools
             when 'open_component_editor'
                 proc { Na__ComponentEditorTools.Na__ComponentEditorTools__OpenDialog }
 
+            when 'open_agent_outliner'
+                proc { ::Na__AgentOutliner.Na__AgentOutliner__OpenDialog }
+
             when 'untag_specific_in_selection'
                 proc { Na__UntagSpecificInSelection.Na__UntagSpecificInSelection__Run }
 

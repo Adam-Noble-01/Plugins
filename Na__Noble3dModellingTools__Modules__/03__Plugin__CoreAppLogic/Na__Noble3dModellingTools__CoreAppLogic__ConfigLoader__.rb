@@ -422,6 +422,10 @@ module Na__Noble3dModellingTools
             self.Na__Noble3dModellingTools__ConfigHash.fetch('buttons', [])
         end
 
+        def self.Na__Noble3dModellingTools__ToolbarItems
+            self.Na__Noble3dModellingTools__ConfigHash.fetch('toolbar_items', [])
+        end
+
         def self.Na__Noble3dModellingTools__Settings
             self.Na__Noble3dModellingTools__ConfigHash.fetch('settings', {})
         end
@@ -457,6 +461,7 @@ module Na__Noble3dModellingTools
             normalized_hash['tabs'] = na_normalized_tabs(config_hash['tabs'])
             normalized_hash['commands'] = na_normalized_commands(config_hash['commands'])
             normalized_hash['buttons'] = na_normalized_buttons(config_hash['buttons'])
+            normalized_hash['toolbar_items'] = na_normalized_toolbar_items(config_hash['toolbar_items'])
             normalized_hash['settings'] = config_hash['settings'].is_a?(Hash) ? config_hash['settings'] : {}
             normalized_hash['hotkey_bindings'] = na_array_of_hashes(config_hash['hotkey_bindings'])
             normalized_hash
@@ -565,6 +570,23 @@ module Na__Noble3dModellingTools
             end
 
             buttons
+        end
+
+        # Buttons after the main one on the 3D Modelling Tools toolbar. icon_file is
+        # relative to the Modules folder; tooltip is optional (menu_text otherwise).
+        def self.na_normalized_toolbar_items(raw_items)
+            items = na_array_of_hashes(raw_items).each_with_index.map do |item, index|
+                {
+                    'toolbar_item_id' => item.fetch('toolbar_item_id', '').to_s,
+                    'command_id' => item.fetch('command_id', '').to_s,
+                    'toolbar_order' => item.fetch('toolbar_order', (index + 1) * 10).to_i,
+                    'tooltip' => item.fetch('tooltip', '').to_s,
+                    'icon_file' => item.fetch('icon_file', '').to_s
+                }
+            end
+
+            items.reject! { |item| item['toolbar_item_id'].empty? || item['command_id'].empty? }
+            items.sort_by { |item| [item['toolbar_order'], item['toolbar_item_id']] }
         end
 
         def self.na_array_of_hashes(value)

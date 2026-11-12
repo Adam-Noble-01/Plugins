@@ -1,0 +1,466 @@
+# =============================================================================
+# NA AGENT OUTLINER - TESTS - SKETCHUP DOUBLES
+# =============================================================================
+#
+# FILE       : Na__AgentOutliner__Tests__Doubles__.rb.test
+# PURPOSE    : Just enough of the SketchUp API, behaving as the outliner relies
+#              on: observers fire synchronously inside operations, abort
+#              restores attributes and names, persistent ids are stable,
+#              layer 0 is "Layer0" shown as Untagged.
+# CREATED    : 10-Nov-2026
+#
+# NOTES:
+# - .rb.test, never .rb: the Noble 3D Tools reloader loads every .rb under the
+#   modules root into the live SketchUp, and these doubles redefine
+#   Sketchup::Model.
+# - Run through Na__AgentOutliner__Tests__RunChecks__.py.
+#
+# =============================================================================
+
+
+$NA_PASS = 0
+$NA_FAIL = 0
+$NA_FAILS = []
+
+def check(label, condition)
+    if condition
+        $NA_PASS += 1
+    else
+        $NA_FAIL += 1
+        $NA_FAILS << label
+        puts "FAIL: #{label}"
+    end
+end
+
+def report_and_exit
+    puts "#{$NA_PASS} passed, #{$NA_FAIL} failed"
+    $NA_FAILS.each { |label| puts "  - #{label}" }
+end
+
+module Geom
+    class Point3d
+        attr_reader :x, :y, :z
+        def initialize(x = 0, y = 0, z = 0); @x = x.to_f; @y = y.to_f; @z = z.to_f; end
+        def to_a; [@x, @y, @z]; end
+    end
+
+    class Transformation
+        def initialize(array = nil); @a = array ? array.map(&:to_f) : [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1].map(&:to_f); end
+        def to_a; @a.dup; end
+        def self.translation(v); new([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, v[0], v[1], v[2], 1]); end
+        def self.scaling(sx, sy = nil, sz = nil); sy ||= sx; sz ||= sx; new([sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, sz, 0, 0, 0, 0, 1]); end
+        def self.rotation_z(angle); c = Math.cos(angle); s = Math.sin(angle); new([c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); end
+    end
+
+    class BoundingBox
+        def initialize(min = nil, max = nil); @min = min; @max = max; end
+        def empty?; @min.nil?; end
+        def min; Point3d.new(*@min); end
+        def max; Point3d.new(*@max); end
+        def width;  empty? ? 0 : @max[0] - @min[0]; end
+        def height; empty? ? 0 : @max[1] - @min[1]; end
+        def depth;  empty? ? 0 : @max[2] - @min[2]; end
+    end
+end
+
+module UI
+    $NA_TIMERS = []
+    $NA_TIMER_ID = 0
+    def self.start_timer(_delay, _repeat = false, &block)
+        $NA_TIMER_ID += 1
+        $NA_TIMERS << [$NA_TIMER_ID, block]
+        $NA_TIMER_ID
+    end
+    def self.stop_timer(id); $NA_TIMERS.reject! { |item| item[0] == id }; end
+    def self.run_timers!(rounds = 20)
+        rounds.times do
+            break if $NA_TIMERS.empty?
+            batch = $NA_TIMERS.dup
+            $NA_TIMERS.clear
+            batch.each { |_id, block| block.call }
+        end
+    end
+    def self.openURL(_url); true; end
+    class HtmlDialog
+        STYLE_DIALOG = 1
+    end
+end
+
+module Sketchup
+    $NA_PID = 5000
+    $NA_EID = 1
+
+    def self.version; '27.0.267'; end
+    def self.active_model; $NA_MODEL; end
+    def self.add_observer(_observer); true; end
+
+    class AppObserver; end
+    class ModelObserver; end
+    class EntitiesObserver; end
+    class DefinitionsObserver; end
+    class SelectionObserver; end
+    class LayersObserver; end
+
+    class Color
+        attr_reader :red, :green, :blue
+        def initialize(r, g, b); @red = r; @green = g; @blue = b; end
+    end
+
+    class AttributeDictionary
+        def initialize(hash); @h = hash; end
+        def [](key); @h[key.to_s]; end
+        def []=(key, value); @h[key.to_s] = value; end
+        def keys; @h.keys; end
+        def length; @h.length; end
+        def each_pair(&block); @h.each_pair(&block); end
+    end
+
+    class AttributeDictionaries
+        def initialize(owner); @owner = owner; end
+        def delete(name); @owner.na_touch; @owner.na_dicts.delete(name.to_s); end
+        def each; @owner.na_dicts.each_key { |name| yield AttributeDictionary.new(@owner.na_dicts[name]) }; end
+    end
+
+    class Entity
+        attr_reader :na_dicts
+        def initialize
+            @na_dicts = {}
+            @valid = true
+            @eid = ($NA_EID += 1)
+            @pid = ($NA_PID += 1)
+        end
+        def persistent_id; @pid; end
+        def entityID; @eid; end
+        def valid?; @valid; end
+        def deleted?; !@valid; end
+        def na_kill!; @valid = false; end
+        def na_revive!; @valid = true; end
+        def model; $NA_MODEL; end
+        def typename; self.class.name.split('::').last; end
+        def na_touch; $NA_MODEL.na_journal(self) if $NA_MODEL; end
+        def attribute_dictionary(name, create = false)
+            hash = @na_dicts[name.to_s]
+            if hash.nil? && create
+                na_touch
+                hash = @na_dicts[name.to_s] = {}
+            end
+            hash ? AttributeDictionary.new(hash) : nil
+        end
+        def attribute_dictionaries; @na_dicts.empty? ? nil : AttributeDictionaries.new(self); end
+        def set_attribute(dict, key, value)
+            raise ArgumentError, 'nil value' if value.nil?
+            na_touch
+            (@na_dicts[dict.to_s] ||= {})[key.to_s] = value
+            $NA_MODEL.na_modified!(self) if $NA_MODEL && respond_to?(:parent)
+            value
+        end
+        def get_attribute(dict, key, default = nil)
+            hash = @na_dicts[dict.to_s]
+            hash && hash.key?(key.to_s) ? hash[key.to_s] : default
+        end
+        def delete_attribute(dict, key = nil)
+            na_touch
+            return @na_dicts.delete(dict.to_s) && true if key.nil?
+            hash = @na_dicts[dict.to_s]
+            hash ? !hash.delete(key.to_s).nil? : false
+        end
+        def na_state; [Marshal.load(Marshal.dump(@na_dicts)), @valid]; end
+        def na_restore(state); @na_dicts, @valid = state; end
+    end
+
+    class Drawingelement < Entity
+        attr_accessor :material
+        attr_reader :layer
+        def initialize; super; @layer = $NA_MODEL.layers[0]; @hidden = false; end
+        def layer=(value); na_touch; @layer = value; $NA_MODEL.na_modified!(self); end
+        def hidden?; @hidden; end
+        def hidden=(value); na_touch; @hidden = value ? true : false; $NA_MODEL.na_modified!(self); end
+        def visible?; !@hidden; end
+        def na_state; super + [@layer, @hidden, @material]; end
+        def na_restore(state); super(state[0, 2]); @layer, @hidden, @material = state[2, 3]; end
+    end
+
+    class Layer < Entity
+        attr_reader :name
+        def initialize(name, visible = true); super(); @name = name; @visible = visible; end
+        def display_name; @name == 'Layer0' ? 'Untagged' : @name; end
+        def visible?; @visible; end
+        def visible=(value); @visible = value; end
+        attr_accessor :folder
+        def color; Color.new(200, 210, 220); end
+    end
+
+    # A tag folder (2021+): a name, shown or hidden, and the folder it sits in
+    class LayerFolder < Entity
+        attr_accessor :name, :folder
+        def initialize(name, parent = nil, visible = true); super(); @name = name; @folder = parent; @visible = visible; end
+        def visible?; @visible; end
+        def visible=(value); @visible = value; end
+    end
+
+    class Material < Entity
+        attr_reader :name
+        def initialize(name); super(); @name = name; end
+        def display_name; @name; end
+    end
+
+    class Layers
+        include Enumerable
+        def initialize; @list = [Layer.new('Layer0')]; end
+        def [](key); key.is_a?(Integer) ? @list[key] : @list.find { |layer| layer.name == key }; end
+        def add(name); self[name] || (@list << Layer.new(name)).last; end
+        def each(&block); @list.each(&block); end
+        def add_observer(_o); true; end
+        def remove_observer(_o); true; end
+        def model; $NA_MODEL; end
+    end
+
+    class Entities
+        include Enumerable
+        attr_reader :observers
+        def initialize(parent); @parent = parent; @items = []; @observers = []; @na_dead = false; end
+        # An erased definition's Entities raise on every call, as SketchUp's do (0.1.11)
+        def na_dead!; @na_dead = true; end
+        def na_check!; raise TypeError, 'reference to deleted Entities' if @na_dead; end
+        def parent; na_check!; @parent; end
+        def each(&block); @items.select(&:valid?).each(&block); end
+        def length; @items.count(&:valid?); end
+        def model; $NA_MODEL; end
+        def add_observer(observer); na_check!; @observers << observer unless @observers.include?(observer); true; end
+        def remove_observer(observer); na_check!; @observers.delete(observer); true; end
+        def na_items; @items; end
+        def na_add(entity)
+            @items << entity
+            entity.na_parent = self
+            @observers.each { |o| o.onElementAdded(self, entity) if o.respond_to?(:onElementAdded) }
+            entity
+        end
+        def na_remove(entity)
+            id = entity.entityID
+            entity.na_kill!
+            @observers.each { |o| o.onElementRemoved(self, id) if o.respond_to?(:onElementRemoved) }
+        end
+        def na_notify_modified(entity)
+            @observers.each { |o| o.onElementModified(self, entity) if o.respond_to?(:onElementModified) }
+        end
+    end
+
+    class ComponentDefinition < Drawingelement
+        attr_reader :entities, :na_instances
+        attr_accessor :name, :description, :na_bounds
+        def initialize(name, group = false)
+            super()
+            @name = name
+            @group = group
+            @entities = Entities.new(self)
+            @na_instances = []
+            @description = ''
+            @na_bounds = [[0, 0, 0], [1000 / 25.4, 300 / 25.4, 2500 / 25.4]]
+        end
+        def group?; @group; end
+        def image?; false; end
+        def instances; @na_instances.select(&:valid?); end
+        def count_instances; instances.length; end
+        def bounds; Geom::BoundingBox.new(*@na_bounds); end
+        def parent; $NA_MODEL; end
+    end
+
+    module NaInstanceBits
+        attr_accessor :na_parent
+        attr_reader :definition
+        def name; @name; end
+        def name=(value); na_touch; @name = value.to_s; $NA_MODEL.na_modified!(self); end
+        def transformation; @transformation; end
+        def transformation=(value); na_touch; @transformation = value; $NA_MODEL.na_modified!(self); end
+        def locked?; @locked; end
+        def locked=(value); na_touch; @locked = value ? true : false; $NA_MODEL.na_modified!(self); end
+        def parent; @na_parent ? @na_parent.parent : nil; end
+        def entities; @definition.entities; end
+        def bounds; @definition.bounds; end
+        def na_state; super + [@name, @locked, @transformation]; end
+        def na_restore(state); super(state[0, 5]); @name, @locked, @transformation = state[5, 3]; end
+    end
+
+    class Group < Drawingelement
+        include NaInstanceBits
+        def initialize(definition); super(); @definition = definition; @name = ''; @locked = false; @transformation = Geom::Transformation.new; definition.na_instances << self; end
+    end
+
+    class ComponentInstance < Drawingelement
+        include NaInstanceBits
+        def initialize(definition); super(); @definition = definition; @name = ''; @locked = false; @transformation = Geom::Transformation.new; definition.na_instances << self; end
+    end
+
+    class Image < Drawingelement
+        attr_accessor :na_parent
+        def initialize(path); super(); @path = path; end
+        def path; @path; end
+        def width; 1000 / 25.4; end
+        def height; 500 / 25.4; end
+        def transformation; Geom::Transformation.new; end
+        def parent; @na_parent ? @na_parent.parent : nil; end
+    end
+
+    class SectionPlane < Drawingelement
+        attr_accessor :na_parent
+        def initialize(name); super(); @name = name; end
+        def name; @name; end
+        def name=(value); na_touch; @name = value; end
+        def symbol; 'A'; end
+        def active?; false; end
+        def parent; @na_parent ? @na_parent.parent : nil; end
+    end
+
+    class Edge < Drawingelement
+        attr_accessor :na_parent
+    end
+
+    class Selection
+        include Enumerable
+        def initialize; @list = []; end
+        def add(*items); items.flatten.each { |e| @list << e unless @list.include?(e) }; length; end
+        def clear; @list.clear; end
+        def length; @list.length; end
+        def each(&block); @list.each(&block); end
+        def model; $NA_MODEL; end
+        def add_observer(_o); true; end
+        def remove_observer(_o); true; end
+    end
+
+    class DefinitionList
+        include Enumerable
+        def initialize; @list = []; @observers = []; end
+        def each(&block); @list.each(&block); end
+        def na_add(definition)
+            @list << definition
+            @observers.each { |o| o.onComponentAdded(self, definition) if o.respond_to?(:onComponentAdded) }
+            definition
+        end
+        def add_observer(o); @observers << o; true; end
+        def model; $NA_MODEL; end
+        # Erased as SketchUp does: gone from the list, invalid, its Entities dead (0.1.11)
+        def na_erase(definition); @list.delete(definition); definition.na_kill!; definition.entities.na_dead!; definition; end
+    end
+
+    class View
+        attr_reader :zoomed
+        def zoom(targets); @zoomed = targets; self; end
+    end
+
+    class Model
+        attr_reader :definitions, :entities, :layers, :selection, :active_view, :op_log, :observers
+        attr_accessor :path, :title
+        def initialize
+            $NA_MODEL = self
+            @layers = Layers.new
+            @definitions = DefinitionList.new
+            @entities = Entities.new(self)
+            @selection = Selection.new
+            @active_view = View.new
+            @observers = []
+            @op_open = nil
+            @op_log = []
+            @path = ''
+            @title = 'Untitled'
+            @active_path = nil
+            @dicts_model = {}
+            @modified = false
+        end
+        def valid?; true; end
+        def guid; 'GUID-1'; end
+        def modified?; @modified; end
+        def add_observer(o); @observers << o; true; end
+        def remove_observer(o); @observers.delete(o); true; end
+        def active_path; @active_path; end
+        def active_path=(path)
+            raise ArgumentError, 'locked' if Array(path).any? { |e| e.respond_to?(:locked?) && e.locked? }
+            @active_path = path.nil? || path.empty? ? nil : path
+        end
+        def find_entity_by_persistent_id(pid)
+            all = [@entities] + @definitions.map(&:entities)
+            all.each { |ents| ents.na_items.each { |e| return e if e.valid? && e.persistent_id == pid } }
+            nil
+        end
+        # Model-level attributes (the model thread)
+        def attribute_dictionary(name, create = false)
+            hash = @dicts_model[name.to_s]
+            if hash.nil? && create
+                na_journal(self)
+                hash = @dicts_model[name.to_s] = {}
+            end
+            hash ? AttributeDictionary.new(hash) : nil
+        end
+        def attribute_dictionaries; @dicts_model.empty? ? nil : AttributeDictionaries.new(self); end
+        def na_dicts; @dicts_model; end
+        def na_touch; na_journal(self); end
+        def set_attribute(dict, key, value); raise ArgumentError, 'nil' if value.nil?; na_journal(self); (@dicts_model[dict.to_s] ||= {})[key.to_s] = value; end
+        def get_attribute(dict, key, default = nil); h = @dicts_model[dict.to_s]; h && h.key?(key.to_s) ? h[key.to_s] : default; end
+        def delete_attribute(dict, key = nil); na_journal(self); return !!@dicts_model.delete(dict.to_s) if key.nil?; h = @dicts_model[dict.to_s]; h ? !h.delete(key.to_s).nil? : false; end
+        def na_state; [Marshal.load(Marshal.dump(@dicts_model))]; end
+        def na_restore(state); @dicts_model = state[0]; end
+
+        # Operations: start fires onTransactionStart; commit fires commit;
+        # abort restores every object touched inside.
+        def start_operation(name, _disable_ui = false, _next = false, _transparent = false)
+            commit_operation if @op_open
+            @op_open = { name: name, snapshots: {} }
+            @observers.each { |o| o.onTransactionStart(self) if o.respond_to?(:onTransactionStart) }
+            true
+        end
+        def commit_operation
+            return false unless @op_open
+            @op_log << @op_open[:name]
+            @op_open = nil
+            @modified = true
+            @observers.each { |o| o.onTransactionCommit(self) if o.respond_to?(:onTransactionCommit) }
+            true
+        end
+        def abort_operation
+            return false unless @op_open
+            @op_open[:snapshots].each_value { |(object, state)| object.na_restore(state) }
+            @op_open = nil
+            @observers.each { |o| o.onTransactionAbort(self) if o.respond_to?(:onTransactionAbort) }
+            true
+        end
+        def na_journal(object)
+            return unless @op_open
+            @op_open[:snapshots][object.object_id] ||= [object, object.na_state]
+        end
+        def na_op_open?; !@op_open.nil?; end
+        def na_modified!(entity)
+            ents = entity.respond_to?(:na_parent) ? entity.na_parent : nil
+            ents.na_notify_modified(entity) if ents
+        end
+        def na_fire_undo; @observers.each { |o| o.onTransactionUndo(self) if o.respond_to?(:onTransactionUndo) }; end
+        def na_fire_redo; @observers.each { |o| o.onTransactionRedo(self) if o.respond_to?(:onTransactionRedo) }; end
+    end
+end
+
+# ---------------------------------------------------------------------------
+# Builders the suites use (each as one operation, like a tool would)
+# ---------------------------------------------------------------------------
+
+def na_group(parent_entities, name, layer: nil, bounds: nil)
+    definition = $NA_MODEL.definitions.na_add(Sketchup::ComponentDefinition.new("Group##{$NA_PID}", true))
+    definition.na_bounds = bounds if bounds
+    group = Sketchup::Group.new(definition)
+    group.instance_variable_set(:@name, name)
+    group.instance_variable_set(:@layer, layer) if layer
+    parent_entities.na_add(group)
+end
+
+def na_component(parent_entities, definition, name = '')
+    instance = Sketchup::ComponentInstance.new(definition)
+    instance.instance_variable_set(:@name, name)
+    parent_entities.na_add(instance)
+end
+
+def na_edge(parent_entities)
+    edge = Sketchup::Edge.new
+    edge.na_parent = parent_entities
+    parent_entities.na_add(edge)
+end
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

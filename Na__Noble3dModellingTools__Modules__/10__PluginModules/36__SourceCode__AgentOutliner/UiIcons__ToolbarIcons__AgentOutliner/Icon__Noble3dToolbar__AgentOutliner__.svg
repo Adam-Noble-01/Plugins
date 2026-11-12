@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" stroke="#172b3a" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+  <title>Agent Outliner</title>
+  <circle cx="140" cy="290" r="46" fill="#172b3a" stroke="none"/>
+  <line x1="252" y1="290" x2="520" y2="290" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M140 290V774A56 56 0 0 0 196 830H330" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="140" y1="560" x2="330" y2="560" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="330" cy="560" r="46" fill="#172b3a" stroke="none"/>
+  <line x1="442" y1="560" x2="930" y2="560" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="330" cy="830" r="46" fill="#172b3a" stroke="none"/>
+  <line x1="442" y1="830" x2="930" y2="830" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M664 136H870A60 60 0 0 1 930 196V344A60 60 0 0 1 870 404H764.8A10 10 0 0 0 759.6 405.4L677.6 454.9A8 8 0 0 1 666.9 443.6L683.3 419.7A10 10 0 0 0 675 404H664A60 60 0 0 1 604 344V196A60 60 0 0 1 664 136Z" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="681" cy="270" r="26" fill="#172b3a" stroke="none"/>
+  <circle cx="767" cy="270" r="26" fill="#172b3a" stroke="none"/>
+  <circle cx="853" cy="270" r="26" fill="#172b3a" stroke="none"/>
+</svg>

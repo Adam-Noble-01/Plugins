@@ -1,0 +1,196 @@
+// =============================================================================
+// NA AGENT OUTLINER - TESTS - PAGE STORE (TREE BY TAG)
+// =============================================================================
+//
+// FILE       : Na__AgentOutliner__Tests__Store__.js.test
+// PURPOSE    : The page's data store (OutlinerModel.js) on node, with no
+//              browser and no SketchUp: Tree by Tag's blocks, levels, keys,
+//              gaps and following, and that the plain tree is unchanged.
+// CREATED    : 12-Nov-2026 (0.1.16)
+//
+// RUN        : node Na__AgentOutliner__Tests__Store__.js.test [module root]
+//              (Na__AgentOutliner__Tests__RunChecks__.py runs it after the
+//              Ruby suite, on the module or on each mutated copy)
+//
+// THE MODEL  :
+//   Alpha_Root (untagged group)
+//     Bravo_Walls (A__Walls)            <- a tagged group inside an untagged one
+//       Charlie_Part (untagged)         <- goes with Bravo (A__Walls)
+//       Delta_Roof (B__Roof)            <- another tag inside: listed twice
+//     Echo_Loose (untagged)
+//   Foxtrot_Walls (A__Walls)
+//     Golf_Walls (A__Walls)             <- same tag inside: listed once, inside Foxtrot
+//     Hotel_Part (untagged)
+//   India_Sheet (06__Drawings, component)
+//   Juliet_Loose (untagged)
+//   Kilo_Hidden (02__Hidden, a hidden tag)
+//   Tags: A__Walls in folder 01__Existing; B__Roof in 01__Existing / Sub.
+//
+// =============================================================================
+
+'use strict';
+
+var path = require('path');
+var root = process.argv[2] || path.join(__dirname, '..');
+global.window = global;
+require(path.join(root, '05__UserInterface', 'Na__AgentOutliner__UiSystem__OutlinerModel__.js'));
+var Store = window.Na__AgentOutliner__Store;
+
+var passed = 0, failed = 0;
+function check(label, condition) {
+    if (condition) { passed += 1; return; }
+    failed += 1;
+    console.log('FAIL: store: ' + label);
+}
+
+// ---------------------------------------------------------------------------
+// The model
+// ---------------------------------------------------------------------------
+var ents = {}, defs = {};
+function ent(pid, name, kind, tag, children) {
+    var d = children ? 'D' + pid : null;
+    if (d) defs[d] = { n: name, ch: children, c: 1 };
+    ents[pid] = { p: pid, k: kind, n: name, dn: name, d: d, t: tag, h: false, l: false, sz: [100, 100, 100], pre: null };
+}
+var A = 1, B = 2, C = 3, D = 4, E = 5, F = 6, G = 7, H = 8, I = 9, J = 10, K = 11;
+ent(A, 'Alpha_Root',    'g', '',            [B, E]);
+ent(B, 'Bravo_Walls',   'g', 'A__Walls',    [C, D]);
+ent(C, 'Charlie_Part',  'g', '',            null);
+ent(D, 'Delta_Roof',    'g', 'B__Roof',     null);
+ent(E, 'Echo_Loose',    'g', '',            null);
+ent(F, 'Foxtrot_Walls', 'g', 'A__Walls',    [G, H]);
+ent(G, 'Golf_Walls',    'g', 'A__Walls',    null);
+ent(H, 'Hotel_Part',    'g', '',            null);
+ent(I, 'India_Sheet',   'c', '06__Drawings', null);
+ent(J, 'Juliet_Loose',  'g', '',            null);
+ent(K, 'Kilo_Hidden',   'g', '02__Hidden',  null);
+var tags = {
+    'A__Walls':     { v: true,  c: '#cc3333', f: ['01__Existing'], fs: [true] },
+    'B__Roof':      { v: true,  c: '#33aa55', f: ['01__Existing', 'Sub'], fs: [true, true] },
+    '06__Drawings': { v: true,  c: '#3355cc' },
+    '02__Hidden':   { v: false, c: '#999999' }
+};
+Store.na_load_snapshot({ model: { title: 'T', key: 'k' }, ents: ents, defs: defs, roots: [A, F, I, J, K], tags: tags, status: {}, events: [], seq: 1 });
+Store.na_set_tags(tags);
+
+function build() { return Store.na_build_rows(); }
+function find(rows, test) { for (var i = 0; i < rows.length; i++) if (test(rows[i])) return rows[i]; return null; }
+function headers(rows) { return rows.filter(function (r) { return r.header; }).map(function (r) { return (r.kind === 'folder' ? 'F:' : '') + r.label; }); }
+function names(rows) { return rows.filter(function (r) { return !r.header; }).map(function (r) { return ents[r.pid].n; }); }
+function inBlock(rows, tag) {
+    var start = rows.indexOf(find(rows, function (r) { return r.header && r.kind === 'tag' && r.tag === tag; }));
+    var list = [];
+    for (var i = start + 1; i < rows.length && !rows[i].header; i++) list.push(rows[i]);
+    return list;
+}
+
+// ---------------------------------------------------------------------------
+// The levels and the blocks
+// ---------------------------------------------------------------------------
+Store.na_set_view('tagtree');
+var rows = build();
+check('levels: Untagged first, then folders and tags by name, a folder inside a folder',
+      JSON.stringify(headers(rows)) === JSON.stringify(['Untagged', 'F:01__Existing', 'A__Walls', 'F:Sub', 'B__Roof', '02__Hidden', '06__Drawings']));
+check('untagged: only the top-level untagged objects head its block',
+      JSON.stringify(names(inBlock(rows, ''))) === JSON.stringify(['Alpha_Root', 'Juliet_Loose']));
+check('a tagged group inside an untagged one heads its own tag\'s block; a part on the same tag stays inside its group',
+      JSON.stringify(names(inBlock(rows, 'A__Walls'))) === JSON.stringify(['Bravo_Walls', 'Foxtrot_Walls']));
+check('a part on another tag deep inside heads that tag\'s block, at its real place in the model',
+      JSON.stringify(inBlock(rows, 'B__Roof').map(function (r) { return r.path; })) === JSON.stringify([[A, B, D]]));
+var wallsHead = find(rows, function (r) { return r.header && r.tag === 'A__Walls'; });
+var untaggedHead = find(rows, function (r) { return r.header && r.kind === 'tag' && r.tag === ''; });
+check('counts: a tag heading counts every object on the tag (3 on A__Walls, 5 untagged)', wallsHead.count === 3 && untaggedHead.count === 5);
+check('colours: a block takes its tag\'s colour; Untagged a neutral grey', wallsHead.colour === '#cc3333' && untaggedHead.colour === '#94a3b8');
+check('hidden: a hidden tag\'s heading says so', find(rows, function (r) { return r.header && r.tag === '02__Hidden'; }).hidden === true && wallsHead.hidden === false);
+
+var roofHead = find(rows, function (r) { return r.header && r.tag === 'B__Roof'; });
+var roofRow = inBlock(rows, 'B__Roof')[0];
+check('indents: folder 0, tag in it 1, tag in a folder in it 2, its objects one more', roofHead.depth === 2 && roofRow.depth === 3 && wallsHead.depth === 1 &&
+      find(rows, function (r) { return r.kind === 'folder' && r.label === 'Sub'; }).depth === 1);
+check('bands: an object row carries a band for each folder and its tag', JSON.stringify(roofRow.bands.map(function (b) { return b.kind + b.d; })) === JSON.stringify(['folder0', 'folder1', 'tag2']));
+check('gaps: 4 at the top, 10 before a top-level heading, 3 just under its folder, 6 between blocks in a folder',
+      rows[0].gap === 4 && find(rows, function (r) { return r.label === '01__Existing'; }).gap === 10 && wallsHead.gap === 3 &&
+      find(rows, function (r) { return r.label === 'Sub'; }).gap === 6 && find(rows, function (r) { return r.header && r.tag === '06__Drawings'; }).gap === 10);
+check('cards: each block\'s heading starts it and its last row ends it',
+      wallsHead.blockStart === true && inBlock(rows, 'A__Walls').slice(-1)[0].blockEnd === true && !inBlock(rows, 'A__Walls')[0].blockEnd);
+check('parents: a block\'s top rows step back to their heading, a tag in a folder to the folder',
+      inBlock(rows, 'A__Walls')[0].parentKey === wallsHead.key && wallsHead.parentKey === Store.na_tt_folder_key(['01__Existing']));
+
+// ---------------------------------------------------------------------------
+// Opening rows: each block on its own keys
+// ---------------------------------------------------------------------------
+var alpha = inBlock(rows, '')[0];
+Store.na_toggle_open(alpha, true);
+rows = build();
+var keys = {};
+var duplicate = rows.some(function (r) { if (keys[r.key]) return true; keys[r.key] = true; return false; });
+check('keys: no two rows share a key, though Bravo is listed in two blocks', !duplicate &&
+      rows.filter(function (r) { return r.pid === B; }).length === 2);
+var bravoInUntagged = find(rows, function (r) { return r.pid === B && r.tt.tag === ''; });
+var bravoInWalls = find(rows, function (r) { return r.pid === B && r.tt.tag === 'A__Walls'; });
+check('opening: Alpha opens in Untagged, its contents one level in, and Bravo in A__Walls stays shut',
+      bravoInUntagged.level === 1 && bravoInUntagged.parentKey === alpha.key && bravoInWalls.open === false && bravoInUntagged.open === false);
+
+Store.na_toggle_open(wallsHead, false);
+rows = build();
+var closedHead = find(rows, function (r) { return r.header && r.tag === 'A__Walls'; });
+check('closing a heading hides its rows and makes it the whole card', closedHead.open === false && closedHead.blockEnd === true && inBlock(rows, 'A__Walls').length === 0);
+Store.na_toggle_open(closedHead, true);
+
+// ---------------------------------------------------------------------------
+// Searching: blocks that list nothing go
+// ---------------------------------------------------------------------------
+Store.na_set_search('Delta');
+rows = build();
+check('search: only blocks holding a match stay, with their folders', JSON.stringify(headers(rows)) === JSON.stringify(['Untagged', 'F:01__Existing', 'A__Walls', 'F:Sub', 'B__Roof']));
+check('search: a match listed in three blocks counts once', Store.na_state().matchCount === 1 && rows.filter(function (r) { return r.pid === D; }).length === 3);
+Store.na_set_search('');
+
+// ---------------------------------------------------------------------------
+// Following SketchUp's selection
+// ---------------------------------------------------------------------------
+var home = Store.na_tt_home([A, B, C]);
+check('home: an untagged part of a tagged group is followed to that group\'s block',
+      home.tag === 'A__Walls' && home.key === Store.na_tt_prefix('A__Walls') + [A, B, C].join('/') && JSON.stringify(home.open) === JSON.stringify([Store.na_tt_prefix('A__Walls') + A + '/' + B]));
+check('home: a part on the same tag goes under the topmost object on that tag', Store.na_tt_home([F, G]).key === Store.na_tt_prefix('A__Walls') + F + '/' + G);
+check('home: untagged all the way up stays in Untagged', Store.na_tt_home([A, E]).key === Store.na_tt_prefix('') + A + '/' + E);
+
+Store.na_collapse_all();
+Store.na_toggle_open({ header: true, key: Store.na_tt_folder_key(['01__Existing']) }, false);
+var revealed = Store.na_reveal_tag_tree([[A, B, C]]);
+rows = build();
+check('reveal: the folder, the tag and the rows on the way open, and the row is listed', revealed.length === 1 && rows.some(function (r) { return r.key === revealed[0]; }));
+
+// ---------------------------------------------------------------------------
+// Expand All and the level keys
+// ---------------------------------------------------------------------------
+Store.na_collapse_all();
+Store.na_expand_below(null, 5000);
+rows = build();
+check('expand all: every block opens to the bottom (Golf inside Foxtrot, Charlie inside Bravo in A__Walls)',
+      rows.some(function (r) { return r.pid === G && r.tt.tag === 'A__Walls'; }) && rows.some(function (r) { return r.pid === C && r.tt.tag === 'A__Walls'; }));
+Store.na_collapse_all();
+rows = build();
+var step = Store.na_step_level(rows, true);
+check('] opens the top rows of every block, by their level in the block', step && step.level === 0 && step.groups === false);
+Store.na_collapse_all();
+step = Store.na_step_level(build(), false);
+rows = build();
+check('[ with every row shut closes the deepest headings first (B__Roof, two folders in), then ] opens them again',
+      step && step.groups === true && step.count === 1 && find(rows, function (r) { return r.header && r.tag === 'B__Roof'; }).open === false &&
+      find(rows, function (r) { return r.header && r.tag === 'A__Walls'; }).open === true &&
+      Store.na_step_level(rows, true).count === 1 && find(build(), function (r) { return r.header && r.tag === 'B__Roof'; }).open === true);
+
+// ---------------------------------------------------------------------------
+// The plain tree is as it was
+// ---------------------------------------------------------------------------
+Store.na_set_view('tree');
+Store.na_collapse_all();
+Store.na_toggle_open({ key: String(A), path: [A], pid: A, hasKids: true, open: false }, true);
+rows = build();
+check('tree: unchanged (keys are paths, roots then Alpha\'s contents one level in, no blocks)',
+      JSON.stringify(rows.map(function (r) { return r.key; })) === JSON.stringify([String(A), A + '/' + B, A + '/' + E, String(F), String(I), String(J), String(K)]) &&
+      rows[1].depth === 1 && !rows.some(function (r) { return r.header || r.tt || r.bands; }));
+
+console.log('store: ' + passed + ' passed, ' + failed + ' failed');
+process.exit(failed ? 1 : 0);

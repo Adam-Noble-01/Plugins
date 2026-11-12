@@ -1,0 +1,1182 @@
+# =============================================================================
+# NA AGENT OUTLINER - TESTS - CORE SUITE
+# =============================================================================
+#
+# FILE       : Na__AgentOutliner__Tests__Core__.rb.test
+# PURPOSE    : Naming, notes, change tracking (agent or Adam), the MCP seam,
+#              the search language, sizes, selection paths and the config
+#              store, against Na__AgentOutliner__Tests__Doubles__.rb.test.
+# CREATED    : 10-Nov-2026
+#
+# RUN        : python Na__AgentOutliner__Tests__RunChecks__.py            (the suite)
+#              python Na__AgentOutliner__Tests__RunChecks__.py --mutate   (must catch every fault)
+#
+# NOTES:
+# - Writes only under its scratch folder (NA_AO_SCRATCH, which RunChecks sets to a folder of its own per
+#   run, else %TEMP%\ao_suite): NA_APPDATA_ROOT and NA_LOCAL_ROOT are
+#   pointed there before the module loads, so nothing touches the plugin.
+# - The agent is a fake handler eval'd under a Na__SketchUpMcp__Modules__ path,
+#   which is what the actor detection reads from the call stack.
+#
+# =============================================================================
+
+load File.join(__dir__, 'Na__AgentOutliner__Tests__Doubles__.rb.test')
+$LOADED_FEATURES << 'sketchup.rb'                                                      # <-- require 'sketchup.rb' becomes a no-op offline
+require 'fileutils'
+require 'json'
+
+SCR = ENV['NA_AO_SCRATCH'] || File.join(ENV['TEMP'] || Dir.pwd, 'ao_suite')   # <-- Two suites at once never share it (0.1.16)
+FileUtils.rm_rf(SCR)
+FileUtils.mkdir_p(File.join(SCR, 'appdata'))
+Dir.glob(File.join($NA_MODULES_ROOT, '02__AppData', '*.json')).each { |file| FileUtils.cp(file, File.join(SCR, 'appdata')) }
+
+model = Sketchup::Model.new
+model.path = 'D:/Projects/64500__Brum/Brum__v1.0.1.skp'
+model.title = 'Brum__v1.0.1'
+
+module Na__AgentOutliner
+    NA_APPDATA_ROOT = File.join(SCR, 'appdata')                                          # <-- Never write into the plugin folder
+    NA_LOCAL_ROOT   = File.join(SCR, 'local')
+end
+require File.join($NA_MODULES_ROOT, '01__AppCore', 'Na__AgentOutliner__AppCore__Main__.rb')
+
+AO = Na__AgentOutliner
+check('loads: version', AO.Na__AgentOutliner__Version =~ /\A\d+\.\d+\.\d+\z/)
+check('loads: constants point at the scratch folders', AO::NA_LOCAL_ROOT.start_with?(SCR))
+
+# ---------------------------------------------------------------------------
+# Naming
+# ---------------------------------------------------------------------------
+prefixes = AO::Na__ConfigStore.Na__Standards__Prefixes
+cad  = prefixes.find { |p| p['label'] == 'CAD__FrontElevation' }
+left = prefixes.find { |p| p['label'] == 'CAD__SideElevation__Left' }
+ref  = prefixes.find { |p| p['label'] == 'REF' }
+edit = prefixes.find { |p| p['label'] == 'EDIT' }
+check('standards: the four CAD prefixes Adam named are there', %w[CAD__FrontElevation CAD__SideElevation__Left CAD__SideElevation__Right CAD__RearElevation].all? { |l| prefixes.any? { |p| p['label'] == l } })
+check('compose: replace gives exactly the label', AO::Na__Naming.Na__Naming__Compose('Group', cad, prefixes) == 'CAD__FrontElevation')
+check('compose: replace ignores the old name', AO::Na__Naming.Na__Naming__Compose('Some Import', cad, prefixes) == 'CAD__FrontElevation')
+check('compose: prefix keeps the old name', AO::Na__Naming.Na__Naming__Compose('SideElevation', ref, prefixes) == 'REF__SideElevation')
+check('compose: prefix swaps a standard prefix, never stacks', AO::Na__Naming.Na__Naming__Compose('EDIT__MASSING', ref, prefixes) == 'REF__MASSING')
+check('compose: an exact label leaves no tail', AO::Na__Naming.Na__Naming__Compose('CAD__FrontElevation', ref, prefixes) == 'REF')
+check('compose: placeholder names count as none', AO::Na__Naming.Na__Naming__Compose('Group#12', edit, prefixes) == 'EDIT')
+# 0.1.4: the drawing planes (Adam, 11-Nov-2026)
+planes = %w[FrontElevation RightElevation LeftElevation RearElevation PlanView].map { |v| prefixes.find { |p| p['label'] == "REF__DrawingPlane__#{v}" } }
+check('standards: the five REF__DrawingPlane__ names are there', planes.all? && planes.all? { |p| p['mode'] == 'replace' && p['category'] == 'Drawing Planes' })
+check('standards: they load with no validation issues', AO::Na__ConfigStore.Na__Standards__Validate(JSON.parse(File.read(File.join(SCR, 'appdata', 'Na__AgentOutliner__AppData__NamingStandards__.json'))))[1].empty?)
+check('compose: a drawing plane names exactly', AO::Na__Naming.Na__Naming__Compose('Group', planes[0], prefixes) == 'REF__DrawingPlane__FrontElevation')
+check('match: a drawing plane beats plain REF', (AO::Na__Naming.Na__Naming__MatchPrefix('REF__DrawingPlane__PlanView', prefixes) || {})['label'] == 'REF__DrawingPlane__PlanView')
+check('compose: REF over a drawing plane swaps, never stacks', AO::Na__Naming.Na__Naming__Compose('REF__DrawingPlane__PlanView', ref, prefixes) == 'REF')
+check('match: longest label wins', AO::Na__Naming.Na__Naming__MatchPrefix('CAD__SideElevation__Left__v2', prefixes)['label'] == 'CAD__SideElevation__Left')
+check('match: any case', AO::Na__Naming.Na__Naming__MatchPrefix('cad__frontelevation', prefixes)['label'] == 'CAD__FrontElevation')
+check('match: a lookalike is not a prefix', AO::Na__Naming.Na__Naming__MatchPrefix('CAD__FrontElevationX', prefixes).nil?)
+
+# Elevation faces (0.1.3, Adam's standard 11-Nov-2026)
+nm = AO::Na__Naming
+face_front = prefixes.find { |p| p['label'] == 'Front' }
+face_left  = prefixes.find { |p| p['label'] == 'Left' }
+check('faces: the five face entries are in the standards, mode face', %w[Front Back Left Right Top].all? { |l| prefixes.any? { |p| p['label'] == l && p['mode'] == 'face' } })
+check('faces: a face is never a prefix (match, strip)', nm.Na__Naming__MatchPrefix('Front__Doors', prefixes).nil? && nm.Na__Naming__Tail('Front__Doors', prefixes) == 'Front__Doors')
+check('faces: inserted before a trailing number', nm.Na__Naming__Compose('SUB__Orangery__DoorHandle__01', face_front, prefixes) == 'SUB__Orangery__DoorHandle__Front__01')
+check('faces: appended when there is no number', nm.Na__Naming__Compose('SUB__Orangery__WallLantern', face_left, prefixes) == 'SUB__Orangery__WallLantern__Left')
+check('faces: linework takes the face before its feature', nm.Na__Naming__Compose('SUB__LineworkDetailing__Doors', face_left, prefixes) == 'SUB__LineworkDetailing__Left__Doors')
+check('faces: swapped in place, never stacked', nm.Na__Naming__Compose('SUB__Orangery__DoorHandle__Left__01', face_front, prefixes) == 'SUB__Orangery__DoorHandle__Front__01')
+check('faces: a placeholder name becomes the face', nm.Na__Naming__Compose('Group#3', face_front, prefixes) == 'Front')
+check('faces: a word that only starts with a face is not one', nm.Na__Naming__Compose('SUB__Orangery__FrontDoors', face_left, prefixes) == 'SUB__Orangery__FrontDoors__Left')
+check('faces: the trailing __ is kept', nm.Na__Naming__ComposeFace('SUB__Orangery__Lamp__02__', 'Top', '') == 'SUB__Orangery__Lamp__Top__02__')
+check('cardinals: Front South gives Left West, Back North, Right East', nm.Na__Naming__CardinalFor('Left', 'South') == 'West' && nm.Na__Naming__CardinalFor('Back', 'South') == 'North' && nm.Na__Naming__CardinalFor('Right', 'South') == 'East' && nm.Na__Naming__CardinalFor('Front', 'South') == 'South')
+check('cardinals: Front North gives Left East (seen from the north, -X is east)', nm.Na__Naming__CardinalFor('Left', 'North') == 'East')
+check('cardinals: Top and an unset orientation give none', nm.Na__Naming__CardinalFor('Top', 'South').nil? && nm.Na__Naming__CardinalFor('Front', '').nil?)
+check('cardinals: added after the face, swapped with it', nm.Na__Naming__Compose('SUB__Orangery__DoorHandle__Front__South__01', face_left, prefixes, front: 'South') == 'SUB__Orangery__DoorHandle__Left__West__01')
+check('parse: face and cardinal', nm.Na__Naming__ParseFace('SUB__LineworkDetailing__Front__South__Doors') == %w[Front South] && nm.Na__Naming__ParseFace('SUB__X__Walls') == [nil, nil])
+check('orientation: unset reads empty', nm.Na__Naming__FrontFaces(model) == '')
+ops_before = model.op_log.length
+check('orientation: set South, one undo step', nm.Na__Naming__SetFrontFaces(model, 'south') == 'South' && nm.Na__Naming__FrontFaces(model) == 'South' && model.op_log.length == ops_before + 1)
+check('orientation: a bad word is refused', (begin; nm.Na__Naming__SetFrontFaces(model, 'Up'); false; rescue ArgumentError; true; end))
+hg = na_group(model.entities, 'SUB__Orangery__DoorHandle__01')
+nm.Na__Naming__Apply(model, [hg], face_left)
+check('apply: a face with the model orientation adds the cardinal', hg.name == 'SUB__Orangery__DoorHandle__Left__West__01')
+nm.Na__Naming__SetFrontFaces(model, '')
+check('orientation: cleared', nm.Na__Naming__FrontFaces(model) == '')
+
+drawings = model.layers.add('06__Drawings')
+g = na_group(model.entities, 'Group', layer: drawings)
+ops = model.op_log.length
+result = AO::Na__Naming.Na__Naming__Apply(model, [g], cad)
+check('apply: renamed', g.name == 'CAD__FrontElevation' && result['renamed'].length == 1)
+check('apply: the TAG is never touched', g.layer.equal?(drawings))
+check('apply: one named undo step', model.op_log.length == ops + 1 && model.op_log.last == 'Agent Outliner: Name CAD__FrontElevation')
+again = AO::Na__Naming.Na__Naming__Apply(model, [g], cad)
+check('apply: already named adds no undo step', again['unchanged'] == 1 && model.op_log.length == ops + 1)
+image = Sketchup::Image.new('C:/x/rear.png'); model.entities.na_add(image)
+mixed = AO::Na__Naming.Na__Naming__Apply(model, [image], left)
+check('apply: an image is refused with a reason, not skipped silently', mixed['refused'].length == 1 && mixed['refused'][0].include?('cannot be named'))
+two = [na_group(model.entities, 'A'), na_group(model.entities, 'B')]
+AO::Na__Naming.Na__Naming__Rename(model, two, 'W')
+check('rename: several get __01 and __02', two.map(&:name) == %w[W__01 W__02])
+AO::Na__Naming.Na__Naming__Replace(model, two, 'w__0', 'Window_')
+check('replace: plain text, any case', two.map(&:name) == %w[Window_1 Window_2])
+AO::Na__Naming.Na__Naming__Apply(model, two, edit)
+AO::Na__Naming.Na__Naming__Strip(model, two)
+check('strip: takes the standard prefix off again', two.map(&:name) == %w[Window_1 Window_2])
+
+# ---------------------------------------------------------------------------
+# Notes: comments, flags, waiting, chunking, rollback
+# ---------------------------------------------------------------------------
+seen_none = { 'user' => {}, 'agent' => {} }
+AO::Na__Notes.Na__Notes__Comment(model, [g], 'Align the bay to this elevation.', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment')
+notes = AO::Na__Notes.Na__Notes__Read(g)
+check('comment: one entry, thread open', notes['thread']['entries'].length == 1 && notes['thread']['status'] == 'open')
+check('comment: waits for an agent', AO::Na__Notes.Na__Notes__WaitingForAgent(g, notes, seen_none).length == 1)
+AO::Na__Notes.Na__Notes__SetFlag(model, [g], 'for_agent', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Flag For Agent')
+notes = AO::Na__Notes.Na__Notes__Read(g)
+waiting = AO::Na__Notes.Na__Notes__WaitingForAgent(g, notes, seen_none)
+check('flag: set, with an entry in the thread', notes['flag']['id'] == 'for_agent' && notes['thread']['entries'].last['kind'] == 'flag')
+check('flag: comment and flag entry wait (no duplicate for the flag)', waiting.length == 2)
+read = { 'user' => {}, 'agent' => waiting.each_with_object({}) { |e, h| h[e['id']] = true } }
+check('flag: once acknowledged nothing waits (no second round)', AO::Na__Notes.Na__Notes__WaitingForAgent(g, notes, read).empty?)
+check('row summary: flag, count, waiting', (s = AO::Na__Notes.Na__Notes__RowSummary(g, seen_none)) && s['nf'] == 'for_agent' && s['nc'] == 1 && s['nw'] == 2)
+g.set_attribute(AO::NA_DICT_NOTES, 'flag', 'question')                                  # <-- A flag written by another tool: no entry
+g.set_attribute(AO::NA_DICT_NOTES, 'flag_at', '2026-11-10T10:00:00+00:00')
+foreign = AO::Na__Notes.Na__Notes__WaitingForAgent(g, AO::Na__Notes.Na__Notes__Read(g), read)
+check('flag: one with no thread entry waits under its own key', foreign.length == 1 && foreign[0]['id'].start_with?('flag:'))
+AO::Na__Notes.Na__Notes__SetFlag(model, [g], 'for_agent', by: 'user', author: 'Adam', operation_name: 'x')
+
+AO::Na__Notes.Na__Notes__Comment(model, [g], 'Done: on the 3410 line.', by: 'agent', author: 'Claude', operation_name: 'MCP: Agent Outliner Edit')
+notes = AO::Na__Notes.Na__Notes__Read(g)
+check('agent reply: unread by Adam', AO::Na__Notes.Na__Notes__UnreadByUser(notes, seen_none).length == 1)
+
+long = 'x' * 3900
+before = AO::Na__Notes.Na__Notes__Read(g)['thread']['entries'].length
+5.times { AO::Na__Notes.Na__Notes__Comment(model, [g], long, by: 'user', author: 'Adam', operation_name: 'c') }
+check('chunking: a long thread is split', g.get_attribute(AO::NA_DICT_NOTES, 'thread_chunks').to_i >= 2 && g.get_attribute(AO::NA_DICT_NOTES, 'thread').nil?)
+check('chunking: and reads back whole', AO::Na__Notes.Na__Notes__Read(g)['thread']['entries'].length == before + 5)
+AO::Na__Notes.Na__Notes__SetStatus(model, [g], 'resolved', by: 'user', author: 'Adam', operation_name: 'r')
+check('resolve: status resolved', AO::Na__Notes.Na__Notes__Read(g)['thread']['status'] == 'resolved')
+check('resolve: a resolved thread does not wait for the flag', AO::Na__Notes.Na__Notes__WaitingForAgent(g, AO::Na__Notes.Na__Notes__Read(g), read).none? { |e| e['id'].start_with?('flag:') })
+
+empty_refused = begin
+    AO::Na__Notes.Na__Notes__Comment(model, [g], '   ', by: 'user', author: 'Adam', operation_name: 'c'); false
+rescue ArgumentError
+    true
+end
+check('refuse: an empty comment, before any undo step', empty_refused && !model.na_op_open?)
+edge = na_edge(model.entities)
+check('refuse: a raw edge cannot carry notes', (begin; AO::Na__Notes.Na__Notes__Comment(model, [edge], 'x', by: 'user', author: 'A', operation_name: 'c'); false; rescue ArgumentError; true; end))
+
+h1 = na_group(model.entities, 'H1')
+h2 = na_group(model.entities, 'H2')
+ops = model.op_log.length
+original = AO::Na__Notes.method(:na_update_thread)
+calls = 0
+AO::Na__Notes.define_singleton_method(:na_update_thread) do |target, &block|
+    calls += 1
+    raise 'disk on fire' if calls == 2
+    original.call(target, &block)
+end
+rolled = begin
+    AO::Na__Notes.Na__Notes__Comment(model, [h1, h2], 'Both', by: 'user', author: 'Adam', operation_name: 'c'); false
+rescue RuntimeError
+    true
+end
+AO::Na__Notes.define_singleton_method(:na_update_thread) { |target, &block| original.call(target, &block) }
+check('rollback: a failure on the second object undoes the first', rolled && h1.attribute_dictionary(AO::NA_DICT_NOTES).nil? && model.op_log.length == ops && !model.na_op_open?)
+
+copy = na_group(model.entities, 'Copy')
+copy.instance_variable_set(:@na_dicts, Marshal.load(Marshal.dump(g.na_dicts)))       # <-- What a copy-paste does to instance attributes
+check('copy: notes copied with an object say where they came from', AO::Na__Notes.Na__Notes__Read(copy)['copied_from'] == g.persistent_id)
+
+AO::Na__Notes.Na__Notes__Comment(model, [model], 'Placed W01; moved the roof 150 mm north.', by: 'agent', author: 'Claude', operation_name: 'm')
+check('model thread: on the model itself', AO::Na__Notes.Na__Notes__Read(model)['thread']['entries'].length == 1)
+
+# ---------------------------------------------------------------------------
+# Change tracking: who did it (user or agent), and what changed
+# ---------------------------------------------------------------------------
+AO::Na__Observers.Na__Observers__Attach(model)
+UI.run_timers!
+state = AO::Na__Tracker.Na__Tracker__StateFor(model)
+check('tracker: baseline taken, no history from it', state[:baseline] && state[:history]['events'].empty?)
+
+model.start_operation('Draw Box', true)
+user_box = na_group(model.entities, 'User Box')
+model.commit_operation
+UI.run_timers!
+status = AO::Na__Tracker.Na__Tracker__Status(model)
+check('tracker: a box Adam drew is new, by user', status[user_box.persistent_id.to_s] && status[user_box.persistent_id.to_s]['cb'] == 'user')
+
+eval(<<~RUBY, TOPLEVEL_BINDING, 'C:/Plugins/Na__SketchUpMcp__Modules__/10__BridgeHandlers/Na__SketchUpMcp__Handlers__Primitives__.rb', 1)
+    module FakeMcpHandlers
+        def self.Na__Handlers__Primitives__CreateSolid(model)
+            model.start_operation('MCP: Create Solid', true)
+            box = na_group(model.entities, 'Agent Box')
+            inner = na_group(box.definition.entities, 'Agent Inner')
+            model.commit_operation
+            [box, inner]
+        end
+        def self.Na__Handlers__EntityEdit__Transform(model, entity)
+            model.start_operation('MCP: Transform', true)
+            entity.transformation = Geom::Transformation.translation([100, 0, 0])
+            model.commit_operation
+        end
+        def self.Na__Handlers__Ruby__Eval(model)
+            yield
+        end
+    end
+RUBY
+agent_box, agent_inner = FakeMcpHandlers.Na__Handlers__Primitives__CreateSolid(model)
+UI.run_timers!
+status = AO::Na__Tracker.Na__Tracker__Status(model)
+s_agent = status[agent_box.persistent_id.to_s]
+check('tracker: a box made through the MCP is new, by agent', s_agent && s_agent['cb'] == 'agent')
+check('tracker: and names the MCP handler', s_agent && s_agent['tool'] == 'Primitives__CreateSolid')
+check('tracker: its contents are new by agent too', status[agent_inner.persistent_id.to_s] && status[agent_inner.persistent_id.to_s]['cb'] == 'agent')
+
+model.start_operation('Rename', true)
+agent_box.name = 'Agent Box (renamed by Adam)'
+model.commit_operation
+UI.run_timers!
+s_agent = AO::Na__Tracker.Na__Tracker__Status(model)[agent_box.persistent_id.to_s]
+check('tracker: Adam renaming the agent\'s box is an update by user (name)', s_agent['ub'] == 'user' && s_agent['f'] == ['name'])
+
+FakeMcpHandlers.Na__Handlers__EntityEdit__Transform(model, user_box)
+UI.run_timers!
+s_user = AO::Na__Tracker.Na__Tracker__Status(model)[user_box.persistent_id.to_s]
+check('tracker: an agent moving Adam\'s box is an update by agent (transform)', s_user['ub'] == 'agent' && s_user['f'] == ['transform'])
+
+events_before = state[:history]['events'].length
+model.start_operation('Hide', true)
+user_box.hidden = true
+model.commit_operation
+UI.run_timers!
+check('tracker: hiding does not count by default (Adam hides all day)', state[:history]['events'].length == events_before)
+
+model.start_operation('Draw Edge', true)
+na_edge(agent_box.definition.entities)
+model.commit_operation
+UI.run_timers!
+s_agent = AO::Na__Tracker.Na__Tracker__Status(model)[agent_box.persistent_id.to_s]
+check('tracker: an edge drawn inside a group updates its contents, by user', s_agent['ub'] == 'user' && s_agent['f'].include?('contents'))
+
+FakeMcpHandlers.Na__Handlers__Ruby__Eval(model) do
+    model.start_operation('MCP: Ruby', true)
+    agent_box.layer = drawings
+    model.commit_operation
+end
+UI.run_timers!
+s_agent = AO::Na__Tracker.Na__Tracker__Status(model)[agent_box.persistent_id.to_s]
+check('tracker: a change made in ruby_eval is the agent\'s (tag)', s_agent['ub'] == 'agent' && s_agent['f'].include?('tag'))
+
+model.start_operation('Erase', true)
+model.entities.na_remove(user_box)
+model.commit_operation
+UI.run_timers!
+s_user = AO::Na__Tracker.Na__Tracker__Status(model)[user_box.persistent_id.to_s]
+check('tracker: erasing records removed, by user', s_user && s_user['r'] && s_user['rb'] == 'user')
+
+user_box.na_revive!
+model.na_fire_undo
+UI.run_timers!
+last = state[:history]['events'].last
+check('tracker: undo brings it back as new, marked undo', last['pid'] == user_box.persistent_id && last['kind'] == 'new' && last['via'] == 'undo')
+
+seq_before = AO::Na__Tracker.Na__Tracker__Seq(model)
+AO::Na__Notes.Na__Notes__Comment(model, [agent_box], 'Is this right?', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment')
+UI.run_timers!
+check('tracker: a comment is not a change to the object', AO::Na__Tracker.Na__Tracker__Seq(model) == seq_before)
+
+check('history: written beside the model, not in it', File.exist?(AO::Na__HistoryStore.Na__History__Path(state[:key])) || (UI.run_timers! || true) && File.exist?(AO::Na__HistoryStore.Na__History__Path(state[:key])))
+saved = JSON.parse(File.read(AO::Na__HistoryStore.Na__History__Path(state[:key])))
+check('history: the file holds the events and statuses', saved['events'].length == state[:history]['events'].length && saved['status'].key?(agent_box.persistent_id.to_s))
+check('history: no history dictionary was written into the model', model.attribute_dictionary('Na__AgentOutliner__History').nil?)
+
+# 0.1.1: on Adam's PC the folder is ~195 characters deep and SketchUp's Ruby cannot open 260 or more (ENOENT, found live).
+NA_REAL_HISTORY = 'C:/Users/adamw/AppData/Roaming/SketchUp/SketchUp 2027/SketchUp/Plugins/Na__Noble3dModellingTools__Modules__/' \
+                  '10__PluginModules/36__SourceCode__AgentOutliner/91__UserConfig__LocalOnly/ModelHistory'
+long_model = Struct.new(:path).new                                                        # <-- KeyFor reads only the path; a second Model double would become the active model
+long_model.path = 'C:/01__ValeProjects/ValeProjects__2026/60795__Brown__Scheme-2a__Whitecard/02__SketchUp/01__MainModel/BrownScheme-2a__WhiteCardModel__0.2.0__-and-a-much-longer-tail.skp'
+long_key  = AO::Na__HistoryStore.Na__History__KeyFor(long_model)
+long_name = File.basename(AO::Na__HistoryStore.Na__History__Path(long_key))
+check('history: a long model name still gives a path under 260 characters, .tmp included', File.join(NA_REAL_HISTORY, "#{long_name}.tmp").length < 260)
+old_key = "#{'B' * 48}__0123abcd"                                                         # <-- A key 0.1.0 made, still held after a reload
+check('history: a 0.1.0 key held over a reload is cut to the same short name', File.basename(AO::Na__HistoryStore.Na__History__Path(old_key)) == "History__#{'B' * 20}__0123abcd.json")
+check('history: two models with the same long stem still get different files', AO::Na__HistoryStore.Na__History__KeyFor(long_model) != (long_model.path = long_model.path.sub('Brown', 'Green'); AO::Na__HistoryStore.Na__History__KeyFor(long_model)))
+
+# ---------------------------------------------------------------------------
+# The MCP seam
+# ---------------------------------------------------------------------------
+OPS = AO::Na__McpOperations
+def refusal(code)
+    yield
+    false
+rescue AO::Na__McpOperationsError => error
+    error.na_code == code
+end
+
+actions = OPS.Na__AgentOutliner__McpActions
+check('seam: action lists', actions['read'] == %w[summary inbox changes thread threads flags prefixes find tags] && actions['edit'].include?('reply') && actions['edit'].last == 'tag')
+summary = OPS.Na__AgentOutliner__McpRead('summary', {})
+check('seam: summary counts groups and what waits', summary['objects']['Group'].to_i >= 5 && summary['waiting_for_agent'].to_i >= 1)
+inbox = OPS.Na__AgentOutliner__McpRead('inbox', {})
+item = inbox['items'].find { |i| i['id'] == agent_box.persistent_id }
+check('seam: inbox has Adam\'s question, with the thread and path', item && item['thread']['entries'].last['text'] == 'Is this right?' && item['path'].last['id'] == agent_box.persistent_id)
+check('seam: inbox carries the model thread only when Adam wrote in it', inbox['model_thread'].nil?)
+reply = OPS.Na__AgentOutliner__McpEdit('reply', { 'ids' => [agent_box.persistent_id], 'text' => 'Yes: it sits on the CAD.', 'author' => 'Claude (bay session)' })
+check('seam: reply writes an agent entry and acknowledges what it answers', reply['entries'][0]['by'] == 'agent' && reply['acknowledged'] >= 1 && reply['undo'] == 'MCP: Agent Outliner Edit')
+inbox = OPS.Na__AgentOutliner__McpRead('inbox', {})
+check('seam: nothing of that object waits any more', inbox['items'].none? { |i| i['id'] == agent_box.persistent_id })
+check('seam: the reply is unread by Adam', AO::Na__Notes.Na__Notes__UnreadByUser(AO::Na__Notes.Na__Notes__Read(agent_box), AO::Na__Tracker.Na__Tracker__Seen(model)).length == 1)
+flagged = OPS.Na__AgentOutliner__McpEdit('flag', { 'ids' => [user_box.persistent_id], 'flag' => 'check_this', 'text' => 'Its height is 15 mm off the CAD.' })
+check('seam: an agent can flag for Adam', flagged['flagged'] == 1 && AO::Na__Notes.Na__Notes__Read(user_box)['flag']['by'] == 'agent')
+check('seam: an agent\'s own flag never waits for agents', AO::Na__Notes.Na__Notes__WaitingForAgent(user_box, AO::Na__Notes.Na__Notes__Read(user_box), seen_none).empty?)
+changes = OPS.Na__AgentOutliner__McpRead('changes', { 'by' => 'user' })
+check('seam: changes by Adam list his edits by object', changes['objects'].any? { |o| o['id'] == agent_box.persistent_id && o['fields'].include?('name') })
+OPS.Na__AgentOutliner__McpEdit('acknowledge', { 'changes' => true })
+after = OPS.Na__AgentOutliner__McpRead('changes', {})
+check('seam: acknowledged changes are not offered again', after['event_count'] == 0 && after['cursor'] == AO::Na__Tracker.Na__Tracker__Seq(model))
+pre = OPS.Na__AgentOutliner__McpRead('prefixes', {})
+cad_entry = pre['prefixes'].find { |p| p['label'] == 'CAD__FrontElevation' }
+check('seam: prefixes say what CAD__FrontElevation means and which object it is', cad_entry['meaning'].include?('front elevation') && cad_entry['objects'].map { |o| o['id'] }.include?(g.persistent_id))
+found = OPS.Na__AgentOutliner__McpRead('find', { 'query' => 'by:agent is:new' })
+check('seam: find by:agent is:new finds what the agent made', found['items'].map { |i| i['id'] }.include?(agent_inner.persistent_id))
+found2 = OPS.Na__AgentOutliner__McpRead('find', { 'query' => 'flag:for_agent | tag:06__drawings -name:agent' })
+check('seam: find with OR and a minus', found2['items'].map { |i| i['id'] }.include?(g.persistent_id) && found2['items'].none? { |i| i['id'] == agent_box.persistent_id })
+named = OPS.Na__AgentOutliner__McpEdit('name', { 'ids' => [agent_inner.persistent_id], 'prefix' => 'REF' })
+check('seam: an agent can apply a standard name', agent_inner.name == 'REF__Agent Inner' && named['renamed'].length == 1)
+thread = OPS.Na__AgentOutliner__McpRead('thread', { 'model' => true })
+check('seam: the model thread reads back', thread['threads'][0]['entries'].length == 1)
+
+check('refuse: an unknown id is not_found', refusal('not_found') { OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [987_654_321], 'text' => 'x' }) })
+check('refuse: an edge id is wrong_type', refusal('wrong_type') { OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [edge.persistent_id], 'text' => 'x' }) })
+check('refuse: an empty comment', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [g.persistent_id], 'text' => '' }) })
+check('refuse: an unknown flag names the ones there are', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('flag', { 'ids' => [g.persistent_id], 'flag' => 'urgent' }) })
+check('refuse: an unknown prefix', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('name', { 'ids' => [g.persistent_id], 'prefix' => 'NOPE' }) })
+check('refuse: find needs a query', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('find', {}) })
+check('refuse: since must be ISO 8601', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('changes', { 'since' => 'yesterday' }) })
+check('refuse: reply needs an existing thread', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('reply', { 'ids' => [h2.persistent_id], 'text' => 'x' }) })
+check('refuse: unknown actions', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('delete_everything', {}) })
+check('refuse: nothing was left half done', !model.na_op_open?)
+
+# ---------------------------------------------------------------------------
+# The MCP seam, 0.1.1: threads, flags, strip, and a reload that updates the lists
+# ---------------------------------------------------------------------------
+asked   = na_group(model.entities, 'Asked')
+wordy   = na_group(model.entities, 'Wordy')
+nearby  = na_group(model.entities, 'Neighbour Wall')
+legacy  = na_group(model.entities, 'Legacy Flag')
+UI.run_timers!
+AO::Na__Notes.Na__Notes__Comment(model, [asked], 'Which brick here?', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment')
+AO::Na__Notes.Na__Notes__Comment(model, [wordy], 'y' * 600, by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment')
+AO::Na__Notes.Na__Notes__SetFlag(model, [nearby], 'do_not_touch', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Flag Do Not Touch')
+legacy.set_attribute(AO::NA_DICT_NOTES, 'flag', 'urgent_legacy')                       # <-- A flag type since dropped from the standards
+legacy.set_attribute(AO::NA_DICT_NOTES, 'flag_by', 'user')
+legacy.set_attribute(AO::NA_DICT_NOTES, 'flag_at', '2026-11-10T09:00:00+00:00')
+UI.run_timers!
+
+explained = na_group(model.entities, 'Party Wall')
+UI.run_timers!
+AO::Na__Notes.Na__Notes__SetFlag(model, [explained], 'do_not_touch', by: 'user', author: 'Adam', operation_name: 'x', text: 'The neighbour owns this wall.')
+seen_now = AO::Na__Tracker.Na__Tracker__Seen(model)
+check('notes: a plain Do Not Touch flag from Adam does not wait for an agent (not ticked for the inbox)', AO::Na__Notes.Na__Notes__WaitingForAgent(nearby, AO::Na__Notes.Na__Notes__Read(nearby), seen_now).empty?)
+check('notes: a Do Not Touch flag with Adam\'s own note waits, so the note is read', AO::Na__Notes.Na__Notes__WaitingForAgent(explained, AO::Na__Notes.Na__Notes__Read(explained), seen_now).length == 1)
+check('inbox: the plain Do Not Touch is not in the inbox; the explained one is', (box = OPS.Na__AgentOutliner__McpRead('inbox', {}))['items'].none? { |i| i['id'] == nearby.persistent_id } && box['items'].any? { |i| i['id'] == explained.persistent_id })
+
+list = OPS.Na__AgentOutliner__McpRead('threads', {})
+line = list['items'].each_with_object({}) { |item, map| map[item['target']] = item }
+check('threads: a plain Do Not Touch flag waits on nobody', line[nearby.persistent_id] && line[nearby.persistent_id]['waiting_on'].nil?)
+check('threads: one line per thread, the model\'s included', line.key?('model') && line.key?(asked.persistent_id) && line.key?(agent_box.persistent_id))
+check('threads: Adam\'s unanswered comment waits on an agent', line[asked.persistent_id]['waiting_on'] == 'agent' && line[asked.persistent_id]['status'] == 'open')
+check('threads: an open thread whose last comment is the agent\'s waits on Adam', line[agent_box.persistent_id]['waiting_on'] == 'user' && line[agent_box.persistent_id]['last']['by'] == 'agent')
+check('threads: the model thread with the agent\'s report waits on Adam', line['model']['waiting_on'] == 'user' && line['model']['name'].nil?)
+check('threads: an agent\'s flag with no comment waits on nobody', line[user_box.persistent_id] && line[user_box.persistent_id]['waiting_on'].nil?)
+check('threads: an object line names it, with its path', line[asked.persistent_id]['name'] == 'Asked' && line[asked.persistent_id]['path'].last['id'] == asked.persistent_id)
+check('threads: the last word is quoted, cut to 240 characters', line[wordy.persistent_id]['last']['text'] == 'y' * 240)
+check('threads: waiting on an agent sorts first', list['items'].first['waiting_on'] == 'agent' && list['items'].index { |i| i['waiting_on'] == 'user' } > list['items'].rindex { |i| i['waiting_on'] == 'agent' })
+check('threads: counts add up', list['counts']['threads'] == list['count'] && list['counts']['open'] + list['counts']['resolved'] == list['count'])
+resolved = OPS.Na__AgentOutliner__McpRead('threads', { 'status' => 'resolved' })
+check('threads: status resolved narrows the list', resolved['count'] >= 1 && resolved['items'].all? { |i| i['status'] == 'resolved' } && resolved['items'].any? { |i| i['target'] == g.persistent_id })
+on_adam = OPS.Na__AgentOutliner__McpRead('threads', { 'waiting_on' => 'adam' })
+check('threads: waiting_on adam reads as user and narrows', on_adam['count'] >= 2 && on_adam['items'].all? { |i| i['waiting_on'] == 'user' })
+check('threads: JSON-safe', JSON.parse(JSON.generate(list)).is_a?(Hash))
+check('refuse: threads status must be open or resolved', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('threads', { 'status' => 'closed' }) })
+check('refuse: threads waiting_on must be agent or user', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('threads', { 'waiting_on' => 'bob' }) })
+
+flags = OPS.Na__AgentOutliner__McpRead('flags', {})
+group = flags['flags'].each_with_object({}) { |item, map| map[item['id']] = item }
+standard_ids = AO::Na__ConfigStore.Na__Standards__Flags.map { |f| f['id'] }
+check('flags: every standard type is listed with its meaning, empty ones too', standard_ids.all? { |id| group.key?(id) && !group[id]['meaning'].to_s.empty? } && group['done']['count'].zero?)
+check('flags: Do Not Touch lists both objects, with who set them', group['do_not_touch']['objects'].map { |o| [o['id'], o['by']] }.sort == [[nearby.persistent_id, 'user'], [explained.persistent_id, 'user']].sort)
+check('flags: an agent\'s flag says so', group['check_this']['objects'].any? { |o| o['id'] == user_box.persistent_id && o['by'] == 'agent' })
+check('flags: a type no longer in the standards still shows, and says so', group['urgent_legacy'] && group['urgent_legacy']['meaning'].include?('no longer') && group['urgent_legacy']['count'] == 1)
+check('flags: the total counts every flagged object', flags['count'] == flags['flags'].sum { |f| f['count'] } && flags['count'] >= 4)
+only = OPS.Na__AgentOutliner__McpRead('flags', { 'flag' => 'Do Not Touch' })
+check('flags: one type, asked for by its label', only['flags'].length == 1 && only['flags'][0]['id'] == 'do_not_touch' && only['count'] == 2)
+mine = OPS.Na__AgentOutliner__McpRead('flags', { 'by' => 'agent' })
+check('flags: by agent leaves Adam\'s flags out', mine['count'] >= 1 && mine['flags'].all? { |f| f['objects'].all? { |o| o['by'] == 'agent' } })
+check('refuse: an unknown flag type names the ones there are', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('flags', { 'flag' => 'urgent' }) })
+check('refuse: flags by must be user or agent', refusal('invalid_params') { OPS.Na__AgentOutliner__McpRead('flags', { 'by' => 'bob' }) })
+
+ops = model.op_log.length
+stripped = OPS.Na__AgentOutliner__McpEdit('strip', { 'ids' => [agent_inner.persistent_id] })
+check('strip: REF__Agent Inner becomes Agent Inner', agent_inner.name == 'Agent Inner' && stripped['renamed'] == [{ 'id' => agent_inner.persistent_id, 'from' => 'REF__Agent Inner', 'to' => 'Agent Inner' }])
+check('strip: one undo step, named for the MCP', model.op_log.length == ops + 1 && model.op_log.last == 'MCP: Agent Outliner Edit' && stripped['undo'] == 'MCP: Agent Outliner Edit')
+again = OPS.Na__AgentOutliner__McpEdit('strip', { 'ids' => [agent_inner.persistent_id] })
+check('strip: nothing to strip adds no undo step and reports none', again['unchanged'] == 1 && !again.key?('undo') && model.op_log.length == ops + 1)
+emptied = OPS.Na__AgentOutliner__McpEdit('strip', { 'ids' => [g.persistent_id] })
+check('strip: a name that was exactly a label is left empty, with a warning', g.name == '' && Array(emptied['warnings']).first.to_s.include?(g.persistent_id.to_s))
+AO::Na__Naming.Na__Naming__Apply(model, [g], cad)                                         # <-- Back to CAD__FrontElevation for the checks below
+check('refuse: strip needs ids', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('strip', {}) })
+
+seam_file = File.join($NA_MODULES_ROOT, '06__McpOperations', 'Na__AgentOutliner__McpOperations__Main__.rb')
+OPS.send(:remove_const, :NA_READ_ACTIONS)
+OPS.const_set(:NA_READ_ACTIONS, %w[summary inbox].freeze)                                # <-- What an older version left behind
+load seam_file                                                                            # <-- What Reload Plugin Data does
+check('reload: Reload Plugin Data replaces the action lists (no restart needed)', OPS.Na__AgentOutliner__McpActions['read'].include?('flags'))
+
+# ---------------------------------------------------------------------------
+# Payloads and the search language
+# ---------------------------------------------------------------------------
+groups = AO::Na__Payloads.Na__Query__Parse('tag:06__Drawings -is:hidden | "front wall" /^W0[1-5]$/')
+check('query: two OR groups', groups.length == 2)
+check('query: a field and a negation', groups[0][0][:field] == 'tag' && groups[0][1][:neg] && groups[0][1][:value] == 'hidden')
+check('query: a phrase and a pattern', groups[1][0][:value] == 'front wall' && groups[1][1][:regexp].is_a?(Regexp))
+snap = AO::Na__Payloads.Na__Payload__Snapshot(model)
+check('snapshot: rows, roots, defs, tags, history', snap['ents'].length >= 8 && snap['roots'].include?(g.persistent_id) && snap['defs'].key?(AO::Na__Walker.Na__Walker__DefKey(agent_box.definition)) && snap['tags'].key?('06__Drawings') && snap['seq'] > 0)
+row = snap['ents'][agent_box.persistent_id.to_s]
+check('snapshot: a row carries name, tag, size, prefix and notes', row['n'].start_with?('Agent Box') && row['t'] == '06__Drawings' && row['sz'].length == 3 && row['nc'] >= 2)
+check('snapshot: the agent box lists its inner group', snap['defs'][row['d']]['ch'].include?(agent_inner.persistent_id))
+check('snapshot: JSON-safe', JSON.parse(JSON.generate(snap)).is_a?(Hash))
+
+scaled = na_group(model.entities, 'Scaled', bounds: [[0, 0, 0], [1000 / 25.4, 200 / 25.4, 500 / 25.4]])
+scaled.transformation = Geom::Transformation.scaling(2, 1, 3)
+check('size: definition bounds times the instance scale, in mm', AO::Na__Walker.Na__Walker__SizeMm(scaled) == [2000.0, 200.0, 1500.0])
+rotated = na_group(model.entities, 'Rotated', bounds: [[0, 0, 0], [1000 / 25.4, 200 / 25.4, 500 / 25.4]])
+rotated.transformation = Geom::Transformation.rotation_z(0.7)
+size = AO::Na__Walker.Na__Walker__SizeMm(rotated)
+check('size: a rotated copy keeps its own size', (size[0] - 1000).abs < 0.2 && (size[1] - 200).abs < 0.2)
+
+# ---------------------------------------------------------------------------
+# Selection paths
+# ---------------------------------------------------------------------------
+result = AO::Na__EntityActions.Na__Actions__Select(model, [[agent_box.persistent_id, agent_inner.persistent_id]], mode: 'open_context')
+check('select: a nested row opens its parent and selects it', model.active_path == [agent_box] && model.selection.to_a == [agent_inner] && result['selected'] == 1)
+AO::Na__EntityActions.Na__Actions__Select(model, [[g.persistent_id]], mode: 'open_context')
+check('select: a root row closes the open group', model.active_path.nil? && model.selection.to_a == [g])
+check('select: a stale path is refused', (begin; AO::Na__EntityActions.Na__Actions__Select(model, [[g.persistent_id, agent_inner.persistent_id]]); false; rescue ArgumentError; true; end))
+agent_box.locked = true
+note = AO::Na__EntityActions.Na__Actions__Select(model, [[agent_box.persistent_id, agent_inner.persistent_id]])['note']
+check('select: a locked parent falls back to the top object, and says so', model.selection.to_a == [agent_box] && note.to_s.include?('locked'))
+
+# ---------------------------------------------------------------------------
+# Tags (0.1.5: the Tag picker and agent_outliner tags / agent_outliner_edit tag)
+# ---------------------------------------------------------------------------
+EA = AO::Na__EntityActions
+drawings = model.layers.add('06__Drawings')
+agent_box.locked = false
+ops = model.op_log.length
+was_off = [agent_box, user_box].count { |entity| !entity.layer.equal?(drawings) }
+tagged = EA.Na__Actions__SetTag(model, [agent_box, user_box], '06__Drawings')
+check('tag: both objects onto an existing tag in one undo step', was_off >= 1 && tagged['count'] == was_off && agent_box.layer.equal?(drawings) && user_box.layer.equal?(drawings) &&
+      model.op_log.length == ops + 1 && model.op_log.last == 'Agent Outliner: Tag')
+again = EA.Na__Actions__SetTag(model, [agent_box, user_box], '06__drawings')
+check('tag: any case finds the tag; already on it adds no undo step', again['count'].zero? && again['tag'] == '06__Drawings' && model.op_log.length == ops + 1)
+missing = (begin; EA.Na__Actions__SetTag(model, [agent_box], 'EDIT__Massing'); false; rescue ArgumentError; true; end)
+check('tag: a missing tag is refused unless create, and nothing changes', missing && agent_box.layer.equal?(drawings) && model.layers['EDIT__Massing'].nil?)
+made = EA.Na__Actions__SetTag(model, [agent_box], 'EDIT__Massing', create: true)
+check('tag: create makes the tag in the same undo step', made['created'] && agent_box.layer.equal?(model.layers['EDIT__Massing']) && model.op_log.length == ops + 2)
+plain = EA.Na__Actions__SetTag(model, [agent_box], 'Untagged')
+check('tag: Untagged (or empty) puts it back on Layer0', plain['count'] == 1 && plain['tag'] == '' && agent_box.layer.equal?(model.layers[0]))
+check('tag: Layer0 is never made as a tag', (begin; EA.Na__Actions__SetTag(model, [agent_box], 'Layer0', create: true); false; rescue ArgumentError; true; end))
+listing = OPS.Na__AgentOutliner__McpRead('tags', {})
+row06 = listing['tags'].find { |tag| tag['name'] == '06__Drawings' }
+check('seam: tags lists every tag with its count, colour and shown', row06 && row06['objects'] >= 1 && row06['colour'] =~ /\A#\h{6}\z/ && row06['shown'] == true && listing['untagged'] >= 1)
+moved = OPS.Na__AgentOutliner__McpEdit('tag', { 'ids' => [agent_box.persistent_id], 'tag' => '06__Drawings' })
+check('seam: tag moves objects as one MCP undo step', moved['moved'] == 1 && moved['tag'] == '06__Drawings' && moved['undo'] == 'MCP: Agent Outliner Edit' && model.op_log.last == 'MCP: Agent Outliner Edit')
+check('seam: tag to a missing tag is not_found, naming the tags', refusal('not_found') { OPS.Na__AgentOutliner__McpEdit('tag', { 'ids' => [agent_box.persistent_id], 'tag' => 'Nope' }) })
+check('seam: tag without a tag name is refused', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('tag', { 'ids' => [agent_box.persistent_id] }) })
+check('seam: tag without ids is refused', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('tag', { 'tag' => '06__Drawings' }) })
+again = OPS.Na__AgentOutliner__McpEdit('tag', { 'ids' => [agent_box.persistent_id], 'tag' => '06__Drawings' })
+check('seam: tag already there reports no undo step', again['moved'].zero? && !again.key?('undo'))
+
+# ---------------------------------------------------------------------------
+# Chat pictures and the Chat tab (0.1.6)
+# ---------------------------------------------------------------------------
+CC = AO::Na__ChatCache
+png = "\x89PNG\r\n\x1A\n".b + [13].pack('N') + 'IHDR'.b + [3, 2].pack('NN') + [8, 6, 0, 0, 0].pack('C5') + [0].pack('N') + 'IDATpretend'.b
+jpg = "\xFF\xD8\xFF\xE0".b + [16].pack('n') + 'JFIF'.b + ("\x00".b * 10) + "\xFF\xC0".b + [17].pack('n') + [8].pack('C') + [2, 3].pack('nn') + ("\x00".b * 12)
+check('chat: the cache folder is under this PC\'s local folder', CC.Na__Chat__Folder.start_with?(AO::NA_LOCAL_ROOT))
+check('chat: the folder URL is a file URL with no raw spaces', CC.Na__Chat__FolderUrl.start_with?('file:///') && !CC.Na__Chat__FolderUrl.include?(' ') && CC.Na__Chat__FolderUrl.end_with?('/'))
+check('chat: pictures are told by their first bytes', CC.Na__Chat__Sniff(png) == 'png' && CC.Na__Chat__Sniff(jpg) == 'jpg' && CC.Na__Chat__Sniff('GIF89a....'.b) == 'gif' &&
+      CC.Na__Chat__Sniff('RIFF1234WEBPVP8 '.b) == 'webp' && CC.Na__Chat__Sniff('hello world'.b).nil?)
+check('chat: width and height read from PNG and JPEG headers', CC.Na__Chat__Dimensions(png, 'png') == [3, 2] && CC.Na__Chat__Dimensions(jpg, 'jpg') == [3, 2])
+
+b64 = [png].pack('m0')
+third = (b64.length / 3.0).ceil
+pieces = [b64[0, third], b64[third, third], b64[third * 2..]]
+first = CC.Na__Chat__UploadPart('upload' => 'u_test1', 'index' => 0, 'total' => 3, 'data' => pieces[0], 'name' => 'Pasted picture')
+last_but = CC.Na__Chat__UploadPart('upload' => 'u_test1', 'index' => 2, 'total' => 3, 'data' => pieces[2])
+done = CC.Na__Chat__UploadPart('upload' => 'u_test1', 'index' => 1, 'total' => 3, 'data' => pieces[1])
+pic = done['file'].to_s
+check('chat: an upload in pieces (any order) writes one picture when the last piece is in', first['done'] == false && last_but['done'] == false && done['done'] == true &&
+      pic.match?(CC::NA_NAME_RULE) && File.binread(CC.Na__Chat__Path(pic)) == png && done['w'] == 3 && done['h'] == 2)
+check('chat: no .part file is left behind', Dir.children(CC.Na__Chat__Folder).none? { |name| name.end_with?('.part') })
+before_files = Dir.children(CC.Na__Chat__Folder).length
+not_picture = (begin; CC.Na__Chat__UploadPart('upload' => 'u_test2', 'index' => 0, 'total' => 1, 'data' => ['just some text'].pack('m0')); false; rescue ArgumentError => e; e.message.include?('PNG'); end)
+damaged = (begin; CC.Na__Chat__UploadPart('upload' => 'u_test3', 'index' => 0, 'total' => 1, 'data' => '***not base64***'); false; rescue ArgumentError; true; end)
+too_many = (begin; CC.Na__Chat__UploadPart('upload' => 'u_test4', 'index' => 0, 'total' => 999, 'data' => 'AAAA'); false; rescue ArgumentError; true; end)
+check('chat: text, damaged data and too many pieces are refused, and nothing is written', not_picture && damaged && too_many &&
+      Dir.children(CC.Na__Chat__Folder).length == before_files)
+attached = CC.Na__Chat__Attachments([{ 'file' => pic, 'w' => 3, 'h' => 2, 'name' => 'Pasted picture' }])
+check('chat: a message\'s pictures are checked against the folder', attached.length == 1 && attached[0]['bytes'] == png.bytesize && attached[0]['name'] == 'Pasted picture')
+check('chat: a path outside the folder is refused', (begin; CC.Na__Chat__Attachments(['../../secrets.png']); false; rescue ArgumentError; true; end))
+check('chat: a picture no longer in the folder is refused', (begin; CC.Na__Chat__Attachments(['img_20200101_000000_abcd.png']); false; rescue ArgumentError; true; end))
+check('chat: nine pictures on one message are refused', (begin; CC.Na__Chat__Attachments([pic] * 9); false; rescue ArgumentError; true; end))
+
+ops = model.op_log.length
+posted = AO::Na__Notes.Na__Notes__Comment(model, [user_box], '', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment', images: attached)
+check('chat: a picture alone is a message (one undo step)', posted[0]['text'] == '' && posted[0]['images'][0]['file'] == pic && model.op_log.length == ops + 1)
+check('chat: an empty message with no picture is still refused', (begin; AO::Na__Notes.Na__Notes__Comment(model, [user_box], '  ', by: 'user', author: 'Adam', operation_name: 'x'); false; rescue ArgumentError; true; end))
+check('chat: the row summary says [picture] for a picture alone', AO::Na__Notes.Na__Notes__RowSummary(user_box)['nl'] == '[picture]')
+thread = AO::Na__Payloads.Na__Payload__Thread(model, user_box)
+shown = thread['entries'].last['images'][0]
+check('chat: a thread gives each picture its path on this PC', shown['path'] == CC.Na__Chat__Path(pic) && shown['exists'] == true)
+
+chats = AO::Na__Payloads.Na__Payload__ChatList(model)
+mine = chats['threads'].find { |line| line['target'] == user_box.persistent_id }
+claude = chats['agents'].find { |agent| agent['author'] == 'Claude (bay session)' }
+check('chat: the list starts with the model\'s own chat and counts pictures', chats['threads'].first['target'] == 'model' && mine && mine['images'].to_i >= 1 && mine['kind'] == 'g')
+check('chat: the agents who wrote are listed with their chats', claude && claude['chats'] >= 1 && claude['messages'] >= 1 && !claude['last_at'].to_s.empty?)
+check('chat: the list says how much the picture folder holds', chats['cache']['files'] >= 1 && chats['cache']['bytes'] >= png.bytesize)
+
+capture = File.join(SCR, 'capture.png')
+File.binwrite(capture, png)
+said = OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [user_box.persistent_id], 'text' => 'Here is the bay after the change.', 'images' => [capture], 'author' => 'Claude (bay session)' })
+copy = said['entries'][0]['images'][0]
+check('seam: an agent attaches a picture file; it is copied into the chat folder', copy['file'].match?(CC::NA_NAME_RULE) && copy['name'] == 'capture.png' &&
+      File.binread(CC.Na__Chat__Path(copy['file'])) == png && File.exist?(capture))
+only_pic = OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [user_box.persistent_id], 'images' => [capture] })
+check('seam: a picture alone is a comment for an agent too', only_pic['entries'][0]['text'] == '' && only_pic['entries'][0]['images'].length == 1)
+count_before = AO::Na__Notes.Na__Notes__Read(user_box)['thread']['entries'].length
+File.write(File.join(SCR, 'notes.txt'), 'not a picture')
+check('seam: a missing picture file is refused, and nothing is written', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [user_box.persistent_id], 'text' => 'x', 'images' => [File.join(SCR, 'nope.png')] }) } &&
+      AO::Na__Notes.Na__Notes__Read(user_box)['thread']['entries'].length == count_before)
+check('seam: a file that is not a picture is refused', refusal('invalid_params') { OPS.Na__AgentOutliner__McpEdit('comment', { 'ids' => [user_box.persistent_id], 'text' => 'x', 'images' => [File.join(SCR, 'notes.txt')] }) })
+check('seam: the thread an agent reads carries each picture\'s path', OPS.Na__AgentOutliner__McpRead('thread', { 'ids' => [user_box.persistent_id] }).to_s.include?(CC.Na__Chat__Folder.tr('\\', '/').split('/').last))
+
+router_file = File.join($NA_MODULES_ROOT, '01__AppCore', 'Na__AgentOutliner__AppCore__ActionRouter__.rb')
+AO::Na__ActionRouter.send(:remove_const, :NA_ROUTES)
+AO::Na__ActionRouter.const_set(:NA_ROUTES, { 'stale' => :na_refresh }.freeze)
+load router_file
+check('routes: Reload Plugin Data replaces the route table (setTag and the chat routes answer)', %w[setTag chatUpload getChats openChatImage comment].all? { |id| AO::Na__ActionRouter::NA_ROUTES.key?(id) } &&
+      !AO::Na__ActionRouter::NA_ROUTES.key?('stale'))
+check('routes: a picture piece goes through the dialog route', AO::Na__ActionRouter.Na__Action__Dispatch('chatUpload', { 'upload' => 'u_route', 'index' => 0, 'total' => 2, 'data' => b64[0, 8] }) == true)
+check('routes: a bad picture piece is answered, not raised', AO::Na__ActionRouter.Na__Action__Dispatch('chatUpload', { 'upload' => '!', 'index' => 0, 'total' => 1, 'data' => 'AAAA' }) == false)
+
+# ---------------------------------------------------------------------------
+# The Chat pick tool (0.1.8): which object a click takes, the highlight's world box
+# ---------------------------------------------------------------------------
+VK_UP = 38 unless defined?(VK_UP)
+VK_DOWN = 40 unless defined?(VK_DOWN)
+CONSTRAIN_MODIFIER_MASK = 4 unless defined?(CONSTRAIN_MODIFIER_MASK)
+COPY_MODIFIER_MASK = 8 unless defined?(COPY_MODIFIER_MASK)
+GL_LINES = 1 unless defined?(GL_LINES)
+module Sketchup
+    class Face; end unless const_defined?(:Face)
+    @na_status_text = '' unless defined?(@na_status_text)
+    class << self
+        attr_accessor :status_text unless method_defined?(:status_text=)
+    end
+end
+CP = AO::Na__ChatPick
+mat = ->(array) { Geom::Transformation.new(array) }
+
+# outer: turned 90 degrees about z, then moved 1000 along x; mid: moved 500 along y; inner: scaled 2 (SketchUp keeps a
+# uniform scale as 0.5 in the last element) then moved 10 along x. inner's box is 2 x 1 x 0.5.
+outer = na_group(model.entities, 'PROPOSED__Orangery', bounds: [[0, 0, 0], [40, 40, 40]])
+outer.transformation = mat.call(CP.Na__Pick__Compose([Geom::Transformation.translation([1000, 0, 0]).to_a, Geom::Transformation.rotation_z(Math::PI / 2).to_a]))
+mid = na_group(outer.definition.entities, 'SUB__Orangery__RoofLantern__Top__02', bounds: [[0, 0, 0], [20, 20, 20]])
+mid.transformation = Geom::Transformation.translation([0, 500, 0])
+inner = na_group(mid.definition.entities, '', bounds: [[0, 0, 0], [2, 1, 0.5]])
+inner.transformation = mat.call([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0.5])
+face = Sketchup::Face.new
+path = [outer, mid, inner, face]
+near = ->(a, b) { a.zip(b).all? { |x, y| (x - y).abs < 1e-9 } }
+
+corners = CP.Na__Pick__BoxCorners(path, inner)
+check('pick box: a moved, turned, three-deep, scaled group lands in world (min corner)', near.call(corners[0], [500, 10, 0]))
+check('pick box: ... and its far corner (the scale in the last element divided out)', near.call(corners[7], [498, 14, 1]))
+wrong = CP.Na__Pick__Compose([inner.transformation.to_a, mid.transformation.to_a, outer.transformation.to_a])
+check('pick box: the order matters (the reverse product misses)', !near.call(CP.Na__Pick__Apply(wrong, [2, 1, 0.5]), corners[7]))
+mid_box = CP.Na__Pick__BoxCorners(path, mid)
+check('pick box: a middle object is boxed through its own and its parent\'s transformations', near.call(mid_box[0], [500, 0, 0]) && near.call(mid_box[7], [480, 20, 20]))
+open_mid = na_group(model.entities, 'stand-in for mid inside an open outer', bounds: [[0, 0, 0], [20, 20, 20]])
+open_mid.transformation = mat.call(CP.Na__Pick__Compose([outer.transformation.to_a, mid.transformation.to_a]))
+check('pick box: with the outer group open (path starts inside it, transformations world), the same world box',
+      near.call(CP.Na__Pick__BoxCorners([open_mid, inner, face], inner)[7], [498, 14, 1]))
+check('pick box: an entity not on the path has no box', CP.Na__Pick__BoxCorners(path, user_box).empty?)
+
+candidates = [outer, mid, inner]
+check('pick: a plain click takes the deepest object with a name of its own', CP.Na__Pick__DefaultIndex(candidates) == 1)
+check('pick: steps out and in are clamped; Ctrl takes the innermost', CP.Na__Pick__Index(candidates, -5, false) == 0 && CP.Na__Pick__Index(candidates, 9, false) == 2 &&
+      CP.Na__Pick__Index(candidates, 0, true) == 2)
+check('pick: nothing named falls back to a component, else the outermost', CP.Na__Pick__DefaultIndex([inner]) == 0)
+info = CP.Na__Pick__Info(mid)
+check('pick: the text put in the message is NAME (id N)', info['text'] == "SUB__Orangery__RoofLantern__Top__02 (id #{mid.persistent_id})" && info['type'] == 'Group')
+
+# The tool, with a fake view, pick helper and tool stack
+class NaFakeHelper
+    attr_accessor :paths
+    def initialize; @paths = []; end
+    def do_pick(_x, _y); true; end
+    def best_picked; @paths.empty? ? nil : @paths.first.first; end
+    def count; @paths.length; end
+    def path_at(index); @paths[index]; end
+end
+class NaFakeTools
+    attr_reader :stack
+    def initialize(view); @view = view; @stack = []; end
+    def push_tool(tool); @stack << tool; tool.activate; true; end
+    def pop_tool; tool = @stack.pop; tool.deactivate(@view) if tool; tool; end
+    def active_tool; @stack.last; end
+end
+class NaFakeView
+    attr_reader :helper, :model, :lines, :texts
+    attr_accessor :line_stipple, :line_width, :drawing_color
+    def initialize; @helper = NaFakeHelper.new; @lines = []; @texts = []; @model = Struct.new(:tools).new(NaFakeTools.new(self)); end
+    def pick_helper; @helper; end
+    def invalidate; true; end
+    def draw(_mode, points); @lines << points.length; end
+    def draw_text(_point, text, _options = {}); @texts << text; end
+end
+sent = []
+dm = AO::Na__DialogManager
+dm.singleton_class.send(:alias_method, :na_test_send, :Na__Dialog__Send)
+dm.define_singleton_method(:Na__Dialog__Send) { |channel, payload| sent << [channel, payload]; true }
+begin
+    view = NaFakeView.new
+    tools = view.model.tools
+    view.helper.paths = [path]
+    CP.Na__Pick__Start(view.model)
+    tool = tools.active_tool
+    check('pick tool: the button pushes the tool and tells SketchUp\'s status bar what to do', CP.Na__Pick__Active? && tool.is_a?(CP::PickTool) && Sketchup.status_text.to_s.include?('Esc'))
+    tool.onMouseMove(0, 40, 40, view)
+    tool.draw(view)
+    check('pick tool: hovering highlights the named object (12 edges) and labels it', tool.na_target.equal?(mid) && view.lines.last == 24 &&
+          view.texts.last.include?('SUB__Orangery__RoofLantern__Top__02') && view.texts.last.include?('level 2 of 3'))
+    tool.onMouseMove(COPY_MODIFIER_MASK, 40, 40, view)
+    check('pick tool: Ctrl takes the part under the cursor', tool.na_target.equal?(inner))
+    tool.onMouseMove(0, 41, 40, view)
+    tool.onRButtonDown(0, 41, 40, view)
+    out_one = tool.na_target
+    tool.onRButtonDown(0, 41, 40, view)
+    check('pick tool: right-click steps out, and past the outermost goes back to the innermost', out_one.equal?(outer) && tool.na_target.equal?(inner))
+    tool.onKeyDown(VK_UP, 1, 0, view)
+    tool.onKeyDown(VK_UP, 1, 0, view)
+    check('pick tool: Up steps out once the viewport has the keyboard', tool.na_target.equal?(outer))
+    tool.onKeyDown(VK_DOWN, 1, 0, view)
+    sent.clear
+    tool.onLButtonDown(CONSTRAIN_MODIFIER_MASK, 41, 40, view)
+    check('pick tool: Shift+click puts the object in and keeps picking', sent.length == 1 && sent[0][0] == 'chatPicked' && sent[0][1]['done'] == false &&
+          sent[0][1]['items'][0]['pid'] == mid.persistent_id && CP.Na__Pick__Active?)
+    tool.onLButtonDown(0, 41, 40, view)
+    check('pick tool: a click puts the object in, lets go and goes back to the tool before', sent.length == 2 && sent[1][1]['done'] == true && sent[1][1]['cancelled'] == false &&
+          tools.stack.empty? && !CP.Na__Pick__Active?)
+
+    sent.clear
+    CP.Na__Pick__Start(view.model)
+    tools.active_tool.onCancel(0, view)
+    check('pick tool: Esc cancels once, and the tool goes', sent.length == 1 && sent[0][1]['cancelled'] == true && tools.stack.empty? && !CP.Na__Pick__Active?)
+    sent.clear
+    CP.Na__Pick__Start(view.model)
+    CP.Na__Pick__Stop(view.model)
+    check('pick tool: the button pressed again stops it, and the dialog hears it once', sent.length == 1 && sent[0][1]['cancelled'] == true && tools.stack.empty?)
+    sent.clear
+    CP.Na__Pick__Start(view.model)
+    view.helper.paths = []
+    tools.active_tool.onLButtonDown(0, 5, 5, view)
+    view.helper.paths = [[face]]
+    tools.active_tool.onLButtonDown(0, 6, 5, view)
+    check('pick tool: empty space and loose geometry pick nothing and keep waiting', sent.empty? && CP.Na__Pick__Active? && Sketchup.status_text.to_s.include?('nothing to pick'))
+    CP.Na__Pick__Stop(view.model)
+    sent.clear
+    model.define_singleton_method(:tools) { view.model.tools }
+    view.helper.paths = [path]
+    check('routes: chatPick starts the tool on the dialog\'s model', AO::Na__ActionRouter.Na__Action__Dispatch('chatPick', {}) == true && CP.Na__Pick__Active?)
+    check('routes: chatPickCancel stops it', AO::Na__ActionRouter.Na__Action__Dispatch('chatPickCancel', {}) == true && !CP.Na__Pick__Active? && sent.last[1]['cancelled'] == true)
+ensure
+    dm.singleton_class.send(:alias_method, :Na__Dialog__Send, :na_test_send)
+end
+
+# ---------------------------------------------------------------------------
+# The waiting notice on every MCP result, Send's status and the watcher's signal (0.1.9)
+# ---------------------------------------------------------------------------
+NOTES = AO::Na__Notes
+OPS.Na__AgentOutliner__McpEdit('acknowledge', {})
+check('notice: nil when nothing waits (an agent acknowledged everything)', OPS.Na__AgentOutliner__McpNotice(model).nil?)
+
+reads = 0
+NOTES.singleton_class.send(:alias_method, :na_test_read, :Na__Notes__Read)
+NOTES.define_singleton_method(:Na__Notes__Read) { |target| reads += 1; na_test_read(target) }
+begin
+    OPS.Na__AgentOutliner__McpNotice(model)
+    reads = 0
+    OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: with nothing changed, the next call reads no notes (served from the cache)', reads.zero?)
+
+    long = 'Can you move the central lantern 50 mm north, and check the kerb height against the CAD section before you change anything else please?'
+    NOTES.Na__Notes__Comment(model, [model], long, by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment')
+    first = OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: Adam\'s chat message waits: the count, who, where, when and the call that reads it',
+          first && first['waiting'] == 1 && first['from'] == 'Adam' && first['where'] == 'model chat' && first['ago'] == 'just now' &&
+          first['read'] == 'agent_outliner {action: "inbox"}' && !first['at'].to_s.empty? && first['note'].include?('acknowledge'))
+    check('notice: the message is quoted to 120 characters, ending in an ellipsis',
+          first['text'].length == 120 && first['text'].end_with?("…") && long.start_with?(first['text'][0, 119]))
+    check('notice: one comment carries no pictures, threads or kind', !first.key?('pictures') && !first.key?('threads') && !first.key?('kind'))
+    reads = 0
+    again = OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: the next call is served from the cache and says the same', reads.zero? && again == first)
+
+    NOTES.Na__Notes__Comment(model, [agent_box], '', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment', images: attached)
+    two = OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: a new message is worked out again; the newest leads, on its object', reads > 0 && two['waiting'] == 2 && two['threads'] == 2 &&
+          two['where'] == "#{agent_box.name} (id #{agent_box.persistent_id})")
+    check('notice: a picture alone reads [picture], with the count', two['text'] == '[picture]' && two['pictures'] == 1)
+
+    reads = 0
+    AO::Na__Tracker.Na__Tracker__OnUndoRedo(model, 'undo')
+    OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: undo or redo makes it work the count out again', reads > 0)
+
+    gone_box = na_group(model.entities, 'Gone Box')
+    AO::Na__Tracker.Na__Tracker__Refresh(model)
+    NOTES.Na__Notes__Comment(model, [gone_box], 'Delete this one?', by: 'user', author: 'Adam', operation_name: 'Agent Outliner: Comment')
+    three = OPS.Na__AgentOutliner__McpNotice(model)
+    model.entities.na_remove(gone_box)
+    after_erase = OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: an object it counted is erased, so the count drops at once', three['waiting'] == 3 && after_erase['waiting'] == 2)
+
+    OPS.Na__AgentOutliner__McpEdit('acknowledge', { 'ids' => [agent_box.persistent_id] })
+    one = OPS.Na__AgentOutliner__McpNotice(model)
+    check('notice: acknowledging the object leaves the chat message waiting', one && one['waiting'] == 1 && one['where'] == 'model chat')
+    OPS.Na__AgentOutliner__McpEdit('reply', { 'model' => true, 'text' => 'Moving it now.', 'author' => 'Claude (notice test)' })
+    check('notice: the reply acknowledges it, and the notice is gone', OPS.Na__AgentOutliner__McpNotice(model).nil?)
+ensure
+    NOTES.singleton_class.send(:alias_method, :Na__Notes__Read, :na_test_read)
+end
+
+waits = NOTES.method(:Na__Notes__WaitingForAgent)
+NOTES.define_singleton_method(:Na__Notes__WaitingForAgent) { |*_args| raise TypeError, 'broken thread' }
+begin
+    NOTES.Na__Notes__Touch
+    check('notice: a fault while counting gives no notice, never an error', OPS.Na__AgentOutliner__McpNotice(model).nil?)
+ensure
+    NOTES.define_singleton_method(:Na__Notes__WaitingForAgent) { |*args| waits.call(*args) }
+end
+NOTES.Na__Notes__Touch
+check('notice: nil for no model, and for a closed one', OPS.Na__AgentOutliner__McpNotice(nil).nil?)
+
+# Send's status line and the watcher's signal, with the MCP's state as each case needs.
+statuses = []
+dm2 = AO::Na__DialogManager
+dm2.singleton_class.send(:alias_method, :na_test_send2, :Na__Dialog__Send)
+dm2.define_singleton_method(:Na__Dialog__Send) { |channel, payload| statuses << payload if channel == 'status'; true }
+ad = AO::Na__ActorDetect
+ad.singleton_class.send(:alias_method, :na_test_mcp, :Na__Actor__McpStatus)
+now_clock = Time.now.strftime('%H:%M:%S')
+mcp_state = { 'running' => true, 'version' => '1.0.28', 'last' => { 'time' => now_clock, 'tool' => 'geometry_draw' } }
+ad.define_singleton_method(:Na__Actor__McpStatus) { mcp_state }
+begin
+    signal = AO::Na__HistoryStore.Na__History__InboxPath(AO::Na__HistoryStore.Na__History__KeyFor(model))
+    File.delete(signal) if File.exist?(signal)
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Please widen the door to 900.', 'chat' => true })
+    check('send: an agent that called in the last 3 minutes is told on its next SketchUp call, and the line says so',
+          statuses.last['level'] == 'success' && statuses.last['message'] == "Sent: the agent working here sees it on its next SketchUp call (last call #{now_clock}).")
+    written = File.exist?(signal) ? JSON.parse(File.read(signal)) : {}
+    check('send: writes the inbox signal beside the history: the model, when, and the notice an agent will see',
+          File.basename(signal).start_with?('Inbox__') && written['model'] && written['model']['title'] == model.title &&
+          !written['sent_at'].to_s.empty? && written['notice'] && written['notice']['text'] == 'Please widen the door to 900.' && written['notice']['from'] == 'Adam')
+    real = File.join($NA_MODULES_ROOT, '91__UserConfig__LocalOnly', 'ModelHistory', "Inbox__#{'x' * 20}__#{'0' * 8}.json.tmp")
+    check('send: the real signal path, .tmp included, stays under Windows\' 260 characters', real.length < 260 && File.basename(signal).length <= File.basename(real).length - 4)
+
+    mcp_state = { 'running' => true, 'version' => '1.0.24', 'last' => nil }
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'And the other one.' })
+    check('send: an MCP older than 1.0.28 says Adam\'s message waits for the inbox, and names Reload Plugin Data',
+          statuses.last['level'] == 'warn' && statuses.last['message'].include?('(1.0.24)') && statuses.last['message'].include?('Reload Plugin Data'))
+    mcp_state = { 'running' => false, 'version' => '1.0.28', 'last' => nil }
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Anyone there?' })
+    check('send: no MCP running in this window says no agent will see it', statuses.last['level'] == 'warn' && statuses.last['message'].include?('not running'))
+
+    # 0.1.10, Telfer 13:58: "Sent" while no agent was working or watching. Say who will see it, or that nobody will.
+    mcp_state = { 'running' => true, 'version' => '1.0.28', 'last' => { 'time' => (Time.now - 600).strftime('%H:%M:%S'), 'tool' => 'model_info' } }
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Can you see now?' })
+    check('send: nobody working (last call 10 minutes ago) and nobody watching says none will see it, as a warning',
+          statuses.last['level'] == 'warn' && statuses.last['message'].start_with?('Saved, but no agent is working here (last SketchUp call ') &&
+          statuses.last['message'].include?('inbox watcher'))
+    history = AO::Na__HistoryStore.Na__History__Folder
+    FileUtils.mkdir_p(history)
+    beat = ->(pid, filter, who, age) { File.write(File.join(history, "Watch__#{pid}.json"), JSON.generate('pid' => pid, 'model' => filter, 'who' => who, 'beat' => Time.now.to_f - age)) }
+    beat.call(4101, 'brum', 'Claude (Telfer orangery session)', 2)
+    beat.call(4102, 'other job', 'Claude (elsewhere)', 2)
+    beat.call(4103, '', 'Claude (killed)', 45)
+    check('watchers: a fresh heartbeat for this model counts; another model\'s and a stale one do not',
+          AO::Na__HistoryStore.Na__History__Watchers(model).map { |w| w['pid'] } == [4101])
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Wake up please.' })
+    check('send: a watching agent is named and wakes now',
+          statuses.last['level'] == 'success' && statuses.last['message'] == 'Sent: 1 waiting agent (Claude (Telfer orangery session)) wakes now.')
+    beat.call(4104, '', '', 1)
+    mcp_state = { 'running' => true, 'version' => '1.0.28', 'last' => { 'time' => now_clock, 'tool' => 'model_info' } }
+    AO::Na__ActionRouter.Na__Action__Dispatch('flag', { 'pids' => [user_box.persistent_id], 'flag' => 'for_agent' })
+    check('send: a For Agent flag is sent like a comment: the working agent and both watchers',
+          statuses.last['message'] == "Flagged 1 object For Agent. Sent: the agent working here sees it on its next SketchUp call (last call #{now_clock}); " \
+                                      '2 waiting agents (Claude (Telfer orangery session)) wake now.')
+    %w[4101 4102 4103 4104].each { |pid| File.delete(File.join(history, "Watch__#{pid}.json")) }
+    AO::Na__ActionRouter.Na__Action__Dispatch('flag', { 'pids' => [user_box.persistent_id], 'flag' => 'reference' })
+    check('send: a Reference flag waits for no agent, so it is not "sent"', statuses.last['message'] == 'Flagged 1 object Reference.')
+    check('signal: nothing is written for a model never saved', AO::Na__HistoryStore.Na__History__WriteInbox(Struct.new(:path, :title).new('', 'Untitled'), { 'waiting' => 1 }) == false)
+ensure
+    dm2.singleton_class.send(:alias_method, :Na__Dialog__Send, :na_test_send2)
+    ad.singleton_class.send(:alias_method, :Na__Actor__McpStatus, :na_test_mcp)
+end
+OPS.Na__AgentOutliner__McpEdit('acknowledge', {})
+
+defined_mcp = !defined?(::Na__SketchUpMcp::Na__ActivityLog)
+if defined_mcp
+    module ::Na__SketchUpMcp
+        module Na__ActivityLog
+            def self.Na__ActivityLog__Entries
+                [{ 'time' => '13:57:24', 'tool' => 'bridge_start' }, { 'time' => '13:57:20', 'tool' => 'ping' },
+                 { 'time' => '13:22:31', 'tool' => 'agent_outliner_edit' }, { 'time' => '13:20:00', 'tool' => 'model_info' }]
+            end
+        end
+    end
+    check('last call: the bridge starting and the pings are not an agent calling', AO::Na__ActorDetect.Na__Actor__LastMcpActivity['tool'] == 'agent_outliner_edit')
+    Object.send(:remove_const, :Na__SketchUpMcp)
+end
+clock_now = Time.new(2026, 11, 11, 14, 0, 0)
+check('last call: seconds since a log time today, and across midnight', AO::Na__ActorDetect.Na__Actor__SecondsAgo('13:57:24', clock_now) == 156 &&
+      AO::Na__ActorDetect.Na__Actor__SecondsAgo('23:59:00', Time.new(2026, 11, 12, 0, 1, 0)) == 120 && AO::Na__ActorDetect.Na__Actor__SecondsAgo('soon').nil?)
+
+# Pictures agents send go in their own folder (0.1.9, Adam: "a second cache folder for incoming images").
+check('chat: an agent\'s picture is named agt_ and kept in ChatFromAgents, not in Adam\'s folder',
+      copy['file'].start_with?('agt_') && File.file?(File.join(CC.Na__Chat__AgentFolder, copy['file'])) && !File.exist?(File.join(CC.Na__Chat__Folder, copy['file'])))
+check('chat: a pasted picture still goes in ChatCache as img_', pic.start_with?('img_') && File.file?(File.join(CC.Na__Chat__Folder, pic)))
+check('chat: the agents\' folder sits beside Adam\'s, with its own file URL', File.dirname(CC.Na__Chat__AgentFolder) == File.dirname(CC.Na__Chat__Folder) &&
+      CC.Na__Chat__AgentFolderUrl.end_with?('/ChatFromAgents/') && CC.Na__Chat__AgentFolderUrl != CC.Na__Chat__FolderUrl)
+check('chat: each name finds its own folder; any other name is refused', CC.Na__Chat__Path('agt_20261111_120501_a1b2.png').start_with?(CC.Na__Chat__AgentFolder) &&
+      CC.Na__Chat__Path('img_20261111_120501_a1b2.png').start_with?(CC.Na__Chat__Folder) && (begin; CC.Na__Chat__Path('xyz_20261111_120501_a1b2.png'); false; rescue ArgumentError; true; end))
+info = CC.Na__Chat__Info
+check('chat: Settings counts both folders, the agents\' on its own too', info['agent_files'] >= 2 && info['files'] >= info['agent_files'] + 1 && info['agent_folder'] == CC.Na__Chat__AgentFolder)
+check('chat: an agent\'s picture in a thread carries its path in the agents\' folder', AO::Na__Payloads.Na__Payload__Thread(model, user_box)['entries'].any? { |entry| Array(entry['images']).any? { |image| image['path'].to_s.start_with?(CC.Na__Chat__AgentFolder) && image['exists'] } })
+CC.send(:remove_const, :NA_NAME_RULE)
+CC.const_set(:NA_NAME_RULE, /\Aimg_\d{8}_\d{6}_[0-9a-f]{4}\.(png|jpg|gif|webp)\z/)
+load File.join($NA_MODULES_ROOT, '03__ModelData', 'Na__AgentOutliner__ModelData__ChatCache__.rb')
+check('chat: Reload Plugin Data replaces 0.1.8\'s name rule, so agt_ names are taken at once', 'agt_20261111_120501_a1b2.png'.match?(CC::NA_NAME_RULE))
+
+# ---------------------------------------------------------------------------
+# Config store
+# ---------------------------------------------------------------------------
+saved = AO::Na__ConfigStore.Na__Config__SaveSettings('tracking' => { 'keep_days' => '14', 'bogus' => 1 }, 'nope' => { 'x' => 1 }, 'grading' => { 'agent_colour' => 'purple' })
+check('settings: coerced to the default\'s type', saved['tracking']['keep_days'] == 14)
+user_file = JSON.parse(File.read(AO::Na__ConfigStore.Na__Config__UserConfigPath))
+check('settings: unknown keys and a bad colour are dropped', !user_file['settings']['tracking'].key?('bogus') && !user_file['settings'].key?('nope') && !user_file['settings'].key?('grading'))
+AO::Na__ConfigStore.Na__Config__SaveSettings('tracking' => { 'keep_days' => 30 })
+user_file = JSON.parse(File.read(AO::Na__ConfigStore.Na__Config__UserConfigPath))
+check('settings: a value equal to its default is not stored', !(user_file['settings']['tracking'] || {}).key?('keep_days'))
+_std, issues = AO::Na__ConfigStore.Na__Standards__Validate('prefixes' => [{ 'label' => 'Bad Label' }, { 'label' => 'OK__One' }, { 'label' => 'ok__one' }], 'flags' => [{ 'id' => 'Bad Id', 'label' => 'x' }])
+check('standards: bad labels, duplicates and bad flag ids are named', issues.length == 4)
+saved_std, issues = AO::Na__ConfigStore.Na__Standards__Save('prefixes' => prefixes + [{ 'label' => 'CAD__GroundFloorPlan', 'category' => 'CAD Plans', 'mode' => 'replace', 'colour' => '#123456', 'meaning' => 'The ground floor plan CAD.' }],
+                                                            'flags' => AO::Na__ConfigStore.Na__Standards__Flags, 'handoff' => { 'footer' => 'Answer in the thread.' })
+check('standards: save adds a prefix', issues.empty? && saved_std['prefixes'].any? { |p| p['label'] == 'CAD__GroundFloorPlan' })
+written = File.read(AO::Na__ConfigStore.Na__Config__StandardsPath)
+check('standards: written in the aligned house layout, with a .bak', written.include?('"label"    : "CAD__GroundFloorPlan"') && File.exist?("#{AO::Na__ConfigStore.Na__Config__StandardsPath}.bak"))
+check('standards: the plugin\'s own file was not touched', !File.read(File.join($NA_MODULES_ROOT, '02__AppData', 'Na__AgentOutliner__AppData__NamingStandards__.json')).include?('CAD__GroundFloorPlan'))
+
+# A definition added and erased in one operation arrives deleted, and SketchUp raises on any call to it (0.1.7)
+gone = Sketchup::ComponentDefinition.new('Gone')
+gone.na_kill!
+gone.define_singleton_method(:image?) { raise TypeError, 'reference to deleted ComponentDefinition' }
+errors_before = (AO::Na__Observers.instance_variable_get(:@na_error_counts) || {})['onComponentAdded'].to_i
+AO::Na__Observers::DefinitionsWatch.new.onComponentAdded($NA_MODEL.definitions, gone)
+errors_after = (AO::Na__Observers.instance_variable_get(:@na_error_counts) || {})['onComponentAdded'].to_i
+check('observers: a definition that arrives deleted is skipped, no error logged', errors_after == errors_before)
+
+# ---------------------------------------------------------------------------
+# 0.1.11: watches on erased definitions, and who undid
+# ---------------------------------------------------------------------------
+# Live in the Assembly Studio testbed (11-Nov-2026): 179 of 490 watched Entities belonged to definitions
+# erased later (undone builds), and an agent's undo and redo were Adam's for two minutes (a stale held answer).
+obs_mod  = AO::Na__Observers
+ao_watch = obs_mod.na_watch_for(model)
+watched_before = ao_watch[:watched].length
+doomed = model.definitions.na_add(Sketchup::ComponentDefinition.new('Doomed'))
+dead_ents = doomed.entities
+check('prune: a new definition is watched', ao_watch[:watched].length == watched_before + 1 && dead_ents.observers.include?(ao_watch[:ents_obs]))
+model.definitions.na_erase(doomed)
+check('prune: an erased definition\'s entities raise like SketchUp\'s', (begin; dead_ents.parent; false; rescue TypeError; true; end))
+dropped = obs_mod.Na__Observers__Prune(model)
+check('prune: drops the erased definition\'s watch and keeps every live one',
+      dropped == 1 && ao_watch[:watched].length == watched_before && ao_watch[:watched].none? { |e| e.equal?(dead_ents) } && !ao_watch[:watched_ids].key?(dead_ents.object_id))
+check('prune: a second run finds nothing, and a model not watched gives 0', obs_mod.Na__Observers__Prune(model).zero? && obs_mod.Na__Observers__Prune(Object.new).zero?)
+
+doomed = model.definitions.na_add(Sketchup::ComponentDefinition.new('Doomed 2'))
+dead_ents = doomed.entities
+model.definitions.na_erase(doomed)
+AO::Na__Tracker.Na__Tracker__OnFullNeeded(model)
+UI.run_timers!
+check('prune: the tracker\'s full pass drops it too', ao_watch[:watched].length == watched_before && ao_watch[:watched].none? { |e| e.equal?(dead_ents) })
+
+doomed = model.definitions.na_add(Sketchup::ComponentDefinition.new('Doomed 3'))
+model.definitions.na_erase(doomed)
+live_def = model.definitions.find { |d| d.valid? && d.entities.observers.include?(ao_watch[:ents_obs]) }
+warned = []
+dbg = AO::Na__DebugTools
+dbg.singleton_class.send(:alias_method, :na_test_warn, :Na__Debug__Warn)
+dbg.define_singleton_method(:Na__Debug__Warn) { |text| warned << text; na_test_warn(text) }
+begin
+    obs_mod.Na__Observers__Detach(model)
+ensure
+    dbg.singleton_class.send(:alias_method, :Na__Debug__Warn, :na_test_warn)
+end
+check('detach: an erased definition\'s watch is skipped, with no warning', warned.none? { |text| text.include?('Releasing an observer') })
+check('detach: every live watch is let go', live_def && !live_def.entities.observers.include?(ao_watch[:ents_obs]) && !model.entities.observers.include?(ao_watch[:ents_obs]))
+obs_mod.Na__Observers__Attach(model)
+UI.run_timers!
+
+eval(<<~RUBY, TOPLEVEL_BINDING, 'C:/Plugins/Na__SketchUpMcp__Modules__/10__BridgeHandlers/Na__SketchUpMcp__Handlers__Actions__.rb', 1)
+    module FakeMcpUndo
+        # As traced live: the undo's own notice first, then the entity events it raises, all inside the call.
+        def self.Na__Handlers__Actions__Undo(model, entity, again: false)
+            if again
+                model.na_fire_redo
+                entity.na_revive!
+                model.entities.observers.each { |o| o.onElementAdded(model.entities, entity) }
+            else
+                model.na_fire_undo
+                model.entities.na_remove(entity)
+            end
+        end
+        def self.Na__Handlers__Actions__Current
+            Na__AgentOutliner::Na__ActorDetect.Na__Actor__Current
+        end
+    end
+RUBY
+ad = AO::Na__ActorDetect
+model.start_operation('Draw Victim', true)
+victim = na_group(model.entities, 'SUB__UndoVictim')
+model.commit_operation
+UI.run_timers!
+held_user  = { 'by' => 'user', 'tool' => nil }
+held_agent = { 'by' => 'agent', 'tool' => 'Primitives__CreateSolid' }
+hold_stale = lambda do |answer|
+    ad.instance_variable_set(:@na_transaction, answer)                                  # <-- An operation's answer never let go
+    ad.instance_variable_set(:@na_tick, answer)                                         # <-- And a tick answer that looks fresh
+    ad.instance_variable_set(:@na_tick_at, ad.na_clock)
+end
+victim_last = lambda { |seq| AO::Na__Tracker.Na__Tracker__Events(model, since_seq: seq).select { |e| e['pid'] == victim.persistent_id }.last }
+
+seq = AO::Na__Tracker.Na__Tracker__Seq(model)
+hold_stale.call(held_user)
+FakeMcpUndo.Na__Handlers__Actions__Undo(model, victim)
+UI.run_timers!
+gone = victim_last.call(seq)
+check('undo credit: an agent\'s undo is the agent\'s, though Adam\'s answer was held',
+      gone && gone['kind'] == 'removed' && gone['by'] == 'agent' && gone['tool'] == 'Actions__Undo' && gone['via'] == 'undo')
+
+seq = AO::Na__Tracker.Na__Tracker__Seq(model)
+hold_stale.call(held_user)
+FakeMcpUndo.Na__Handlers__Actions__Undo(model, victim, again: true)
+UI.run_timers!
+back = victim_last.call(seq)
+check('redo credit: and its redo is the agent\'s too', back && back['kind'] == 'new' && back['by'] == 'agent' && back['via'] == 'redo')
+
+seq = AO::Na__Tracker.Na__Tracker__Seq(model)
+hold_stale.call(held_agent)
+model.na_fire_undo                                                                      # <-- Adam's Ctrl+Z: no MCP on the stack
+model.entities.na_remove(victim)
+UI.run_timers!
+mine = victim_last.call(seq)
+check('undo credit: Adam\'s Ctrl+Z is his, though an agent\'s answer was held', mine && mine['kind'] == 'removed' && mine['by'] == 'user' && mine['via'] == 'undo')
+
+ad.instance_variable_set(:@na_transaction, nil)
+ad.instance_variable_set(:@na_tick, held_user)
+ad.instance_variable_set(:@na_tick_at, ad.na_clock - 5.0)                               # <-- Read five seconds ago
+ad.instance_variable_set(:@na_tick_timer, true)                                         # <-- And its clearing timer lost
+ad.instance_variable_set(:@na_tick_timer_at, ad.na_clock - 5.0)
+timers_before = $NA_TIMERS.length
+fresh = FakeMcpUndo.Na__Handlers__Actions__Current
+check('tick: an answer held past NA_TICK_MAX_S is read again', fresh['by'] == 'agent' && fresh['tool'] == 'Actions__Current')
+check('tick: a clearing timer lost for seconds is booked again', $NA_TIMERS.length == timers_before + 1)
+UI.run_timers!
+check('tick: and the answer is let go once it runs', ad.instance_variable_get(:@na_tick).nil? && ad.instance_variable_get(:@na_tick_timer) == false)
+
+# ---------------------------------------------------------------------------
+# Reasoning effort on Adam's messages (0.1.14): a dispatcher session applies it
+# ---------------------------------------------------------------------------
+OPS.Na__AgentOutliner__McpEdit('acknowledge', {})
+check('effort: Auto and blank are none; the five levels are kept in any case; anything else is refused, naming them',
+      NOTES.Na__Notes__Effort('auto').nil? && NOTES.Na__Notes__Effort('').nil? && NOTES.Na__Notes__Effort(nil).nil? &&
+      %w[low medium high xhigh max].all? { |level| NOTES.Na__Notes__Effort(level.upcase) == level } &&
+      (begin; NOTES.Na__Notes__Effort('ultra'); false; rescue ArgumentError => e; e.message.include?('xhigh'); end))
+
+effort_statuses = []
+dm3 = AO::Na__DialogManager
+dm3.singleton_class.send(:alias_method, :na_test_send3, :Na__Dialog__Send)
+dm3.define_singleton_method(:Na__Dialog__Send) { |channel, payload| effort_statuses << payload if channel == 'status'; true }
+ad3 = AO::Na__ActorDetect
+ad3.singleton_class.send(:alias_method, :na_test_mcp3, :Na__Actor__McpStatus)
+ad3.define_singleton_method(:Na__Actor__McpStatus) { { 'running' => true, 'version' => '1.0.28', 'last' => { 'time' => Time.now.strftime('%H:%M:%S'), 'tool' => 'model_info' } } }
+history_dir = AO::Na__HistoryStore.Na__History__Folder
+FileUtils.mkdir_p(history_dir)
+dispatcher_file = File.join(history_dir, 'Watch__9.json').sub('Watch__9', 'Dispatch__4201')
+begin
+    File.delete(dispatcher_file) if File.exist?(dispatcher_file)
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Rebuild the lanterns to the new footprint.', 'chat' => true, 'effort' => 'max' })
+    last_entry = NOTES.Na__Notes__Read(model)['thread']['entries'].last
+    check('effort: the comment carries the effort Adam picked', last_entry['text'] == 'Rebuild the lanterns to the new footprint.' && last_entry['effort'] == 'max')
+    notice = OPS.Na__AgentOutliner__McpNotice(model)
+    check('effort: the waiting notice carries it', notice && notice['effort'] == 'max')
+    signal_data = JSON.parse(File.read(AO::Na__HistoryStore.Na__History__InboxPath(AO::Na__HistoryStore.Na__History__KeyFor(model))))
+    check('effort: so does the inbox signal a dispatcher checks requests against', signal_data['notice']['effort'] == 'max')
+    inbox_now = OPS.Na__AgentOutliner__McpRead('inbox', {})
+    check('effort: an agent reading the inbox sees it on the entry', inbox_now['model_thread']['entries'].last['effort'] == 'max')
+    check('effort: with no dispatcher running, Send says Max is not applied (amber)',
+          effort_statuses.last['level'] == 'warn' && effort_statuses.last['message'].end_with?('Max effort is not applied: no dispatcher is running (ask Claude to run the Outliner dispatcher).'))
+
+    File.write(dispatcher_file, JSON.generate('pid' => 4201, 'who' => 'Claude (dispatcher)', 'beat' => Time.now.to_f - 100, 'busy' => true))
+    check('dispatchers: one working a request (100 s since its beat) still counts', AO::Na__HistoryStore.Na__History__Dispatchers.map { |d| d['pid'] } == [4201])
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Quick one.', 'effort' => 'low' })
+    check('effort: with a dispatcher, Send says it sets the effort for each agent it wakes',
+          effort_statuses.last['level'] == 'success' && effort_statuses.last['message'].end_with?('The dispatcher sets Low effort for each agent it wakes.'))
+    File.write(dispatcher_file, JSON.generate('pid' => 4201, 'who' => 'Claude (dispatcher)', 'beat' => Time.now.to_f - 400))
+    check('dispatchers: one silent for over three minutes is gone', AO::Na__HistoryStore.Na__History__Dispatchers.empty?)
+
+    count_before = NOTES.Na__Notes__Read(model)['thread']['entries'].length
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'Typo effort.', 'effort' => 'ultra' })
+    check('effort: an unknown effort is refused and nothing is written', NOTES.Na__Notes__Read(model)['thread']['entries'].length == count_before &&
+          effort_statuses.last['level'] == 'warn' && effort_statuses.last['message'].include?('Reasoning effort'))
+    AO::Na__ActionRouter.Na__Action__Dispatch('comment', { 'model' => true, 'text' => 'No effort here.', 'effort' => 'auto' })
+    check('effort: Auto stores none, and the notice has none', !NOTES.Na__Notes__Read(model)['thread']['entries'].last.key?('effort') &&
+          !OPS.Na__AgentOutliner__McpNotice(model).key?('effort'))
+ensure
+    File.delete(dispatcher_file) if File.exist?(dispatcher_file)
+    dm3.singleton_class.send(:alias_method, :Na__Dialog__Send, :na_test_send3)
+    ad3.singleton_class.send(:alias_method, :Na__Actor__McpStatus, :na_test_mcp3)
+end
+OPS.Na__AgentOutliner__McpEdit('acknowledge', {})
+
+# ---------------------------------------------------------------------------
+# 0.1.15: the dialog's icons, the selection backstop and the two switches
+# ---------------------------------------------------------------------------
+dm4 = AO::Na__DialogManager
+icons = dm4.na_icon_set
+check('icons: every SVG in UiIcons__DialogIcons__AgentOutliner is read, keyed by its short name',
+      icons.length >= 25 && %w[Flag Tag QuickName FollowSelection StatusColours PanelClose].all? { |name| icons[name].to_s.start_with?('<svg') })
+check('icons: the keys carry neither the Icon__AgentOutliner__ prefix nor the closing __',
+      icons.keys.none? { |name| name.start_with?('Icon__') || name.end_with?('_') })
+
+sent4 = []
+dm4.singleton_class.send(:alias_method, :na_test_send4, :Na__Dialog__Send)
+dm4.singleton_class.send(:alias_method, :na_test_visible4, :Na__Dialog__Visible?)
+dm4.singleton_class.send(:alias_method, :na_test_showing4, :na_showing?)
+dm4.define_singleton_method(:Na__Dialog__Send) { |channel, payload| sent4 << [channel, payload]; true }
+dm4.define_singleton_method(:Na__Dialog__Visible?) { true }
+dm4.define_singleton_method(:na_showing?) { |_model| true }
+begin
+    model.active_path = nil
+    model.selection.clear
+    $NA_TIMERS.clear
+    dm4.na_on_ready
+    channels = sent4.map(&:first)
+    check('icons: a page that comes up gets them first, before the state it draws with',
+          channels.include?('icons') && channels.index('icons') < channels.index('state') && sent4.assoc('icons')[1]['Flag'].to_s.start_with?('<svg'))
+    check('backstop: a page that comes up starts one watch', $NA_TIMERS.length == 1)
+    dm4.Na__Dialog__StartSelectionWatch
+    check('backstop: starting it again replaces the watch, never adds a second', $NA_TIMERS.length == 1)
+
+    sent4.clear
+    dm4.na_check_selection
+    check('backstop: with nothing new since the page heard, it sends nothing', sent4.empty?)
+
+    pieces = (1..100).map { |n| Struct.new(:entityID).new(90_000 + n) }
+    model.selection.add(pieces)
+    dm4.na_check_selection
+    check('backstop: a selection the observers missed reaches the page once', sent4.map(&:first) == ['selection'])
+    dm4.na_check_selection
+    check('backstop: and not again while it stays the same', sent4.length == 1)
+    signature = dm4.na_selection_signature(model)
+    check('backstop: it reads the count and only the first 16 entities of a big selection', signature[0] == 100 && signature[1].length == 16)
+
+    top = model.entities.na_items.find { |entity| entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance) }
+    model.active_path = [top]
+    dm4.na_check_selection
+    check('backstop: opening a group counts as a change (the page follows the group)', sent4.length == 2 && sent4.last[0] == 'selection')
+
+    model.selection.clear
+    dm4.instance_variable_set(:@na_selection_timer, 99)
+    dm4.na_check_selection
+    check('backstop: it waits while the observers\' own push is on its way', sent4.length == 2)
+    dm4.instance_variable_set(:@na_selection_timer, nil)
+    dm4.na_check_selection
+    check('backstop: then sends the cleared selection', sent4.length == 3 && sent4.last[1]['count'] == 0)
+
+    dm4.define_singleton_method(:Na__Dialog__Visible?) { false }
+    dm4.na_check_selection
+    check('backstop: with the dialog shut it stops itself', $NA_TIMERS.empty? && dm4.instance_variable_get(:@na_selection_watch).nil?)
+    dm4.define_singleton_method(:Na__Dialog__Visible?) { true }
+
+    # The Follow and Colours switches save one setting each and say what they did
+    sent4.clear
+    check('switches: Status Colours default to on', AO::Na__ConfigStore.Na__Config__Settings['grading']['status_colours'] == true)
+    name_before = AO::Na__ConfigStore.Na__Config__Settings['user']['name']
+    AO::Na__ActionRouter.Na__Action__Dispatch('saveSettings', { 'settings' => { 'selection' => { 'follow_selection' => false } },
+                                                                 'message' => 'Follow Selection off: the table stays where you leave it.' })
+    AO::Na__ActionRouter.Na__Action__Dispatch('saveSettings', { 'settings' => { 'grading' => { 'status_colours' => false } }, 'message' => 'Status Colours off: plain rows.' })
+    settings = AO::Na__ConfigStore.Na__Config__Settings
+    statuses4 = sent4.select { |pair| pair[0] == 'status' }.map { |pair| pair[1]['message'] }
+    check('switches: each saves its own setting and leaves the rest as they were',
+          settings['selection']['follow_selection'] == false && settings['grading']['status_colours'] == false &&
+          settings['user']['name'] == name_before && settings['grading']['agent_colour'] == '#7c3aed')
+    check('switches: the status line says what was switched', statuses4 == ['Follow Selection off: the table stays where you leave it.', 'Status Colours off: plain rows.'])
+    AO::Na__ActionRouter.Na__Action__Dispatch('saveSettings', { 'settings' => { 'selection' => { 'follow_selection' => true }, 'grading' => { 'status_colours' => true } } })
+    user_settings = AO::Na__ConfigStore.Na__UserConfig__All['settings'] || {}
+    check('switches: back on, they match the defaults and leave nothing in the user file',
+          !(user_settings['selection'] || {}).key?('follow_selection') && !(user_settings['grading'] || {}).key?('status_colours'))
+    check('switches: the Save Settings button still says Settings saved', sent4.select { |pair| pair[0] == 'status' }.last[1]['message'] == 'Settings saved.')
+ensure
+    dm4.Na__Dialog__StopSelectionWatch
+    dm4.instance_variable_set(:@na_page_ready, false)
+    dm4.singleton_class.send(:alias_method, :Na__Dialog__Send, :na_test_send4)
+    dm4.singleton_class.send(:alias_method, :Na__Dialog__Visible?, :na_test_visible4)
+    dm4.singleton_class.send(:alias_method, :na_showing?, :na_test_showing4)
+    model.active_path = nil
+    model.selection.clear
+end
+
+# ---------------------------------------------------------------------------
+# 0.1.16: Tree by Tag lists tags under their folders, so the page needs them
+# ---------------------------------------------------------------------------
+outer16 = Sketchup::LayerFolder.new('01__Existing')
+inner16 = Sketchup::LayerFolder.new('Walls', outer16, false)
+walls16 = model.layers.add('01__Existing__Walls')
+roof16  = model.layers.add('01__Existing__Roof')
+walls16.folder = inner16
+roof16.folder  = outer16
+begin
+    tags16 = AO::Na__Payloads.Na__Payload__Tags(model)
+    check('tags: a tag in nested folders carries them outermost first, each shown or hidden',
+          tags16['01__Existing__Walls']['f'] == ['01__Existing', 'Walls'] && tags16['01__Existing__Walls']['fs'] == [true, false])
+    check('tags: a hidden folder hides its tags, a shown one does not',
+          tags16['01__Existing__Walls']['v'] == false && tags16['01__Existing__Roof']['v'] == true && tags16['01__Existing__Roof']['f'] == ['01__Existing'])
+    check('tags: a tag at the top level carries no folder keys', !tags16['06__Drawings'].key?('f') && !tags16['06__Drawings'].key?('fs'))
+    listing16 = OPS.Na__AgentOutliner__McpRead('tags', {})
+    walls_listed = listing16['tags'].find { |tag| tag['name'] == '01__Existing__Walls' }
+    check('tags: the agents\' tag list still names the folder path', walls_listed && walls_listed['folder'] == '01__Existing / Walls')
+ensure
+    walls16.folder = nil
+    roof16.folder  = nil
+end
+
+report_and_exit
+raise "#{$NA_FAIL} checks failed" if $NA_FAIL > 0
+
+# =============================================================================
+# END OF FILE
+# =============================================================================

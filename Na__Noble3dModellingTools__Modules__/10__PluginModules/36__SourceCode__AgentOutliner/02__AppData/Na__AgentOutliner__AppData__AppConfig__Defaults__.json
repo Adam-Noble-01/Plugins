@@ -1,0 +1,60 @@
+{
+    "schema"   : 1,
+    "about"    : "Na Agent Outliner defaults. 'settings' is what the Settings tab edits: a user's own choices are saved over it in 91__UserConfig__LocalOnly/Na__AgentOutliner__UserConfig__.json (this PC only). 'engine' and 'notes' are not shown in the dialog.",
+
+    "dialog"   : {
+        "title"           : "Na Agent Outliner",
+        "preferences_key" : "Na__AgentOutliner",
+        "width"           : 1220,
+        "height"          : 780,
+        "min_width"       : 640,
+        "min_height"      : 420
+    },
+
+    "settings" : {
+        "user"      : {
+            "name"              : "Adam"
+        },
+        "tracking"  : {
+            "enabled"           : true,
+            "count_visibility"  : false,
+            "count_lock"        : false,
+            "keep_days"         : 30,
+            "max_events"        : 4000
+        },
+        "grading"   : {
+            "band_minutes"      : [5, 30, 120, 1440],
+            "agent_colour"      : "#7c3aed",
+            "user_colour"       : "#d97706",
+            "status_colours"    : true
+        },
+        "selection" : {
+            "mode"              : "open_context",
+            "follow_selection"  : true,
+            "zoom_on_double"    : true
+        },
+        "outliner"  : {
+            "show_images"       : true,
+            "show_sections"     : true
+        },
+        "debug"     : {
+            "dev_mode"          : false
+        }
+    },
+
+    "engine"   : {
+        "agent_stack_markers"     : ["Na__SketchUpMcp__Modules__"],
+        "reconcile_delay_s"       : 0.25,
+        "baseline_delay_s"        : 1.5,
+        "full_pass_budget_ms"     : 250,
+        "precise_signature_limit" : 20000,
+        "scan_entity_limit"       : 600000,
+        "save_delay_s"            : 2.0,
+        "chunk_chars"             : 900000
+    },
+
+    "notes"    : {
+        "max_text_chars"  : 4000,
+        "max_entries"     : 200
+    }
+}

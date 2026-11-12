@@ -6,9 +6,10 @@
     "dialog_height"          : 620,
     "dialog_resizable"       : true,
     "command_schema_notes"   : {
-        "short_name"   : "Required on every command. Ultra-concise label for the quick-launch cards under the search bar: 12 characters max. The Ruby Console warns about a command without one.",
-        "quick_launch" : "Optional, default true. Set false to keep a command off the quick-launch row. Its launches are still counted in the usage log.",
-        "usage_log"    : "Launch counts are kept per user and per PC in 91__UserConfig__LocalOnly/Na__Noble3dModellingTools__UserConfig__ToolUsageLog__.json (git-ignored)."
+        "short_name"    : "Required on every command. Ultra-concise label for the quick-launch cards under the search bar: 12 characters max. The Ruby Console warns about a command without one.",
+        "quick_launch"  : "Optional, default true. Set false to keep a command off the quick-launch row. Its launches are still counted in the usage log.",
+        "usage_log"     : "Launch counts are kept per user and per PC in 91__UserConfig__LocalOnly/Na__Noble3dModellingTools__UserConfig__ToolUsageLog__.json (git-ignored).",
+        "toolbar_items" : "Optional. Buttons after the 3D Modelling Tools button on its toolbar, in toolbar_order. command_id names a command above; icon_file is relative to the Modules folder (one SVG serves both sizes); tooltip defaults to the command's menu_text. Launches count as source toolbar. Reload Plugin Data adds a new item; taking one off needs a SketchUp restart."
     },
     "tabs"                   : [
         {
@@ -463,6 +464,16 @@
             "expose_to_hotkeys" : true
         },
         {
+            "command_id"        : "open_agent_outliner",
+            "command_name"      : "Na Noble3d - Agent Outliner",
+            "tooltip"           : "An Outliner for working with Claude: search, sort and group objects, give them standard names, flag them for an agent and talk in threads, and see what you and the agents changed",
+            "status_bar_text"   : "Open the Agent Outliner",
+            "menu_text"         : "Agent Outliner",
+            "short_name"        : "Outliner",
+            "handler_key"       : "open_agent_outliner",
+            "expose_to_hotkeys" : true
+        },
+        {
             "command_id"        : "untag_specific_in_selection",
             "command_name"      : "Na Noble3d - Untag Specific In Selection",
             "tooltip"           : "Selectively remove specific tags from the current selection while preserving all other tag assignments",
@@ -703,6 +714,17 @@
             "button_label"           : "Component Editor Tools",
             "command_id"             : "open_component_editor",
             "description"            : "Opens the Component Editor dialog for the selected component or group. Edit instance name, definition, attributes, and thumbnails."
+        },
+        {
+            "button_id"              : "btn_open_agent_outliner",
+            "tab_name"               : "Entity Utils",
+            "tool_group_name"        : "Component Inspection",
+            "tool_group_description" : "Tools for inspecting and editing selected components, groups, and entity hierarchies.",
+            "tool_group_order"       : 5,
+            "button_order"           : 5,
+            "button_label"           : "Agent Outliner",
+            "command_id"             : "open_agent_outliner",
+            "description"            : "An Outliner built for working with Claude agents. Sortable, groupable columns and a real search; Quick Name for standard names such as CAD__FrontElevation; flags and two way comment threads that agents read and answer through the Na SketchUp MCP; and New and Updated marks, coloured by who made the change (you or an agent) and fading with age."
         },
         {
             "button_id"              : "btn_group_component_converter",
@@ -1167,6 +1189,15 @@
             "description"            : "Checks the live GitHub raw JSON status for materials, tags, edge materials, and components without mutating the cache."
         }
     ],
+    "toolbar_items"          : [
+        {
+            "toolbar_item_id" : "tbr_open_agent_outliner",
+            "command_id"      : "open_agent_outliner",
+            "toolbar_order"   : 10,
+            "tooltip"         : "Open Agent Outliner",
+            "icon_file"       : "10__PluginModules/36__SourceCode__AgentOutliner/UiIcons__ToolbarIcons__AgentOutliner/Icon__Noble3dToolbar__AgentOutliner__.svg"
+        }
+    ],
     "settings"               : {
         "reload_command_id" : "reload_plugin_data",
         "status_element_id" : "naNoble3dStatus"
@@ -1314,6 +1345,10 @@
         },
         {
             "command_id"        : "open_component_editor",
+            "expose_to_hotkeys" : true
+        },
+        {
+            "command_id"        : "open_agent_outliner",
             "expose_to_hotkeys" : true
         },
         {

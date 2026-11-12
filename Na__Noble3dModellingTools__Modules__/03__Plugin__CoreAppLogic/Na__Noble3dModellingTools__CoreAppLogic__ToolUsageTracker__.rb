@@ -35,7 +35,7 @@ module Na__Noble3dModellingTools
 
         NA_USAGE_SCHEMA        = 1
         NA_QUICK_LAUNCH_LIMIT  = 6
-        NA_SOURCES             = %w[dialog quick_launch menu_hotkey].freeze
+        NA_SOURCES             = %w[dialog quick_launch menu_hotkey toolbar].freeze
         NA_DEFAULT_SOURCE      = 'menu_hotkey'.freeze
         NA_LOG_ABOUT           = 'Na Noble3d Modelling Tools launch counts for this user on this PC. ' \
                                  'Tools are sorted most-used first; the top six quick-launch-eligible ' \

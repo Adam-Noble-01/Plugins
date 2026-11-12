@@ -32,7 +32,7 @@ module Na__Noble3dModellingTools
                 Na__ModuleLoaders.Na__Noble3dModellingTools__LoadFeatureModules
             end
 
-            na_reset_feature_dialogs_after_reload
+            na_reset_feature_dialogs_after_reload                       # <-- Also appends new registry toolbar items
             Na__DialogManager.Na__Noble3dModellingTools__RefreshDialogIfVisible
 
             cache_has_failures = standard_cache_sources.values.any? { |source| source == :failed }
@@ -106,6 +106,11 @@ module Na__Noble3dModellingTools
         end
 
         def self.na_reset_feature_dialogs_after_reload
+            # Toolbar first. It runs from here, not from ReloadPluginData, because the
+            # reload that brings in new code is still running the old ReloadPluginData,
+            # which finds this method by name after the files have loaded.
+            na_sync_toolbar_after_reload
+
             if defined?(Na__VegetationSketcher__DialogManager) &&
                Na__VegetationSketcher__DialogManager.respond_to?(:Na__VegetationSketcher__ResetDialog)
                 Na__VegetationSketcher__DialogManager.Na__VegetationSketcher__ResetDialog
@@ -159,8 +164,29 @@ module Na__Noble3dModellingTools
                 Na__ToScaleOrthoTextureMaker__DialogManager.Na__ToScaleOrthoTextureMaker__DialogManager__ResetDialog
                 puts '[Na__Noble3dModellingTools] Reload reset To Scale Ortho Texture Maker dialog.'
             end
+
+            # Agent Outliner: its observers stay attached (their classes were
+            # reopened by the reload); the dialog closes and reopens so its
+            # HTML, CSS and JS reload too.
+            if defined?(::Na__AgentOutliner) &&
+               ::Na__AgentOutliner.respond_to?(:Na__AgentOutliner__AfterHostReload)
+                ::Na__AgentOutliner.Na__AgentOutliner__AfterHostReload
+                puts '[Na__Noble3dModellingTools] Reload refreshed the Agent Outliner.'
+            end
         rescue => error
             puts "[Na__Noble3dModellingTools] Feature dialog reset warning: #{error.class}: #{error.message}"
+        end
+
+        # A reload can only append to a toolbar: a new registry toolbar item shows
+        # now; a removed one stays until SketchUp restarts. Never raises.
+        def self.na_sync_toolbar_after_reload
+            return unless defined?(Na__ToolbarIconLoader) &&
+                Na__ToolbarIconLoader.respond_to?(:Na__Noble3dModellingTools__SyncToolbarItems)
+
+            added_count = Na__ToolbarIconLoader.Na__Noble3dModellingTools__SyncToolbarItems
+            puts "[Na__Noble3dModellingTools] Reload added #{added_count} toolbar button(s)." if added_count > 0
+        rescue => error
+            puts "[Na__Noble3dModellingTools] Toolbar sync warning: #{error.class}: #{error.message}"
         end
 
         def self.na_standard_cache_summary_text(source_map)
