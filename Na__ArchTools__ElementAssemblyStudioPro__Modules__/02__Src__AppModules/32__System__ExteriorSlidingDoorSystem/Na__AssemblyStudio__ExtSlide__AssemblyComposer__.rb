@@ -1137,6 +1137,7 @@ module Na__AssemblyComposer
         bifold_dict_key   = "Na__BifoldDoorConfiguratorInfo".freeze
         legacy_dict_key   = "Na__DoorConfiguratorInfo".freeze
         double_dict_key   = "Na__ExteriorDoubleDoorConfiguratorInfo".freeze
+        single_dict_key   = "Na__ExteriorSingleDoorConfiguratorInfo".freeze                   # <-- V2.6.0
         legacy_id_key     = "DoorID".freeze
 
         used = []
@@ -1153,6 +1154,9 @@ module Na__AssemblyComposer
 
                 double_id = na_safe_get_attribute(instance, double_dict_key, legacy_id_key)
                 used << na_extract_adr_number(double_id) if double_id
+
+                single_id = na_safe_get_attribute(instance, single_dict_key, legacy_id_key)        # <-- V2.6.0 Single doors' numbers are taken too
+                used << na_extract_adr_number(single_id) if single_id
             end
         end
         used.compact

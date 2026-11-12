@@ -9,34 +9,46 @@
 # MODULE     : Na__McpOperations
 # AUTHOR     : Noble Architecture
 # CREATED    : 09-Nov-2026 (V2.5.3)
+# UPDATED    : 11-Nov-2026 (V2.6.0) Every product, every setting, openings
 # PURPOSE    : What an agent may do with Element Assembly Studio Pro through
 #              Adam's Na SketchUp MCP plugin (tools entity_studio and
 #              entity_studio_edit). The MCP handlers are thin: they resolve
-#              ids and points, then call the two entry points below.
+#              ids, points and walls, then call the two entry points below.
 #
 # ENTRY POINTS:
 # - Na__McpOperations.Na__AssemblyStudio__McpRead(action, params)
-#     status, list_presets, get_preset, list_handles, inspect
+#     status, parameters, elements, inspect, openings, list_presets,
+#     get_preset, assets, list_handles
 # - Na__McpOperations.Na__AssemblyStudio__McpEdit(action, params)
-#     build, update, save_preset, refresh_preview, open_dialog, reload
+#     build, update, rename, export_dxf, save_preset, update_preset,
+#     archive_preset, restore_preset, refresh_preview, open_dialog, reload
 # - Refusals raise Na__McpOperationsError (code, message, hint, details); the
 #   MCP handler turns them into its own error with the fix named.
 #
+# THE FILES OF THIS SEAM (one module, split by subject):
+#   Main        entry points, status, presets reading, dialog, shared helpers
+#   Catalogue   products, starting values, the parameter catalogue, value checks
+#   Validation  the dialog's own build checks (twin of Viewport__Validation.js)
+#   Openings    every opening in a wall, as the opening tools would measure it
+#   Elements    elements, inspect, openings, build, update, rename
+#   Presets     save / update / archive / restore presets, DXF, asset lists
+#
 # WHAT IT REUSES (no second copy of any rule):
-# - Builds and updates go through each system's own GeometryEngine, which
-#   opens and commits its own undo operation, so one Ctrl+Z removes a build.
-#   Only the hinged exterior doors (single, double) have a complete engine
-#   outside the dialog; windows, sliding and bifold doors are refused.
-# - Presets are written by the Presets Library Store (code allocation, file
-#   name, pretty writer, .bak on every overwrite).
-# - Gallery previews are drawn by the dialog's own SvgCapture and stored
-#   through its existing na_presetsUpdateConfig callback, so they are exactly
-#   what Capture Current Design would store. That needs the dialog open, and
-#   it lands a moment after the call returns.
+# - Builds and updates run the dialog's own pipelines (V2.6.0): WindowSystem
+#   DialogCallbacks na_pipeline_*, InteriorDoorSystem DialogRouter
+#   na_pipeline_*_door, Cabinetry DialogRouter na_pipeline_*. One undo step
+#   each, with the dialog's own names; the dialog's handlers call the same.
+# - Settings: the generated parameter catalogue (02__AppData), read from the
+#   dialog's own control files. Out-of-range values are refused, never
+#   clamped.
+# - Presets: the Presets Library Store (codes, file names, .bak, archive).
+# - Previews: the dialog's own SvgCapture through its na_presetsUpdateConfig
+#   callback (needs the dialog open; lands a moment after the call).
 #
 # PARAMS ARRIVE STRING-KEYED, lengths in millimetres. The MCP handler adds
-# 'instance_object' (a resolved Sketchup::ComponentInstance) and
-# 'position_point' (a Geom::Point3d in model inches) where they apply.
+# 'instance_object', 'position_point', 'direction_vector', 'opening_points'
+# ({a:, b:, d:} Point3d in world inches), 'opening_report', 'run_points',
+# 'wall_object', 'wall_to_world', 'outside_vector' / 'outside_point'.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -80,25 +92,9 @@ module Na__McpOperations
     NA_APP_CONFIG    = File.join(NA_MODULES_ROOT, '02__Src__AppModules', '02__AppData', 'Na__AssemblyStudio__AppConfig__Main.json')
     NA_ASSET_LIBRARY = File.join(NA_MODULES_ROOT, '04__Data__AssetLibrary')
 
-    NA_READ_ACTIONS = %w[status list_presets get_preset list_handles inspect].freeze
-    NA_EDIT_ACTIONS = %w[build update save_preset refresh_preview open_dialog reload].freeze
-
-    # Hinged exterior doors: the systems whose engines build and update
-    # outside the dialog, each in its own undo operation.
-    NA_HINGED_SYSTEMS = {
-        'Single' => {
-            :mode_key => 'ext_single_door_mode',
-            :system   => :Na__ExteriorSingleDoorSystem,
-            :build    => :na_build_exterior_single_door,
-            :update   => :na_update_exterior_single_door
-        }.freeze,
-        'Double' => {
-            :mode_key => 'double_door_mode',
-            :system   => :Na__ExteriorDoubleDoorSystem,
-            :build    => :na_build_exterior_double_door,
-            :update   => :na_update_exterior_double_door
-        }.freeze
-    }.freeze
+    NA_READ_ACTIONS = %w[status parameters elements inspect openings list_presets get_preset assets list_handles].freeze
+    NA_EDIT_ACTIONS = %w[build update rename export_dxf save_preset update_preset archive_preset restore_preset
+                         refresh_preview open_dialog reload].freeze
 
     NA_HANDLE_FOLDERS = {
         'exterior' => 'ExteriorDoor__Handles__',
@@ -129,10 +125,14 @@ module Na__McpOperations
         params = {} unless params.is_a?(Hash)
         case action.to_s
         when 'status'       then na_status
+        when 'parameters'   then na_parameters(params)
+        when 'elements'     then na_elements(params)
+        when 'inspect'      then na_inspect(params)
+        when 'openings'     then na_openings(params)
         when 'list_presets' then na_list_presets(params)
         when 'get_preset'   then na_get_preset(params)
+        when 'assets'       then na_assets(params)
         when 'list_handles' then na_list_handles
-        when 'inspect'      then na_inspect(params)
         else
             na_refuse('invalid_params', "Unknown entity_studio action '#{action}'.", "Use one of: #{NA_READ_ACTIONS.join(', ')}.")
         end
@@ -147,9 +147,14 @@ module Na__McpOperations
         case action.to_s
         when 'build'           then na_build(params)
         when 'update'          then na_update(params)
+        when 'rename'          then na_rename(params)
+        when 'export_dxf'      then na_export_dxf(params)
         when 'save_preset'     then na_save_preset(params)
+        when 'update_preset'   then na_update_preset(params)
+        when 'archive_preset'  then na_archive_preset(params)
+        when 'restore_preset'  then na_restore_preset(params)
         when 'refresh_preview' then na_refresh_preview(params)
-        when 'open_dialog'     then na_open_dialog
+        when 'open_dialog'     then na_open_dialog(params)
         when 'reload'          then na_reload
         else
             na_refuse('invalid_params', "Unknown entity_studio_edit action '#{action}'.", "Use one of: #{NA_EDIT_ACTIONS.join(', ')}.")
@@ -160,33 +165,43 @@ module Na__McpOperations
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Read Actions
+# REGION | Read Actions - Status, Presets, Handles
 # -----------------------------------------------------------------------------
 
-    # HELPER FUNCTION | Plugin Version, Folders, Dialog State
+    # HELPER FUNCTION | Plugin Version, Folders, Products, Dialog State
     # ------------------------------------------------------------
     def self.na_status
-        records = Store.na_scan_presets
+        records  = Store.na_scan_presets
+        archived = Store.respond_to?(:na_scan_archived_presets) ? Store.na_scan_archived_presets.length : 0
+        systems  = na_catalogue.fetch('systems', {}).transform_values { |row| row['control_count'] }
         {
-            'version'        => na_app_version,
-            'modules_root'   => NA_MODULES_ROOT,
-            'presets_folder' => Store.na_presets_dir,
-            'preset_count'   => records.length,
-            'dialog_open'    => na_dialog_open?,
-            'buildable'      => NA_HINGED_SYSTEMS.keys.map { |type| "ExteriorDoor/#{type}" },
-            'summary'        => "Element Assembly Studio Pro #{na_app_version}: #{records.length} presets, dialog #{na_dialog_open? ? 'open' : 'closed'}."
+            'version'          => na_app_version,
+            'modules_root'     => NA_MODULES_ROOT,
+            'presets_folder'   => Store.na_presets_dir,
+            'preset_count'     => records.length,
+            'archived_presets' => archived,
+            'dialog_open'      => na_dialog_open?,
+            'types'            => NA_PRODUCTS.keys,
+            'settings'         => systems,
+            'catalogue'        => NA_CATALOGUE_FILE,
+            'summary'          => "Element Assembly Studio Pro #{na_app_version}: builds #{NA_PRODUCTS.keys.join(', ')}; " \
+                                  "#{systems.map { |system, count| "#{count} #{NA_SYSTEM_LABELS[system]} settings" }.join(', ')}; " \
+                                  "#{records.length} presets; dialog #{na_dialog_open? ? 'open' : 'closed'}."
         }
     end
     private_class_method :na_status
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Preset Cards, Filtered by Family or Text
+    # HELPER FUNCTION | Preset Cards, Filtered by Family, Type or Text
     # ------------------------------------------------------------
     def self.na_list_presets(params)
         family = params['family'].to_s.strip
-        query = params['query'].to_s.strip.downcase
-        rows = Store.na_scan_presets.select do |record|
-            next false unless family.empty? || record['productFamily'].casecmp?(family)
+        query  = params['query'].to_s.strip.downcase
+        wanted_type = params['type'] ? na_product(params['type']) : nil
+        source = params['archived'] == true ? Store.na_scan_archived_presets : Store.na_scan_presets
+        rows = source.select do |record|
+            next false unless family.empty? || record['productFamily'].to_s.casecmp?(family)
+            next false if wanted_type && !(record['productFamily'] == wanted_type[1]['family'] && record['productType'].to_s == wanted_type[1]['type'])
             next true if query.empty?
 
             [record['presetCode'], record['displayName'], record['description'], *record['keywords']]
@@ -195,7 +210,8 @@ module Na__McpOperations
         presets = rows.map { |record| na_preset_card(record) }
         {
             'presets' => presets,
-            'summary' => "#{presets.length} preset#{presets.length == 1 ? '' : 's'}#{family.empty? ? '' : " (#{family})"}."
+            'summary' => "#{presets.length} #{params['archived'] == true ? 'archived ' : ''}preset#{presets.length == 1 ? '' : 's'}" \
+                         "#{family.empty? ? '' : " (#{family})"}#{wanted_type ? " (#{wanted_type[0]})" : ''}."
         }
     end
     private_class_method :na_list_presets
@@ -206,16 +222,16 @@ module Na__McpOperations
     def self.na_get_preset(params)
         record = na_preset_record(params['code'])
         values = record['configValues'] || {}
-        keys = Array(params['keys']).map(&:to_s)
+        keys   = Array(params['keys']).map(&:to_s)
         prefix = params['prefix'].to_s
         shown = values.select do |key, _value|
             (keys.empty? || keys.include?(key)) && (prefix.empty? || key.start_with?(prefix))
         end
         na_preset_card(record).merge(
-            'description'  => record['description'],
-            'value_count'  => values.length,
-            'values'       => shown,
-            'summary'      => "#{record['presetCode']} #{record['displayName']}: #{shown.length} of #{values.length} values."
+            'description' => record['description'],
+            'value_count' => values.length,
+            'values'      => shown,
+            'summary'     => "#{record['presetCode']} #{record['displayName']}: #{shown.length} of #{values.length} values."
         )
     end
     private_class_method :na_get_preset
@@ -240,143 +256,11 @@ module Na__McpOperations
     private_class_method :na_list_handles
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Parts of a Built Element, Solid or Not
-    # ------------------------------------------------------------
-    # Reports every MOD leaf group's parts and every fielded panel cell, so
-    # an agent can prove panels are closed solids without ruby_eval.
-    def self.na_inspect(params)
-        instance = na_require_instance(params)
-        definition = instance.definition
-        mods = definition.entities.grep(Sketchup::Group).select { |group| group.name.match?(NA_MOD_NAME) }
-        fields = []
-        mod_rows = mods.map do |mod|
-            parts = mod.entities.grep(Sketchup::Group).map { |group| na_part_row(group) }
-            na_each_field(mod.entities) { |field| fields << na_part_row(field).merge('mod' => mod.name) }
-            { 'name' => mod.name, 'tag' => mod.layer.name, 'parts' => parts }
-        end
-        not_solid = fields.reject { |row| row['solid'] }
-        {
-            'definition'   => definition.name,
-            'element_type' => na_instance_type(instance),
-            'mods'         => mod_rows,
-            'fields'       => { 'count' => fields.length, 'all_solid' => not_solid.empty?, 'rows' => fields },
-            'summary'      => "#{definition.name}: #{mods.length} MOD group#{mods.length == 1 ? '' : 's'}, " \
-                              "#{fields.length} fielded panel#{fields.length == 1 ? '' : 's'}, #{not_solid.length} not solid."
-        }
-    end
-    private_class_method :na_inspect
-    # ---------------------------------------------------------------
-
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Edit Actions - Build + Update
+# REGION | Edit Actions - Preview + Dialog
 # -----------------------------------------------------------------------------
-
-    # HELPER FUNCTION | Build a Hinged Exterior Door From a Preset and Values
-    # ------------------------------------------------------------
-    def self.na_build(params)
-        values = na_values_from(params)
-        type = na_hinged_type(values)
-        spec = NA_HINGED_SYSTEMS[type]
-        system = na_require_system(spec)
-        na_ensure_materials
-        point = params['position_point'] || Geom::Point3d.new(0, 0, 0)
-        instance = system::Na__GeometryEngine.public_send(spec[:build], values, nil, point)
-        unless instance.is_a?(Sketchup::ComponentInstance) && instance.valid?
-            na_refuse('operation_failed', "The #{type.downcase} door engine built nothing.",
-                      'Open the Ruby Console for the Element Assembly Studio error, check the values, then try again.')
-        end
-
-        fields = na_field_rows(instance)
-        {
-            'instance_object' => instance,
-            'definition'      => instance.definition.name,
-            'element_type'    => "ExteriorDoor/#{type}",
-            'undo_name'       => "Create Exterior #{type} Door",
-            'fields'          => { 'count' => fields.length, 'all_solid' => fields.all? { |row| row['solid'] } },
-            'summary'         => "Built #{instance.definition.name} (exterior #{type.downcase} door), " \
-                                 "#{fields.length} fielded panel#{fields.length == 1 ? '' : 's'}."
-        }
-    end
-    private_class_method :na_build
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Rebuild a Placed Hinged Door With New Values
-    # ------------------------------------------------------------
-    def self.na_update(params)
-        instance = na_require_instance(params)
-        type = na_instance_type(instance)
-        spec = NA_HINGED_SYSTEMS[type.to_s.split('/').last]
-        unless spec
-            na_refuse('wrong_type', "#{instance.definition.name} is not an exterior single or double door built by Element Assembly Studio.",
-                      'Pass the instance_id of an ADR door it built, or edit this element in the dialog.')
-        end
-
-        system = na_require_system(spec)
-        na_ensure_materials
-        values = na_values_from(params.merge('instance_object' => instance))
-        unless system::Na__GeometryEngine.public_send(spec[:update], instance, values)
-            na_refuse('operation_failed', "The door engine could not rebuild #{instance.definition.name}.",
-                      'Open the Ruby Console for the Element Assembly Studio error, check the values, then try again.')
-        end
-
-        fields = na_field_rows(instance)
-        {
-            'instance_object' => instance,
-            'definition'      => instance.definition.name,
-            'element_type'    => type,
-            'undo_name'       => "Update Exterior #{type.split('/').last} Door",
-            'fields'          => { 'count' => fields.length, 'all_solid' => fields.all? { |row| row['solid'] } },
-            'summary'         => "Rebuilt #{instance.definition.name} with #{Hash(params['values']).length} changed value(s)."
-        }
-    end
-    private_class_method :na_update
-    # ---------------------------------------------------------------
-
-# endregion -------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REGION | Edit Actions - Presets + Dialog
-# -----------------------------------------------------------------------------
-
-    # HELPER FUNCTION | Write a New Preset Through the Presets Store
-    # ------------------------------------------------------------
-    def self.na_save_preset(params)
-        name = params['name'].to_s.strip
-        na_refuse('invalid_params', 'save_preset needs a name.', 'Pass name, e.g. "Traditional | Four Panel Half Glazed Door".') if name.empty?
-
-        base = params['preset'] ? na_preset_record(params['preset']) : nil
-        values = na_values_from(params)
-        family, type, contract = na_product_of(values, base)
-        result = Store.na_save_new_preset(
-            'presetName'        => name,
-            'presetDescription' => params['description'].to_s,
-            'presetKeywords'    => Array(params['keywords']).map(&:to_s),
-            'productFamily'     => family,
-            'productType'       => type,
-            'schemaContract'    => contract,
-            'configValues'      => values,
-            'svgPreview'        => nil
-        )
-        unless result['isSaved']
-            na_refuse('file_error', result['statusMessage'].to_s, 'Check the presets folder is writable and the name is new.',
-                      { 'reason' => result['reason'] })
-        end
-
-        preview = na_request_preview(result['presetCode'])
-        {
-            'code'      => result['presetCode'],
-            'file'      => result['sourceFile'],
-            'family'    => family,
-            'type'      => type,
-            'preview'   => preview,
-            'warnings'  => preview == 'requested' ? [] : ['The gallery card has no picture yet: open the dialog (open_dialog), then refresh_preview.'],
-            'summary'   => "Saved preset #{result['presetCode']} #{name} (#{family}/#{type}); preview #{preview}."
-        }
-    end
-    private_class_method :na_save_preset
-    # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Ask the Open Dialog to Redraw a Preset's Card Picture
     # ------------------------------------------------------------
@@ -397,13 +281,35 @@ module Na__McpOperations
     private_class_method :na_refresh_preview
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Open the Element Assembly Studio Dialog
+    # HELPER FUNCTION | Open the Dialog (and Show One Element in It)
     # ------------------------------------------------------------
-    def self.na_open_dialog
-        Na__AssemblyStudio.na_init unless na_dialog_open?
+    # With instance_id the element is selected and handed to the dialog's own
+    # SelectionCoordinator, which loads it into its tab exactly as a click
+    # would. The coordinator listens for onSelectionBulkChange (a click),
+    # which Selection#add from code does not raise, so it is called here; a
+    # dialog that was closed gets it once its page has had time to load.
+    def self.na_open_dialog(params = {})
+        was_open = na_dialog_open?
+        Na__AssemblyStudio.na_init unless was_open
+        shown = nil
+        if params['instance_object']
+            _instance, element = na_require_element(params)
+            selection = Sketchup.active_model.selection
+            selection.clear
+            selection.add(params['instance_object'])
+            coordinator = Na__AssemblyStudio::Na__AppCore::Na__SelectionCoordinator
+            if was_open
+                coordinator.na_dispatch_selection(selection)
+            else
+                UI.start_timer(2.0, false) { coordinator.na_dispatch_selection(Sketchup.active_model.selection) }
+            end
+            shown = element['id']
+        end
         {
             'dialog_open' => na_dialog_open?,
-            'summary'     => 'Element Assembly Studio dialog open. Its page loads a moment after this call returns.'
+            'showing'     => shown,
+            'summary'     => "Element Assembly Studio dialog open#{shown ? ", showing #{shown} (selected#{was_open ? '' : '; it loads into the dialog about 2 s after its page opens'})" : ''}." \
+                             "#{was_open ? '' : ' Its page loads a moment after this call returns.'}"
         }
     end
     private_class_method :na_open_dialog
@@ -433,64 +339,8 @@ module Na__McpOperations
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# REGION | Internal Helpers - Values, Types, Systems
+# REGION | Internal Helpers - Materials, Instances, Copies
 # -----------------------------------------------------------------------------
-
-    # HELPER FUNCTION | Base Values (Preset or Placed Element) + Overrides
-    # ------------------------------------------------------------
-    def self.na_values_from(params)
-        base = if params['preset']
-                   JSON.parse(JSON.generate(na_preset_record(params['preset'])['configValues'] || {}))
-               elsif params['instance_object']
-                   na_instance_values(params['instance_object'])
-               else
-                   {}
-               end
-        overrides = params['values']
-        if overrides && !overrides.is_a?(Hash)
-            na_refuse('invalid_params', 'values must be an object of config keys and values.', 'e.g. {"single_door_panel_preset": "TwoVertical"}.')
-        end
-
-        values = base.merge(overrides || {})
-        if values.empty?
-            na_refuse('invalid_params', 'Nothing to build from.', 'Pass preset (a code such as EAS008), an instance_id, or a full values object.')
-        end
-        values
-    end
-    private_class_method :na_values_from
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Which Hinged Door a Window-Family Config Builds
-    # ------------------------------------------------------------
-    def self.na_hinged_type(values)
-        type = NA_HINGED_SYSTEMS.find { |_type, spec| values[spec[:mode_key]] == true }&.first
-        return type if type
-
-        found = if values['sliding_mode'] == true then 'a sliding door'
-                elsif values['multifold_mode'] == true then 'a bifold door'
-                elsif values.key?('Na__DoorConfiguration') || values.key?('Na__DoorConfig__HandleAssetKey') then 'an interior door'
-                else 'a window'
-                end
-        na_refuse('unsupported', "These values build #{found}; entity_studio_edit builds exterior single and double doors only.",
-                  'Set ext_single_door_mode or double_door_mode true, or build this one from the dialog.')
-    end
-    private_class_method :na_hinged_type
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Family / Type / Schema Contract for a Preset File
-    # ------------------------------------------------------------
-    def self.na_product_of(values, base)
-        if values['ui_element_category'].to_s == 'ExteriorDoors' || NA_HINGED_SYSTEMS.values.any? { |spec| values[spec[:mode_key]] == true }
-            type = values['ui_exterior_door_type'].to_s
-            type = NA_HINGED_SYSTEMS.find { |_type, spec| values[spec[:mode_key]] == true }&.first.to_s if type.empty?
-            return ['ExteriorDoor', type.empty? ? 'Double' : type, 'windowConfiguration']
-        end
-        return [base['productFamily'], base['productType'], base['schemaContract']] if base && base['productFamily'] != 'Window'
-
-        ['Window', values['ui_window_type'].to_s.empty? ? 'Casement' : values['ui_window_type'].to_s, 'windowConfiguration']
-    end
-    private_class_method :na_product_of
-    # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Load the Material Library the Way Opening the Dialog Does
     # ------------------------------------------------------------
@@ -515,46 +365,6 @@ module Na__McpOperations
     private_class_method :na_ensure_materials
     # ---------------------------------------------------------------
 
-    # HELPER FUNCTION | Load a Hinged Door System's Lazy Modules
-    # ------------------------------------------------------------
-    def self.na_require_system(spec)
-        system = Na__AssemblyStudio.const_get(spec[:system])
-        system.na_require_modules
-        system
-    end
-    private_class_method :na_require_system
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | Which Hinged Door Built This Instance
-    # ------------------------------------------------------------
-    # @return [String, nil] "ExteriorDoor/Single" | "ExteriorDoor/Double"
-    def self.na_instance_type(instance)
-        NA_HINGED_SYSTEMS.each do |type, spec|
-            system = na_require_system(spec)
-            return "ExteriorDoor/#{type}" if system::Na__DataSerializer.na_get_door_id_from_instance(instance)
-        end
-        nil
-    end
-    private_class_method :na_instance_type
-    # ---------------------------------------------------------------
-
-    # HELPER FUNCTION | The Full Config Stored on a Placed Hinged Door
-    # ------------------------------------------------------------
-    def self.na_instance_values(instance)
-        type = na_instance_type(instance).to_s.split('/').last
-        spec = NA_HINGED_SYSTEMS[type]
-        unless spec
-            na_refuse('wrong_type', "#{instance.definition.name} has no Element Assembly Studio door data.",
-                      'Pass the instance_id of an exterior single or double door it built.')
-        end
-
-        system = na_require_system(spec)
-        payload = system::Na__DataSerializer.na_load_from_instance(instance) || {}
-        JSON.parse(JSON.generate(payload[system::NA_KEY_CONFIGURATION] || {}))
-    end
-    private_class_method :na_instance_values
-    # ---------------------------------------------------------------
-
     # HELPER FUNCTION | The Instance the Handler Resolved, or a Refusal
     # ------------------------------------------------------------
     def self.na_require_instance(params)
@@ -562,9 +372,34 @@ module Na__McpOperations
         return instance if instance.is_a?(Sketchup::ComponentInstance) && instance.valid?
 
         na_refuse('invalid_params', 'This action needs instance_id: a placed element built by Element Assembly Studio.',
-                  'Find it with entity_query (name_contains "ADR"), then pass its id.')
+                  'List them with entity_studio elements, then pass its instance_id.')
     end
     private_class_method :na_require_instance
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | A Deep, Unfrozen Copy of JSON-Shaped Data
+    # ------------------------------------------------------------
+    def self.na_deep_copy(value)
+        JSON.parse(JSON.generate(value))
+    end
+    private_class_method :na_deep_copy
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Numbers as the Dialog Sends Them
+    # ------------------------------------------------------------
+    # A value that crossed the dialog's JSON round trip is an Integer when it
+    # is whole (JS writes 1200, never 1200.0). The engines and exporters rely
+    # on it: the window DXF header writes "#{width}.0", so a Float 1200.0
+    # came out as "1200.0.0" (11-Nov-2026). Whole floats become integers here.
+    def self.na_json_numbers(value)
+        case value
+        when Float then value.finite? && value == value.round ? value.round : value
+        when Hash then value.transform_values { |item| na_json_numbers(item) }
+        when Array then value.map { |item| na_json_numbers(item) }
+        else value
+        end
+    end
+    private_class_method :na_json_numbers
     # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -579,10 +414,12 @@ module Na__McpOperations
         wanted = code.to_s.strip
         na_refuse('invalid_params', 'Say which preset: pass its code, e.g. EAS008.', 'List them with entity_studio list_presets.') if wanted.empty?
 
-        record = Store.na_scan_presets.find { |row| row['presetCode'].casecmp?(wanted) }
+        record = Store.na_scan_presets.find { |row| row['presetCode'].to_s.casecmp?(wanted) }
         return record if record
 
-        na_refuse('not_found', "No preset #{wanted} in #{Store.na_presets_dir}.", 'List them with entity_studio list_presets.')
+        archived = Store.respond_to?(:na_scan_archived_presets) && Store.na_scan_archived_presets.any? { |row| row['presetCode'].to_s.casecmp?(wanted) }
+        na_refuse('not_found', "No preset #{wanted} in #{Store.na_presets_dir}#{archived ? ' (it is archived)' : ''}.",
+                  archived ? 'Bring it back with entity_studio_edit restore_preset first.' : 'List them with entity_studio list_presets.')
     end
     private_class_method :na_preset_record
     # ---------------------------------------------------------------
@@ -591,11 +428,18 @@ module Na__McpOperations
     # ------------------------------------------------------------
     def self.na_preset_card(record)
         preview = record['svgPreview'] || {}
+        system  = na_system_of_family(record['productFamily'])
+        product = begin
+                      na_product_of_preset(system, record)
+                  rescue StandardError
+                      nil
+                  end
         {
             'code'          => record['presetCode'],
             'name'          => record['displayName'],
             'family'        => record['productFamily'],
-            'type'          => record['productType'],
+            'type'          => product,
+            'product_type'  => record['productType'],
             'keywords'      => record['keywords'],
             'file'          => record['sourceFile'],
             'created'       => record['createdDate'],
@@ -747,6 +591,19 @@ module Na__McpOperations
 
 end # module Na__McpOperations
 end # module Na__AssemblyStudio
+
+# -----------------------------------------------------------------------------
+# REGION | The Rest of the Seam
+# -----------------------------------------------------------------------------
+
+require_relative 'Na__AssemblyStudio__McpOperations__Catalogue__'
+require_relative 'Na__AssemblyStudio__McpOperations__Validation__'
+require_relative 'Na__AssemblyStudio__McpOperations__SideEffects__'
+require_relative 'Na__AssemblyStudio__McpOperations__Openings__'
+require_relative 'Na__AssemblyStudio__McpOperations__Elements__'
+require_relative 'Na__AssemblyStudio__McpOperations__Presets__'
+
+# endregion -------------------------------------------------------------------
 
 # =============================================================================
 # END OF FILE

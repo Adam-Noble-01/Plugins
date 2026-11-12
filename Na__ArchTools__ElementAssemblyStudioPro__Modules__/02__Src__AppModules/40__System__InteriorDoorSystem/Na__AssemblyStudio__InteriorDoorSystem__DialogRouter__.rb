@@ -232,44 +232,93 @@ module Na__InteriorDoorSystem
 
             begin
                 config_root        = JSON.parse(config_json)
-                na_prune_obsolete_config_keys!(config_root)
-                na_normalize_architrave_config_keys!(config_root)
                 @na_current_config = config_root
 
                 insertion_frame    = na_resolve_door_pending_frame_for_mode(mode)
                 return if mode == :measurement && insertion_frame.nil?                                 # <-- Strict mode bail-out (status already emitted)
 
-                model.start_operation("Create Interior Door", true)
+                door_instance = na_pipeline_create_door(config_root, insertion_frame)                  # <-- V2.6.0 Shared with the MCP seam
+                door_id       = DataSerializer.na_get_door_id_from_instance(door_instance)
+                @na_current_door_inst = door_instance
 
-                door_id            = DataSerializer.na_generate_next_door_id
-                na_apply_create_metadata(config_root, door_id)
-                door_config_block  = config_root[NA_DOOR_CONFIG_KEY]
-
-                door_instance      = GeometryEngine.na_create_door(door_config_block, door_id, insertion_frame)
-
-                if door_instance && door_instance.valid?
-                    DataSerializer.na_set_door_id_on_instance(
-                        door_instance, door_id, na_extract_door_description(config_root)
-                    )
-                    DataSerializer.na_save_door_data(door_id, config_root)
-
-                    @na_current_door_inst = door_instance
-                    model.commit_operation
-
-                    DebugTools.na_debug_success("Created door #{door_id}")
-                    na_send_status_to_dialog("success", "Door created: #{door_id}")
-                else
-                    model.abort_operation
-                    DebugTools.na_debug_error("Failed to create door geometry")
-                    na_send_status_to_dialog("error", "Failed to create door geometry")
-                end
+                DebugTools.na_debug_success("Created door #{door_id}")
+                na_send_status_to_dialog("success", "Door created: #{door_id}")
             rescue => e
-                model.abort_operation if model
                 DebugTools.na_debug_error("Error creating door", e)
                 na_send_status_to_dialog("error", "Error: #{e.message}")
             end
         end
         # ---------------------------------------------------------------
+
+        # -----------------------------------------------------------------
+        # REGION | Shared Build Pipelines (V2.6.0 - the Dialog and the MCP Seam)
+        # -----------------------------------------------------------------
+        # Create and update of an interior door, whoever asked: the dialog
+        # handlers above, or an agent (60__System__McpOperations). One undo
+        # step each, with the dialog's own undo names; they work on the
+        # instance given (never the one the dialog is tracking), raise after
+        # aborting on failure, and leave the dialog's state alone.
+        # -----------------------------------------------------------------
+
+        # FUNCTION | Create an Interior Door From a Full Payload
+        # ------------------------------------------------------------
+        # @param config_root [Hash] { "Na__DoorMetadata"=>[{...}], "Na__DoorComponents"=>[], "Na__DoorConfiguration"=>{...} }
+        #                           (pruned, normalised and stamped in place)
+        # @param frame [Hash, Geom::Point3d, nil] an InsertionFrame 3-point frame, an origin, or nil
+        # @return [Sketchup::ComponentInstance]
+        def self.na_pipeline_create_door(config_root, frame)
+            model = Sketchup.active_model
+            na_prune_obsolete_config_keys!(config_root)
+            na_normalize_architrave_config_keys!(config_root)
+
+            model.start_operation("Create Interior Door", true)
+            started = true
+
+            door_id = DataSerializer.na_generate_next_door_id
+            na_apply_create_metadata(config_root, door_id)
+            door_instance = GeometryEngine.na_create_door(config_root[NA_DOOR_CONFIG_KEY], door_id, frame)
+            raise "Failed to create door geometry" unless door_instance && door_instance.valid?
+
+            DataSerializer.na_set_door_id_on_instance(door_instance, door_id, na_extract_door_description(config_root))
+            DataSerializer.na_save_door_data(door_id, config_root)
+            model.commit_operation
+            door_instance
+        rescue StandardError
+            begin; model.abort_operation if started; rescue StandardError; end
+            raise
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Rebuild an Interior Door With a Full Payload
+        # ------------------------------------------------------------
+        # Every copy sharing the definition changes with it, as in the dialog.
+        # @return [Sketchup::ComponentInstance]
+        def self.na_pipeline_update_door(instance, config_root)
+            raise "No door to update" unless instance && instance.valid?
+            door_id = DataSerializer.na_get_door_id_from_instance(instance)
+            raise "#{instance.definition.name} is not a configurable door" unless door_id
+
+            model = Sketchup.active_model
+            na_prune_obsolete_config_keys!(config_root)
+            na_normalize_architrave_config_keys!(config_root)
+
+            model.start_operation("Update Interior Door", true)
+            started = true
+
+            na_apply_modified_metadata(config_root)
+            raise "Failed to update door geometry" unless GeometryEngine.na_update_door(instance, config_root[NA_DOOR_CONFIG_KEY])
+
+            DataSerializer.na_set_door_id_on_instance(instance, door_id, na_extract_door_description(config_root))
+            DataSerializer.na_save_door_data(door_id, config_root)
+            model.commit_operation
+            instance
+        rescue StandardError
+            begin; model.abort_operation if started; rescue StandardError; end
+            raise
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------
 
         # FUNCTION | Handle Update Door Callback
         # ------------------------------------------------------------
@@ -280,8 +329,6 @@ module Na__InteriorDoorSystem
 
             begin
                 config_root        = JSON.parse(config_json)
-                na_prune_obsolete_config_keys!(config_root)
-                na_normalize_architrave_config_keys!(config_root)
                 @na_current_config = config_root
 
                 unless @na_current_door_inst && @na_current_door_inst.valid?
@@ -297,27 +344,11 @@ module Na__InteriorDoorSystem
                     return
                 end
 
-                model.start_operation("Update Interior Door", true)
+                na_pipeline_update_door(@na_current_door_inst, config_root)                             # <-- V2.6.0 Shared with the MCP seam
 
-                na_apply_modified_metadata(config_root)
-                door_config_block = config_root[NA_DOOR_CONFIG_KEY]
-
-                if GeometryEngine.na_update_door(@na_current_door_inst, door_config_block)
-                    DataSerializer.na_set_door_id_on_instance(
-                        @na_current_door_inst, door_id, na_extract_door_description(config_root)
-                    )
-                    DataSerializer.na_save_door_data(door_id, config_root)
-                    model.commit_operation
-
-                    DebugTools.na_debug_success("Updated door #{door_id}")
-                    na_send_status_to_dialog("success", "Door updated: #{door_id}")
-                else
-                    model.abort_operation
-                    DebugTools.na_debug_error("Failed to update door geometry")
-                    na_send_status_to_dialog("error", "Failed to update door geometry")
-                end
+                DebugTools.na_debug_success("Updated door #{door_id}")
+                na_send_status_to_dialog("success", "Door updated: #{door_id}")
             rescue => e
-                model.abort_operation if model
                 DebugTools.na_debug_error("Error updating door", e)
                 na_send_status_to_dialog("error", "Error: #{e.message}")
             end

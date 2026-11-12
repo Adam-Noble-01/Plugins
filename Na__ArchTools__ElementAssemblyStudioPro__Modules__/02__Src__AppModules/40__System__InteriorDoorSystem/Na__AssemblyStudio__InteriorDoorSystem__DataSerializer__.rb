@@ -82,7 +82,8 @@ module Na__InteriorDoorSystem
             NA_DOOR_INFO_DICT,
             "Na__BifoldDoorConfiguratorInfo",
             "Na__SlidingDoorConfiguratorInfo",
-            "Na__ExteriorDoubleDoorConfiguratorInfo"
+            "Na__ExteriorDoubleDoorConfiguratorInfo",
+            "Na__ExteriorSingleDoorConfiguratorInfo"                            # <-- V2.6.0 Single doors' ADR numbers are taken too
         ].freeze
         # ---------------------------------------------------------------
 

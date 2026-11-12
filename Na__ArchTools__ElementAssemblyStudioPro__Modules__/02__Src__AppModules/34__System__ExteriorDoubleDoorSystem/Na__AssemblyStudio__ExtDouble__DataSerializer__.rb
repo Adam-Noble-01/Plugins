@@ -14,6 +14,7 @@ module Na__DataSerializer
     ComponentNameSuffix = Na__AssemblyStudio::Na__GeometryHelpers::Na__ComponentNameSuffix
     NA_KNOWN_INSTANCE_DICTIONARIES = [
         'Na__ExteriorDoubleDoorConfiguratorInfo',
+        'Na__ExteriorSingleDoorConfiguratorInfo',                                # <-- V2.6.0 Single doors' ADR numbers are taken too
         'Na__DoorConfiguratorInfo',
         'Na__SlidingDoorConfiguratorInfo',
         'Na__BifoldDoorConfiguratorInfo'

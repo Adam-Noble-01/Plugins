@@ -931,43 +931,11 @@ module Na__AssemblyStudio
                     return na_handle_create_exterior_single_door(config, pending_frame, mode)
                 end
 
-                model     = Sketchup.active_model
-                model.start_operation("Create Window", true)
-
-                window_id = DataSerializer.na_generate_next_window_id
-                if @na_config["windowMetadata"] && @na_config["windowMetadata"][0]
-                    @na_config["windowMetadata"][0]["WindowUniqueId"] = window_id
-                    @na_config["windowMetadata"][0]["CreatedDate"]    = Time.now.strftime("%Y-%m-%d %H:%M:%S")
-                    @na_config["windowMetadata"][0]["LastModified"]   = Time.now.strftime("%Y-%m-%d %H:%M:%S")
-                end
-
-                @na_window_component = GeometryEngine.na_create_window_geometry(
-                    config["windowConfiguration"], window_id, pending_frame
-                )
-
-                if @na_window_component && @na_window_component.valid?
-                    na_track_created_component(@na_window_component, :window)
-                    if config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true
-                        UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
-                        FuseParts.na_fuse_window_parts(@na_window_component.definition.entities)
-                    end
-                    na_apply_edge_colours_after_build(@na_window_component, config["windowConfiguration"])
-
-                    # A brand new component is always born bare - the user names
-                    # it from WINDOW INFO once it is placed and selected. Reading
-                    # the field here would silently clone the previously selected
-                    # component's name onto the new one.
-                    DataSerializer.na_set_window_id_on_instance(@na_window_component, window_id, "")
-                    DataSerializer.na_save_window_data(window_id, @na_config)
-                    model.commit_operation
-
-                    na_finalise_window_placement(@na_window_component, window_id, pending_frame, mode)
-                else
-                    model.abort_operation
-                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create window geometry')
-                end
+                instance  = na_pipeline_create_window(config, pending_frame)                         # <-- V2.6.0 One undo step, shared with the MCP seam
+                window_id = DataSerializer.na_get_window_id_from_instance(instance)
+                na_track_created_component(instance, :window)
+                na_finalise_window_placement(instance, window_id, pending_frame, mode)
             rescue StandardError => e
-                begin; model.abort_operation if model; rescue StandardError; end
                 DebugTools.na_debug_error("Error creating window", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
@@ -1037,42 +1005,12 @@ module Na__AssemblyStudio
             end
 
             def self.na_handle_create_bifold_door(config, pending_frame = nil, mode = :auto)
-                model = Sketchup.active_model
-                return unless model
+                return unless Sketchup.active_model
 
-                window_config = config["windowConfiguration"] || {}
-
-                model.start_operation("Create Bifold Door", true)
-
-                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
-                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
-                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
-
-                instance = bifold_engine.na_build_bifold_door(window_config, nil, pending_frame)
-
-                if instance && instance.valid?
-                    na_track_created_component(instance, :bifold)
-
-                    na_apply_bifold_fuse_parts(instance, window_config)
-                    na_apply_edge_colours_after_build(instance, window_config)
-
-                    door_id = bifold_serializer.na_get_door_id_from_instance(instance)
-                    if door_id
-                        bifold_serializer.na_save_door_data(
-                            door_id,
-                            na_build_bifold_save_payload(door_id, window_config, true)
-                        )
-                    end
-
-                    model.commit_operation
-
-                    na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Bifold")
-                else
-                    model.abort_operation
-                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create bifold door geometry')
-                end
+                instance = na_pipeline_create_bifold_door(config["windowConfiguration"] || {}, pending_frame)   # <-- V2.6.0 Shared pipeline
+                na_track_created_component(instance, :bifold)
+                na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Bifold")
             rescue StandardError => e
-                begin; model.abort_operation if model; rescue StandardError; end
                 DebugTools.na_debug_error("Error creating bifold door", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
@@ -1084,32 +1022,9 @@ module Na__AssemblyStudio
                     return
                 end
 
-                window_config = config["windowConfiguration"] || {}
-                model = Sketchup.active_model
-                model.start_operation("Update Bifold Door", true)
-
-                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
-                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
-                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
-
-                bifold_engine.na_update_bifold_door(instance, window_config)
-
-                na_apply_bifold_fuse_parts(instance, window_config)
-                na_apply_edge_colours_after_build(instance, window_config)
-                na_sync_component_name_from_config(config)
-
-                door_id = bifold_serializer.na_get_door_id_from_instance(instance)
-                if door_id
-                    bifold_serializer.na_save_door_data(
-                        door_id,
-                        na_build_bifold_save_payload(door_id, window_config, false)
-                    )
-                end
-
-                model.commit_operation
+                na_pipeline_update_bifold_door(instance, config)                                      # <-- V2.6.0 Shared pipeline
                 UiBridge.na_send_status(@na_dialog, 'success', "Bifold door updated: #{instance.name}")
             rescue StandardError => e
-                begin; model.abort_operation if model; rescue StandardError; end
                 DebugTools.na_debug_error("Error updating bifold door", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
@@ -1206,42 +1121,12 @@ module Na__AssemblyStudio
             end
 
             def self.na_handle_create_sliding_door(config, pending_frame = nil, mode = :auto)
-                model = Sketchup.active_model
-                return unless model
+                return unless Sketchup.active_model
 
-                window_config = config["windowConfiguration"] || {}
-
-                model.start_operation("Create Sliding Door", true)
-
-                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
-                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
-                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
-
-                instance = sliding_engine.na_build_sliding_door(window_config, nil, pending_frame)
-
-                if instance && instance.valid?
-                    na_track_created_component(instance, :sliding)
-
-                    na_apply_sliding_fuse_parts(instance, window_config)
-                    na_apply_edge_colours_after_build(instance, window_config)
-
-                    door_id = sliding_serializer.na_get_door_id_from_instance(instance)
-                    if door_id
-                        sliding_serializer.na_save_door_data(
-                            door_id,
-                            na_build_sliding_save_payload(door_id, window_config, true)
-                        )
-                    end
-
-                    model.commit_operation
-
-                    na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Sliding")
-                else
-                    model.abort_operation
-                    UiBridge.na_send_status(@na_dialog, 'error', 'Failed to create sliding door geometry')
-                end
+                instance = na_pipeline_create_sliding_door(config["windowConfiguration"] || {}, pending_frame)  # <-- V2.6.0 Shared pipeline
+                na_track_created_component(instance, :sliding)
+                na_finalise_bifold_or_sliding_placement(instance, pending_frame, mode, "Sliding")
             rescue StandardError => e
-                begin; model.abort_operation if model; rescue StandardError; end
                 DebugTools.na_debug_error("Error creating sliding door", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
@@ -1275,32 +1160,9 @@ module Na__AssemblyStudio
                     return
                 end
 
-                window_config = config["windowConfiguration"] || {}
-                model = Sketchup.active_model
-                model.start_operation("Update Sliding Door", true)
-
-                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
-                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
-                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
-
-                sliding_engine.na_update_sliding_door(instance, window_config)
-
-                na_apply_sliding_fuse_parts(instance, window_config)
-                na_apply_edge_colours_after_build(instance, window_config)
-                na_sync_component_name_from_config(config)
-
-                door_id = sliding_serializer.na_get_door_id_from_instance(instance)
-                if door_id
-                    sliding_serializer.na_save_door_data(
-                        door_id,
-                        na_build_sliding_save_payload(door_id, window_config, false)
-                    )
-                end
-
-                model.commit_operation
+                na_pipeline_update_sliding_door(instance, config)                                     # <-- V2.6.0 Shared pipeline
                 UiBridge.na_send_status(@na_dialog, 'success', "Sliding door updated: #{instance.name}")
             rescue StandardError => e
-                begin; model.abort_operation if model; rescue StandardError; end
                 DebugTools.na_debug_error("Error updating sliding door", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
@@ -1640,6 +1502,473 @@ module Na__AssemblyStudio
             private_class_method :na_apply_edge_colours_after_build
             # ---------------------------------------------------------------
 
+            # -----------------------------------------------------------------
+            # REGION | Shared Build Pipelines (V2.6.0 - the Dialog and the MCP Seam)
+            # -----------------------------------------------------------------
+            # Every create and update of a window or exterior door runs here,
+            # whether the dialog asked (the handlers above) or an agent did
+            # (60__System__McpOperations). Each call is ONE undo step with the
+            # dialog's own undo name, works on the instance it is given (never
+            # the element the dialog happens to be tracking), raises on failure
+            # after aborting so nothing half-built is left, and touches no
+            # dialog state: tracking, the placement tool and the status line
+            # stay with the dialog handlers.
+            #
+            # The hinged exterior doors (single, double) need no pipeline of
+            # their own: their engines already open the operation, fuse, paint
+            # edges and save. na_pipeline_create / na_pipeline_update hold the
+            # one dispatch for all five products.
+            # -----------------------------------------------------------------
+
+            # FUNCTION | Which Product a windowConfiguration Builds
+            # ------------------------------------------------------------
+            # Same order as the dialog's create dispatch: the first true flag wins.
+            # @return [Symbol] :bifold | :sliding | :double | :single | :window
+            def self.na_pipeline_product(window_config)
+                return :bifold  if na_is_bifold_mode?(window_config)
+                return :sliding if na_is_sliding_mode?(window_config)
+                return :double  if na_is_exterior_double_door_mode?(window_config)
+                return :single  if na_is_exterior_single_door_mode?(window_config)
+                :window
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Create Any Window-Family Product From a Full Payload
+            # ------------------------------------------------------------
+            # @param config [Hash]   { "windowMetadata"=>[{...}], "windowComponents"=>[], "windowConfiguration"=>{...} }
+            # @param frame  [Hash, Geom::Point3d, nil] an InsertionFrame frame, an origin, or nil (drawing axes)
+            # @param name   [String] name tail for the new component ("" leaves it bare, as the dialog does)
+            # @return [Sketchup::ComponentInstance]
+            def self.na_pipeline_create(config, frame, name: "")
+                window_config = config["windowConfiguration"] || {}
+                case na_pipeline_product(window_config)
+                when :bifold  then na_pipeline_create_bifold_door(window_config, frame, name: name)
+                when :sliding then na_pipeline_create_sliding_door(window_config, frame, name: name)
+                when :double  then na_pipeline_create_exterior_door(window_config, frame, :double, name: name)
+                when :single  then na_pipeline_create_exterior_door(window_config, frame, :single, name: name)
+                else               na_pipeline_create_window(config, frame, name: name)
+                end
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Rebuild Any Window-Family Product With a Full Payload
+            # ------------------------------------------------------------
+            # The payload's product must be the instance's own: an update never
+            # turns a window into a door (the dialog cannot either).
+            # @param name [String] new name tail, or ComponentNameSuffix::NA_KEEP
+            # @return [Sketchup::ComponentInstance]
+            def self.na_pipeline_update(instance, config, name: ComponentNameSuffix::NA_KEEP)
+                window_config = config["windowConfiguration"] || {}
+                case na_pipeline_product(window_config)
+                when :bifold  then na_pipeline_update_bifold_door(instance, config, name: name)
+                when :sliding then na_pipeline_update_sliding_door(instance, config, name: name)
+                when :double  then na_pipeline_update_exterior_door(instance, window_config, :double, name: name)
+                when :single  then na_pipeline_update_exterior_door(instance, window_config, :single, name: name)
+                else               na_pipeline_update_window(instance, config, name: name)
+                end
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Create a Window (Casement or Sliding Sash)
+            # ------------------------------------------------------------
+            # Stamps the payload's metadata with the new id and dates (the
+            # caller's hash is the one saved on the definition).
+            def self.na_pipeline_create_window(config, frame, name: "")
+                model         = Sketchup.active_model
+                window_config = config["windowConfiguration"]
+                model.start_operation("Create Window", true)
+                started = true
+
+                window_id = DataSerializer.na_generate_next_window_id
+                metadata  = config["windowMetadata"].is_a?(Array) ? config["windowMetadata"][0] : nil
+                if metadata.is_a?(Hash)
+                    now = Time.now.strftime("%Y-%m-%d %H:%M:%S")
+                    metadata["WindowUniqueId"] = window_id
+                    metadata["CreatedDate"]    = now
+                    metadata["LastModified"]   = now
+                end
+
+                instance = GeometryEngine.na_create_window_geometry(window_config, window_id, frame)
+                raise "Failed to create window geometry" unless instance && instance.valid?
+
+                if window_config.is_a?(Hash) && window_config["fuse_parts"] == true
+                    UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
+                    FuseParts.na_fuse_window_parts(instance.definition.entities)
+                end
+                na_apply_edge_colours_after_build(instance, window_config)
+
+                # A brand new component is born bare unless a name tail is
+                # given: the dialog names it from WINDOW INFO once it is placed.
+                DataSerializer.na_set_window_id_on_instance(instance, window_id, name.to_s)
+                DataSerializer.na_save_window_data(window_id, config)
+                model.commit_operation
+                instance
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Rebuild a Window
+            # ------------------------------------------------------------
+            def self.na_pipeline_update_window(instance, config, name: na_requested_component_name(config))
+                raise "No window to update" unless instance && instance.valid?
+                window_id = DataSerializer.na_get_window_id_from_instance(instance)
+                raise "#{instance.definition.name} is not a configurable window" unless window_id
+
+                model         = Sketchup.active_model
+                window_config = config["windowConfiguration"]
+                model.start_operation("Update Window", true)
+                started = true
+
+                metadata = config["windowMetadata"].is_a?(Array) ? config["windowMetadata"][0] : nil
+                metadata["LastModified"] = Time.now.strftime("%Y-%m-%d %H:%M:%S") if metadata.is_a?(Hash)
+
+                GeometryEngine.na_update_window_geometry(instance, window_config)
+
+                if window_config.is_a?(Hash) && window_config["fuse_parts"] == true
+                    UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
+                    FuseParts.na_fuse_window_parts(instance.definition.entities)
+                end
+                na_apply_edge_colours_after_build(instance, window_config)
+
+                DataSerializer.na_set_window_id_on_instance(instance, window_id, name)
+                DataSerializer.na_save_window_data(window_id, config)
+                model.commit_operation
+                instance
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Create a Bifold Door
+            # ------------------------------------------------------------
+            # The bifold composer rescues its own errors and leaves an empty
+            # definition, so an empty result is refused here before commit.
+            def self.na_pipeline_create_bifold_door(window_config, frame, name: "")
+                model = Sketchup.active_model
+                model.start_operation("Create Bifold Door", true)
+                started = true
+
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+
+                instance = bifold_engine.na_build_bifold_door(window_config, nil, frame)
+                raise "Failed to create bifold door geometry" unless instance && instance.valid?
+                raise "The bifold engine built an empty door: check the panel count and sizes" if instance.definition.entities.length.zero?
+
+                na_apply_bifold_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
+
+                door_id = bifold_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    bifold_serializer.na_save_door_data(door_id, na_build_bifold_save_payload(door_id, window_config, true))
+                end
+                na_pipeline_apply_name(instance, name) unless name.to_s.empty?
+                model.commit_operation
+                instance
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Rebuild a Bifold Door
+            # ------------------------------------------------------------
+            def self.na_pipeline_update_bifold_door(instance, config, name: na_requested_component_name(config))
+                raise "No bifold door to update" unless instance && instance.valid?
+                window_config = config["windowConfiguration"] || {}
+                model = Sketchup.active_model
+                model.start_operation("Update Bifold Door", true)
+                started = true
+
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+                bifold_engine     = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__GeometryEngine
+                bifold_serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+
+                bifold_engine.na_update_bifold_door(instance, window_config)
+
+                na_apply_bifold_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
+                na_pipeline_apply_name(instance, name)
+
+                door_id = bifold_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    bifold_serializer.na_save_door_data(door_id, na_build_bifold_save_payload(door_id, window_config, false))
+                end
+
+                model.commit_operation
+                instance
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Create a Sliding Door
+            # ------------------------------------------------------------
+            def self.na_pipeline_create_sliding_door(window_config, frame, name: "")
+                model = Sketchup.active_model
+                model.start_operation("Create Sliding Door", true)
+                started = true
+
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+
+                instance = sliding_engine.na_build_sliding_door(window_config, nil, frame)
+                raise "Failed to create sliding door geometry" unless instance && instance.valid?
+                raise "The sliding engine built an empty door: check the panel count and sizes" if instance.definition.entities.length.zero?
+
+                na_apply_sliding_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
+
+                door_id = sliding_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    sliding_serializer.na_save_door_data(door_id, na_build_sliding_save_payload(door_id, window_config, true))
+                end
+                na_pipeline_apply_name(instance, name) unless name.to_s.empty?
+                model.commit_operation
+                instance
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Rebuild a Sliding Door
+            # ------------------------------------------------------------
+            def self.na_pipeline_update_sliding_door(instance, config, name: na_requested_component_name(config))
+                raise "No sliding door to update" unless instance && instance.valid?
+                window_config = config["windowConfiguration"] || {}
+                model = Sketchup.active_model
+                model.start_operation("Update Sliding Door", true)
+                started = true
+
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                sliding_engine     = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__GeometryEngine
+                sliding_serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+
+                sliding_engine.na_update_sliding_door(instance, window_config)
+
+                na_apply_sliding_fuse_parts(instance, window_config)
+                na_apply_edge_colours_after_build(instance, window_config)
+                na_pipeline_apply_name(instance, name)
+
+                door_id = sliding_serializer.na_get_door_id_from_instance(instance)
+                if door_id
+                    sliding_serializer.na_save_door_data(door_id, na_build_sliding_save_payload(door_id, window_config, false))
+                end
+
+                model.commit_operation
+                instance
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Create a Hinged Exterior Door (Single or Double)
+            # ------------------------------------------------------------
+            # The engine opens and commits its own operation; a name tail
+            # follows in a transparent operation so Ctrl+Z still removes both.
+            def self.na_pipeline_create_exterior_door(window_config, frame, kind, name: "")
+                system = na_pipeline_hinged_system(kind)
+                system.na_require_modules
+                engine   = system::Na__GeometryEngine
+                instance = if kind == :double
+                               engine.na_build_exterior_double_door(window_config, nil, frame)
+                           else
+                               engine.na_build_exterior_single_door(window_config, nil, frame)
+                           end
+                raise "Failed to create exterior #{kind} door geometry" unless instance && instance.valid?
+
+                na_pipeline_rename_transparent(instance, name) unless name.to_s.empty?
+                instance
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Rebuild a Hinged Exterior Door (Single or Double)
+            # ------------------------------------------------------------
+            def self.na_pipeline_update_exterior_door(instance, window_config, kind, name: ComponentNameSuffix::NA_KEEP)
+                raise "No exterior #{kind} door to update" unless instance && instance.valid?
+                system = na_pipeline_hinged_system(kind)
+                system.na_require_modules
+                raise "#{instance.definition.name} is not an exterior #{kind} door" unless system::Na__DataSerializer.na_get_door_id_from_instance(instance)
+
+                engine  = system::Na__GeometryEngine
+                updated = if kind == :double
+                              engine.na_update_exterior_double_door(instance, window_config)
+                          else
+                              engine.na_update_exterior_single_door(instance, window_config)
+                          end
+                raise "Exterior #{kind} door update failed" unless updated
+
+                na_pipeline_rename_transparent(instance, name)
+                instance
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | What the Dialog Would Load for a Placed Element (No Dialog)
+            # ------------------------------------------------------------
+            # The selection loads above, without touching the dialog: the
+            # stored config, wrapped over the defaults with the mode flags
+            # forced, and the component's live name stamped into the metadata.
+            # @return [Hash, nil] { :product, :id, :config, :base_prefix }, or
+            #     nil when the instance is no window or exterior door
+            def self.na_pipeline_load(instance)
+                return nil unless instance.is_a?(Sketchup::ComponentInstance) && instance.valid?
+
+                Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
+                Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+                Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
+                Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
+
+                if (door_id = na_resolve_exterior_single_door_id(instance))
+                    serializer = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DataSerializer
+                    stored     = na_resolve_exterior_single_door_payload(serializer.na_load_from_instance(instance))
+                    config     = na_wrap_exterior_single_door_config_as_window_payload(door_id, stored)
+                    return na_pipeline_loaded(instance, :single, door_id, config, serializer.na_door_definition_prefix(door_id))
+                end
+
+                if (door_id = na_resolve_exterior_double_door_id(instance))
+                    serializer = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DataSerializer
+                    stored     = na_resolve_exterior_double_door_payload(serializer.na_load_from_instance(instance))
+                    config     = na_wrap_exterior_double_door_config_as_window_payload(door_id, stored)
+                    return na_pipeline_loaded(instance, :double, door_id, config, serializer.na_door_definition_prefix(door_id))
+                end
+
+                if (door_id = na_resolve_sliding_id(instance))
+                    serializer = Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem::Na__DataSerializer
+                    stored     = na_resolve_sliding_payload(serializer.na_load_door_data_from_instance(instance, door_id))
+                    config     = na_wrap_sliding_config_as_window_payload(door_id, stored)
+                    return na_pipeline_loaded(instance, :sliding, door_id, config, serializer.na_door_definition_prefix(door_id))
+                end
+
+                if (door_id = na_resolve_bifold_id(instance))
+                    serializer = Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem::Na__DataSerializer
+                    stored     = na_resolve_bifold_payload(serializer.na_load_door_data_from_instance(instance, door_id))
+                    config     = na_wrap_bifold_config_as_window_payload(door_id, stored)
+                    return na_pipeline_loaded(instance, :bifold, door_id, config, serializer.na_door_definition_prefix(door_id))
+                end
+
+                window_id = DataSerializer.na_get_window_id_from_instance(instance)
+                return nil unless window_id
+
+                config  = DataSerializer.na_load_window_data_from_instance(instance, window_id) || UiBridge.na_deep_clone(na_default_config)
+                product = config.is_a?(Hash) && config.dig("windowConfiguration", "sliding_sash_window") == true ? :sash : :casement
+                na_pipeline_loaded(instance, product, window_id, config, DataSerializer.na_window_definition_prefix(window_id))
+            end
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | Stamp the Live Name and Package a Loaded Element
+            # ------------------------------------------------------------
+            def self.na_pipeline_loaded(instance, product, item_id, config, base_prefix)
+                na_stamp_component_name_into_config(config, instance, base_prefix)
+                { :product => product, :id => item_id, :config => config, :base_prefix => base_prefix }
+            end
+            private_class_method :na_pipeline_loaded
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Generate DXF Text for a Window-Family Config
+            # ------------------------------------------------------------
+            # @return [Array(String, String)] [dxf text or nil, default file name]
+            def self.na_generate_dxf_content(window_config)
+                if na_is_exterior_double_door_mode?(window_config)
+                    Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
+                    [Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DxfExporter.na_export_dxf(window_config), "exterior_double_door_export.dxf"]
+                elsif na_is_exterior_single_door_mode?(window_config)
+                    # @delegate: ../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__DxfExporter__.rb
+                    Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
+                    [Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DxfExporter.na_export_dxf(window_config), "exterior_single_door_export.dxf"]
+                else
+                    [DxfExporter.na_generate_dxf(window_config), "window_export.dxf"]
+                end
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Give One Placed Window-Family Element a Name Tail
+            # ------------------------------------------------------------
+            # Inside the caller's operation. The fixed head (AWN001__ ...)
+            # is never touched; NA_KEEP leaves the name as it is.
+            # @return [String, nil] the tail now on the component
+            def self.na_pipeline_apply_name(instance, requested_raw)
+                return nil if requested_raw == ComponentNameSuffix::NA_KEEP
+                target = na_pipeline_named_target(instance)
+                return nil unless target
+
+                requested = ComponentNameSuffix.na_sanitise(requested_raw.to_s, target[:base_prefix])
+                current   = ComponentNameSuffix.na_current_suffix(instance, target[:base_prefix])
+                return current if requested == current
+
+                target[:apply].call(requested)
+                requested
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Rename in Its Own Transparent Operation
+            # ------------------------------------------------------------
+            # For the hinged doors, whose engines commit before returning: the
+            # rename joins their undo step.
+            def self.na_pipeline_rename_transparent(instance, requested_raw)
+                return nil if requested_raw == ComponentNameSuffix::NA_KEEP
+                model = Sketchup.active_model
+                model.start_operation("Rename Component", true, false, true)
+                started = true
+                tail = na_pipeline_apply_name(instance, requested_raw)
+                model.commit_operation
+                tail
+            rescue StandardError
+                begin; model.abort_operation if started; rescue StandardError; end
+                raise
+            end
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | The Named Target for One Explicit Instance
+            # ------------------------------------------------------------
+            # Like na_resolve_named_target, but for the instance given rather
+            # than the one the dialog is tracking.
+            def self.na_pipeline_named_target(instance)
+                return nil unless instance && instance.valid?
+
+                [
+                    [:Na__ExteriorSingleDoorSystem,       :na_resolve_exterior_single_door_id],
+                    [:Na__ExteriorDoubleDoorSystem,       :na_resolve_exterior_double_door_id],
+                    [:Na__ExteriorSlidingDoorSystem,      :na_resolve_sliding_id],
+                    [:Na__ExteriorMultiFoldingDoorSystem, :na_resolve_bifold_id]
+                ].each do |system_name, resolver|
+                    door_id = send(resolver, instance)
+                    next unless door_id
+
+                    serializer = Na__AssemblyStudio.const_get(system_name)::Na__DataSerializer
+                    return na_build_named_target(instance, door_id, serializer)
+                end
+
+                window_id = DataSerializer.na_get_window_id_from_instance(instance)
+                return nil unless window_id
+
+                {
+                    :instance    => instance,
+                    :item_id     => window_id,
+                    :base_prefix => DataSerializer.na_window_definition_prefix(window_id),
+                    :apply       => proc { |tail| DataSerializer.na_set_window_id_on_instance(instance, window_id, tail) }
+                }
+            end
+            private_class_method :na_pipeline_named_target
+            # ---------------------------------------------------------------
+
+            # HELPER FUNCTION | The Hinged Door System Module for a Kind
+            # ------------------------------------------------------------
+            def self.na_pipeline_hinged_system(kind)
+                kind == :double ? Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem : Na__AssemblyStudio::Na__ExteriorSingleDoorSystem
+            end
+            private_class_method :na_pipeline_hinged_system
+            # ---------------------------------------------------------------
+
+            # endregion -------------------------------------------------------
+
             def self.na_handle_update_window(config_json)
                 config = JSON.parse(config_json)
                 @na_config = config
@@ -1671,29 +2000,9 @@ module Na__AssemblyStudio
                     return
                 end
 
-                model = Sketchup.active_model
-                model.start_operation("Update Window", true)
-
-                if @na_config["windowMetadata"] && @na_config["windowMetadata"][0]
-                    @na_config["windowMetadata"][0]["LastModified"] = Time.now.strftime("%Y-%m-%d %H:%M:%S")
-                end
-
-                GeometryEngine.na_update_window_geometry(@na_window_component, config["windowConfiguration"])
-
-                if config["windowConfiguration"] && config["windowConfiguration"]["fuse_parts"] == true
-                    UiBridge.na_send_status(@na_dialog, 'info', 'Fusing parts...')
-                    FuseParts.na_fuse_window_parts(@na_window_component.definition.entities)
-                end
-                na_apply_edge_colours_after_build(@na_window_component, config["windowConfiguration"])
-
-                DataSerializer.na_set_window_id_on_instance(
-                    @na_window_component, window_id, na_requested_component_name(@na_config)
-                )
-                DataSerializer.na_save_window_data(window_id, @na_config)
-                model.commit_operation
+                na_pipeline_update_window(@na_window_component, config)                              # <-- V2.6.0 Shared pipeline
                 UiBridge.na_send_status(@na_dialog, 'success', "Window updated: #{window_id}")
             rescue StandardError => e
-                begin; model.abort_operation if model; rescue StandardError; end
                 DebugTools.na_debug_error("Error updating window", e)
                 UiBridge.na_send_status(@na_dialog, 'error', "Error: #{e.message}")
             end
@@ -1701,21 +2010,7 @@ module Na__AssemblyStudio
             def self.na_handle_export_dxf(config_json)
                 config = JSON.parse(config_json)
                 window_config = config["windowConfiguration"] || config
-                if na_is_exterior_double_door_mode?(window_config)
-                    Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem.na_require_modules
-                    dxf_content = Na__AssemblyStudio::Na__ExteriorDoubleDoorSystem::Na__DxfExporter
-                        .na_export_dxf(window_config)
-                    default_filename = "exterior_double_door_export.dxf"
-                elsif na_is_exterior_single_door_mode?(window_config)
-                    # @delegate: ../31__System__ExteriorSingleDoorSystem/Na__AssemblyStudio__ExtSingleDoor__DxfExporter__.rb
-                    Na__AssemblyStudio::Na__ExteriorSingleDoorSystem.na_require_modules
-                    dxf_content = Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__DxfExporter
-                        .na_export_dxf(window_config)
-                    default_filename = "exterior_single_door_export.dxf"
-                else
-                    dxf_content = DxfExporter.na_generate_dxf(window_config)
-                    default_filename = "window_export.dxf"
-                end
+                dxf_content, default_filename = na_generate_dxf_content(window_config)             # <-- V2.6.0 Shared with the MCP seam
                 unless dxf_content
                     UiBridge.na_send_status(@na_dialog, 'error', 'Failed to generate DXF content')
                     return

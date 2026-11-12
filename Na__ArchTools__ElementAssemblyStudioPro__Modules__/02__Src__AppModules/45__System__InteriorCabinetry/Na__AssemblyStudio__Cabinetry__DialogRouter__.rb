@@ -267,31 +267,15 @@ module Na__InteriorCabinetrySystem
         # ------------------------------------------------------------
         # @return [Sketchup::ComponentInstance, nil]
         def self.na_create(root, transform, operation_name)
-            model = Sketchup.active_model
-            model.start_operation(operation_name, true)
-            cabinet_id = DataSerializer.na_generate_next_id
-            na_stamp_metadata(root, cabinet_id, created: true)
-            config     = root[Defaults::NA_KEY_CONFIGURATION] || {}
-            instance   = GeometryEngine.na_create_cabinet(config, cabinet_id, transform)
-            unless instance
-                model.abort_operation
-                na_status("error", "The cabinet could not be built. See the Ruby Console.")
-                return nil
-            end
-
-            unit_type = LayoutResolver.na_effective(config)[:type]
-            DataSerializer.na_apply_identity(instance, cabinet_id, unit_type, na_metadata(root)["Na__Cabinet__ComponentName"].to_s)
-            DataSerializer.na_save(cabinet_id, root)
-            model.commit_operation
-
+            instance = na_pipeline_create(root, transform, operation_name)                        # <-- V2.6.0 Shared with the MCP seam
             @na_current_instance = instance
             @na_current_config   = root
+            model = Sketchup.active_model
             model.selection.clear
             model.selection.add(instance)
             na_status("success", "#{instance.name} placed.")
             instance
         rescue StandardError => e
-            model.abort_operation if model
             DebugTools.na_debug_error("Cabinet create failed", e)
             na_status("error", "Cabinet create failed: #{e.message}")
             nil
@@ -312,23 +296,11 @@ module Na__InteriorCabinetrySystem
             incoming   = na_metadata(root)["Na__Cabinet__UniqueId"]
             return if live && incoming && incoming != cabinet_id                 # <-- Stale live payload for another cabinet
 
-            model = Sketchup.active_model
-            model.start_operation(live ? "Live Update Cabinet" : "Update Cabinet", true, false, live)
-            na_stamp_metadata(root, cabinet_id, created: false)
-            config = root[Defaults::NA_KEY_CONFIGURATION] || {}
-            if GeometryEngine.na_update_cabinet(target, config)
-                DataSerializer.na_apply_identity(target, cabinet_id, LayoutResolver.na_effective(config)[:type])
-                DataSerializer.na_save(cabinet_id, root)
-                model.commit_operation
-                @na_current_instance = target
-                @na_current_config   = root
-                na_status("success", "#{target.name} updated.") unless live
-            else
-                model.abort_operation
-                na_status("error", "The cabinet could not be rebuilt. See the Ruby Console.")
-            end
+            na_pipeline_update(target, root, live: live)                         # <-- V2.6.0 Shared with the MCP seam
+            @na_current_instance = target
+            @na_current_config   = root
+            na_status("success", "#{target.name} updated.") unless live
         rescue StandardError => e
-            model.abort_operation if model
             DebugTools.na_debug_error("Cabinet update failed", e)
             na_status("error", "Cabinet update failed: #{e.message}")
         end
@@ -340,20 +312,100 @@ module Na__InteriorCabinetrySystem
             payload  = na_parse(payload_json) || {}
             instance = GeometryEngine.na_find_live_update_target(@na_current_instance)
             return unless instance
+            name = na_pipeline_rename(instance, payload["name"].to_s)               # <-- V2.6.0 Shared with the MCP seam
+            na_status("success", "Renamed #{name}.")
+        rescue StandardError => e
+            DebugTools.na_debug_error("Cabinet rename failed", e)
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Shared Build Pipelines (V2.6.0 - the Dialog and the MCP Seam)
+# -----------------------------------------------------------------------------
+# Create, update and rename of one cabinet, whoever asked: the dialog
+# (na_create, na_update, na_rename above) or an agent
+# (60__System__McpOperations). One undo step each with the dialog's own undo
+# names; they act on the instance given, raise after aborting on failure, and
+# leave the dialog's tracking and the selection alone.
+
+        # FUNCTION | Build One Cabinet From a Full Payload
+        # ------------------------------------------------------------
+        # @param root      [Hash] { "Na__CabinetMetadata"=>[{...}], "Na__CabinetComponents"=>[], "Na__CabinetConfiguration"=>{...} }
+        # @param transform [Geom::Transformation] back-left of the carcass at floor level, X along the run, front facing -Y
+        # @return [Sketchup::ComponentInstance]
+        def self.na_pipeline_create(root, transform, operation_name = "Create Cabinet")
+            model = Sketchup.active_model
+            model.start_operation(operation_name, true)
+            started = true
+
+            cabinet_id = DataSerializer.na_generate_next_id
+            na_stamp_metadata(root, cabinet_id, created: true)
+            config     = root[Defaults::NA_KEY_CONFIGURATION] || {}
+            instance   = GeometryEngine.na_create_cabinet(config, cabinet_id, transform)
+            raise "The cabinet could not be built. See the Ruby Console." unless instance
+
+            unit_type = LayoutResolver.na_effective(config)[:type]
+            DataSerializer.na_apply_identity(instance, cabinet_id, unit_type, na_metadata(root)["Na__Cabinet__ComponentName"].to_s)
+            DataSerializer.na_save(cabinet_id, root)
+            model.commit_operation
+            instance
+        rescue StandardError
+            begin; model.abort_operation if started; rescue StandardError; end
+            raise
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Rebuild One Cabinet With a Full Payload
+        # ------------------------------------------------------------
+        # @param live [Boolean] Live Mode: a transparent "Live Update Cabinet"
+        # @return [Sketchup::ComponentInstance]
+        def self.na_pipeline_update(instance, root, live: false)
+            raise "No cabinet to update" unless instance && instance.valid?
             cabinet_id = DataSerializer.na_get_id_from_instance(instance)
-            data       = DataSerializer.na_load_from_instance(instance, cabinet_id) || na_deep_clone(@na_default_config)
-            unit_type  = LayoutResolver.na_effective(data[Defaults::NA_KEY_CONFIGURATION] || {})[:type]
+            raise "#{instance.definition.name} is not a cabinet" unless cabinet_id
+
+            model = Sketchup.active_model
+            model.start_operation(live ? "Live Update Cabinet" : "Update Cabinet", true, false, live)
+            started = true
+
+            na_stamp_metadata(root, cabinet_id, created: false)
+            config = root[Defaults::NA_KEY_CONFIGURATION] || {}
+            raise "The cabinet could not be rebuilt. See the Ruby Console." unless GeometryEngine.na_update_cabinet(instance, config)
+
+            DataSerializer.na_apply_identity(instance, cabinet_id, LayoutResolver.na_effective(config)[:type])
+            DataSerializer.na_save(cabinet_id, root)
+            model.commit_operation
+            instance
+        rescue StandardError
+            begin; model.abort_operation if started; rescue StandardError; end
+            raise
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Give One Cabinet a Name Tail (the Head Stays)
+        # ------------------------------------------------------------
+        # @return [String] the component's full new name
+        def self.na_pipeline_rename(instance, name)
+            raise "No cabinet to rename" unless instance && instance.valid?
+            cabinet_id = DataSerializer.na_get_id_from_instance(instance)
+            raise "#{instance.definition.name} is not a cabinet" unless cabinet_id
+
+            data      = DataSerializer.na_load_from_instance(instance, cabinet_id) || na_deep_clone(@na_default_config || Defaults.na_default_config)
+            unit_type = LayoutResolver.na_effective(data[Defaults::NA_KEY_CONFIGURATION] || {})[:type]
 
             model = Sketchup.active_model
             model.start_operation("Rename Cabinet", true)
-            name = DataSerializer.na_apply_identity(instance, cabinet_id, unit_type, payload["name"].to_s)
-            na_metadata(data)["Na__Cabinet__ComponentName"] = NameSuffix.na_extract(name.to_s, Defaults.na_name_head(cabinet_id, unit_type))
+            started = true
+            full_name = DataSerializer.na_apply_identity(instance, cabinet_id, unit_type, name.to_s)
+            na_metadata(data)["Na__Cabinet__ComponentName"] = NameSuffix.na_extract(full_name.to_s, Defaults.na_name_head(cabinet_id, unit_type))
             DataSerializer.na_save(cabinet_id, data)
             model.commit_operation
-            na_status("success", "Renamed #{name}.")
-        rescue StandardError => e
-            model.abort_operation if model
-            DebugTools.na_debug_error("Cabinet rename failed", e)
+            full_name
+        rescue StandardError
+            begin; model.abort_operation if started; rescue StandardError; end
+            raise
         end
         # ---------------------------------------------------------------
 

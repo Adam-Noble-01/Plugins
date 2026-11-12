@@ -221,7 +221,7 @@ module Na__AssemblyStudio
 
                 dir = na_presets_dir
                 if File.directory?(dir)
-                    Dir.glob(File.join(dir, '*.json')).each do |file_path|
+                    Dir.glob([File.join(dir, '*.json'), File.join(dir, NA_ARCHIVE_FOLDER, '*.json')]).each do |file_path|   # <-- V2.6.0 Archived codes stay taken
                         name_match = File.basename(file_path).match(file_regex)
                         highest    = [highest, name_match[1].to_i].max if name_match
 
@@ -436,6 +436,99 @@ module Na__AssemblyStudio
                 na_failed_result(preset_code, source_file, 'Preset file could not be parsed.', "jsonParseError: #{e.message}")
             end
             # ---------------------------------------------------------------
+
+            # -----------------------------------------------------------------
+            # REGION | Archive and Restore (V2.6.0)
+            # -----------------------------------------------------------------
+            # A preset is never deleted: it moves into 01__Archive/ (the
+            # gallery's top-level scan never sees it) and can be moved back.
+            # Its code stays taken while it is archived (na_next_preset_code
+            # also reads 01__Archive/), so no other preset is ever issued it.
+
+            NA_ARCHIVE_FOLDER = '01__Archive'.freeze
+
+            # FUNCTION | The Archive Folder Inside the Presets Library
+            # ------------------------------------------------------------
+            def self.na_archive_dir
+                File.join(na_presets_dir, NA_ARCHIVE_FOLDER)
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Records of the Archived Presets
+            # ------------------------------------------------------------
+            def self.na_scan_archived_presets
+                dir = na_archive_dir
+                return [] unless File.directory?(dir)
+
+                Dir.glob(File.join(dir, '*.json')).sort.filter_map { |file_path| na_parse_preset_file(file_path) }
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Move a Preset Into 01__Archive/
+            # ------------------------------------------------------------
+            # @param params [Hash] presetCode, sourceFile
+            # @return [Hash] { isSaved, presetCode, sourceFile (its new path), statusMessage, reason }
+            def self.na_archive_preset(params)
+                params      = {} unless params.is_a?(Hash)
+                preset_code = params['presetCode'].to_s.strip
+                source_file = params['sourceFile'].to_s.strip
+                validation  = na_validate_source_path(source_file)
+                unless validation['isValid']
+                    return na_failed_result(preset_code, source_file, validation['statusMessage'], validation['reason'])
+                end
+
+                source = validation['expandedPath']
+                if File.dirname(source).tr('\\', '/') != File.expand_path(na_presets_dir).tr('\\', '/')
+                    return na_failed_result(preset_code, source, 'That preset is already archived.', 'alreadyArchived')
+                end
+
+                Dir.mkdir(na_archive_dir) unless File.directory?(na_archive_dir)
+                target = File.join(na_archive_dir, File.basename(source))
+                return na_failed_result(preset_code, source, "#{File.basename(target)} is already in the archive.", 'archiveClash') if File.exist?(target)
+
+                File.rename(source, target)
+                bak = source + '.bak'
+                File.rename(bak, target + '.bak') if File.exist?(bak) && !File.exist?(target + '.bak')
+                DebugTools.na_debug_success("[PresetsLibrary] Archived: #{File.basename(target)}")
+                { 'isSaved' => true, 'presetCode' => preset_code, 'sourceFile' => target,
+                  'statusMessage' => "Preset #{preset_code} moved to #{NA_ARCHIVE_FOLDER}.", 'reason' => nil }
+            rescue StandardError => e
+                na_failed_result(preset_code, source_file, "Archive failed: #{e.message}", 'archiveFailed')
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Move an Archived Preset Back Into the Library
+            # ------------------------------------------------------------
+            # @param params [Hash] presetCode, sourceFile (its path in 01__Archive/)
+            def self.na_restore_preset(params)
+                params      = {} unless params.is_a?(Hash)
+                preset_code = params['presetCode'].to_s.strip
+                source_file = params['sourceFile'].to_s.strip
+                validation  = na_validate_source_path(source_file)
+                unless validation['isValid']
+                    return na_failed_result(preset_code, source_file, validation['statusMessage'], validation['reason'])
+                end
+
+                source = validation['expandedPath']
+                if File.dirname(source).tr('\\', '/') != File.expand_path(na_archive_dir).tr('\\', '/')
+                    return na_failed_result(preset_code, source, 'That preset is not in the archive.', 'notArchived')
+                end
+
+                target = File.join(na_presets_dir, File.basename(source))
+                return na_failed_result(preset_code, source, "#{File.basename(target)} already exists in the library.", 'libraryClash') if File.exist?(target)
+
+                File.rename(source, target)
+                bak = source + '.bak'
+                File.rename(bak, target + '.bak') if File.exist?(bak) && !File.exist?(target + '.bak')
+                DebugTools.na_debug_success("[PresetsLibrary] Restored: #{File.basename(target)}")
+                { 'isSaved' => true, 'presetCode' => preset_code, 'sourceFile' => target,
+                  'statusMessage' => "Preset #{preset_code} is back in the library.", 'reason' => nil }
+            rescue StandardError => e
+                na_failed_result(preset_code, source_file, "Restore failed: #{e.message}", 'restoreFailed')
+            end
+            # ---------------------------------------------------------------
+
+            # endregion -------------------------------------------------------
 
             # -----------------------------------------------------------------
             # REGION | Patch Existing Preset - Configuration + Preview

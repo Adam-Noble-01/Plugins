@@ -3,6 +3,84 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.6.0 - 11-Nov-2026 - Agents Drive Every Product: Windows, All Exterior Doors, Interior Doors and Cabinets
+
+### Context
+Adam: "we need a whole set of MCP tools building for my Entity Studio Pro Plugin ... to allow agents to interface with the tool and to create, edit and maintain parametric external doors, windows, cabinets etc using the tools available ... the parameters are extensive ... make a .skp file just for testing this, draw some window openings as geometry and then use the measure tool insert add windows and then edit parameters making sure everything in the plugin is exposed to agents". Until now the seam (V2.5.3) built only hinged exterior doors. Na SketchUp MCP 1.0.27 is the other half.
+
+### New: Shared Build Pipelines (the Dialog and the MCP Call the Same Code)
+- **Window family** (`WindowSystem DialogCallbacks`): `na_pipeline_create` / `na_pipeline_update` dispatch to `na_pipeline_create_window`, `_update_window`, `_create_bifold_door`, `_update_bifold_door`, `_create_sliding_door`, `_update_sliding_door`, `_create_exterior_door`, `_update_exterior_door`. `na_pipeline_load` is the selection load without the dialog; `na_pipeline_apply_name` names the instance it is given; `na_generate_dxf_content` is the DXF text the Export button saves.
+- **Interior doors** (`InteriorDoorSystem DialogRouter`): `na_pipeline_create_door`, `na_pipeline_update_door`.
+- **Cabinets** (`Cabinetry DialogRouter`): `na_pipeline_create`, `na_pipeline_update` (Live Mode passes `live: true`), `na_pipeline_rename`.
+- **Each pipeline:** one undo step with the dialog's own name; works on the instance it is given, never the one the dialog is tracking; aborts and raises on failure, so nothing half-built is left; touches no dialog state. The dialog handlers now call these and keep only tracking, the placement tool and the status line.
+- **Bifold and sliding:** an empty build is refused before commit; their composers swallow errors and used to leave an empty definition.
+
+### New: The Agent Seam (60__System__McpOperations, 7 files)
+- **Main:** entry points and dispatch, status, presets reading, the dialog.
+- **Catalogue:** products (casement, sash, single, double, bifold, sliding, interior_door, base, drawers, wall, tall, wardrobe); what a new element starts from; every value checked against the dialog's own rules. An unknown key (with suggestions), a wrong type, an out-of-range value or an option the dialog does not offer is **refused, never clamped**. Width widens to 8000 for double, bifold and sliding, as the slider does. Handle, architrave and leg keys are checked against the asset libraries the dropdowns are filled from.
+- **Validation:** the dialog's own build checks (twin of `Viewport__Validation.js`), refused with the dialog's own messages.
+- **SideEffects:** what a control change also sets in the dialog: transoms 0 to 1 seeds transom 1; the sash rails follow; gothic arch defaults; arches pair with vertical bars; bifold composition sets glazed; a double door's leaf override starts from the pair.
+- **Openings:** every opening in a wall from its own reveal faces, left to right seen from outside, with the points A, B, D the Two and Three Point tools would pick. Width is measured along the wall, so a rotated wall reads true (the Two Point tool reads max(|dx|, |dy|)).
+- **Elements:** elements at any depth, inspect, build into an opening (fit as Measure Opening: height less the cill), update (merge, preset with the size kept, reset, refit to an opening), rename.
+- **Presets:** save, update, archive and restore for all four families; DXF to a given file; asset lists.
+
+### New: The Parameter Catalogue
+- `65__Dev__DevTools/Na__AssemblyStudio__DevTools__ParameterCatalogue__.js` runs the dialog's own `*UiSystem__Config__.js` and `*LayoutMap__.js` files in a Node sandbox and writes `02__AppData/Na__AssemblyStudio__ParameterCatalogue__.json`.
+- **What it holds:**
+  - 282 window-family, 25 interior-door and 55 cabinet controls, each with label, unit, type, range, step, default, options, section, tier, products and the condition it needs;
+  - the products, and the cabinet product defaults;
+  - what each dialog starts from.
+- **Keep it current:** run it again after changing any control or layout file. `--check` exits 1 when it is stale.
+
+### Fixes
+- **Duplicate ADR ids.** The double door, sliding, bifold and interior door allocators did not count exterior single doors. A double door built after single door ADR001 came out ADR001 too (MCP testbed, 11-Nov-2026). All five now count all five door dictionaries.
+- **Presets.** Archived presets keep their codes: `na_next_preset_code` also reads `01__Archive/`. The Store gains `na_archive_preset`, `na_restore_preset` and `na_scan_archived_presets`.
+
+### Known Limits
+- **Not mirrored:** the per-casement override check and the exterior doors' field-layout check. The build itself is checked instead (every fielded panel solid, the element not empty).
+- **Double door leaf override:** turning one on copies the pair's raw settings, not the resolver's effective ones, and not the glazing bar offsets. A note says so.
+- **DXF header:** the window exporter writes `#{width}.0`, so a width that is not a whole mm gives "1199.7.0" in the header. The dialog does the same with a measured width. The seam sends whole numbers as integers.
+- **No DXF for bifold and sliding doors:** the dialog's Export saves a window drawing for them, so the seam refuses.
+- **Copies:** an update rebuilds every copy that shares the definition, as the dialog does.
+
+### Files Changed
+- `20__System__WindowSystem/...__DialogCallbacks__.rb`: pipelines, `na_pipeline_load`, `na_generate_dxf_content`; the handlers call them.
+- `40__System__InteriorDoorSystem/...__DialogRouter__.rb`, `45__System__InteriorCabinetry/...__DialogRouter__.rb`: pipelines; the handlers call them.
+- `31__...`, `32__...ExtSlide__AssemblyComposer`, `33__...ExtFold__AssemblyComposer`, `34__...ExtDouble__DataSerializer`, `40__...InteriorDoorSystem__DataSerializer`: ADR allocation.
+- `50__System__PresetsLibrarySystem/...__Store__.rb`: archive and restore.
+- `60__System__McpOperations/`: Main rewritten; Catalogue, Validation, SideEffects, Openings, Elements, Presets **(new)**.
+- `02__AppData/Na__AssemblyStudio__ParameterCatalogue__.json` **(new, generated)**, `65__Dev__DevTools/...ParameterCatalogue__.js` **(new)**.
+- `65__Dev__DevTools/TestModels/Na__AssemblyStudio__McpTestbed__.skp` **(new)**: walls with window, door, bifold, sliding and interior-door openings; an annex moved, rotated 30 degrees and nested three deep; a wall scaled 1.5x.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json`: version 2.6.0.
+
+### How to Test
+All 15 specs in `65__Dev__DevTools` pass; `ParameterCatalogue --check` passes.
+
+**In SketchUp 2027, on the testbed, through the MCP bridge (11-Nov-2026):**
+- **Built into the openings found by `openings`:**
+  - casement with a mullion; sash; single, double, bifold and sliding doors; an interior door; the kitchen window;
+  - the annex window, in a wall moved, rotated and nested three deep;
+  - a window in the 1.5x scaled wall (1200 read for an 800 local hole).
+  - Each fills its opening exactly: AWN001's bounds are x 600 to 1800, z 900 to 2250, with the 50 cill taken off the height.
+- **Cabinets:** base, drawers, tall and wall units along a run on the back wall (the wall unit hung at 1400); a wardrobe against the interior wall.
+- **Updated:** every product once, a preset applied with the size kept, a rename and a reset. Refused as they should be:
+  - a sash too short (the dialog's message);
+  - a cabinet width of 2000 (range 150 to 1200);
+  - a product change;
+  - an unknown handle.
+- **With the annex group open:** openings read the same world points, and build is refused.
+- **Presets** (in a sandbox copy of the library): saved from an interior door, a cabinet and a type; updated with a .bak; archived and restored; the next code skips an archived one.
+- **DXF:** written for a window and a single door.
+- **The dialog's own routes after the refactor:**
+  - Update from its page (mullions 2);
+  - Insert at Measured Point after the Two Point measurement callback;
+  - Create Door at Cursor;
+  - cabinet create, update and rename;
+  - bifold update.
+
+**In SketchUp:** Reload Scripts, close and reopen the dialog, then create, update, measure and export once from each tab.
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.5.3 - 09-Nov-2026 - Fielded Panels Built as Solids, a British Front Door Preset and an MCP Seam
 
 ### Context
