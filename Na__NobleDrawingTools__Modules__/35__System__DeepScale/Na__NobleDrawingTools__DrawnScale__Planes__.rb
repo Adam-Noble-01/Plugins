@@ -37,8 +37,12 @@
 #   the Keys file. Right after placing or moving one, a typed value sets its
 #   distance from the low end. Clear Stretch Planes (right-click menu) removes
 #   all that were placed.
-# - Loose geometry has nowhere to save a plane, so it keeps its centre planes:
-#   they show and they work, but they have no diamonds and no centre lines.
+# - Loose geometry and a selection of several objects have nowhere to save a
+#   plane. Until 5.2.41 they kept their centre planes only; now their planes
+#   are placed, moved and removed like an object's, and the TOOL keeps them
+#   (@na_sc_loose_planes) for as long as it holds that selection: carried
+#   through each stretch or scale, brought back by Ctrl+Z with the shape they
+#   went with, and forgotten when another selection is taken. No undo step.
 # - A line of help under the mode strip says which of these applies right
 #   now, so none of it has to be remembered.
 # - The planes in this file are only ever a WORKING COPY until the mouse is
@@ -202,9 +206,8 @@ module Na__NobleDrawingTools
         def na_scale__ctrl_axis(view, x, y)
             frame = @na_sc_frame
             return nil unless frame
-            return nil if frame[:loose]                                       # <-- Nowhere to keep a plane on loose geometry
 
-            corners = Na__NobleDrawingTools.Na__ScaleFrame__BoxQuads(frame, frame[:min], frame[:max]).flatten
+            corners =Na__NobleDrawingTools.Na__ScaleFrame__BoxQuads(frame, frame[:min], frame[:max]).flatten
             screen  = Na__NobleDrawingTools.Na__DrawnPreview__ScreenPoints(view, corners)
             return nil unless screen && Na__NobleDrawingTools.Na__ScalePreview__Sane?(screen)
 
@@ -443,11 +446,11 @@ module Na__NobleDrawingTools
         # planes is what was on show, centre planes and all. Those are taken
         # out here, so moving one plane does not store the two beside it. With
         # nothing to store and nothing stored there is no undo step to make.
+        # A held selection's go to the tool instead (5.2.41): no undo step.
         # ------------------------------------------------------------
         def na_scale__save_planes(planes, op_name)
             frame = @na_sc_frame
             return false unless frame
-            return false if frame[:loose]
 
             tidy = Na__NobleDrawingTools.Na__ScalePlanes__Prune(planes, frame[:min], frame[:max])  # <-- Orphans go whenever the planes are written
             NA_SCALE_AXES.each_with_index do |axis, n|
@@ -455,7 +458,13 @@ module Na__NobleDrawingTools
             end
             tidy = Na__NobleDrawingTools.Na__ScalePlanes__WithoutCentres(frame, tidy)
 
-            nothing = Na__NobleDrawingTools.Na__ScalePlanes__Total(tidy).zero? &&
+            if frame[:loose]
+                na_scale__keep_loose_planes(tidy)
+                @na_sc_planes = na_scale__planes_of(frame)
+                return true
+            end
+
+            nothing =Na__NobleDrawingTools.Na__ScalePlanes__Total(tidy).zero? &&
                       Na__NobleDrawingTools.Na__ScalePlanes__Total(Na__NobleDrawingTools.Na__ScalePlanes__Read(frame[:definition])).zero?
             saved   = nothing || Na__NobleDrawingTools.Na__ScaleCommit__SavePlanes(Sketchup.active_model, frame[:definition], tidy, op_name)
             @na_sc_planes = na_scale__planes_of(frame) if saved
@@ -513,7 +522,8 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def na_scale__remove_plane(axis, value)
             if na_scale__centre_plane?(axis)
-                na_scale__say("That is #{axis.to_s.upcase}'s centre plane: it stays while Planes is on. Drag it to move it, or SHIFT+TAB goes back to scaling")
+                back = na_scale__stretch_only? ? 'Deep Stretch always stretches somewhere' : 'or SHIFT+TAB goes back to scaling'
+                na_scale__say("That is #{axis.to_s.upcase}'s centre plane: it stays while Planes is on. Drag it to move it, #{back}")
                 return false
             end
 
@@ -620,7 +630,7 @@ module Na__NobleDrawingTools
             mins, maxs = field ? Na__NobleDrawingTools.Na__ScaleField__Box(field, frame) : [nil, nil]
             moved  = field ? Na__NobleDrawingTools.Na__ScaleField__PlanesAfter(field, planes) : planes
             hot    = @na_sc_hover
-            handed = !field && na_scale__planes_editable?                     # <-- Mid-drag nothing can be placed, and loose geometry has nowhere to save one
+            handed = !field && na_scale__planes_editable?                     # <-- Mid-drag nothing can be placed
 
             NA_SCALE_AXES.each_with_index do |axis, n|
                 next unless frame[:usable][n]
@@ -822,13 +832,17 @@ module Na__NobleDrawingTools
             return [] if @na_sc_drag || @na_sc_plane_drag
             return [] if na_scale__over_controls?
 
-            if frame[:loose]
-                wanted = @na_ctrl_held || na_scale__planes_on?
-                return [] unless wanted
+            lines = na_scale__plane_hint_lines_for_object
+            return lines unless frame[:loose] && !lines.empty?
 
-                return ['Loose geometry stretches at the centre of each axis: there is nothing to save a plane with',
-                        'To put a plane somewhere else, make it a group (right-click > Make Group)']
-            end
+            lines + ["Planes on a selection are kept while #{na_drawn__tool_title} holds it — they are not saved with the model"]
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Plane Hint for What Is Held, Before a Selection's Note Is Added
+        # ------------------------------------------------------------
+        def na_scale__plane_hint_lines_for_object
+            frame = @na_sc_frame
 
             count = Na__NobleDrawingTools.Na__ScalePlanes__Total(
                 NA_SCALE_AXES.each_with_object({}) { |axis, inside| inside[axis] = Na__NobleDrawingTools.Na__ScalePlanes__Inside(frame, axis, (@na_sc_planes || {})[axis]) }

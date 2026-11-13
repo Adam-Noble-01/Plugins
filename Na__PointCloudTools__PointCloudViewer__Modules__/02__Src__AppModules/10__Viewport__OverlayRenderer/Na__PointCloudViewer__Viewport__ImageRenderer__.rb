@@ -170,14 +170,17 @@ module Na__PointCloudViewer
             params = layers.map do |layer|
                 slot = layer['slot']
                 display = self.na_display(slot)
-                camera + [
+                # v0.14.8: a turned clip box folds this cloud and the camera into
+                # its own axes (ClipBox__Turned); the Crop and Cut view waits.
+                layer_camera, transform, clip, turned = Na__ClipBox.Na__Clip__RenderParts(slot, camera, slot.cloud.local_to_model || NA_IDENTITY_TRANSFORM)
+                layer_camera + [
                     width, height,
                     [display['pointSizePx'].to_f * scale, 1.0].max,
                     display['opacityPercent'].to_f / 100.0,
                     *self.Na__Image__ColourParams(slot, display['colourMode']),
                     budget, near
-                ] + (slot.cloud.local_to_model || NA_IDENTITY_TRANSFORM) + Na__ClipBox.Na__Clip__RenderParams(slot) +
-                    [full_w, full_h, crop_x, crop_y] + Na__CleanBoxes.Na__Boxes__RenderParams(slot)
+                ] + transform + clip +
+                    [full_w, full_h, crop_x, crop_y] + (turned ? Na__CleanBoxes.na_off_tail : Na__CleanBoxes.Na__Boxes__RenderParams(slot))
             end
 
             result = Na__NativeEngine.Na__Native__RenderLayersPng(layers.map { |layer| layer['pointer'] }, params, budget, self.na_png_path(state))

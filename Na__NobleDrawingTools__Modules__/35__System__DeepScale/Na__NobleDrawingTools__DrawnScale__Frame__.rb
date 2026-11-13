@@ -37,7 +37,10 @@
 #   axes. Its points sit in the open context and report world, so the box
 #   is taken through the inverse of those axes. The frame carries :loose,
 #   :entities and :context instead of an instance; it has no definition, so
-#   nowhere to keep stretch planes, and the tool keeps them out of it.
+#   nowhere to save stretch planes: the tool keeps them while it holds the
+#   selection (5.2.41). An object in the selection is boxed by its own eight
+#   corners, and the ghost walks inside it, because a stretch now opens every
+#   object a plane runs through.
 #
 # FRAME HASH:
 #   :instance, :definition, :path   the object and its ABSOLUTE path

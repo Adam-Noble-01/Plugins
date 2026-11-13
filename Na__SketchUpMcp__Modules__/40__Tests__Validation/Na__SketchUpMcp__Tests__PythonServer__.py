@@ -236,7 +236,7 @@ class NaMcpServerTests(unittest.TestCase):
 
     def test_tools_list(self):
         tools = self.session.request('tools/list')['result']['tools']
-        self.assertEqual(len(tools), 76)
+        self.assertEqual(len(tools), 77)
         for tool in tools:
             self.assertEqual(tool['inputSchema']['type'], 'object')
             self.assertNotIn('$use', json.dumps(tool['inputSchema']))

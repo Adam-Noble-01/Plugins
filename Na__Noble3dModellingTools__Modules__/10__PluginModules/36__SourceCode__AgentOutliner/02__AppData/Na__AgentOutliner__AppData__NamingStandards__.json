@@ -12,12 +12,44 @@
             "meaning"  : "The CAD linework of the front elevation. Take sizes, heights and positions from it. Never move, edit, hide or delete it."
         },
         {
+            "id"       : "cad_front_elevation_host_dwelling",
+            "label"    : "CAD__FrontElevation__HostDwelling",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#2563eb",
+            "meaning"  : "The CAD linework of the front elevation of the host dwelling only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_front_elevation_orangery",
+            "label"    : "CAD__FrontElevation__Orangery",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#2563eb",
+            "meaning"  : "The CAD linework of the front elevation of the orangery only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
             "id"       : "cad_side_elevation_left",
             "label"    : "CAD__SideElevation__Left",
             "category" : "CAD Elevations",
             "mode"     : "replace",
             "colour"   : "#0284c7",
             "meaning"  : "The CAD linework of the left side elevation (left as seen from the front). Take sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_side_elevation_left_host_dwelling",
+            "label"    : "CAD__SideElevation__Left__HostDwelling",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#0284c7",
+            "meaning"  : "The CAD linework of the left side elevation (left as seen from the front) of the host dwelling only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_side_elevation_left_orangery",
+            "label"    : "CAD__SideElevation__Left__Orangery",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#0284c7",
+            "meaning"  : "The CAD linework of the left side elevation (left as seen from the front) of the orangery only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
         },
         {
             "id"       : "cad_side_elevation_right",
@@ -28,12 +60,60 @@
             "meaning"  : "The CAD linework of the right side elevation (right as seen from the front). Take sizes, heights and positions from it. Never move, edit, hide or delete it."
         },
         {
+            "id"       : "cad_side_elevation_right_host_dwelling",
+            "label"    : "CAD__SideElevation__Right__HostDwelling",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#0891b2",
+            "meaning"  : "The CAD linework of the right side elevation (right as seen from the front) of the host dwelling only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_side_elevation_right_orangery",
+            "label"    : "CAD__SideElevation__Right__Orangery",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#0891b2",
+            "meaning"  : "The CAD linework of the right side elevation (right as seen from the front) of the orangery only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
             "id"       : "cad_rear_elevation",
             "label"    : "CAD__RearElevation",
             "category" : "CAD Elevations",
             "mode"     : "replace",
             "colour"   : "#4f46e5",
             "meaning"  : "The CAD linework of the rear elevation. Take sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_rear_elevation_host_dwelling",
+            "label"    : "CAD__RearElevation__HostDwelling",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#4f46e5",
+            "meaning"  : "The CAD linework of the rear elevation of the host dwelling only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_rear_elevation_orangery",
+            "label"    : "CAD__RearElevation__Orangery",
+            "category" : "CAD Elevations",
+            "mode"     : "replace",
+            "colour"   : "#4f46e5",
+            "meaning"  : "The CAD linework of the rear elevation of the orangery only. Take its sizes, heights and positions from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_floor_plan",
+            "label"    : "CAD__FloorPlan",
+            "category" : "CAD Plans",
+            "mode"     : "replace",
+            "colour"   : "#db2777",
+            "meaning"  : "The CAD linework of the floor plan. Take wall positions, openings, room sizes and set-out from it. Never move, edit, hide or delete it."
+        },
+        {
+            "id"       : "cad_roof_plan",
+            "label"    : "CAD__RoofPlan",
+            "category" : "CAD Plans",
+            "mode"     : "replace",
+            "colour"   : "#9a3412",
+            "meaning"  : "The CAD linework of the roof plan. Take ridges, hips, valleys, eaves lines, roof extents and set-out from it. Never move, edit, hide or delete it."
         },
         {
             "id"       : "ref",
@@ -154,6 +234,15 @@
             "mode"     : "prefix",
             "colour"   : "#24eb70",
             "meaning"  : "Rough Proposed Building Massing"
+        }
+        ,
+        {
+            "id"       : "massing_proposed_vale_orangery",
+            "label"    : "MASSING__Proposed__ValeOrangery",
+            "category" : "Massing",
+            "mode"     : "prefix",
+            "colour"   : "#0d9f9f",
+            "meaning"  : "Rough massing of the proposed Vale orangery. Use it for position and extent only: take real sizes from the CAD and concept drawings, never from this."
         }
     ],
     "flags"    : [

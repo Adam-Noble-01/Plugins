@@ -4,6 +4,112 @@
 
 # =======================================================================================
 
+## Profile Path Tracer - v1.6.18 - 13-Nov-2026 - Gallery Right-Click Menu: Apply, Trace, Edit Information, Edit Geometry
+
+### Asked For
+Adam: "Add Right Click on the gallery, custom right click menu. Apply Profile To Selection (Opens Apply
+profile tab but auto selects the option and fetches users currently selection etc) / Create Profile
+Interactive (Opens the apply tab and starts the interactive profile trace tool) / --- / Edit Profile
+Information (Opens Profile in the edit profile tab) / Edit Profile Geometry (Opens Profile Editor Draw 2D
+View). AIM: Make it easier using the gallery to create, maintain, edit SPECIFIC profiles, its a intuitive
+pathway for some people having a context menu from the gallery like this."
+
+### Summary
+Right-click any card in the Gallery (both Gallery and Index views) for a menu headed with the profile's
+name. Each item opens a tab with THAT profile already chosen and the job started.
+
+| Item | What it does |
+|---|---|
+| **Apply Profile To Selection** | Apply Profile, Library source, **Use current selection**, then Generate: Ruby reads the model selection and starts the Selection preview (Commit / Cancel). Nothing selected, or a bad run: the status bar says why, as Generate always has |
+| **Create Profile Interactive** | Apply Profile, Library source, **Interactive path picking**, then Generate: the trace tool starts in the viewport. If an Interactive trace is already running it keeps its clicked waypoints and simply takes the new profile |
+| **Edit Profile Information** | Edit Profile, showing this profile (names, short name, keywords, description, datum, file) |
+| **Edit Profile Geometry** | Draw Profile, this profile open in the 2D editor (the usual "unsaved changes" guard first) |
+
+A right-click does not select: the card gets a dashed outline while the menu is open, and the store
+only changes when an item runs, so dismissing the menu changes nothing. Arrow keys, Home and End move
+through the items, Enter runs one, Escape, Tab, a click elsewhere, a scroll, a resize or leaving the
+dialog closes it. The menu flips to the cursor's other side near the right and bottom edges.
+
+### Decisions worth knowing
+- **While a swap is armed** (the Gallery is waiting for a replacement pick) there is no menu: every card
+  then means "swap to this". The status bar says so; Cancel the swap and the menu is back.
+- **A trace bound to Apply Profile** (after a swap) is unbound by the two Apply items before they start:
+  they ask for a NEW trace, and a bound panel edits the placed one. The model is not touched. The items'
+  tooltips say so when it applies.
+- **Edit Profile Geometry unbinds the Draw editor** if it was bound to a trace: it edits the LIBRARY
+  profile, and with Live on by default (v1.6.17) the bound trace would otherwise be rebuilt with it on the
+  first change. The unbind waits for the unsaved-changes guard, so a cancelled open leaves the binding.
+  The editor's own Open list keeps its binding exactly as before.
+- **A Selection preview is always restarted** by Apply Profile To Selection, because the restart is what
+  re-reads the model selection (it may have changed in the Outliner). Only a running Interactive trace is
+  kept, because restarting it would lose its waypoints.
+- **A trace mid-rebuild** greys the two Apply items with the reason in the tooltip.
+
+### Also fixed
+- **One Gallery click ran once per search keystroke.** `Na__Gallery__AttachCardEvents` added another
+  click listener to the same grid on every search keystroke and every renamed card, so a click after
+  typing "gut" selected (or, armed, swapped) the profile several times over. Listeners are now bound once
+  per grid element (`data-na-card-events`); a full redraw makes a new grid and binds it once.
+
+### How it works
+- **New file** `30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__ContextMenu__.js`
+  (`window.Na__ProfileTools__Gallery__ContextMenu`: `Open`, `Close`, `IsOpen`, `Run`). It builds, places
+  and closes the menu and owns no journey: each item calls the tab that does the work.
+- **Apply Profile** exports `na_start_from_gallery(profileKey, pathMode)`: unbind if bound or armed,
+  Library source, select the profile, route to the tab, set the path mode, press Generate (its own checks
+  for offsets and the scene source still run).
+- **Draw Profile**: `na_open_profile(profileKey, { unbind: true })`; `OpenLibraryProfile(key, shouldUnbind)`.
+  `na_open_profile` also refuses cleanly if the editor failed to build, instead of throwing.
+- **Edit Profile** needed nothing: it shows the store's selected profile.
+- Gallery: the right-click is delegated from the grid; the menu closes on every full redraw and on
+  unmount. Styles in the Gallery stylesheet (Card Right-Click Menu region); icons are 16 px inline line
+  icons in `currentColor`.
+
+### Verified Offline
+- `node --check` on all five changed or new scripts; every file keeps CRLF.
+- The real dialog page, served from the live modules folder with a `window.sketchup` stub answering like
+  Ruby and a bootstrap built from the 38 library profiles, driven with real mouse clicks and keys in a
+  browser: the menu at the cursor and flipped inside the window at the bottom-right corner; arrows,
+  Escape, an outside click and a grid scroll; Apply Profile To Selection with nothing selected (refused,
+  Apply tab on Selection with the right profile) and with a selection (preview started); Create Profile
+  Interactive replacing a Selection preview; a second Create Profile Interactive while the trace runs (no
+  restart, the new key pushed to the running tool); Edit Profile Information; Edit Profile Geometry, plain and
+  with the editor bound (unbound), and the Draw tab's own Open list (binding kept); armed swap (no menu,
+  status, no swap sent); bound trace (unbound, then a new build, no swap sent). No page errors.
+- The listener fix: after typing in the search, one card click selects once; with the guard disabled
+  the same click selected twice, so the check catches the old bug.
+
+### What Offline Cannot Prove
+- The menu inside SketchUp's own HtmlDialog (CEF): `contextmenu` suppression, focus and look.
+- Real Ruby answers: the Selection preview and the Interactive tool starting from these items, and the
+  tool swaps when one replaces another.
+
+### Files
+- NEW `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__ContextMenu__.js`
+- `02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js`
+- `02__Src__AppModules/31__System__ApplyProfileMode/Na__ProfileTools__ApplyProfile__UiSystem__MainUiLogic__.js`
+- `02__Src__AppModules/34__System__DrawProfileMode/Na__ProfileTools__DrawProfile__UiSystem__MainUiLogic__.js`
+- `03__Style__AppStylesheets/Na__ProfileTools__UiFeature__Styles__Gallery__.css`
+- `Na__ProfileTools__UiLayout__.html` (script tag and load-order note)
+
+### Checklist for Adam
+- [ ] Reload Plugin Files (Settings; it reopens the dialog), or close and reopen the dialog. No Ruby
+      changed, so no restart is needed.
+- [ ] Right-click a Gallery card: the menu opens at the cursor, headed with the profile's name, and the
+      card has a dashed outline. Escape closes it and nothing is selected.
+- [ ] Select a run of edges, right-click a card, **Apply Profile To Selection**: Apply Profile opens on
+      that profile and Use current selection, and the preview shows on the edges. Commit builds it.
+- [ ] With nothing selected, the same item: Apply Profile opens and the status bar says why it stopped.
+- [ ] **Create Profile Interactive**: the trace tool starts with that profile; click the path out.
+      Mid-trace, right-click another card and Create Profile Interactive again: the trace keeps its
+      clicks and takes the new profile.
+- [ ] **Edit Profile Information**: Edit Profile shows that profile.
+- [ ] **Edit Profile Geometry**: Draw Profile opens that profile; with unsaved changes it asks first.
+- [ ] Swap Profile with a trace selected, then right-click a card: no menu, and the status bar explains.
+- [ ] Right-click a card near the bottom-right of the dialog: the whole menu stays on screen.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
 ## Profile Path Tracer - v1.6.17 - 11-Nov-2026 - The MCP Seam, Live by Default, Edge Colours Without the Dialog
 
 ### Summary

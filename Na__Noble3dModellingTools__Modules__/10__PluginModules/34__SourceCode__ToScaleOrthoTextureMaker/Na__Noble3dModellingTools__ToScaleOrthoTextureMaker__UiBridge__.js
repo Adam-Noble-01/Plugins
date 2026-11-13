@@ -12,6 +12,12 @@ const na_refreshButtonElement = document.getElementById('na-btn-refresh');
 const na_mainStatusElement = document.getElementById('na-status-main');
 const na_exportStatusElement = document.getElementById('na-status-export');
 const na_settingsStatusElement = document.getElementById('na-status-settings');
+const na_cloudModeElement = document.getElementById('na-cloud-mode');
+const na_cloudButtonElement = document.getElementById('na-btn-cloud');
+const na_cloudStatusElement = document.getElementById('na-status-cloud');
+
+// Slab defaults per mode (mm): a whole view keeps everything, a face or a wall a thin slab.
+const NA_CLOUD_DEPTHS = { view: [50000, 50000], face: [1000, 1000], wall: [900, 700] };
 
 const NA_STATUS_CLASSES = [
     'naOrtho__Status--info',
@@ -121,6 +127,68 @@ function na_sendRefreshScriptsRequest() {
     window.na_setSettingsStatus('error', 'SketchUp bridge is not available.');
 }
 
+// --- Point Cloud Ortho Plane (13-Nov-2026) ---------------------------------
+
+window.na_setCloudStatus = function(statusType, message) {
+    if (statusType !== 'busy') na_setCloudBusy(false);
+    na_setStatusOnElement(na_cloudStatusElement, statusType, message);
+};
+
+window.na_setCloudAvailable = function(available, reason) {
+    if (!na_cloudButtonElement) return;
+    na_cloudButtonElement.disabled = !available;
+    na_setStatusOnElement(
+        na_cloudStatusElement,
+        available ? 'info' : 'error',
+        available ? 'Ready. Choose what to square to, then Make Plane.' : reason
+    );
+};
+
+function na_setCloudBusy(isBusy) {
+    if (!na_cloudButtonElement) return;
+    na_cloudButtonElement.disabled = isBusy;
+    na_cloudButtonElement.textContent = isBusy ? 'Working...' : 'Make Plane';
+}
+
+function na_numberValue(id) {
+    const element = document.getElementById(id);
+    const value = element ? parseFloat(element.value) : NaN;
+    return isNaN(value) ? null : value;
+}
+
+function na_applyCloudModeDefaults() {
+    // The clip box mode takes its slab from the box itself (viewer 0.14.8).
+    const fromBox = na_cloudModeElement.value === 'clip';
+    ['na-cloud-behind', 'na-cloud-front'].forEach(function(id) { document.getElementById(id).disabled = fromBox; });
+    if (fromBox) return;
+    const depths = NA_CLOUD_DEPTHS[na_cloudModeElement.value] || NA_CLOUD_DEPTHS.face;
+    document.getElementById('na-cloud-behind').value = depths[0];
+    document.getElementById('na-cloud-front').value = depths[1];
+}
+
+function na_sendCloudPlaneRequest() {
+    const payload = {
+        mode: na_cloudModeElement.value,
+        behind_mm: na_numberValue('na-cloud-behind'),
+        front_mm: na_numberValue('na-cloud-front'),
+        resolution_mm: na_numberValue('na-cloud-resolution'),
+        background: document.getElementById('na-cloud-background').value,
+        placement: document.getElementById('na-cloud-placement').value,
+        offset_mm: na_numberValue('na-cloud-offset'),
+        fill: document.getElementById('na-cloud-fill').checked,
+        name: document.getElementById('na-cloud-name').value
+    };
+    if (typeof sketchup !== 'undefined' && sketchup.na_makeCloudPlane) {
+        na_setCloudBusy(true);
+        na_setStatusOnElement(na_cloudStatusElement, 'busy', 'Working...');
+        setTimeout(function() {
+            sketchup.na_makeCloudPlane(JSON.stringify(payload));
+        }, 30);
+        return;
+    }
+    window.na_setCloudStatus('error', 'SketchUp bridge is not available.');
+}
+
 function naShowTab(tabId, buttonElement) {
     document.querySelectorAll('.naOrtho__TabContent').forEach(function(tabElement) {
         tabElement.classList.remove('naOrtho__TabContent--active');
@@ -136,7 +204,10 @@ function naShowTab(tabId, buttonElement) {
 na_runButtonElement.addEventListener('click', na_sendProjectionRequest);
 if (na_exportButtonElement) na_exportButtonElement.addEventListener('click', na_sendExportRequest);
 na_refreshButtonElement.addEventListener('click', na_sendRefreshScriptsRequest);
+if (na_cloudButtonElement) na_cloudButtonElement.addEventListener('click', na_sendCloudPlaneRequest);
+if (na_cloudModeElement) na_cloudModeElement.addEventListener('change', na_applyCloudModeDefaults);
 window.naShowTab = naShowTab;
 
 if (typeof sketchup !== 'undefined' && sketchup.na_requestScenes) sketchup.na_requestScenes();
+if (typeof sketchup !== 'undefined' && sketchup.na_requestCloudAvailable) sketchup.na_requestCloudAvailable();
 if (typeof sketchup !== 'undefined' && sketchup.na_jsLog) sketchup.na_jsLog('To Scale Ortho Texture Maker UI ready.');

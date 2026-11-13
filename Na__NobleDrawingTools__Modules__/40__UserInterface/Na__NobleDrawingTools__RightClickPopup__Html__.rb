@@ -66,6 +66,7 @@ module Na__NobleDrawingTools
         :drawn_ogee         => 'Icon__NobleDrawingTools__DeepOgee__.svg',
         :drawn_ovolo        => 'Icon__NobleDrawingTools__DeepOvoloCavetto__.svg',
         :drawn_scale        => 'Icon__NobleDrawingTools__DeepScale__.svg',
+        :drawn_stretch      => 'Icon__NobleDrawingTools__DeepStretch__.svg',      # Deep Scale locked to stretching (5.2.42)
         :drawn_vertex_move  => 'Icon__NobleDrawingTools__VertexEdit__.svg',
         :snap_grid          => 'Icon__NobleDrawingTools__SnapGrid__.svg',          # settings, not tools: see SettingButton
         :circle_sides       => 'Icon__NobleDrawingTools__CircleSides__.svg',
@@ -207,6 +208,7 @@ module Na__NobleDrawingTools
         ogee_btn    = Na__NobleDrawingTools.Na__RightClickPopup__ModeButton('Deep Ogee',        'setOgeeMode',          :drawn_ogee,         active_key, submenu)
         ovolo_btn   = Na__NobleDrawingTools.Na__RightClickPopup__ModeButton('Deep Ovolo / Cavetto', 'setOvoloMode',     :drawn_ovolo,        active_key, submenu)
         scale_btn   = Na__NobleDrawingTools.Na__RightClickPopup__ModeButton('Deep Scale',       'setScaleMode',         :drawn_scale,        active_key, submenu)
+        stretch_btn = Na__NobleDrawingTools.Na__RightClickPopup__ModeButton('Deep Stretch',     'setStretchMode',       :drawn_stretch,      active_key, submenu)
         vertex_btn  = Na__NobleDrawingTools.Na__RightClickPopup__ModeButton('Deep Vertex Move', 'setVertexMoveMode',    :drawn_vertex_move,  active_key, submenu)
 
         grid_btn    = Na__NobleDrawingTools.Na__RightClickPopup__SettingButton('gridBtn',  'cycleGridStep',       :snap_grid,    "Snap Grid: #{grid_label}")
@@ -368,6 +370,7 @@ module Na__NobleDrawingTools
             #{push_btn}
             #{project_btn}
             #{scale_btn}
+            #{stretch_btn}
             #{vertex_btn}
 
             <div class="heading">Edge Treatments</div>

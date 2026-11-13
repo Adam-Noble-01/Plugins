@@ -1,0 +1,246 @@
+# Unit tests for Point Cloud Ortho Plane's shared core (Noble 3D Tools, Ortho module), run with
+# SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# The .rb.test extension keeps Noble 3D Tools' reloads from ever loading it. Only the pure parts are
+# checked here (frames, the view word, naming, folders); the capture and the plane are checked live.
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+require 'json'
+require 'tmpdir'
+require 'fileutils'
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+MM = 25.4
+
+load File.expand_path('../Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__PointCloudOrtho__.rb', __dir__)
+CORE = Na__Noble3dModellingTools::Na__ToScaleOrthoTextureMaker__PointCloudOrtho
+ERR = Na__Noble3dModellingTools::Na__PointCloudOrthoError
+
+def refusal(code)
+    yield
+    false
+rescue ERR => error
+    error.na_code == code
+end
+
+def close(a, b, tolerance = 1e-9)
+    a.zip(b).all? { |x, y| (x - y).abs < tolerance }
+end
+
+FakeModel = Struct.new(:path)
+
+# --- frames -------------------------------------------------------------------------------
+
+check('standard views: top is plan, front faces -Y, left faces -X (Adam\'s face words)') do
+    word = ->(name) { CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__ViewWord(CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameStandard(name)) }
+    word.call('top') == 'PlanView' && word.call('bottom') == 'UnderView' && word.call('front') == 'FrontElevation' &&
+        word.call('back') == 'BackElevation' && word.call('left') == 'LeftElevation' && word.call('right') == 'RightElevation'
+end
+
+check('standard views: every frame is right-handed with z toward the camera') do
+    CORE::NA_STANDARD_VIEWS.keys.all? do |name|
+        frame = CORE.na_frame_in(CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameStandard(name))
+        CORE.na_dot(frame['x_axis'], frame['y_axis']).abs < 1e-12 && (CORE.na_dot(frame['z_axis'], frame['z_axis']) - 1.0).abs < 1e-12
+    end && refusal('invalid_params') { CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameStandard('sideways') }
+end
+
+# Kann 64562: the CAD's east and west boundary wall faces (garden side), looked at from the garden.
+EAST_A = [12861.6 / MM, 19227.1 / MM]
+EAST_B = [13642.1 / MM, 7344.9 / MM]
+WEST_A = [5110.3 / MM, 19227.3 / MM]
+WEST_B = [4513.8 / MM, 10136.6 / MM]
+
+check('wall: the east wall seen from the garden runs house (left) to road (right), a Left elevation') do
+    frame, length = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameWall(EAST_A, EAST_B, [12000 / MM, 10000 / MM])
+    full = CORE.na_frame_in(frame)
+    close(frame['origin'], EAST_A + [0.0]) && close(full['x_axis'], [0.065545, -0.997850, 0.0], 1e-5) &&
+        close(full['z_axis'], [-0.997850, -0.065545, 0.0], 1e-5) && ((length * MM) - 11907.8).abs < 0.1 &&
+        CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__ViewWord(full) == 'LeftElevation'
+end
+
+check('wall: the west wall seen from the garden swaps its ends (road left, house right), a Right elevation') do
+    frame, = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameWall(WEST_A, WEST_B, [8000 / MM, 15000 / MM])
+    full = CORE.na_frame_in(frame)
+    close(frame['origin'], WEST_B + [0.0]) && full['x_axis'][1] > 0.99 && full['z_axis'][0] > 0.99 &&
+        CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__ViewWord(full) == 'RightElevation'
+end
+
+check('wall: refusals for a point wall and a viewpoint on the line') do
+    refusal('invalid_params') { CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameWall([0, 0], [0, 0], [1, 1]) } &&
+        refusal('invalid_params') { CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameWall([0, 0], [10, 0], [5, 0]) }
+end
+
+check('face: a face looking -Y seen from the front is square to it, its extent grown by the margin') do
+    points = [[0, 0, 0], [1000, 0, 0], [1000, 0, 500], [0, 0, 500]].map { |p| p.map { |v| v / MM } }
+    frame, u, v = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameFace(points, [0, -1, 0], [0, 1, 0], 100 / MM)
+    close(frame['x_axis'], [1.0, 0.0, 0.0]) && close(frame['y_axis'], [0.0, 0.0, 1.0]) &&
+        close(u.map { |x| x * MM }, [-100, 1100], 1e-6) && close(v.map { |x| x * MM }, [-100, 600], 1e-6)
+end
+
+check('face: seen from behind, the frame turns to face the camera') do
+    points = [[0, 0, 0], [1000, 0, 0], [1000, 0, 500], [0, 0, 500]].map { |p| p.map { |v| v / MM } }
+    frame, = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameFace(points, [0, -1, 0], [0, -1, 0], 0.0)
+    full = CORE.na_frame_in(frame)
+    close(full['z_axis'], [0.0, 1.0, 0.0]) && CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__ViewWord(full) == 'BackElevation'
+end
+
+check('face: a level face looking up is a plan') do
+    points = [[0, 0, 100], [100, 0, 100], [100, 100, 100]].map { |p| p.map { |v| v / MM } }
+    frame, = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameFace(points, [0, 0, 1], [0, 0, -1], 0.0)
+    CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__ViewWord(CORE.na_frame_in(frame)) == 'PlanView'
+end
+
+check('frame in: y is made square to x; a y along x is refused') do
+    frame = CORE.na_frame_in('origin' => [1, 2, 3], 'x_axis' => [2, 0, 0], 'y_axis' => [1, 0, 1])
+    close(frame['y_axis'], [0.0, 0.0, 1.0]) && close(frame['z_axis'], [0.0, -1.0, 0.0]) &&
+        refusal('invalid_params') { CORE.na_frame_in('x_axis' => [1, 0, 0], 'y_axis' => [3, 0, 0]) } &&
+        refusal('invalid_params') { CORE.na_frame_in(nil) }
+end
+
+check('to model: frame points land where the axes say') do
+    frame = CORE.na_frame_in('origin' => [10, 20, 0], 'x_axis' => [0, 1, 0], 'y_axis' => [0, 0, 1])
+    close(CORE.na_to_model(frame, [5, 2, 1]), [11.0, 25.0, 2.0])
+end
+
+# --- values -------------------------------------------------------------------------------
+
+check('values: ranges, depths and choices are refused when wrong') do
+    refusal('invalid_params') { CORE.na_range([5, 5], 'u') } && refusal('invalid_params') { CORE.na_range([1], 'u') } &&
+        refusal('invalid_params') { CORE.na_depth([-1, 2]) } && refusal('invalid_params') { CORE.na_depth([0, 0]) } &&
+        CORE.na_depth([0, 10]) == [0.0, 10.0] &&
+        refusal('invalid_params') { CORE.na_choice('grey', CORE::NA_BACKGROUNDS, 'background') } &&
+        CORE.na_choice('white', CORE::NA_BACKGROUNDS, 'background') == 'white'
+end
+
+check('names: words are tidied for the Outliner and the file') do
+    CORE.na_word('Boundary Wall 01 / East') == 'Boundary_Wall_01_East' && CORE.na_word('  ') == 'Cloud' &&
+        CORE.na_word('BoundaryWall01__East') == 'BoundaryWall01__East'
+end
+
+check('names: resolution and date read as Adam writes them') do
+    CORE.na_res_text(10 / MM) == '10' && CORE.na_res_text(12.5 / MM) == '12-5' &&
+        CORE.na_date(Time.new(2026, 11, 13)) == '13-Nov-2026' && CORE.na_date(Time.new(2026, 1, 5)) == '05-Jan-2026'
+end
+
+# --- folders ------------------------------------------------------------------------------
+
+check('folders: a job model saves into its 01__ReferenceFiles/12__PointCloud__Orthos, named for the client') do
+    Dir.mktmpdir do |root|
+        model = FakeModel.new(File.join(root, '64562__Kann__Whitecard', '02__SketchUp', '01__MainModel', 'Kann__WhiteCardModel__0.3.0__.skp'))
+        folder, client = CORE.na_output_folder(model, [])
+        folder == File.join(root, '64562__Kann__Whitecard', '01__ReferenceFiles', '12__PointCloud__Orthos') && client == 'Kann'
+    end
+end
+
+check('folders: no job folder means beside the model; unsaved means the temp folder, with a warning') do
+    Dir.mktmpdir do |root|
+        folder, = CORE.na_output_folder(FakeModel.new(File.join(root, 'Loose', 'Test__Model.skp')), [])
+        warnings = []
+        temp, client = CORE.na_output_folder(FakeModel.new(''), warnings)
+        folder == File.join(root, 'Loose', 'PointCloudOrthos') && temp.start_with?(Dir.tmpdir) && client == 'Model' && warnings.length == 1
+    end
+end
+
+check('folders: the next number follows the highest already there') do
+    Dir.mktmpdir do |root|
+        CORE.na_next_number(root) == 1 &&
+            begin
+                File.write(File.join(root, 'Kann__PointCloudOrtho__01__Top__X__10mmPx__13-Nov-2026.png'), '')
+                File.write(File.join(root, 'Kann__PointCloudOrtho__04__Top__Y__10mmPx__13-Nov-2026.png'), '')
+                CORE.na_next_number(root) == 5
+            end
+    end
+end
+
+check('folders: a model path with Windows backslashes still numbers on (Dir.glob reads backslashes as escapes)') do
+    Dir.mktmpdir do |root|
+        windows = File.join(root, '64562__Kann__Whitecard', '02__SketchUp', 'K.skp').tr('/', '\\')
+        folder, = CORE.na_output_folder(FakeModel.new(windows), [])
+        FileUtils.mkdir_p(folder)
+        File.write(File.join(folder, 'Kann__PointCloudOrtho__01__PlanView__X__10mmPx__13-Nov-2026.png'), '')
+        !folder.include?('\\') && CORE.na_next_number(folder.tr('/', '\\')) == 2
+    end
+end
+
+check('save: a given save_path that exists is never written over') do
+    Dir.mktmpdir do |root|
+        existing = File.join(root, 'taken.png')
+        File.write(existing, 'x')
+        temp = File.join(root, 'temp.png')
+        File.write(temp, 'y')
+        refusal('file_error') { CORE.na_save_png(FakeModel.new(''), existing, temp, 'PlanView', 'X', 10 / MM, []) } && File.read(existing) == 'x'
+    end
+end
+
+check('save: a job model\'s picture lands in the job folder with Adam\'s file name') do
+    Dir.mktmpdir do |root|
+        model = FakeModel.new(File.join(root, '64562__Kann__Whitecard', '02__SketchUp', 'K.skp'))
+        temp = File.join(root, 'temp.png')
+        File.write(temp, 'png')
+        path = CORE.na_save_png(model, nil, temp, 'PlanView', 'UpperGarden', 10 / MM, [])
+        File.basename(path) =~ /\AKann__PointCloudOrtho__01__PlanView__UpperGarden__10mmPx__\d\d-[A-Z][a-z]{2}-\d{4}\.png\z/ && File.read(path) == 'png'
+    end
+end
+
+# --- a frame from the cloud's clip box (viewer 0.14.8) ------------------------------------
+
+# A stand-in for the viewer's seam: only the state read, with the clip box the test sets.
+module Na__PointCloudViewer
+    module Na__McpOperations
+        NA_FEATURES = %w[frame ortho turned_clip].freeze unless const_defined?(:NA_FEATURES)
+
+        class << self
+            attr_accessor :na_clip
+        end
+
+        def self.Na__PointCloudViewer__McpRead(action, _params)
+            raise "unexpected read #{action}" unless action == 'state'
+            { 'active_cloud' => 'pc_1', 'clouds' => [{ 'id' => 'pc_1', 'name' => 'Site', 'clip' => @na_clip }] }
+        end
+    end
+end
+OPS = Na__PointCloudViewer::Na__McpOperations
+
+check('clip frame: a box turned along Kann\'s east wall gives that wall\'s elevation: square to its front face, its size, its depth the slab') do
+    length = Math.hypot(EAST_B[0] - EAST_A[0], EAST_B[1] - EAST_A[1])
+    x = [(EAST_B[0] - EAST_A[0]) / length, (EAST_B[1] - EAST_A[1]) / length, 0.0]
+    y = [-x[1], x[0], 0.0]
+    centre = [(EAST_A[0] + EAST_B[0]) / 2.0, (EAST_A[1] + EAST_B[1]) / 2.0, 3000 / MM]
+    OPS.na_clip = { 'enabled' => true, 'min' => [0, 0, 0], 'max' => [1, 1, 1],
+                    'turned' => { 'origin' => centre, 'x_axis' => x, 'y_axis' => y,
+                                  'min' => [-length / 2.0, -900 / MM, -3500 / MM], 'max' => [length / 2.0, 700 / MM, 3500 / MM] } }
+    frame, u, v, depth, name = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameClip
+    full = CORE.na_frame_in(frame)
+    front = (0..2).map { |k| centre[k] - (900 / MM) * y[k] }
+    close(full['x_axis'], x, 1e-12) && close(full['y_axis'], [0.0, 0.0, 1.0], 1e-12) && close(full['z_axis'], y.map(&:-@), 1e-12) &&
+        close(frame['origin'], front, 1e-9) && close(u, [-length / 2.0, length / 2.0]) && close(v.map { |n| n * MM }, [-3500.0, 3500.0], 1e-9) &&
+        close(depth.map { |n| n * MM }, [1600.0, 0.0], 1e-9) && name == 'Site'
+end
+
+check('clip frame: a level box looks along +y at its front, a Front elevation; no box, or an unknown cloud, is refused') do
+    OPS.na_clip = { 'enabled' => true, 'min' => [100 / MM, 200 / MM, 0.0], 'max' => [4100 / MM, 1200 / MM, 2500 / MM] }
+    frame, u, v, depth, = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameClip
+    level_ok = CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__ViewWord(CORE.na_frame_in(frame)) == 'FrontElevation' &&
+               close(frame['origin'].map { |n| n * MM }, [0.0, 200.0, 0.0], 1e-9) && close(u.map { |n| n * MM }, [100.0, 4100.0], 1e-9) &&
+               close(v.map { |n| n * MM }, [0.0, 2500.0], 1e-9) && close(depth.map { |n| n * MM }, [1000.0, 0.0], 1e-9)
+    OPS.na_clip = nil
+    level_ok && refusal('invalid_params') { CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameClip } &&
+        refusal('invalid_params') { CORE.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameClip('Interior') }
+end
+
+puts "Point Cloud Ortho Plane core: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

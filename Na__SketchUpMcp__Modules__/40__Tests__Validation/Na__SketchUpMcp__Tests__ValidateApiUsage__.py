@@ -81,6 +81,12 @@ NA_OUTLINER_CHECKED = [os.path.join('06__McpOperations', '*.rb')]
 # in its modules counts as defined, and its MCP seam (60__System__McpOperations) is checked like the bridge.
 NA_TRACER_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__ProfileTools__ProfilePathTracer__Modules__', '02__Src__AppModules')
 NA_TRACER_CHECKED = [os.path.join('60__System__McpOperations', '*.rb')]
+
+# point_cloud_ortho_plane (1.0.34) calls into Noble 3D Tools' Ortho module the same way: every def in
+# it counts as defined, and the shared core and button (both run inside SketchUp) are checked like the bridge.
+NA_ORTHO_ROOT = os.path.join(os.path.dirname(NA_MODULES_ROOT), 'Na__Noble3dModellingTools__Modules__', '10__PluginModules',
+                             '34__SourceCode__ToScaleOrthoTextureMaker')
+NA_ORTHO_CHECKED = ['*PointCloudOrtho*.rb']
 NA_SKETCHUP_TOP_LEVEL = re.compile(r'\b(PAGE_[A-Z_]+|MF_[A-Z]+|TB_[A-Z_]+|IDOK|IDCANCEL|TextAlign[A-Za-z]+|SnapTo_[A-Za-z]+|IDENTITY|ORIGIN|[XYZ]_AXIS)\b')
 
 # Method names allowed although the index does not list them, each with its reason.
@@ -283,10 +289,11 @@ def na_main():
     glb_all = [path for path in glb_all if '00__ArchivedVersions' not in path]
     outliner_all, outliner_checked = na_partner_files(NA_OUTLINER_ROOT, NA_OUTLINER_CHECKED)
     tracer_all, tracer_checked = na_partner_files(NA_TRACER_ROOT, NA_TRACER_CHECKED)
+    ortho_all, ortho_checked = na_partner_files(NA_ORTHO_ROOT, NA_ORTHO_CHECKED)
     api_count = na_check_registry_api(api, registry_raw, failures)
-    call_count = na_check_method_calls(api, files + partner_checked + studio_checked + viewer_checked + glb_checked + outliner_checked + tracer_checked,
-                                       failures, partner_all + studio_all + viewer_all + tagutils_all + glb_all + outliner_all + tracer_all)
-    constant_count = na_check_constants(api, files + partner_checked + studio_checked + viewer_checked + glb_checked + outliner_checked + tracer_checked,
+    call_count = na_check_method_calls(api, files + partner_checked + studio_checked + viewer_checked + glb_checked + outliner_checked + tracer_checked + ortho_checked,
+                                       failures, partner_all + studio_all + viewer_all + tagutils_all + glb_all + outliner_all + tracer_all + ortho_all)
+    constant_count = na_check_constants(api, files + partner_checked + studio_checked + viewer_checked + glb_checked + outliner_checked + tracer_checked + ortho_checked,
                                         failures)
     route_count = na_check_routes(registry_raw, files, failures)
 
@@ -321,6 +328,10 @@ def na_main():
         print('Partner: %d Profile Path Tracer seam file(s) checked, %d defining.' % (len(tracer_checked), len(tracer_all)))
     else:
         print('Partner: Profile Path Tracer seam not found at %s; profile_tracer calls into it are unchecked.' % NA_TRACER_ROOT)
+    if ortho_checked:
+        print('Partner: %d Ortho module file(s) checked, %d defining.' % (len(ortho_checked), len(ortho_all)))
+    else:
+        print('Partner: Ortho module not found at %s; point_cloud_ortho_plane calls into it are unchecked.' % NA_ORTHO_ROOT)
     if failures:
         print('FAILED (%d):' % len(failures))
         for failure in failures:

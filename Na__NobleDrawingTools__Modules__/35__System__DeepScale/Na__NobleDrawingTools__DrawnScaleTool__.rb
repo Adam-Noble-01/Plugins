@@ -21,8 +21,21 @@
 # - Loose geometry too (5.2.9): select edges and faces, or several objects,
 #   and start the tool, or click loose geometry to take it and everything
 #   connected to it. It is boxed in the axes the user is drawing in — the
-#   open group's own, however deep — and changed where it lies. Nothing is
-#   saved for it, so it stretches only at the centre planes (5.2.22).
+#   open group's own, however deep — and changed where it lies.
+# - SEVERAL OBJECTS ARE ONE BOX (5.2.41). Select two walls and start the tool,
+#   or SHIFT+click a second object while holding one: the grips, dimensions and
+#   planes are the box round all of them. A stretch opens every object a plane
+#   runs through and stretches it as it would on its own (Commit file); one no
+#   plane runs through moves whole. SHIFT+click a held object takes it out.
+#   A selection has no definition to save a plane on, so the planes placed on
+#   it are kept by the tool for as long as it holds that selection, through
+#   the stretch and Ctrl+Z, and are not saved.
+#
+# DEEP STRETCH (5.2.41, DrawnStretchTool file):
+# - The same tool with Stretch Planes locked on: every grip stretches, and
+#   UNIFORM, NON-UNIFORM, SHIFT+TAB and the Planes switch are refused, so a
+#   stretch cannot become a scale by a slip of the hand. Its own command,
+#   NA_DeepStretch, for its own shortcut. To scale, leave it for Deep Scale.
 #
 # CONTROL HANDLES:
 # - The bar at the top left chooses which grips are shown: All, Faces,
@@ -161,6 +174,8 @@ module Na__NobleDrawingTools
             @na_sc_last_placed  = nil                                         # <-- The plane the last press dropped, for the double-click guard
             @na_sc_seen_axes    = nil                                         # <-- Which axes the view shows, from the last grip layout
             @na_sc_typed        = nil                                         # <-- The measurements box as it is being typed (Keys file)
+            @na_sc_loose_planes = Na__NobleDrawingTools.Na__ScalePlanes__Empty # <-- Planes placed on a held selection: kept here, never saved (5.2.41)
+            @na_sc_loose_memory = {}                                          # <-- { loose fingerprint => its planes }, so Ctrl+Z brings back the planes that went with it
         end
         # ---------------------------------------------------------------
 
@@ -188,7 +203,8 @@ module Na__NobleDrawingTools
         def na_drawn__activation_hints
             [
                 'Select a group or component first, or hover one and click it',
-                'Loose geometry works too: select it first, or click it to take everything connected to it — boxed in the open group\'s own axes, stretching only at its centre planes',
+                'Several at once: select them first, or SHIFT+click another to add it (again to take it out) — one box round them all, and a stretch stretches each one a plane runs through',
+                'Loose geometry works too: select it first, or click it to take everything connected to it — boxed in the open group\'s own axes',
                 'Double-click inside it to take the part under the cursor; BKSP comes back out',
                 'Drag a grip to scale, release or click again to place — one undo step',
                 "Sizes snap to the #{Na__NobleDrawingTools.Na__DrawnSettings__GridStepLabel} grid; hold CTRL to snap the grip to a point instead",
@@ -228,18 +244,40 @@ module Na__NobleDrawingTools
 
         # FUNCTION | Stretch Planes Switched On?
         # Loose geometry too (5.2.22): the centre planes need nothing saved.
+        # Always, in Deep Stretch (5.2.41), which never writes the stored
+        # switch, so Deep Scale finds it as it was left.
         # ------------------------------------------------------------
         def na_scale__planes_on?
-            Na__NobleDrawingTools.Na__ToolOptions__Enabled?(NA_SCALE_OPTION_PLANES)
+            na_scale__stretch_only? || Na__NobleDrawingTools.Na__ToolOptions__Enabled?(NA_SCALE_OPTION_PLANES)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is This Deep Stretch, Where Nothing May Scale? (DrawnStretchTool)
+        # ------------------------------------------------------------
+        def na_scale__stretch_only?
+            false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Refuse a Switch That Would Make Deep Stretch Scale; Always true
+        # ------------------------------------------------------------
+        # The switch is the point of the tool, so a slip of the hand onto
+        # UNIFORM, SHIFT+TAB or Planes is said, not done.
+        # ------------------------------------------------------------
+        def na_scale__refuse_scaling
+            UI.beep
+            na_scale__say('Deep Stretch only stretches — to scale, leave it (Space) and use Deep Scale')
+            na_scale__after_option_changed
+            true
         end
         # ---------------------------------------------------------------
 
         # FUNCTION | Can Planes Be Placed and Moved on What Is Held?
-        # Not on loose geometry, which has no definition to save a plane with:
-        # it stretches at its centre planes, and they stay there.
+        # A held selection too (5.2.41): it has no definition to save a plane
+        # with, so the tool keeps its planes while it holds it.
         # ------------------------------------------------------------
         def na_scale__planes_editable?
-            na_scale__planes_on? && !(@na_sc_frame && @na_sc_frame[:loose])
+            na_scale__planes_on?
         end
         # ---------------------------------------------------------------
 
@@ -299,6 +337,11 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def Na__DrawnMode__ToggleToolOption(option_id)
             id = option_id.to_s
+
+            if na_scale__stretch_only? && [NA_SCALE_OPTION_PLANES, NA_SCALE_OPTION_GRIP_MODE].include?(id)
+                na_scale__refuse_scaling
+                return { :caption => Na__NobleDrawingTools.Na__ToolOptions__CaptionFor(id), :enabled => Na__NobleDrawingTools.Na__ToolOptions__Enabled?(id) }
+            end
 
             if id == NA_SCALE_OPTION_CLEAR
                 count = na_scale__clear_planes
@@ -412,11 +455,12 @@ module Na__NobleDrawingTools
 
         # FUNCTION | Take Loose Geometry, or Several Objects at Once, to Scale
         # ------------------------------------------------------------
-        # 5.2.9. Edges and faces with no group or component around them have
-        # no definition to keep stretch planes on, so this is the plain mode:
-        # the grips, the dimensions and typed sizes, boxed in the axes the user
-        # is drawing in (Na__ScaleFrame__ContextAxes), and a commit that moves
-        # the points where they lie. Stretch Planes stays out of it.
+        # 5.2.9. Edges and faces with no group or component around them, or a
+        # selection of several objects, are boxed as one in the axes the user
+        # is drawing in (Na__ScaleFrame__ContextAxes): the grips, the
+        # dimensions and typed sizes, and a commit that changes them where
+        # they lie. Planes placed on it are the tool's own (5.2.41), so a new
+        # selection starts with none.
         # ------------------------------------------------------------
         def na_scale__take_loose(entities, select = true)
             model = Sketchup.active_model
@@ -430,15 +474,70 @@ module Na__NobleDrawingTools
                 return false
             end
 
+            @na_sc_loose_planes = Na__NobleDrawingTools.Na__ScalePlanes__Empty
+            @na_sc_loose_memory = {}
             na_scale__adopt({ :loose => true, :entities => frame[:entities], :context => frame[:context] }, frame)
+            na_scale__remember_loose_planes                                   # <-- None yet: what an undo back to this shape finds
 
             na_scale__hold_aside(frame[:entities]) if select
 
-            na_scale__say("#{frame[:name]} #{na_scale__sizes_text(frame[:world_lengths])} mm — drag a grip, or click a dimension and type; SHIFT+TAB stretches it")
+            objects = frame[:entities].count { |entity| Na__NobleDrawingTools.Na__ScaleCommit__Instance?(entity) }
+            how     = na_scale__stretch_only? ? 'drag a grip to stretch' : 'drag a grip, or click a dimension and type; SHIFT+TAB stretches'
+            whole   = objects > 1 ? ' — one box round them all; a stretch stretches each one a plane runs through' : ''
+            na_scale__say("#{frame[:name]} #{na_scale__sizes_text(frame[:world_lengths])} mm — #{how}#{whole}")
             true
         rescue StandardError => error
             Na__NobleDrawingTools.Na__Debug__Puts "NA DEEP SCALE: loose geometry not taken — #{error.message}"
             false
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | SHIFT+Click an Object: Add It to What Is Held, or Take It Out
+        # ------------------------------------------------------------
+        # 5.2.41, the way SHIFT adds to a selection in SketchUp. Only an object
+        # sitting directly in the open context, as everything in a selection
+        # does: a part reached by double-clicking down cannot join one. Adding
+        # to a single object makes the two a selection; taking one out of two
+        # leaves the other held as an object again, in its own axes and with
+        # its own saved planes.
+        # ------------------------------------------------------------
+        def na_scale__toggle_in_selection(object)
+            model    = Sketchup.active_model
+            instance = object && object[:instance]
+            return false unless model && instance && instance.valid?
+
+            depth = Na__NobleDrawingTools.Na__DeepPick__Instances(object[:path]).length
+            unless depth == Na__NobleDrawingTools.Na__ScaleFrame__OpenDepth(model) + 1
+                UI.beep
+                na_scale__say("#{Na__NobleDrawingTools.Na__DeepPick__InstanceName(instance)} is inside another object: SHIFT+click adds only objects in the group you have open")
+                return false
+            end
+
+            held =
+                if @na_sc_target.nil?                then []
+                elsif @na_sc_target[:loose]          then @na_sc_target[:entities].select(&:valid?)
+                else                                      [@na_sc_target[:instance]]
+                end
+
+            in_open = held.empty? || @na_sc_target[:loose] || Na__NobleDrawingTools.Na__DeepPick__Instances(@na_sc_target[:path]).length == depth
+            return na_scale__take(instance, object[:path], true) unless in_open
+
+            if held.include?(instance)
+                rest = held - [instance]
+
+                if rest.empty?                                                # <-- The only thing held: nothing would be left to scale
+                    na_scale__say("#{Na__NobleDrawingTools.Na__DeepPick__InstanceName(instance)} is all that is held — SHIFT+click another object to add it")
+                    return false
+                end
+
+                if rest.length == 1 && Na__NobleDrawingTools.Na__ScaleCommit__Instance?(rest.first)
+                    return na_scale__take(rest.first, Na__NobleDrawingTools.Na__DeepPick__AbsolutePath([rest.first]), true)
+                end
+
+                return na_scale__take_loose(rest, true)
+            end
+
+            na_scale__take_loose(held + [instance], true)
         end
         # ---------------------------------------------------------------
 
@@ -469,14 +568,40 @@ module Na__NobleDrawingTools
 
         # FUNCTION | The Stretch Planes in Force for a Frame
         # ------------------------------------------------------------
-        # What is saved on it (loose geometry has nowhere to save any), and
+        # What is saved on it (a selection's are the tool's own, 5.2.41), and
         # with Stretch Planes on, a centre plane on every axis with none.
         # ------------------------------------------------------------
         def na_scale__planes_of(frame)
             return Na__NobleDrawingTools.Na__ScalePlanes__Empty if frame.nil?
 
-            saved = frame[:loose] ? Na__NobleDrawingTools.Na__ScalePlanes__Empty : Na__NobleDrawingTools.Na__ScalePlanes__Read(frame[:definition])
+            saved = frame[:loose] ? na_scale__copy_planes(@na_sc_loose_planes || Na__NobleDrawingTools.Na__ScalePlanes__Empty) :
+                                    Na__NobleDrawingTools.Na__ScalePlanes__Read(frame[:definition])
             na_scale__planes_on? ? Na__NobleDrawingTools.Na__ScalePlanes__WithCentres(frame, saved) : saved
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Keep a Selection's Planes, and Remember Them With Its Shape
+        # ------------------------------------------------------------
+        # A selection has no definition, so no undo can take its planes back.
+        # They are remembered against the selection's fingerprint instead: an
+        # undo puts the geometry back to a shape seen before, and the planes
+        # that went with that shape come back with it (na_scale__refresh_loose).
+        # ------------------------------------------------------------
+        def na_scale__keep_loose_planes(planes)
+            @na_sc_loose_planes = na_scale__copy_planes(planes || Na__NobleDrawingTools.Na__ScalePlanes__Empty)
+            na_scale__remember_loose_planes
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Remember the Held Selection's Planes Against Its Shape Now
+        # ------------------------------------------------------------
+        def na_scale__remember_loose_planes
+            frame = @na_sc_frame
+            return false unless frame && frame[:loose] && frame[:fingerprint]
+
+            @na_sc_loose_memory ||= {}
+            @na_sc_loose_memory[frame[:fingerprint]] = na_scale__copy_planes(@na_sc_loose_planes || Na__NobleDrawingTools.Na__ScalePlanes__Empty)
+            true
         end
         # ---------------------------------------------------------------
 
@@ -593,6 +718,8 @@ module Na__NobleDrawingTools
             fingerprint = Na__NobleDrawingTools.Na__ScaleFrame__LooseFingerprint(model, @na_sc_target[:entities])
             return false if @na_sc_frame && @na_sc_frame[:fingerprint] == fingerprint
 
+            remembered = (@na_sc_loose_memory || {})[fingerprint]
+            @na_sc_loose_planes = na_scale__copy_planes(remembered) if remembered  # <-- An undo or redo: the planes that went with this shape
             na_scale__rebuild_frame
         end
         # ---------------------------------------------------------------
@@ -601,6 +728,13 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def na_scale__rebuild_frame
             return false unless @na_sc_target
+
+            # The copy a stretch moved to is gone again after an undo; the
+            # object as first taken is back where it was (5.2.43).
+            target = @na_sc_target
+            if !target[:loose] && target[:taken] && !(target[:instance] && target[:instance].valid?)
+                @na_sc_target = target[:taken]
+            end
 
             frame =
                 if @na_sc_target[:loose]
@@ -618,6 +752,25 @@ module Na__NobleDrawingTools
             @na_sc_grips  = Na__NobleDrawingTools.Na__ScaleFrame__Grips(frame)
             @na_sc_planes = na_scale__planes_of(frame)
             @na_sc_ghost  = nil
+            true
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Hold the Object Where a Stretch Left It
+        # ------------------------------------------------------------
+        # A part picked inside a container with copies elsewhere is stretched
+        # in a unique copy of that container (DrawnDeepUnique), so afterwards
+        # it is a different instance on a different path. The tool holds that
+        # one, and keeps the object as first taken (:taken) for an undo to
+        # fall back to.
+        # ------------------------------------------------------------
+        def na_scale__follow_live_path(live_path)
+            target = @na_sc_target
+            return false unless target && !target[:loose] && live_path.is_a?(Array) && !live_path.empty?
+            return false unless live_path.last && live_path.last.valid?
+
+            taken         = target[:taken] || target
+            @na_sc_target = target.merge(:instance => live_path.last, :path => live_path, :taken => taken)
             true
         end
         # ---------------------------------------------------------------
@@ -915,6 +1068,7 @@ module Na__NobleDrawingTools
                 return false
             end
 
+            return na_scale__toggle_in_selection(object) if @na_shift_held && @na_sc_frame # <-- SHIFT adds to what is held, or takes out (5.2.41)
             return false if @na_sc_frame && na_scale__holds?(object[:path])
 
             na_scale__take(object[:instance], object[:path], true)
@@ -1472,6 +1626,14 @@ module Na__NobleDrawingTools
             mode   = Na__NobleDrawingTools.Na__ScaleMode__OfField(field, frame)
             after  = nil
 
+            # Deep Stretch: an axis that would scale (one too thin to hold a
+            # plane) is refused outright rather than distorted (5.2.41).
+            if na_scale__stretch_only? && NA_SCALE_AXES.any? { |axis| field[axis] && field[axis][:mode] == :scale }
+                UI.beep
+                na_scale__say("Deep Stretch did not change #{label} — that would scale it, not stretch it. Leave it (Space) and use Deep Scale to scale")
+                return { :success => false, :error => 'Deep Stretch only stretches' }
+            end
+
             if field[:stretch]
                 mins, maxs = Na__NobleDrawingTools.Na__ScaleField__Box(field, frame)
                 after      = Na__NobleDrawingTools.Na__ScalePlanes__Prune(
@@ -1480,17 +1642,33 @@ module Na__NobleDrawingTools
                 after      = Na__NobleDrawingTools.Na__ScalePlanes__WithoutCentres(frame, after, mins, maxs) # <-- Still through the middle of the new box: nothing to store
             end
 
+            # A selection's planes are the tool's own, so they are carried
+            # here, through a plain scale too: its points move, and a plane
+            # left where it was would cut somewhere else (5.2.41).
+            loose_after = nil
+
+            if frame[:loose]
+                na_scale__remember_loose_planes                               # <-- Ctrl+Z back to this shape brings these back
+                mins, maxs  = Na__NobleDrawingTools.Na__ScaleField__Box(field, frame)
+                loose_after = after || Na__NobleDrawingTools.Na__ScalePlanes__Prune(
+                    Na__NobleDrawingTools.Na__ScaleField__PlanesAfter(field, @na_sc_loose_planes), mins, maxs
+                )
+            end
+
             result = Na__NobleDrawingTools.Na__ScaleCommit__Run(model, frame, field, after)
 
             unless result[:success]
                 UI.beep
-                na_scale__say("Deep Scale did not change #{label} — #{result[:error] || 'nothing to change'}")
+                na_scale__say("#{na_drawn__tool_title} did not change #{label} — #{result[:error] || 'nothing to change'}")
                 Na__NobleDrawingTools.Na__Debug__Puts "NA DEEP SCALE: commit failed — #{result[:error]}"
                 return result
             end
 
             sides.each { |axis, side| @na_sc_sides[axis] = side }
+            @na_sc_loose_planes = loose_after if loose_after
+            na_scale__follow_live_path(result[:live_path])                    # <-- 5.2.43: a part whose shared container was made unique stands in the new copy
             na_scale__rebuild_frame
+            na_scale__remember_loose_planes if loose_after
             na_scale__report(result, label, mode)
             result
         end
@@ -1502,15 +1680,28 @@ module Na__NobleDrawingTools
             frame = @na_sc_frame
             sizes = frame ? na_scale__sizes_text(frame[:world_lengths]) : '?'
             verb  = NA_SCALE_MODE_VERBS[mode] || (result[:mode] == :stretch ? 'Stretched' : 'Scaled')
-            notes = []
-            notes << 'made unique' if result[:unique].to_i > 0
-            notes << "#{result[:opened]} part#{result[:opened].to_i == 1 ? '' : 's'} inside stretched too" if result[:opened].to_i > 0
+            notes  = []
+            shared = result[:shared].to_s                                     # <-- 5.2.43: copies stretched as one, copies elsewhere kept (DrawnDeepUnique)
+
+            if !shared.empty?
+                notes << shared
+            elsif result[:unique].to_i > 0
+                notes << 'made unique'
+            end
+
+            if result[:objects].to_i > 0                                      # <-- A selection: its own objects are opened too (5.2.41)
+                inside = result[:opened].to_i - (result[:objects].to_i - result[:object_riders].to_i)
+                notes << "#{result[:objects]} object#{result[:objects].to_i == 1 ? '' : 's'} stretched"
+                notes << "#{inside} part#{inside == 1 ? '' : 's'} inside too" if inside > 0
+            elsif result[:opened].to_i > 0
+                notes << "#{result[:opened]} part#{result[:opened].to_i == 1 ? '' : 's'} inside stretched too"
+            end
 
             tail = notes.empty? ? '' : " (#{notes.join(', ')})"
             na_scale__say("#{verb} #{label} to #{sizes} mm#{tail} — type a size to adjust, Ctrl+Z to undo")
             Na__NobleDrawingTools.Na__Debug__Puts(
                 "NA DEEP SCALE: #{verb.downcase} #{label} to #{sizes} mm — #{result[:moved]} vertices moved, " \
-                "#{result[:rigid]} parts carried, #{result[:opened]} opened, #{result[:unique]} made unique"
+                "#{result[:rigid]} parts carried, #{result[:opened]} opened, #{result[:unique]} made unique, #{result[:copies].to_i} copies rode along"
             )
         end
         # ---------------------------------------------------------------
@@ -1961,8 +2152,20 @@ module Na__NobleDrawingTools
             return unless quads
 
             Na__NobleDrawingTools.Na__DrawnPreview__DrawTargetHighlight(
-                view, quads[0], quads[1], true, [object[:name].to_s, 'click to scale it']
+                view, quads[0], quads[1], true, [object[:name].to_s, na_scale__hover_object_words(object)]
             )
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | What a Click on the Offered Object Would Do, in a Few Words
+        # ------------------------------------------------------------
+        def na_scale__hover_object_words(object)
+            verb = na_scale__stretch_only? ? 'stretch' : 'scale'
+            return "click to #{verb} it" unless @na_sc_frame
+            return "click to #{verb} it on its own  ·  SHIFT+click adds it" unless @na_shift_held
+
+            held = @na_sc_target && @na_sc_target[:loose] && @na_sc_target[:entities].include?(object[:instance])
+            held ? 'SHIFT+click takes it out' : 'SHIFT+click adds it to what is held'
         end
         # ---------------------------------------------------------------
 
@@ -2404,18 +2607,20 @@ module Na__NobleDrawingTools
 
             return 'SHIFT mirror  type a distance  ESC cancel' if @na_sc_plane_drag
 
+            planes = na_scale__stretch_only? ? '' : 'SHIFT+TAB planes  '      # <-- Deep Stretch has no switch to offer
+
             if @na_sc_drag
                 shift = na_scale__shift_words(@na_sc_drag[:grip], na_scale__uniform?(@na_sc_drag[:grip]))
-                return "#{shift ? "SHIFT #{shift}  " : ''}CTRL point snap  TAB about centre  SHIFT+TAB planes  type a size  ESC cancel"
+                return "#{shift ? "SHIFT #{shift}  " : ''}CTRL point snap  TAB about centre  #{planes}type a size  ESC cancel"
             end
 
-            return 'click a group or component  ESC exit' unless @na_sc_frame
+            return 'click a group or component (SHIFT+click adds more)  ESC exit' unless @na_sc_frame
             return 'click adds a plane  SHIFT mirrored pair  ARROWS axis  ESC let go' if kind == :line
             return 'drag to move  SHIFT with its mirror  DEL remove  ESC let go' if kind == :handle
             return 'DEL remove  type a distance  ESC let go' if @na_sc_focus == :plane && @na_sc_active_plane && kind.nil?
 
-            shift = na_scale__grip_choice == :uniform ? 'SHIFT non-uniform' : 'SHIFT uniform'
-            "CTRL add a plane  SHIFT+TAB planes  TAB centre  ARROWS one axis  #{shift}  dbl-click inside  ESC let go"
+            shift = na_scale__stretch_only? ? 'SHIFT all axes' : (na_scale__grip_choice == :uniform ? 'SHIFT non-uniform' : 'SHIFT uniform')
+            "CTRL add a plane  #{planes}TAB centre  ARROWS one axis  #{shift}  SHIFT+click add an object  dbl-click inside  ESC let go"
         end
         # ---------------------------------------------------------------
 

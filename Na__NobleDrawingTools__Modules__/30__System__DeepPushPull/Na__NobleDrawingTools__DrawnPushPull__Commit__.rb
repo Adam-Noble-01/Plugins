@@ -12,6 +12,7 @@
 
 require 'sketchup.rb'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnSlopePush__'
 require_relative 'Na__NobleDrawingTools__DrawnPushPull__QuadRing__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnEdgeLoops__'
@@ -176,6 +177,24 @@ module Na__NobleDrawingTools
         def na_drawn__execute_push(model, target, local_offset)
             @na_pp_last_error = nil
 
+            # SHARED COMPONENTS (5.2.44, DrawnDeepUnique): a face inside a copy
+            # shared with copies elsewhere is pushed in a copy of its own, so
+            # the copies elsewhere keep their shape; nothing changes when every
+            # copy is this one. The settle leaves its step open for the entry
+            # below to join, and hands back the face in the copy it now sits
+            # in. A pick set or a preselection settles its faces itself.
+            settle = nil
+            unless @na_pk_chain || @na_pps_transaction
+                settle = Na__NobleDrawingTools.Na__DeepUnique__SettleTargets(model, [target], 'Deep Push Pull')
+
+                if settle[:refused]
+                    @na_pp_last_error = settle[:refused]
+                    return false
+                end
+
+                target = settle[:targets].first
+            end
+
             # The travel arrives as one vector in the face's REPORTED space and
             # is split here into the part pushpull can do and the part it
             # cannot. Off slope the second part is a zero vector and this is the
@@ -194,23 +213,18 @@ module Na__NobleDrawingTools
             instances      = Na__NobleDrawingTools.Na__DeepPick__Instances(target[:path])
             target_path    = instances.empty? ? nil : instances
             entered        = false
-            previous       = nil
-            selected       = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
+            opening        = nil
+            selected       = settle && settle[:pending] ? settle[:selected] : Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
 
             if @na_pk_chain
                 entered = @na_pk_chain[:entered] ? true : false               # <-- The pick set's chain opened it; it closes it too
             elsif model.respond_to?(:active_path=)
-                begin
-                    previous = model.active_path                              # <-- nil at root, else the user's context
-                    unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(previous, target_path)
-                        model.active_path = target_path
-                        entered = true
-                        na_drawn__trace("entered context #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(target)}")
-                    end
-                rescue StandardError => error
-                    entered = false
-                    na_drawn__trace("context open failed (#{error.message}) — editing from outside")
-                end
+                # Straight from wherever the settle left off; back to the
+                # user's own context at the end (DrawnDeepUnique OpenFor).
+                opening = Na__NobleDrawingTools.Na__DeepUnique__OpenFor(model, target_path, settle)
+                entered = opening[:entered]
+                na_drawn__trace("entered context #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(target)}") if entered
+                na_drawn__trace('context not opened — editing from outside') if !entered && !Na__NobleDrawingTools.Na__DeepPick__SameContext?(model.active_path, target_path)
             end
 
             # THE SPACE FLIPS WHEN THE CONTEXT OPENS. Once its group is entered
@@ -257,8 +271,8 @@ module Na__NobleDrawingTools
             # next Ctrl+Z silently eat two unrelated actions.
             if @na_pps_transaction
                 raise "A selected face left the active editing context" if entered && !@na_pk_chain
-            elsif entered
-                model.start_operation(op_name, true, true, true)
+            elsif opening && opening[:transparent]
+                model.start_operation(op_name, true, opening[:next_transparent], true)   # <-- Entered (or settled): joins it, pulls in the way back
             else
                 model.start_operation(op_name, true)
             end
@@ -411,8 +425,8 @@ module Na__NobleDrawingTools
                 na_drawn__trace("pushpull raised: #{error.message}")
             end
 
-            if entered && !@na_pk_chain
-                na_drawn__restore_context(model, previous)
+            if opening && opening[:leaving]
+                na_drawn__restore_context(model, opening[:previous])
 
                 # Opening the group cleared the user's selection, and that
                 # selection is what tells the picker which group to favour. Put

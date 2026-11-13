@@ -3,6 +3,19 @@
 
 ## Version History
 
+## Na Noble3d Modelling Tools | Version 0.9.49 - 13-Nov-2026 - Ortho Tab: Point Cloud Ortho Plane From the Clip Box
+
+- To Scale Ortho Texture Maker 3.1.1. The full entry and checklist are in `10__PluginModules/34__SourceCode__ToScaleOrthoTextureMaker/Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__DEVLOG__.md`.
+- **Square To: The clip box (its front face).** The active cloud's clip box in the Point Cloud Viewer, level or turned (viewer 0.14.8): the picture is square to its front face, as wide and high as the box, its depth the slab (the slab fields grey out). Turn the box to a wall with the viewer's Turn to Two Points, then Make Plane gives that wall's elevation. Na SketchUp MCP 1.0.35's `point_cloud_ortho_plane view: clip` uses the same code.
+- **Validation.** The core's suite 21 of 21 (two new); 12 of 12 Ruby files compile; lint clean; `node --check`. Not yet tested inside SketchUp.
+
+## Na Noble3d Modelling Tools | Version 0.9.48 - 13-Nov-2026 - Ortho Tab: Point Cloud Ortho Plane (Button and Shared Core)
+
+- To Scale Ortho Texture Maker 3.1.0. The full entry and checklist are in `10__PluginModules/34__SourceCode__ToScaleOrthoTextureMaker/Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__DEVLOG__.md`.
+- **A Point Cloud Ortho Plane section on the Ortho tab** (Misc Utils > Ortho Reference Planes): square to the current parallel view, a face (click it) or a wall (click two ends, then your side); the slab behind and in front, resolution, background (white), placement (in front of the geometry, or on the face) and offset, fill dots, a name; **Make Plane**. It greys out, saying why, without Na Point Cloud Viewer 0.14.7.
+- **One build path.** The capture and the plane live once, in the new `..._PointCloudOrtho__.rb`; Na SketchUp MCP 1.0.34's `point_cloud_ortho_plane` calls the same code. One undo step, "Point Cloud Ortho Plane".
+- **Validation.** The core's suite 19 of 19 (`tests/point_cloud_ortho_unit.rb.test`); live in a copy of Kann 64562, the MCP tool's planes pixel-identical to the hand-made ones and the button's view mode making a plane and refusing an oversized picture with the resolution that would fit. The face and wall clicks and the dialog's look not yet seen in SketchUp.
+
 ## Na Noble3d Modelling Tools | Version 0.9.47 - 12-Nov-2026 - Agent Outliner 0.1.15 to 0.1.18: Follow, Red Selection, Colours, Quick Name Panel, Icons, Tree by Tag, a Show or Hide Key, Group by Category
 
 - Agent Outliner 0.1.15, 0.1.16 and 0.1.17. The full entries and checklists are in `10__PluginModules/36__SourceCode__AgentOutliner/Na__Noble3dModellingTools__AgentOutliner__DEVLOG__.md`.

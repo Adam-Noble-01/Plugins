@@ -771,6 +771,70 @@
     // endregion ----------------------------------------------------------------
 
     // -------------------------------------------------------------------------
+    // REGION | Start From The Gallery (right-click menu, v1.6.18)
+    // -------------------------------------------------------------------------
+
+    // Apply Profile To Selection and Create Profile Interactive: pick the
+    // profile, set the path mode, route here and press Generate, the four steps
+    // the user would otherwise take by hand. Generate does the checking: in
+    // Selection mode Ruby reads the model selection and refuses a bad one with
+    // the reason, before any tool is armed.
+    function na_start_from_gallery(profileKey, pathMode) {
+        var store = window.Na__ProfileTools__ProfileStore;
+        if (!store || !store.Na__Store__GetProfile(profileKey)) {
+            Na__Ui__SetStatus('That profile is no longer in the library.');
+            return false;
+        }
+
+        var resolvedMode = pathMode === 'selection' ? 'selection' : 'interactive';
+        var swap = Na__Ui__SwapController();
+        if (swap && swap.Na__Swap__IsBusy()) {
+            Na__Ui__SetStatus('A trace is rebuilding. Try again when it has finished.');
+            return false;
+        }
+
+        // A bound or armed swap makes this panel edit a placed trace. The menu
+        // asks for a NEW trace, so the binding goes; the model is not touched.
+        if (swap && (swap.Na__Swap__IsBound() || swap.Na__Swap__IsArmed())) {
+            swap.Na__Swap__Unbind();
+        }
+
+        // The menu names a library profile: a Scene Pick source would build
+        // something other than the card that was right-clicked.
+        var isSourceChanged = Na__UiState.profileSourceMode !== 'library';
+        Na__UiState.profileSourceMode = 'library';
+        store.Na__Store__SetSelected(profileKey, { navigate: false });
+        if (window.Na_TabRouter) window.Na_TabRouter.na_activateTab('apply-profile');
+
+        var label = store.Na__Store__ProfileLabel(store.Na__Store__GetProfile(profileKey)) || profileKey;
+
+        // An Interactive trace already running has just been handed the new
+        // profile by the store change above (Na__Ui__PushLivePlacement), and
+        // restarting it would throw away its clicked waypoints. A Selection
+        // preview is always restarted: it has nothing to lose, and the restart
+        // is what reads the selection as it is now.
+        if (resolvedMode === 'interactive' && Na__UiState.isInteractiveToolActive &&
+                Na__UiState.liveToolKind === 'interactive') {
+            Na__UiState.pathMode = resolvedMode;
+            Na__Ui__Render();
+            Na__Ui__RenderProfilePreview();
+            // A new key was pushed by the store change; a source that went
+            // from Scene Pick back to the library was not, so it goes here.
+            if (isSourceChanged) Na__Ui__PushLivePlacement();
+            Na__Ui__SetStatus('The running trace now uses "' + label + '". Carry on clicking the path in the viewport.');
+            return true;
+        }
+
+        Na__UiState.pathMode = resolvedMode;
+        Na__Ui__Render();
+        Na__Ui__RenderProfilePreview();
+        Na__UiEventHandlers.Na__Events__OnGenerate();
+        return true;
+    }
+
+    // endregion ----------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
     // REGION | Ruby -> JS Receive Handlers
     // -------------------------------------------------------------------------
 
@@ -939,7 +1003,8 @@
 
     window.Na__ProfileTools__ApplyProfile__Tab = {
         na_mount: na_mount,
-        na_unmount: na_unmount
+        na_unmount: na_unmount,
+        na_start_from_gallery: na_start_from_gallery
     };
 
     // endregion ----------------------------------------------------------------

@@ -19,7 +19,10 @@
 #     check (v0.14.3: how far the points sit from a model's faces),
 #     heightmap and profile (v0.14.4: heights per cell, heights along a path);
 #     count, histogram, image, points, density, heightmap and profile take a
-#     slice frame (v0.14.6: 'frame', any angle; see below)
+#     slice frame (v0.14.6: 'frame', any angle; see below);
+#     spacing (v0.14.7: how far apart the points sit, seen along a frame's z)
+#     and composite's ortho options (v0.14.7, feature 'ortho': a turned clip
+#     box, the clouds to draw, and their look and dot size for one capture)
 # - Na__McpOperations.Na__PointCloudViewer__McpEdit(action, params)
 #     clip_box, clip_on, clip_off, clip_scene, view
 # - Refusals raise Na__PointCloudViewer::Na__McpOperationsError (code,
@@ -117,10 +120,13 @@ module Na__PointCloudViewer
     # REGION | Constants
     # -------------------------------------------------------------------------
 
-        NA_READ_ACTIONS     = %w[state count histogram image points density composite fit check heightmap profile].freeze
+        NA_READ_ACTIONS     = %w[state count histogram image points density composite fit check heightmap profile spacing].freeze
         NA_EDIT_ACTIONS     = %w[clip_box clip_on clip_off clip_scene view].freeze
-        NA_FEATURES         = %w[frame].freeze   # what the MCP may ask for beyond the actions (0.14.6)
-        NA_FRAMED_ACTIONS   = %w[count histogram image points density heightmap profile].freeze
+        NA_FEATURES         = %w[frame ortho turned_clip].freeze   # what the MCP may ask for beyond the actions (frame 0.14.6, ortho 0.14.7, turned_clip 0.14.8)
+        NA_FRAMED_ACTIONS   = %w[count histogram image points density heightmap profile spacing].freeze
+        NA_COLOUR_MODES     = %w[rgb black primary].freeze
+        NA_MAX_DOT_PX       = 64.0           # 0.14.7: a composite's dot size in output pixels
+        NA_MAX_SPACING_CELLS = 4_000_000
         NA_MAX_BINS         = 10_000
         NA_DEFAULT_POINTS   = 1_000
         NA_MAX_INLINE_POINTS = 1_500
@@ -229,6 +235,7 @@ module Na__PointCloudViewer
             when 'check'     then self.na_check(params)
             when 'heightmap' then self.na_heightmap(params)
             when 'profile'   then self.na_profile(params)
+            when 'spacing'   then self.na_spacing(params)
             else
                 self.na_refuse('invalid_params', "Unknown point cloud read action '#{action}'.", "Use one of: #{NA_READ_ACTIONS.join(', ')}.")
             end
@@ -276,6 +283,22 @@ module Na__PointCloudViewer
             }
         end
 
+        # A turned box (v0.14.8) in the reply: min and max beside it are the
+        # level box round it; 'turned' gives its frame and its limits in it.
+        def self.na_turned_out(box, params)
+            turned = Na__ClipBox.Na__Clip__TurnedPart(box)
+            return {} unless turned
+            angle = Na__ClipBox.Na__Clip__TurnAngle(box)
+            {
+                'turned' => {
+                    'origin' => turned['origin'].map { |value| self.na_out_exact(value, params) },
+                    'x_axis' => turned['x_axis'].map { |value| value.round(9) },
+                    'y_axis' => turned['y_axis'].map { |value| value.round(9) },
+                    'angle'  => angle ? angle.round(6) : nil
+                }.merge(self.na_box_out(turned['min'], turned['max'], params))
+            }
+        end
+
         def self.na_cloud_state(slot, params)
             Na__ClipBox.Na__Clip__Ensure(slot)
             cloud = slot.cloud
@@ -297,9 +320,9 @@ module Na__PointCloudViewer
                 'look'        => { 'point_size_px' => look['pointSizePx'], 'opacity_percent' => look['opacityPercent'],
                                    'colour_mode' => look['colourMode'] },
                 'bounds'      => cloud && cloud.bounds ? self.na_box_out(cloud.bounds.min.to_a, cloud.bounds.max.to_a, params) : nil,
-                'clip'        => clip ? { 'enabled' => clip['enabled'] ? true : false }.merge(self.na_box_out(clip['min'], clip['max'], params)) : nil,
+                'clip'        => clip ? { 'enabled' => clip['enabled'] ? true : false }.merge(self.na_box_out(clip['min'], clip['max'], params)).merge(self.na_turned_out(clip, params)) : nil,
                 'clip_scene'  => scene ? { 'id' => scene['id'], 'name' => scene['name'], 'modified' => !Na__ClipBox.na_same_box?(scene, clip) } : nil,
-                'clip_scenes' => slot.clip_scenes.map { |each| { 'id' => each['id'], 'name' => each['name'] }.merge(self.na_box_out(each['min'], each['max'], params)) }
+                'clip_scenes' => slot.clip_scenes.map { |each| { 'id' => each['id'], 'name' => each['name'] }.merge(self.na_box_out(each['min'], each['max'], params)).merge(self.na_turned_out(each, params)) }
             }
         end
 
@@ -731,6 +754,19 @@ module Na__PointCloudViewer
         # the clouds sit on the model exactly as on screen. Dot sizes scale with
         # the image against the viewport. Nothing is drawn (and nothing refused)
         # when the overlay is off or no cloud is on show and loaded.
+        #
+        # Ortho options (0.14.7, feature 'ortho'), for this capture only: nothing
+        # is written to any cloud's record and no look is changed.
+        # - clouds: ids, to draw only those of the clouds on show.
+        # - clip_frame (a frame as Na__McpFrame makes it, inches) with clip_min
+        #   and clip_max (in that frame): a TURNED clip box in place of each
+        #   cloud's own. The engine's box stays level with the axes it sees, so
+        #   the cloud and the camera are both folded into the frame (Frame__.rb):
+        #   the picture is the same, the box turns with the frame. The Crop and
+        #   Cut view is off for a turned box (its boxes are level in the model).
+        # - look: point_size_px, opacity_percent, colour_mode (rgb, black, primary).
+        # - dot_px: the dot's size in OUTPUT pixels, not scaled by the viewport
+        #   (an ortho plane sets it from the points' spacing and its resolution).
         def self.na_composite(params)
             session = self.na_session
             camera = params['camera_object']
@@ -754,24 +790,43 @@ module Na__PointCloudViewer
                 self.na_refuse('operation_failed', "The point clouds could not be drawn: #{error.message}",
                                'Reload them (point_cloud_view reload: true, or Reload in the viewer), then capture again.')
             end
+            layers = self.na_composite_clouds(layers, params['clouds']) if params['clouds']
             return { 'composited' => false, 'note' => 'No point cloud is on show and loaded, so none was drawn.' } if layers.empty?
 
+            turned = self.na_composite_turn(params)
+            override = self.na_composite_look(params)
             view = Sketchup.active_model.active_view
             scale = width.to_f / [view.vpwidth.to_f, 1.0].max
             camera_part = Na__ImageRenderer.na_camera_params(camera, width.to_f, height.to_f)
+            camera_part = self.na_camera_in_frame(camera_part, turned['frame']) if turned
             near = Na__ConfigLoader.Na__Config__GetOr(0.5, 'render', 'nativeImage', 'nearInches').to_f
             budget = Na__ImageRenderer.na_budget(session, 1.0)
+            dots = []
+            clean_off = []
             render = layers.map do |layer|
                 slot = layer['slot']
                 display = Na__ImageRenderer.na_display(slot)
-                camera_part + [
+                dot = override['dot_px'] || [(override['point_size_px'] || display['pointSizePx']).to_f * scale, 1.0].max
+                dots << dot
+                transform = slot.cloud.local_to_model || Na__ImageRenderer::NA_IDENTITY_TRANSFORM
+                layer_camera = camera_part
+                if turned
+                    transform = Na__McpFrame.Na__Frame__Fold(turned['frame'], transform)
+                    clip = [1] + turned['min'] + turned['max']
+                    clean = Na__CleanBoxes.na_off_tail
+                    clean_off << slot.name if Na__CleanBoxes.Na__Boxes__Shown?(slot)
+                else
+                    # v0.14.8: the cloud's own turned clip box, as the live picture draws it.
+                    layer_camera, transform, clip, saved_turn = Na__ClipBox.Na__Clip__RenderParts(slot, camera_part, transform)
+                    clean = saved_turn ? Na__CleanBoxes.na_off_tail : Na__CleanBoxes.Na__Boxes__RenderParams(slot)
+                end
+                layer_camera + [
                     width, height,
-                    [display['pointSizePx'].to_f * scale, 1.0].max,
-                    display['opacityPercent'].to_f / 100.0,
-                    *Na__ImageRenderer.Na__Image__ColourParams(slot, display['colourMode']),
+                    dot,
+                    (override['opacity_percent'] || display['opacityPercent']).to_f / 100.0,
+                    *Na__ImageRenderer.Na__Image__ColourParams(slot, override['colour_mode'] || display['colourMode']),
                     budget, near
-                ] + (slot.cloud.local_to_model || Na__ImageRenderer::NA_IDENTITY_TRANSFORM) + Na__ClipBox.Na__Clip__RenderParams(slot) +
-                    [width, height, 0, 0] + Na__CleanBoxes.Na__Boxes__RenderParams(slot)
+                ] + transform + clip + [width, height, 0, 0] + clean
             end
             raw_path = "#{path}.cloud.png"
             started = self.na_now
@@ -806,8 +861,103 @@ module Na__PointCloudViewer
                 'points_drawn'   => stats['pointsOnScreen'].to_i,
                 'point_budget'   => budget,
                 'pixels_covered' => covered,
+                'dot_px'         => dots.max.to_f.round(2),
+                'turned_clip'    => turned ? true : false,
                 'ms'             => (self.na_now - started).round
             }.merge(look ? { 'scene_look' => look.to_s } : {})
+             .merge(clean_off.empty? ? {} : { 'note' => "The Crop and Cut view of #{clean_off.join(', ')} was left out: a turned clip box replaces it for this capture." })
+        end
+
+        # The layers of the clouds named (ids or names), in the order they draw.
+        def self.na_composite_clouds(layers, keys)
+            wanted = self.na_named_slots(self.na_session, keys)
+            layers.select { |layer| wanted.include?(layer['slot']) }
+        end
+
+        # { 'frame', 'min', 'max' } for a turned clip box, or nil without one.
+        def self.na_composite_turn(params)
+            return nil unless params['clip_frame']
+            frame = self.na_frame_in(params['clip_frame'])
+            min, max = self.na_box_in('min' => params['clip_min'], 'max' => params['clip_max'])
+            { 'frame' => frame, 'min' => min, 'max' => max }
+        end
+
+        # The capture's own look, checked against the viewer's limits; {} without one.
+        def self.na_composite_look(params)
+            out = {}
+            look = params['look']
+            if look
+                self.na_refuse('invalid_params', 'look must be an object.', 'Pass e.g. {point_size_px: 8, opacity_percent: 100}.') unless look.is_a?(Hash)
+                unknown = look.keys.map(&:to_s) - %w[point_size_px opacity_percent colour_mode]
+                self.na_refuse('invalid_params', "look does not take #{unknown.join(', ')}.", 'It takes point_size_px, opacity_percent and colour_mode.') unless unknown.empty?
+                out['point_size_px'] = self.na_number_in(look['point_size_px'], 'look point_size_px', 1, 10) if look.key?('point_size_px')
+                out['opacity_percent'] = self.na_number_in(look['opacity_percent'], 'look opacity_percent', 5, 100) if look.key?('opacity_percent')
+                if look.key?('colour_mode')
+                    mode = look['colour_mode'].to_s
+                    self.na_refuse('invalid_params', "colour_mode must be one of #{NA_COLOUR_MODES.join(', ')}, not '#{mode}'.", 'rgb is the cloud as recorded.') unless NA_COLOUR_MODES.include?(mode)
+                    out['colour_mode'] = mode
+                end
+            end
+            out['dot_px'] = self.na_number_in(params['dot_px'], 'dot_px', 1, NA_MAX_DOT_PX) if params.key?('dot_px') && !params['dot_px'].nil?
+            out
+        end
+
+        def self.na_number_in(raw, label, low, high)
+            value = raw.is_a?(Numeric) ? raw.to_f : nil
+            return value if value && value.finite? && value >= low && value <= high
+            self.na_refuse('invalid_params', "#{label} must be a number from #{low} to #{high}, not #{raw.inspect}.", 'The viewer refuses anything outside its own limits.')
+        end
+
+        # The live overlay's camera numbers (eye, x, y and z axes, then the
+        # projection) seen from a frame: the eye as a frame point, each axis turned.
+        def self.na_camera_in_frame(camera_part, frame)
+            Na__McpFrame.Na__Frame__Camera(frame, camera_part)   # v0.14.8: shared with the turned clip box
+        end
+
+    # endregion ----------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
+    # REGION | spacing (v0.14.7: how far apart the points sit)
+    # -------------------------------------------------------------------------
+
+        # How far apart the points sit as a view along the box's z sees them (the
+        # frame's z when the call has one): an even grid of cells `cell` wide over
+        # the box's x and y, the median count of the cells that hold any points,
+        # and the spacing that count means, cell / sqrt(median). spacing_sparse
+        # is the same from the sparser quarter of the cells (the 25th percentile
+        # count): an ortho plane sizes its dots from it, so they meet there too,
+        # not only where trees crowd the points.
+        def self.na_spacing(params)
+            slot = self.na_measured_slot(self.na_session, params)
+            min, max = self.na_box_in(params)
+            cell = self.na_positive(params, 'cell', 'cell')
+            width = ((max[0] - min[0]) / cell).ceil
+            height = ((max[1] - min[1]) / cell).ceil
+            if width * height > NA_MAX_SPACING_CELLS
+                self.na_refuse('invalid_params', "The grid would be #{width} x #{height} cells; at most #{NA_MAX_SPACING_CELLS / 1_000_000} M.", 'Use a bigger cell or a smaller box.')
+            end
+            started = self.na_now
+            grid = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, min[0] - NA_EDGE_INCHES, max[1] + NA_EDGE_INCHES, cell, cell, width + 1, height + 1]
+            counted = self.na_grid_in(slot, min, max, grid)
+            counts = counted['counts'].unpack('V*').reject(&:zero?).sort
+            median = counts.empty? ? 0 : counts[counts.length / 2]
+            spacing = median > 0 ? cell / Math.sqrt(median) : nil
+            quarter = counts.empty? ? 0 : counts[counts.length / 4]
+            sparse = quarter > 0 ? cell / Math.sqrt(quarter) : nil
+            {
+                'cloud'             => slot.id,
+                'name'              => slot.name,
+                'box'               => self.na_box_out(min, max, params),
+                'cell'              => self.na_out_exact(cell, params),
+                'cells_with_points' => counts.length,
+                'median_per_cell'   => median,
+                'spacing'           => spacing ? self.na_out_exact(spacing, params) : nil,
+                'spacing_sparse'    => sparse ? self.na_out_exact(sparse, params) : nil,
+                'points'            => counted['kept'].to_i,
+                'ms'                => (self.na_now - started).round,
+                'summary'           => spacing ? "#{slot.name}: points about #{self.na_out(spacing, params)} apart (median #{median} in a #{self.na_out(cell, params)} cell, #{counts.length} cells hold points)." :
+                                                 "#{slot.name} has no points in the box."
+            }
         end
 
         # The scene the capture just activated: its cloud look now, before the
@@ -2012,6 +2162,7 @@ module Na__PointCloudViewer
         def self.na_clip_box(params)
             session = self.na_session
             slots = self.na_target_slots(session, params['clouds'])
+            return self.na_clip_turned_box(session, slots, params) if params['frame']
             if params['around']
                 margin = params.key?('margin') ? params['margin'].to_f : Na__ClipBox.Na__Clip__SelectionMarginMm / 25.4
                 self.na_refuse('invalid_params', 'margin must be 0 or more.', 'Pass e.g. 100 (mm).') if margin < 0
@@ -2035,6 +2186,43 @@ module Na__PointCloudViewer
                 'box'       => self.na_box_out(min, max, params),
                 'undo_step' => undo,
                 'summary'   => "#{Na__ClipBox.Na__Clip__AreaMessage('Clip box', slots, min, max)} One undo step: \"#{undo}\"."
+            }
+        end
+
+        # v0.14.8: min/max in a frame (origin with angle, or axes): a TURNED
+        # clip box, kept in each cloud's record like a level one. A frame whose
+        # axes lie along the model's gives a level box.
+        def self.na_clip_turned_box(session, slots, params)
+            self.na_refuse('invalid_params', 'A turned box takes min and max in its frame, not around.', 'Pass frame with min and max, or around without a frame.') if params['around']
+            frame = self.na_frame_in(params['frame'])
+            min, max = self.na_box_in(params)
+            x, y, _z = frame['axes']
+            begin
+                box = Na__ClipBox.Na__Clip__MakeTurned(true, frame['origin'], x, y, min, max)
+            rescue ArgumentError => error
+                self.na_refuse('invalid_params', error.message, 'Give the box more size along that side.')
+            end
+            label = params['label'].to_s.strip[0, 60]
+            label = NA_DEFAULT_LABEL if label.empty?
+            problem = Na__ClipBox.Na__Clip__SetClipOn(session, slots, box, label)
+            self.na_refuse('operation_failed', problem, 'Change the box, or pick clouds by id from point_cloud_state.') if problem
+            slots.each { |slot| Na__CloudSet.Na__Slots__SetVisible(slot, true) unless slot.visible }
+            Na__ModelRegistry.Na__Registry__SetVisible(true) unless Na__ModelRegistry.Na__Registry__IsVisible?
+            Na__RenderController.Na__Render__RefreshExtents(session)
+            undo = Na__ClipBox.na_op_for(slots, label)
+            self.na_after_change
+            turned = Na__ClipBox.Na__Clip__Turned?(box)
+            sizes = (0..2).map { |axis| self.na_out(max[axis] - min[axis], params) }
+            angle = Na__ClipBox.Na__Clip__TurnAngle(box)
+            how = if !turned then 'level (the frame lies along the model axes)'
+                  elsif angle then "turned #{angle.round(2)} degrees from red"
+                  else 'tilted out of level'
+                  end
+            {
+                'clouds'    => slots.map { |slot| self.na_cloud_state(slot, params) },
+                'box'       => self.na_box_out(box['min'], box['max'], params).merge(self.na_turned_out(box, params)),
+                'undo_step' => undo,
+                'summary'   => "Clip box #{sizes.join(' x ')} along its own sides, #{how}, for #{Na__ClipBox.Na__Clip__Names(slots)}. One undo step: \"#{undo}\"."
             }
         end
 

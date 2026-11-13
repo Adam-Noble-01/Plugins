@@ -65,6 +65,7 @@ require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Focus__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Pick__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Context__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnSlopePush__'
 require_relative '../30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPull__QuadRing__'
 require_relative '../30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPull__Follow__'
@@ -200,29 +201,38 @@ module Na__NobleDrawingTools
         # the history of both rules.
         # ------------------------------------------------------------
         def na_pj__execute_single(model, source, plan, settings)
+            name = na_pj__operation_name(plan, settings, 1)
+
+            # SHARED COMPONENTS (5.2.44, DrawnDeepUnique): a face inside a copy
+            # shared with copies elsewhere is projected in a copy of its own,
+            # so the copies elsewhere keep their shape. The plan is world (a
+            # target and a direction), so only the face moves across.
+            settle = Na__NobleDrawingTools.Na__DeepUnique__SettleTargets(model, [source[:target]], name)
+
+            if settle[:refused]
+                @na_pj_last_error = settle[:refused]
+                return false
+            end
+
+            source    = source.merge(:target => settle[:targets].first)
             target    = source[:target]
             instances = Na__NobleDrawingTools.Na__DeepPick__Instances(target[:path])
             wanted    = instances.empty? ? nil : instances
-            selected  = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
+            selected  = settle[:pending] ? settle[:selected] : Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
+            opening   = nil
             entered   = false
-            previous  = nil
 
             if model.respond_to?(:active_path=)
-                begin
-                    previous = model.active_path
-                    unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(previous, wanted)
-                        model.active_path = wanted
-                        entered = true
-                    end
-                rescue StandardError => error
-                    entered = false
-                    Na__NobleDrawingTools.Na__Debug__Puts "NA PROJECT: could not open #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(target)} (#{error.message}) — editing from outside"
+                opening = Na__NobleDrawingTools.Na__DeepUnique__OpenFor(model, wanted, settle)
+                entered = opening[:entered]
+
+                if !entered && !Na__NobleDrawingTools.Na__DeepPick__SameContext?(model.active_path, wanted)
+                    Na__NobleDrawingTools.Na__Debug__Puts "NA PROJECT: could not open #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(target)} — editing from outside"
                 end
             end
 
-            name = na_pj__operation_name(plan, settings, 1)
-            if entered
-                model.start_operation(name, true, true, true)
+            if opening && opening[:transparent]
+                model.start_operation(name, true, opening[:next_transparent], true)
             else
                 model.start_operation(name, true)
             end
@@ -238,8 +248,8 @@ module Na__NobleDrawingTools
                 @na_pj_last_error = error.message
             end
 
-            if entered
-                na_pj__restore_context(model, previous)
+            if opening && opening[:leaving]
+                na_pj__restore_context(model, opening[:previous])
 
                 # Opening the group cleared the selection, and the selection is
                 # what tells the picker which group to favour.

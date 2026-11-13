@@ -1,0 +1,371 @@
+# Unit tests for the Point Cloud Viewer's TURNED clip boxes (v0.14.8), run with
+# SketchUp's bundled Ruby (no SketchUp process):
+#   python <Plugins>/Na__SketchUpMcp__Modules__/40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py <this file>
+# The .rb.test extension keeps the viewer's Reload Plugin from ever loading it.
+# Loads the real ClipBox State, Turned and EditTool files and the shared frame
+# maths, with just enough of SketchUp and the viewer faked to drive them.
+Encoding.const_set(:UTF_8, Encoding.find('UTF-8')) unless Encoding.const_defined?(:UTF_8)
+Encoding.const_set(:BINARY, Encoding.find('ASCII-8BIT')) unless Encoding.const_defined?(:BINARY)
+require 'json'
+
+$na_failures = []
+$na_checks = 0
+
+def check(label)
+    $na_checks += 1
+    ok = begin
+        yield
+    rescue StandardError => error
+        $na_failures << "#{label} (raised #{error.class}: #{error.message})"
+        return
+    end
+    $na_failures << label unless ok
+end
+
+MM = 25.4
+
+def close(a, b, tolerance = 1e-9)
+    a.zip(b).all? { |x, y| (x - y).abs < tolerance }
+end
+
+# --- Fakes: SketchUp ------------------------------------------------------------
+
+module Sketchup
+    class Color
+        def initialize(*_args); end
+    end
+
+    def self.status_text=(_text); end
+    def self.vcb_label=(_text); end
+    def self.vcb_value=(_text); end
+end
+
+module Geom
+    class Point3d
+        attr_reader :x, :y, :z
+
+        def initialize(x, y, z)
+            @x = x.to_f
+            @y = y.to_f
+            @z = z.to_f
+        end
+
+        def to_a
+            [@x, @y, @z]
+        end
+    end
+end
+
+GL_LINES = 1 unless defined?(GL_LINES)
+
+# A view whose pick ray is set by the test.
+FakeView = Struct.new(:ray) do
+    def pickray(_x, _y)
+        [Geom::Point3d.new(*ray[0]), Geom::Point3d.new(*ray[1])]
+    end
+end
+
+# --- Fakes: the viewer ----------------------------------------------------------
+
+$na_ops = []
+
+module Na__PointCloudViewer
+    module Na__CloudStore
+        def self.Na__Store__WriteSlots(_session, slots, name)
+            slots.each do |slot|
+                slot.record ||= {}
+                yield(slot, slot.record)
+            end
+            $na_ops << name
+            nil
+        end
+    end
+
+    module Na__CloudSet
+        def self.Na__Slots__OpName(_slot, text)
+            "Point Cloud: #{text}"
+        end
+
+        def self.Na__Slots__All(session)
+            session.slots
+        end
+
+        def self.Na__Slots__Prefix(_slot)
+            ''
+        end
+    end
+
+    module Na__DebugTools
+        def self.Na__Debug__Warn(_text); end
+    end
+
+    module Na__UnitContract
+        def self.Na__Units__ModelDisplay(_model)
+            { 'suffix' => 'mm' }
+        end
+
+        def self.Na__Units__InchesToDisplayText(inches, _display)
+            format('%.1f', inches * 25.4)
+        end
+
+        def self.Na__Units__ParseDisplayLength(text, _display)
+            Float(text) / 25.4
+        end
+    end
+end
+
+Session = Struct.new(:slots)
+Slot = Struct.new(:id, :name, :session, :record, :cloud, :clip, :clip_loaded, :clip_scenes, :clip_active_scene, :clip_editing, :visible)
+
+SRC = File.expand_path('../..', __dir__)
+load File.join(SRC, '95__System__McpOperations', 'Na__PointCloudViewer__McpOperations__Frame__.rb')
+load File.join(SRC, '50__System__ClipBox', 'Na__PointCloudViewer__ClipBox__State__.rb')
+load File.join(SRC, '50__System__ClipBox', 'Na__PointCloudViewer__ClipBox__Turned__.rb')
+load File.join(SRC, '50__System__ClipBox', 'Na__PointCloudViewer__ClipBox__EditTool__.rb')
+
+CB = Na__PointCloudViewer::Na__ClipBox
+FR = Na__PointCloudViewer::Na__McpFrame
+
+def new_slot(clip)
+    slot = Slot.new('pc_1', 'Site', nil, nil, nil, clip, true, [], nil, false, true)
+    slot.session = Session.new([slot])
+    slot
+end
+
+def level_box(min_mm, max_mm)
+    { 'enabled' => true, 'min' => min_mm.map { |v| v / MM }, 'max' => max_mm.map { |v| v / MM } }
+end
+
+def mm(values)
+    values.map { |v| v * MM }
+end
+
+# Kann 64562's east boundary wall face (garden side), in plan.
+EAST_A = [12861.6 / MM, 19227.1 / MM, 0.0]
+EAST_B = [13642.1 / MM, 7344.9 / MM, 0.0]
+
+# --- making turned boxes -----------------------------------------------------------
+
+check('make: a box turned 30 degrees has its eight corners where its frame puts them, and min/max is the level box round them') do
+    a = 30.0 * Math::PI / 180.0
+    box = CB.Na__Clip__MakeTurned(true, [100.0, 50.0, 0.0], [Math.cos(a), Math.sin(a), 0.0], [-Math.sin(a), Math.cos(a), 0.0], [-20.0, -5.0, 0.0], [20.0, 5.0, 30.0])
+    corners = CB.Na__Clip__CornersModel(box)
+    xs = corners.map { |c| c[0] }
+    ys = corners.map { |c| c[1] }
+    expected_x = 20.0 * Math.cos(a) + 5.0 * Math.sin(a)
+    CB.Na__Clip__Turned?(box) && close(box['min'], [xs.min, ys.min, 0.0]) && close(box['max'], [xs.max, ys.max, 30.0]) &&
+        (box['max'][0] - 100.0 - expected_x).abs < 1e-9 && (CB.Na__Clip__TurnAngle(box) - 30.0).abs < 1e-9
+end
+
+check('make: a frame along the model axes, or turned a quarter turn, is a LEVEL box (no turned part)') do
+    plain = CB.Na__Clip__MakeTurned(true, [10.0, 0.0, 0.0], [1, 0, 0], [0, 1, 0], [0.0, 0.0, 0.0], [5.0, 2.0, 3.0])
+    quarter = CB.Na__Clip__TurnedAbout(level_box([0, 0, 0], [4000, 1000, 2000]), 90.0)
+    !CB.Na__Clip__Turned?(plain) && close(plain['min'], [10.0, 0.0, 0.0]) && close(plain['max'], [15.0, 2.0, 3.0]) &&
+        !CB.Na__Clip__Turned?(quarter) && close(mm(quarter['max']).zip(mm(quarter['min'])).map { |h, l| h - l }, [1000.0, 4000.0, 2000.0], 1e-6)
+end
+
+check('make: a box thinner than the viewer allows is refused, naming its own side') do
+    begin
+        CB.Na__Clip__MakeTurned(true, [0, 0, 0], [1, 1, 0], [-1, 1, 0], [0.0, 0.0, 0.0], [10.0, 0.1, 10.0])
+        false
+    rescue ArgumentError => error
+        error.message.include?('own y')
+    end
+end
+
+check('turned about: sizes along its own sides and the centre are kept; 0 degrees is level again') do
+    box = level_box([1000, 2000, 0], [5000, 3000, 2400])
+    turned = CB.Na__Clip__TurnedAbout(box, 12.5)
+    frame, lo, hi = CB.Na__Clip__Space(turned)
+    centre = CB.Na__Clip__SpaceToModel(frame, (0..2).map { |i| (lo[i] + hi[i]) / 2.0 })
+    back = CB.Na__Clip__TurnedAbout(turned, 0.0)
+    close(mm(hi).zip(mm(lo)).map { |h, l| h - l }, [4000.0, 1000.0, 2400.0], 1e-6) && close(mm(centre), [3000.0, 2500.0, 1200.0], 1e-6) &&
+        !CB.Na__Clip__Turned?(back) && close(mm(back['min']), [1000.0, 2000.0, 0.0], 1e-6) && close(mm(back['max']), [5000.0, 3000.0, 2400.0], 1e-6)
+end
+
+# --- the Clipping tab's turn, and Turn to Two Points ----------------------------------
+
+check('turn: typed 3.76 turns the box in ONE undoable step, saved with its frame; Level puts it back') do
+    $na_ops.clear
+    slot = new_slot(level_box([0, 0, 0], [6000, 2000, 3000]))
+    problem = CB.Na__Clip__Turn(slot, '3.76 deg')
+    saved = slot.record['clip']
+    turned_ok = problem.nil? && saved['turned'] && (CB.Na__Clip__TurnAngle(saved) - 3.76).abs < 1e-9 && $na_ops == ['Point Cloud: Turn Clip Box']
+    level = CB.Na__Clip__Level(slot)
+    turned_ok && level.nil? && !slot.record['clip'].key?('turned') && $na_ops.last == 'Point Cloud: Level Clip Box' &&
+        close(mm(slot.clip['min']), [0.0, 0.0, 0.0], 1e-6) && close(mm(slot.clip['max']), [6000.0, 2000.0, 3000.0], 1e-6)
+end
+
+check('turn: text that is not an angle, or no box, is refused with nothing written') do
+    $na_ops.clear
+    slot = new_slot(level_box([0, 0, 0], [1000, 1000, 1000]))
+    empty = new_slot(nil)
+    CB.Na__Clip__Turn(slot, 'north').to_s.include?('degrees') && CB.Na__Clip__Turn(empty, '5').to_s.include?('no clip box') && $na_ops.empty?
+end
+
+check('turn along: the Kann east wall clicked end to end gives a box along it, as long as it, centred on it, depth and height kept') do
+    slot = new_slot(level_box([10000, 9000, -500], [16000, 10800, 6000]))
+    problem = CB.Na__Clip__TurnAlong(slot, EAST_A, EAST_B)
+    frame, lo, hi = CB.Na__Clip__Space(slot.clip)
+    length = Math.hypot(EAST_B[0] - EAST_A[0], EAST_B[1] - EAST_A[1])
+    centre = CB.Na__Clip__SpaceToModel(frame, (0..2).map { |i| (lo[i] + hi[i]) / 2.0 })
+    angle = CB.Na__Clip__TurnAngle(slot.clip)
+    problem.nil? && ((hi[0] - lo[0]) - length).abs < 1e-9 && ((hi[1] - lo[1]) * MM - 1800.0).abs < 1e-6 && ((hi[2] - lo[2]) * MM - 6500.0).abs < 1e-6 &&
+        close(centre[0, 2], [(EAST_A[0] + EAST_B[0]) / 2.0, (EAST_A[1] + EAST_B[1]) / 2.0]) && angle > -90.0 && angle <= 90.0 && (angle + 86.24).abs < 0.01
+end
+
+check('turn along: clicking the same wall the other way gives the same box') do
+    one = new_slot(level_box([10000, 9000, 0], [16000, 10800, 6000]))
+    two = new_slot(level_box([10000, 9000, 0], [16000, 10800, 6000]))
+    CB.Na__Clip__TurnAlong(one, EAST_A, EAST_B)
+    CB.Na__Clip__TurnAlong(two, EAST_B, EAST_A)
+    CB.na_same_box?(one.clip, two.clip)
+end
+
+check('turn along: two clicks closer than the thinnest box are refused') do
+    slot = new_slot(level_box([0, 0, 0], [1000, 1000, 1000]))
+    CB.Na__Clip__TurnAlong(slot, [0.0, 0.0, 0.0], [0.1, 0.0, 0.0]).to_s.include?('apart')
+end
+
+# --- the record ------------------------------------------------------------------------
+
+check('record: a turned box goes into the record and comes back the same, its level box made again') do
+    slot = new_slot(level_box([0, 0, 0], [6000, 2000, 3000]))
+    CB.Na__Clip__Turn(slot, 21)
+    stored = JSON.parse(JSON.generate(slot.record['clip']))
+    stored['min'] = [0, 0, 0]                                  # a stale level box is ignored: it is made from the turn
+    back = CB.na_valid_box(stored, true)
+    CB.na_same_box?(back, slot.clip) && close(back['min'], slot.clip['min'])
+end
+
+check('record: a turned part that cannot be read loses the whole box (never a level box in the wrong place)') do
+    CB.na_valid_box({ 'min' => [0, 0, 0], 'max' => [1, 1, 1], 'turned' => { 'origin' => [0, 0, 0], 'x_axis' => [0, 0, 0], 'y_axis' => [0, 1, 0], 'min' => [0, 0, 0], 'max' => [9, 9, 9] } }, true).nil? &&
+        CB.na_valid_box({ 'min' => [0, 0, 0], 'max' => [1, 1, 1], 'turned' => 'sideways' }, true).nil? &&
+        CB.na_valid_box({ 'min' => [0, 0, 0], 'max' => [1, 1, 1] }, true)['max'] == [1.0, 1.0, 1.0]
+end
+
+check('key: the renderer re-renders when only the turn changes') do
+    slot = new_slot(level_box([0, 0, 0], [6000, 2000, 3000]))
+    CB.Na__Clip__Turn(slot, 10)
+    first = CB.Na__Clip__Key(slot)
+    CB.Na__Clip__Turn(slot, 11)
+    first != CB.Na__Clip__Key(slot)
+end
+
+# --- clip scenes and copies ------------------------------------------------------------
+
+check('scenes: a turned box saved as a clip scene comes back turned, and shows as not modified') do
+    slot = new_slot(level_box([0, 0, 0], [6000, 2000, 3000]))
+    CB.Na__Clip__Turn(slot, 7.5)
+    CB.Na__Clip__SceneSave(slot, 'Wall')
+    id = slot.clip_scenes.first['id']
+    CB.Na__Clip__Level(slot)
+    CB.Na__Clip__SceneActivate(slot, id)
+    payload = CB.Na__Clip__Payload(slot, nil)
+    (CB.Na__Clip__TurnAngle(slot.clip) - 7.5).abs < 1e-9 && payload['scenes'].first['isModified'] == false && payload['turn']['angle'] == '7.5' &&
+        payload['turn']['turned'] == true && CB.na_valid_scene(JSON.parse(JSON.generate(slot.record['clipScenes'].first)))['turned']
+end
+
+check('copy to other clouds: they take the turned box') do
+    slot = new_slot(level_box([0, 0, 0], [6000, 2000, 3000]))
+    other = Slot.new('pc_2', 'Interior', slot.session, nil, nil, nil, true, [], nil, false, true)
+    slot.session.slots << other
+    CB.Na__Clip__Turn(slot, -15)
+    CB.Na__Clip__CopyToOthers(slot).nil? && CB.na_same_box?(other.clip, slot.clip) && !other.clip.equal?(slot.clip)
+end
+
+# --- typed limits and the edit tool, in the box's own axes ---------------------------------
+
+check('limits: a turned box reads and takes its limits along its own sides') do
+    slot = new_slot(level_box([0, 0, 0], [4000, 1000, 2000]))
+    CB.Na__Clip__Turn(slot, 30)
+    right = CB.Na__Clip__Face('right')
+    before = CB.Na__Clip__FaceValue(slot, right) * MM
+    CB.Na__Clip__SetLimits(slot, { 'right' => (before + 500).to_s }, nil)
+    _frame, lo, hi = CB.Na__Clip__Space(slot.clip)
+    ((hi[0] - lo[0]) * MM - 4500.0).abs < 1e-6 && ((hi[1] - lo[1]) * MM - 1000.0).abs < 1e-6 && (CB.Na__Clip__TurnAngle(slot.clip) - 30.0).abs < 1e-9
+end
+
+check('edit: dragging the Right side moves it along the box\'s own x and keeps the box valid') do
+    slot = new_slot(level_box([0, 0, 0], [4000, 1000, 2000]))
+    CB.Na__Clip__Turn(slot, 30)
+    right = CB.Na__Clip__Face('right')
+    start = CB.Na__Clip__FaceValue(slot, right)
+    CB.Na__Clip__SetFaceLive(slot, right, start + 100 / MM)
+    pulled = CB.na_face_centre(slot.clip, right).to_a
+    CB.Na__Clip__SetFaceLive(slot, right, -1.0e6)                # past the other side: held a min gap away
+    _frame, lo, hi = CB.Na__Clip__Space(slot.clip)
+    centre = [2000 / MM, 500 / MM, 1000 / MM]
+    a = 30.0 * Math::PI / 180.0
+    expected = [centre[0] + (2100 / MM) * Math.cos(a), centre[1] + (2100 / MM) * Math.sin(a), 1000 / MM]
+    close(pulled, expected, 1e-9) && (hi[0] - lo[0] - CB::NA_MIN_GAP_INCHES).abs < 1e-9
+end
+
+check('edit: the pick ray finds a turned box\'s sides (from above: Top; along its own x: Right)') do
+    slot = new_slot(level_box([0, 0, 0], [4000, 1000, 2000]))
+    CB.Na__Clip__Turn(slot, 30)
+    tool = CB::Na__ClipBoxTool.new(slot)
+    a = 30.0 * Math::PI / 180.0
+    centre = [2000 / MM, 500 / MM, 1000 / MM]
+    from_above = FakeView.new([[centre[0], centre[1], 5000 / MM], [0.0, 0.0, -1.0]])
+    far = 10_000 / MM
+    from_right = FakeView.new([[centre[0] + far * Math.cos(a), centre[1] + far * Math.sin(a), centre[2]], [-Math.cos(a), -Math.sin(a), 0.0]])
+    # straight down inside the level box round it, but outside the turned box itself
+    past_corner = FakeView.new([[centre[0] + 1900 / MM, centre[1] - 1300 / MM, 5000 / MM], [0.0, 0.0, -1.0]])
+    tool.na_pick_face_by_ray(0, 0, from_above) == 'top' && tool.na_pick_face_by_ray(0, 0, from_right) == 'right' &&
+        tool.na_pick_face_by_ray(0, 0, past_corner).nil?
+end
+
+check('edit: the drag follows the mouse along the box\'s own x (closest point to the pick ray)') do
+    slot = new_slot(level_box([0, 0, 0], [4000, 1000, 2000]))
+    CB.Na__Clip__Turn(slot, 30)
+    tool = CB::Na__ClipBoxTool.new(slot)
+    right = CB.Na__Clip__Face('right')
+    a = 30.0 * Math::PI / 180.0
+    centre = [2000 / MM, 500 / MM, 1000 / MM]
+    along = 2600 / MM
+    target = [centre[0] + along * Math.cos(a), centre[1] + along * Math.sin(a), centre[2]]
+    ray = FakeView.new([[target[0], target[1], target[2] + 50.0], [0.0, 0.0, -1.0]])   # straight down through a point 2600 along
+    (tool.na_axis_param(right, 0, 0, ray) - along).abs < 1e-9
+end
+
+# --- rendering: the fold ------------------------------------------------------------------
+
+check('render: a turned box that clips folds the cloud and camera; points inside it test inside, and every point keeps its place in the camera') do
+    slot = new_slot(level_box([0, 0, 0], [4000, 1000, 2000]))
+    CB.Na__Clip__Turn(slot, 30)
+    a = 30.0 * Math::PI / 180.0
+    camera = [9000.0, -4000.0, 7000.0] + [0.6, 0.8, 0.0] + [-0.4, 0.3, 0.866] + [0.69, -0.52, -0.5] + [0, 0.01, 0.01]
+    transform = [1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, 0, 0, 0]
+    folded_camera, folded, clip, turned = CB.Na__Clip__RenderParts(slot, camera, transform)
+    lo = clip[1, 3]
+    hi = clip[4, 3]
+    centre = [2000 / MM, 500 / MM, 1000 / MM]
+    inside_point = [centre[0] + (1900 / MM) * Math.cos(a) - (400 / MM) * Math.sin(a), centre[1] + (1900 / MM) * Math.sin(a) + (400 / MM) * Math.cos(a), centre[2]]
+    outside_point = [centre[0] + (1900 / MM) * Math.cos(a) + (700 / MM) * Math.sin(a), centre[1] + (1900 / MM) * Math.sin(a) - (700 / MM) * Math.cos(a), centre[2]]
+    place = ->(t, p) { (0..2).map { |r| t[3 * r] * p[0] + t[3 * r + 1] * p[1] + t[3 * r + 2] * p[2] + t[9 + r] } }
+    inside = ->(p) { (0..2).all? { |i| p[i] >= lo[i] && p[i] <= hi[i] } }
+    seen = lambda do |cam, p|
+        e = cam[0, 3]
+        (0..2).map { |k| axis = cam[3 + 3 * k, 3]; axis[0] * (p[0] - e[0]) + axis[1] * (p[1] - e[1]) + axis[2] * (p[2] - e[2]) }
+    end
+    turned && clip[0] == 1 && inside.call(place.call(folded, inside_point)) && !inside.call(place.call(folded, outside_point)) &&
+        close(seen.call(folded_camera, place.call(folded, inside_point)), seen.call(camera, inside_point), 1e-9) && folded_camera[12, 3] == [0, 0.01, 0.01]
+end
+
+check('render: with clipping off, or a level box, nothing is folded') do
+    slot = new_slot(level_box([0, 0, 0], [4000, 1000, 2000]))
+    camera = (1..15).map(&:to_f)
+    transform = [1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, 0, 0, 0]
+    expected = [1] + slot.clip['min'] + slot.clip['max']
+    level = CB.Na__Clip__RenderParts(slot, camera, transform)
+    CB.Na__Clip__Turn(slot, 30)
+    slot.clip['enabled'] = false
+    off = CB.Na__Clip__RenderParts(slot, camera, transform)
+    level[3] == false && level[0].equal?(camera) && level[2] == expected && off[3] == false && off[2] == [0, 0, 0, 0, 0, 0, 0] &&
+        CB.Na__Clip__TurnedActive?(slot) == false
+end
+
+puts "Turned clip boxes: #{$na_checks - $na_failures.length} passed, #{$na_failures.length} failed."
+$na_failures.each { |failure| puts "  FAILED: #{failure}" }
+raise "#{$na_failures.length} check(s) failed" unless $na_failures.empty?

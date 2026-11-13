@@ -1031,11 +1031,18 @@
         return true;
     }
 
-    function OpenLibraryProfile(key) {
+    // The editor's own Open list keeps a bound trace bound: opening a library
+    // profile there is how a trace is given a different section. The Gallery's
+    // Edit Profile Geometry passes shouldUnbind (v1.6.18): it edits the LIBRARY
+    // profile, and a bound trace (Live on by default) would otherwise be
+    // rebuilt with it on the first change. Unbinding waits for the dirty guard,
+    // so a cancelled open leaves the binding alone.
+    function OpenLibraryProfile(key, shouldUnbind) {
         var store = Store();
         var record = store ? store.Na__Store__GetProfile(key) : null;
         if (!record) { ui.ed.Hint('That profile is no longer in the library.', true); return; }
         GuardDirty('Open "' + (record.displayName || key) + '"? The current drawing has unsaved changes.', function () {
+            if (shouldUnbind === true && ui.ed.bind) Unbind();
             OpenRecord(record, !!ui.ed.bind);
         });
     }
@@ -1698,10 +1705,16 @@
         FromModel();
     }
 
-    function na_open_profile(profileKey) {
+    // options.unbind: the Gallery's Edit Profile Geometry (see OpenLibraryProfile).
+    function na_open_profile(profileKey, options) {
         var router = window.Na_TabRouter;
         if (router && router.na_get_active_tab() !== 'draw-profile') router.na_activateTab('draw-profile');
-        OpenLibraryProfile(profileKey);
+        // Mounting builds the editor; if that failed there is nothing to open into.
+        if (!ui.built || !ui.ed) {
+            SetSharedStatus('The Draw Profile editor could not start. Reload the plugin, then reopen the dialog.');
+            return;
+        }
+        OpenLibraryProfile(profileKey, !!(options && options.unbind === true));
     }
 
     // endregion ----------------------------------------------------------------

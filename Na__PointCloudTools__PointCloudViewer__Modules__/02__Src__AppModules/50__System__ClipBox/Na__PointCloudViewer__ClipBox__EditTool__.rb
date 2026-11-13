@@ -17,6 +17,11 @@
 # DRAWING: the cage is drawn by the OVERLAY (after the cloud image), not by
 #   Tool#draw, so the cloud picture can never cover it.
 #
+# TURNED BOXES (v0.14.8): the cage, the handles, the pick and the drag all
+#   work in the box's own axes (Na__Clip__Space): the pick ray is carried into
+#   them, and corners and handles go back to the model through the box's
+#   frame, so a turned box's sides move along its own sides.
+#
 # =============================================================================
 
 module Na__PointCloudViewer
@@ -58,11 +63,7 @@ module Na__PointCloudViewer
         def self.Na__Clip__DrawCage(slot, view)
             clip = slot.clip
             return unless clip
-            lo = clip['min']
-            hi = clip['max']
-            corners = [0, 1].product([0, 1], [0, 1]).map do |ix, iy, iz|
-                Geom::Point3d.new(ix.zero? ? lo[0] : hi[0], iy.zero? ? lo[1] : hi[1], iz.zero? ? lo[2] : hi[2])
-            end
+            corners = self.Na__Clip__CornersModel(clip).map { |corner| Geom::Point3d.new(*corner) }
             edges = [[0, 4], [2, 6], [1, 5], [3, 7], [0, 2], [4, 6], [1, 3], [5, 7], [0, 1], [2, 3], [4, 5], [6, 7]]
             view.line_stipple = ''
             view.line_width   = 2
@@ -90,21 +91,30 @@ module Na__PointCloudViewer
             end
         end
 
+        # The side's centre in the box's own axes (na_face_centre_space) and in
+        # the model.
+        def self.na_face_centre_space(clip, face)
+            _frame, lo, hi = self.Na__Clip__Space(clip)
+            centre = (0..2).map { |i| (lo[i] + hi[i]) / 2.0 }
+            centre[face['axis']] = (face['side'] == 'min' ? lo : hi)[face['axis']]
+            centre
+        end
+
         def self.na_face_centre(clip, face)
-            centre = (0..2).map { |i| (clip['min'][i] + clip['max'][i]) / 2.0 }
-            centre[face['axis']] = clip[face['side']][face['axis']]
-            Geom::Point3d.new(*centre)
+            frame, = self.Na__Clip__Space(clip)
+            Geom::Point3d.new(*self.Na__Clip__SpaceToModel(frame, self.na_face_centre_space(clip, face)))
         end
 
         def self.na_face_corners(clip, face)
+            frame, lo, hi = self.Na__Clip__Space(clip)
             axis = face['axis']
             others = [0, 1, 2] - [axis]
             [[0, 0], [1, 0], [1, 1], [0, 1]].map do |a, b|
                 coords = []
-                coords[axis] = clip[face['side']][axis]
-                coords[others[0]] = a.zero? ? clip['min'][others[0]] : clip['max'][others[0]]
-                coords[others[1]] = b.zero? ? clip['min'][others[1]] : clip['max'][others[1]]
-                Geom::Point3d.new(*coords)
+                coords[axis] = (face['side'] == 'min' ? lo : hi)[axis]
+                coords[others[0]] = a.zero? ? lo[others[0]] : hi[others[0]]
+                coords[others[1]] = b.zero? ? lo[others[1]] : hi[others[1]]
+                Geom::Point3d.new(*self.Na__Clip__SpaceToModel(frame, coords))
             end
         end
 
@@ -278,8 +288,16 @@ module Na__PointCloudViewer
 
             def na_status
                 Sketchup.vcb_label = 'Distance'
-                Sketchup.status_text = "#{Na__CloudSet.Na__Slots__Prefix(@slot)}Clip box: pick a side (the square handles) and drag it, or click, move and click. " \
+                turned = Na__ClipBox.Na__Clip__Turned?(@slot.clip) ? ' (turned: its sides move along its own sides)' : ''
+                Sketchup.status_text = "#{Na__CloudSet.Na__Slots__Prefix(@slot)}Clip box#{turned}: pick a side (the square handles) and drag it, or click, move and click. " \
                                        'Type a distance for precision. Esc cancels. Choose another tool to finish.'
+            end
+
+            # The pick ray in the box's own axes (the model's for a level box).
+            def na_ray_in_space(x, y, view)
+                origin, direction = view.pickray(x, y)
+                frame, = Na__ClipBox.Na__Clip__Space(@slot.clip)
+                [Na__ClipBox.Na__Clip__ModelToSpace(frame, origin.to_a), Na__ClipBox.Na__Clip__DirectionToSpace(frame, direction.to_a)]
             end
 
             # Handles first (they work from any angle), then the box faces under
@@ -303,19 +321,17 @@ module Na__PointCloudViewer
             end
 
             def na_pick_face_by_ray(x, y, view)
-                clip = @slot.clip
-                origin, direction = view.pickray(x, y)
-                o = origin.to_a
-                d = direction.to_a
+                _frame, lo, hi = Na__ClipBox.Na__Clip__Space(@slot.clip)
+                o, d = self.na_ray_in_space(x, y, view)
                 best = nil
                 best_t = Float::INFINITY
                 NA_FACES.each do |face|
                     axis = face['axis']
                     next if d[axis].abs < 1e-12
-                    t = (clip[face['side']][axis] - o[axis]) / d[axis]
+                    t = ((face['side'] == 'min' ? lo : hi)[axis] - o[axis]) / d[axis]
                     next unless t > 0 && t < best_t
                     hit = (0..2).map { |i| o[i] + d[i] * t }
-                    inside = ([0, 1, 2] - [axis]).all? { |i| hit[i] >= clip['min'][i] - 1e-6 && hit[i] <= clip['max'][i] + 1e-6 }
+                    inside = ([0, 1, 2] - [axis]).all? { |i| hit[i] >= lo[i] - 1e-6 && hit[i] <= hi[i] + 1e-6 }
                     next unless inside
                     best_t = t
                     best = face['id']
@@ -324,14 +340,13 @@ module Na__PointCloudViewer
             end
 
             # Parameter along the face's axis line closest to the mouse ray, so
-            # the grabbed side follows the cursor at any view angle.
+            # the grabbed side follows the cursor at any view angle. In the box's
+            # own axes, so a turned box's side moves along its own normal.
             def na_axis_param(face, x, y, view)
-                origin, direction = view.pickray(x, y)
-                centre = Na__ClipBox.na_face_centre(@slot.clip, face).to_a
+                centre = Na__ClipBox.na_face_centre_space(@slot.clip, face)
                 axis = [0.0, 0.0, 0.0]
                 axis[face['axis']] = 1.0
-                p = origin.to_a
-                dvec = direction.to_a
+                p, dvec = self.na_ray_in_space(x, y, view)
                 w0 = (0..2).map { |i| centre[i] - p[i] }
                 b = axis.each_with_index.sum { |a, i| a * dvec[i] }
                 c = dvec.sum { |v| v * v }

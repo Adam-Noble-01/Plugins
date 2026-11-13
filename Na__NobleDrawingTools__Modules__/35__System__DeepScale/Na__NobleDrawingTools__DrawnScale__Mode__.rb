@@ -52,6 +52,8 @@
 # - Since 5.2.35 the stored mode lasts while the tool is in hand: activate puts
 #   it back to By Grip (na_scale__forget_grip_mode).
 # - A typed size follows too: under UNIFORM one size scales everything.
+# - Deep Stretch (5.2.41) has STRETCH lit and nothing else: UNIFORM and
+#   NON-UNIFORM are refused (na_scale__refuse_scaling) and their tips say so.
 #
 # WHERE IT SHOWS (the drawing is in the Preview file):
 # - Every grip wears the colour of what it would do, so the answer is there
@@ -338,6 +340,8 @@ module Na__NobleDrawingTools
         # so clicking it takes it up rather than letting go of it.
         # ------------------------------------------------------------
         def na_scale__choose_grip_mode(value)
+            return na_scale__refuse_scaling if na_scale__stretch_only?       # <-- Deep Stretch: a pill, the popup or a shortcut alike (5.2.41)
+
             planes  = na_scale__planes_on?
             current = Na__NobleDrawingTools.Na__ToolOptions__Value(NA_SCALE_OPTION_GRIP_MODE).to_s
             stored  = !planes && current == value ? NA_SCALE_GRIP_MODE_BY_GRIP : value
@@ -377,6 +381,7 @@ module Na__NobleDrawingTools
         # FUNCTION | Switch Stretch Planes Off for a Mode That Has Just Been Chosen
         # ------------------------------------------------------------
         def na_scale__planes_give_way
+            return false if na_scale__stretch_only?                           # <-- Deep Stretch's planes never give way, and its stored switch is Deep Scale's
             return false unless na_scale__planes_on?
 
             Na__NobleDrawingTools.Na__ToolOptions__SetValue(NA_SCALE_OPTION_PLANES, false)
@@ -417,6 +422,12 @@ module Na__NobleDrawingTools
         # FUNCTION | What Clicking a Pill Would Do
         # ------------------------------------------------------------
         def na_scale__pill_tip(mode)
+            if na_scale__stretch_only?
+                return 'Deep Stretch always stretches: details keep their size' if mode == :stretch
+
+                return 'Not in Deep Stretch, which only stretches: leave it (Space) and use Deep Scale to scale'
+            end
+
             if mode == :stretch
                 return 'Click, or SHIFT+TAB: back to scaling' if na_scale__planes_on?
 
@@ -715,7 +726,8 @@ module Na__NobleDrawingTools
             with    = na_scale__usable_axes.select { |axis| stretching.key?(axis) }
             without = na_scale__usable_axes - with
             count   = na_scale__planes_words(stretching.values.inject(0, :+))
-            return [["Every grip stretches, at #{count}. SHIFT+TAB goes back to scaling", violet]] if without.empty?
+            back    = na_scale__stretch_only? ? 'Deep Stretch only stretches' : 'SHIFT+TAB goes back to scaling'
+            return [["Every grip stretches, at #{count}. #{back}", violet]] if without.empty?
 
             one = without.length == 1
             [["#{na_scale__axis_words(with)} #{with.length == 1 ? 'stretches' : 'stretch'} at #{count}, but " \

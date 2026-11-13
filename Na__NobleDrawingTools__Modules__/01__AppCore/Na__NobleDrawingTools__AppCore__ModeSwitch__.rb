@@ -135,49 +135,70 @@ module Na__NobleDrawingTools
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Activate the Deep Chamfer Tool
+    # FUNCTION | Build an Edge Tool of One Profile for the Camera in Use
+    # ------------------------------------------------------------
+    # Deep Chamfer, Fillet, Ogee and Ovolo each have a parallel camera
+    # variant (5.2.40, DrawnEdgeTool2d) that takes the edge running into the
+    # screen behind a corner. As with Deep Push Pull, the camera is asked in
+    # this one place, so there is no second command, shortcut or button. The
+    # 2D module loads after this file, so it is looked up at call time, and
+    # the 3D tool is the fallback on any doubt.
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__NewEdgeTool(model, profile, fallback_class)
+        tool =
+            if Na__NobleDrawingTools.respond_to?(:Na__EdgeTool2d__NewToolForCamera)
+                Na__NobleDrawingTools.Na__EdgeTool2d__NewToolForCamera(model, profile)
+            end
+
+        tool || fallback_class.new
+    rescue StandardError
+        fallback_class.new
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Chamfer Tool the Camera Calls For
     # ------------------------------------------------------------
     def self.Na__ModeSwitch__ActivateDrawnChamferTool
         model = Sketchup.active_model
         return nil unless model
 
-        tool = DrawnChamferTool.new
+        tool = Na__NobleDrawingTools.Na__ModeSwitch__NewEdgeTool(model, :chamfer, DrawnChamferTool)
         model.select_tool(tool)
         tool
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Activate the Deep Ogee Tool
+    # FUNCTION | Activate the Deep Ogee Tool the Camera Calls For
     # ------------------------------------------------------------
     def self.Na__ModeSwitch__ActivateDrawnOgeeTool
         model = Sketchup.active_model
         return nil unless model
 
-        tool = DrawnOgeeTool.new
+        tool = Na__NobleDrawingTools.Na__ModeSwitch__NewEdgeTool(model, :ogee, DrawnOgeeTool)
         model.select_tool(tool)
         tool
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Activate the Deep Fillet Tool
+    # FUNCTION | Activate the Deep Fillet Tool the Camera Calls For
     # ------------------------------------------------------------
     def self.Na__ModeSwitch__ActivateDrawnFilletTool
         model = Sketchup.active_model
         return nil unless model
 
-        tool = DrawnFilletTool.new
+        tool = Na__NobleDrawingTools.Na__ModeSwitch__NewEdgeTool(model, :fillet, DrawnFilletTool)
         model.select_tool(tool)
         tool
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Activate the Deep Ovolo Tool (Ovolo or Cavetto, With a Step)
+    # FUNCTION | Activate the Deep Ovolo Tool the Camera Calls For (Ovolo or Cavetto, With a Step)
     # ------------------------------------------------------------
     def self.Na__ModeSwitch__ActivateDrawnOvoloTool
         model = Sketchup.active_model
         return nil unless model
 
-        tool = DrawnOvoloTool.new
+        tool = Na__NobleDrawingTools.Na__ModeSwitch__NewEdgeTool(model, :ovolo, DrawnOvoloTool)
         model.select_tool(tool)
         tool
     end
@@ -190,6 +211,18 @@ module Na__NobleDrawingTools
         return nil unless model
 
         tool = DrawnScaleTool.new
+        model.select_tool(tool)
+        tool
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Activate the Deep Stretch Tool (Deep Scale Locked to Stretching)
+    # ------------------------------------------------------------
+    def self.Na__ModeSwitch__ActivateDrawnStretchTool
+        model = Sketchup.active_model
+        return nil unless model
+
+        tool = DrawnStretchTool.new
         model.select_tool(tool)
         tool
     end
@@ -338,6 +371,13 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def Na__DrawnMode__SetScaleMode
             Na__NobleDrawingTools.Na__ModeSwitch__ActivateDrawnScaleTool
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Switch to the Deep Stretch Tool (Deep Scale Locked to Stretching)
+        # ------------------------------------------------------------
+        def Na__DrawnMode__SetStretchMode
+            Na__NobleDrawingTools.Na__ModeSwitch__ActivateDrawnStretchTool
         end
         # ---------------------------------------------------------------
 

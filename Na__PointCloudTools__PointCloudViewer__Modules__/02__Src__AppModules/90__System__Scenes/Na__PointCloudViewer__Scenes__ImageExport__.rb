@@ -207,11 +207,28 @@ module Na__PointCloudViewer
             end
             clip = layer['clip'] ? [1] + layer['clip']['min'] + layer['clip']['max'] : [0, 0, 0, 0, 0, 0, 0]
             near = Na__ConfigLoader.Na__Config__GetOr(0.5, 'render', 'nativeImage', 'nearInches').to_f
-            basis['eye'] + basis['xaxis'] + basis['yaxis'] + basis['zaxis'] +
-                [plan['projection'] == 'perspective' ? 1 : 0, scale_x, scale_y,
-                 tile['w'], tile['h'], size, 1.0, %w[black primary].include?(layer['colourMode']) ? 1 : 0,
+            camera = basis['eye'] + basis['xaxis'] + basis['yaxis'] + basis['zaxis'] +
+                     [plan['projection'] == 'perspective' ? 1 : 0, scale_x, scale_y]
+            transform = layer['localToModel']
+            turned = layer['clip'] ? Na__ClipBox.Na__Clip__TurnedPart(layer['clip']) : nil
+            if turned
+                # v0.14.8: a turned clip box folds the cloud and the camera into
+                # its own axes, exactly as the live picture does (ClipBox__Turned).
+                frame = Na__ClipBox.Na__Clip__TurnedFrame(turned)
+                camera = Na__McpFrame.Na__Frame__Camera(frame, camera)
+                transform = Na__McpFrame.Na__Frame__Fold(frame, transform)
+                clip = [1] + turned['min'] + turned['max']
+            end
+            camera +
+                [tile['w'], tile['h'], size, 1.0, %w[black primary].include?(layer['colourMode']) ? 1 : 0,
                  *layer['monoRgb'], plan['pointBudget'], near] +
-                layer['localToModel'] + clip + [full_w, full_h, crop_x, crop_y]
+                transform + clip + [full_w, full_h, crop_x, crop_y]
+        end
+
+        # A layer record's turned part (v0.14.8), or nothing for a level box.
+        def self.na_turned_clip_part(clip)
+            turned = Na__ClipBox.Na__Clip__TurnedPart(clip)
+            turned ? { Na__ClipBox::NA_TURN_KEY => Marshal.load(Marshal.dump(turned)) } : {}
         end
 
     # endregion ----------------------------------------------------------------
@@ -473,7 +490,7 @@ module Na__PointCloudViewer
                 'colourMode'     => mode,
                 'monoRgb'        => colour[1, 3],
                 'opacityPercent' => (entry['display'] || {})['opacityPercent'].to_i,
-                'clip'           => clip ? { 'min' => clip['min'], 'max' => clip['max'] } : nil,
+                'clip'           => clip ? { 'min' => clip['min'], 'max' => clip['max'] }.merge(self.na_turned_clip_part(clip)) : nil,
                 'localToModel'   => cloud.local_to_model,
                 'cloud'          => self.na_cloud_record(slot, cloud)
             }

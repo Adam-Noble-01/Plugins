@@ -240,7 +240,7 @@ module Na__NobleDrawingTools
             # a hip refused on the status bar while the card said nothing).
             lines << "CANNOT CUT: #{@na_ch_mitre_note}" if @na_ch_mitre_note
 
-            Na__NobleDrawingTools.Na__DrawnPreview__DrawWorldLabel(view, world[:a1], lines)
+            na_drawn__draw_summary_card(view, solve, lines)                     # <-- The chamfer tool's seam: off the corner in 2D
         end
         # ---------------------------------------------------------------
 

@@ -226,8 +226,15 @@ module Na__NobleDrawingTools
         # ---------------------------------------------------------------
 
         # FUNCTION | This Tool's Own Profile
+        # A parallel camera variant (5.2.40) is its 3D profile's subclass, so
+        # instance_of? alone would miss it: the 2D pick file knows both.
         # ------------------------------------------------------------
         def na_hs__profile
+            if Na__NobleDrawingTools.respond_to?(:Na__EdgeTool2d__ProfileOf)
+                profile = Na__NobleDrawingTools.Na__EdgeTool2d__ProfileOf(self)
+                return profile if profile
+            end
+
             NA_HS_PROFILE_CLASS.each do |profile, class_name|
                 next unless Na__NobleDrawingTools.const_defined?(class_name)
 
@@ -257,7 +264,7 @@ module Na__NobleDrawingTools
             class_name = NA_HS_PROFILE_CLASS[profile]
             return false unless class_name && Na__NobleDrawingTools.const_defined?(class_name)
 
-            return na_hs__same_profile(profile) if instance_of?(Na__NobleDrawingTools.const_get(class_name))
+            return na_hs__same_profile(profile) if profile == na_hs__profile   # <-- 2D or 3D, the same profile is the same tool
 
             case profile                                                      # <-- self. receivers: a bare capitalised name parses as a constant
             when :chamfer then self.Na__DrawnMode__SetChamferMode
@@ -296,6 +303,9 @@ module Na__NobleDrawingTools
             return false unless Na__NobleDrawingTools.const_defined?(class_name)
 
             klass    = Na__NobleDrawingTools.const_get(class_name)
+            if Na__NobleDrawingTools.respond_to?(:Na__EdgeTool2d__ClassForCamera)
+                klass = Na__NobleDrawingTools.Na__EdgeTool2d__ClassForCamera(klass)   # <-- In a 2D view the profile's 2D variant (5.2.40)
+            end
             snapshot = na_hs__snapshot
             return false unless snapshot
 

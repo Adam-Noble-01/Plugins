@@ -674,34 +674,39 @@ module Na__NobleDrawingTools
         def na_jp__execute(model, target, plan, distance, cutting)
             @na_pp_last_error = nil
 
-            instances   = Na__NobleDrawingTools.Na__DeepPick__Instances(target[:path])
-            target_path = instances.empty? ? nil : instances
-            anchors     = na_jp__world_anchors(plan)
-            entered     = false
-            previous    = nil
-            selected    = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
-
-            if model.respond_to?(:active_path=)
-                begin
-                    previous = model.active_path
-                    unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(previous, target_path)
-                        model.active_path = target_path
-                        entered = true
-                        na_drawn__trace("entered context #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(target)}")
-                    end
-                rescue StandardError => error
-                    entered = false
-                    na_drawn__trace("context open failed (#{error.message}) — editing from outside")
-                end
-            end
-
+            anchors = na_jp__world_anchors(plan)                              # <-- Read while every face still reports as it was picked
             op_name = cutting ? 'Deep Push Pull (Joint Loop Cut)' : 'Deep Push Pull (Joint Surface)'
 
+            # SHARED COMPONENTS (5.2.44, DrawnDeepUnique): a surface inside a
+            # copy shared with copies elsewhere is pushed in a copy of its own.
+            # Its faces are found again below by their world anchors, as they
+            # always were when opening a group handed back a fresh definition.
+            settle = Na__NobleDrawingTools.Na__DeepUnique__SettleTargets(model, [target], op_name)
+
+            if settle[:refused]
+                @na_pp_last_error = settle[:refused]
+                return nil
+            end
+
+            target      = settle[:targets].first
+            instances   = Na__NobleDrawingTools.Na__DeepPick__Instances(target[:path])
+            target_path = instances.empty? ? nil : instances
+            selected    = settle[:pending] ? settle[:selected] : Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
+            opening     = nil
+            entered     = false
+
+            if model.respond_to?(:active_path=)
+                opening = Na__NobleDrawingTools.Na__DeepUnique__OpenFor(model, target_path, settle)
+                entered = opening[:entered]
+                na_drawn__trace("entered context #{Na__NobleDrawingTools.Na__DeepPick__PathLabel(target)}") if entered
+            end
+
             # The undo chaining is the single-face commit's: transparent both
-            # ways only when a context was entered, so enter-push-restore
-            # unwinds as one Ctrl+Z and nothing else is ever merged into it.
-            if entered
-                model.start_operation(op_name, true, true, true)
+            # ways only when a context was entered (or copies were settled), so
+            # settle-enter-push-restore unwinds as one Ctrl+Z and nothing else
+            # is ever merged into it.
+            if opening && opening[:transparent]
+                model.start_operation(op_name, true, opening[:next_transparent], true)
             else
                 model.start_operation(op_name, true)
             end
@@ -739,8 +744,8 @@ module Na__NobleDrawingTools
                 stats = nil
             end
 
-            if entered
-                na_drawn__restore_context(model, previous)
+            if opening && opening[:leaving]
+                na_drawn__restore_context(model, opening[:previous])
                 Na__NobleDrawingTools.Na__DeepPick__FocusRestore(model, selected)
             end
 

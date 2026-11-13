@@ -947,17 +947,21 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Say So When the Push Will Change Every Copy
+        # FUNCTION | Say So When the Face Sits in a Component With Copies
+        # ------------------------------------------------------------
+        # 5.2.44: the copy pushed becomes a component of its own and the copies
+        # elsewhere keep their shape (DrawnDeepUnique), so this says that
+        # rather than warning that every copy changes.
         # ------------------------------------------------------------
         def na_drawn__warn_if_shared(target)
             count = target[:shared_count].to_i
             return false if count <= 1
 
             Sketchup::set_status_text(
-                "Heads up: this definition has #{count} instances — pushing changes all of them",
+                "Heads up: this component has #{count} copies — only this one is pushed, as a component of its own",
                 SB_PROMPT
             )
-            Na__NobleDrawingTools.Na__Debug__Puts "NA PUSH/PULL: shared definition, #{count} instances will change"
+            Na__NobleDrawingTools.Na__Debug__Puts "NA PUSH/PULL: shared definition, #{count} instances; the copy pushed is made unique"
             true
         end
         # ---------------------------------------------------------------

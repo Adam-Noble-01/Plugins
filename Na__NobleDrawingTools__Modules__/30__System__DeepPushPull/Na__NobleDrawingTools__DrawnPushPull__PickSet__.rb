@@ -311,14 +311,25 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Is This Face in the Set Already?
+        # FUNCTION | Is This Pick in the Set Already?
         # ------------------------------------------------------------
-        # By the face itself, not its path: the same face reached through two
-        # copies of a component is ONE face of the definition, and pushing it
-        # twice would push every copy twice.
+        # The same face in the same copy (5.2.44). Until 5.2.44 a face was ONE
+        # pick however many copies of a component it was reached through,
+        # because pushing it once per copy pushed every copy that many times.
+        # Now copies picked alike are pushed once, through one of them, and
+        # copies not picked keep their shape (DrawnDeepUnique, in
+        # na_pk__settle): CTRL+clicking the top of three balusters picks three
+        # balusters, instead of the second click taking the first back out.
         # ------------------------------------------------------------
-        def na_pk__member?(face)
-            (@na_pps_targets || []).any? { |target| target[:face] == face }
+        def na_pk__member?(target)
+            (@na_pps_targets || []).any? { |member| na_pk__same_pick?(member, target) }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Are Two Picks the Same Face in the Same Copy?
+        # ------------------------------------------------------------
+        def na_pk__same_pick?(one, other)
+            one[:face] == other[:face] && na_pps__context_key(one) == na_pps__context_key(other)
         end
         # ---------------------------------------------------------------
 
@@ -350,8 +361,8 @@ module Na__NobleDrawingTools
                 :targets => targets,
                 :ring    => ring,
                 :quad    => !Na__NobleDrawingTools.Na__PushPullPick__QuadEdges(target[:face]).nil?,
-                :remove  => !ring && na_pk__member?(target[:face]),
-                :fresh   => targets.count { |candidate| !na_pk__member?(candidate[:face]) }
+                :remove  => !ring && na_pk__member?(target),
+                :fresh   => targets.count { |candidate| !na_pk__member?(candidate) }
             }
         rescue StandardError
             @na_pk_hover = nil
@@ -383,9 +394,9 @@ module Na__NobleDrawingTools
             end
 
             if hover[:remove]
-                @na_pps_targets = @na_pps_targets.reject { |target| target[:face] == hover[:seed][:face] }
+                @na_pps_targets = @na_pps_targets.reject { |target| na_pk__same_pick?(target, hover[:seed]) }
             else
-                hover[:targets].each { |target| @na_pps_targets << target unless na_pk__member?(target[:face]) }
+                hover[:targets].each { |target| @na_pps_targets << target unless na_pk__member?(target) }
             end
 
             @na_pps_cache = {}
@@ -590,12 +601,14 @@ module Na__NobleDrawingTools
         # nil for one that could not be recorded.
         # ------------------------------------------------------------
         def na_pk__apply_chain(model, recipes, distance, home)
+            settle   = na_pk__settle(model, recipes)                          # <-- 5.2.44: copies of a component picked alike pushed once, the rest kept
+            recipes  = settle[:recipes]
             stages   = na_pk__stages(recipes, home)
-            current  = home
+            current  = model.active_path                                      # <-- home, or the container the settle left open
             opened   = false
             done     = 0
             records  = []
-            selected = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
+            selected = settle[:pending] ? settle[:selected] : Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)
 
             begin
                 stages.each_with_index do |stage, index|
@@ -610,7 +623,7 @@ module Na__NobleDrawingTools
 
                     last        = index == stages.length - 1
                     more_follow = !last || !Na__NobleDrawingTools.Na__DeepPick__SameContext?(current, home)
-                    transparent = index > 0 || hopped                         # <-- Never merged into what the user did before the push
+                    transparent = index > 0 || hopped || settle[:pending]     # <-- Never merged into what the user did before the push; always into the settle
                     model.start_operation('Deep Push Pull (Picked Faces)', true, more_follow, transparent)
                     opened = true
 
@@ -638,7 +651,53 @@ module Na__NobleDrawingTools
                 end
             end
 
-            { :done => done, :records => records, :stages => stages.length }
+            { :done => done, :records => records, :stages => stages.length, :riders => settle[:riders] }
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Settle the Copies the Picked Faces Sit In (5.2.44)
+        # ------------------------------------------------------------
+        # Every recipe was read in the user's own context, so its offset is
+        # the push as its face's own definition reads it: the same face in
+        # copies of one component, pushed the same way, signs the same and is
+        # pushed ONCE (DrawnDeepUnique), the copies riding along; copies not
+        # picked keep their shape. A surface (joint) recipe signs as its copy
+        # alone. Hands back the recipes still to push, each in the copy it now
+        # sits in (its context and face moved across; its anchor, split and
+        # snapshot are world or local readings that still hold), plus what
+        # the chain needs to finish the step. Raises when nothing may change.
+        # ------------------------------------------------------------
+        def na_pk__settle(model, recipes)
+            targets = recipes.map { |recipe| recipe[:kind] == :joint ? recipe[:unit][:targets].first : recipe[:data][0] }
+            offsets = {}
+            recipes.each_with_index { |recipe, index| offsets[targets[index].object_id] = recipe[:data][2] unless recipe[:kind] == :joint }
+
+            sign = lambda do |target|
+                offset = offsets[target.object_id]
+                offset ? [:face, target[:face].entityID, Na__NobleDrawingTools.Na__DeepUnique__Quantise(offset)] : nil
+            end
+
+            settle = Na__NobleDrawingTools.Na__DeepUnique__SettleTargets(model, targets, 'Deep Push Pull (Picked Faces)', sign)
+            raise settle[:refused] if settle[:refused]
+
+            live = []
+            recipes.each_with_index do |recipe, index|
+                moved = settle[:targets][index]
+                next unless moved                                             # <-- Rides on a copy's push: the same face, the same way, already in the set
+
+                instances = Na__NobleDrawingTools.Na__DeepPick__Instances(moved[:path])
+                context   = instances.empty? ? nil : instances
+
+                if recipe[:kind] == :joint
+                    live << recipe.merge(:context => context)                 # <-- Its faces are found again by their anchors once open
+                else
+                    data    = recipe[:data].dup
+                    data[0] = moved
+                    live << recipe.merge(:context => context, :data => data)
+                end
+            end
+
+            settle.merge(:recipes => live)
         end
         # ---------------------------------------------------------------
 

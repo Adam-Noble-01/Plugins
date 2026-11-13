@@ -481,6 +481,19 @@ begin
     scale_cmd.menu_text       = "Deep Scale"
     # ---------------------------------------------------------------
 
+    # COMMAND SETUP | Deep Stretch Tool (Deep Scale Locked to Stretching)
+    # ------------------------------------------------------------
+    # Its own command so it can have its own key in Preferences > Shortcuts:
+    # every grip stretches, and scaling is only had by leaving it.
+    # ------------------------------------------------------------
+    stretch_cmd = UI::Command.new('NA_DeepStretch') {
+        Na__NobleDrawingTools__RunTool(:Na__NobleDrawingTools__DeepStretch)
+    }
+    stretch_cmd.tooltip         = "Deep Stretch"
+    stretch_cmd.status_bar_text = "Stretch only: every grip stretches the selection between cut planes, so details keep their size; leave it to scale"
+    stretch_cmd.menu_text       = "Deep Stretch"
+    # ---------------------------------------------------------------
+
     # COMMAND SETUP | Deep Vertex Move Tool (Box-Pick Vertices, Move With a Gimbal)
     # ------------------------------------------------------------
     # The selection when it starts is the scope: only the vertices inside those
@@ -667,6 +680,8 @@ begin
             Na__NobleDrawingTools__NestedSubmenu('scale_options', 'Deep Scale Options').add_item(command)
         end
     end
+
+    Na__NobleDrawingTools__AddMenuEntry('stretch')         { |m| m.add_item(stretch_cmd) }  # <-- After Deep Scale Options, which stays right under Deep Scale
 
     Na__NobleDrawingTools__AddMenuEntry('vertex_move')     { |m| m.add_item(vertex_move_cmd) }
 

@@ -815,6 +815,12 @@ module Na__NobleDrawingTools
             end
         end
 
+        dialog.add_action_callback("setStretchMode") do |_action_context|
+            Na__NobleDrawingTools.Na__RightClickPopup__RunAction(tool_instance) do
+                tool_instance.Na__DrawnMode__SetStretchMode()
+            end
+        end
+
         dialog.add_action_callback("setVertexMoveMode") do |_action_context|
             Na__NobleDrawingTools.Na__RightClickPopup__RunAction(tool_instance) do
                 tool_instance.Na__DrawnMode__SetVertexMoveMode()

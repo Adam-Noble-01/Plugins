@@ -101,9 +101,11 @@ module Na__PointCloudViewer
             Na__CloudSet.Na__Slots__Active(session).equal?(slot) && self.Na__Boxes__Any?(slot) ? true : false
         end
 
-        # The model shows what the boxes do (Result or Differences).
+        # The model shows what the boxes do (Result or Differences). Not while a
+        # TURNED clip box clips (v0.14.8): the picture is then drawn in the
+        # turned box's axes, where these level boxes cannot be tested.
         def self.Na__Boxes__Shown?(slot)
-            self.Na__Boxes__OnTab?(slot) && self.Na__Boxes__View(slot) != 'original'
+            self.Na__Boxes__OnTab?(slot) && self.Na__Boxes__View(slot) != 'original' && !Na__ClipBox.Na__Clip__TurnedActive?(slot)
         end
 
     # endregion ----------------------------------------------------------------
@@ -476,7 +478,7 @@ module Na__PointCloudViewer
                     'hasBox'   => !clip.nil?,
                     'enabled'  => clip && clip['enabled'] ? true : false,
                     'editing'  => slot.clip_editing ? true : false,
-                    'sizeText' => clip ? self.na_size_text(clip) : ''
+                    'sizeText' => clip ? self.na_clip_size_text(clip) : ''
                 },
                 'captureBlocker' => self.na_clip_box(slot)[1],
                 'counts'         => self.Na__Boxes__Counts(slot),
@@ -578,6 +580,9 @@ module Na__PointCloudViewer
             unless clip['enabled'] || slot.clip_editing
                 return [nil, 'Turn the clip box on (or press Edit Clip Box) and fit it round the area first, so you can see what you capture.']
             end
+            if Na__ClipBox.Na__Clip__Turned?(clip)
+                return [nil, 'The clip box is turned, and Crop and Cut boxes stay level with the model. Level it on the Clipping tab (Level), or draw a level box, then capture.']
+            end
             [{ 'min' => clip['min'].map(&:to_f), 'max' => clip['max'].map(&:to_f) }, nil]
         end
 
@@ -627,6 +632,13 @@ module Na__PointCloudViewer
 
         def self.na_same_box?(a, b)
             (0..2).all? { |i| (a['min'][i] - b['min'][i]).abs < 1e-6 && (a['max'][i] - b['max'][i]).abs < 1e-6 }
+        end
+
+        # The clip box's sizes along its own sides; a turned box says so (v0.14.8).
+        def self.na_clip_size_text(clip)
+            _frame, lo, hi = Na__ClipBox.Na__Clip__Space(clip)
+            text = self.na_size_text({ 'min' => lo, 'max' => hi })
+            Na__ClipBox.Na__Clip__Turned?(clip) ? "#{text} (turned)" : text
         end
 
         # Metres, whatever the model's units: a site is read in metres.

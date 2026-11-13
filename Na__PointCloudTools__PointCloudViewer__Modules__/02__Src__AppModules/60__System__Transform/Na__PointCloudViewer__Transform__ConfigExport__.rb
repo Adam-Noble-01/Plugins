@@ -142,6 +142,18 @@ module Na__PointCloudViewer
             }
         end
 
+        # A turned box (v0.14.8): its frame and its limits along its own sides.
+        # 'min'/'max' above are then the level box round it.
+        def self.na_turned_export(box, to_display)
+            turned = Na__ClipBox.Na__Clip__TurnedPart(box)
+            return {} unless turned
+            angle = Na__ClipBox.Na__Clip__TurnAngle(box)
+            { 'turned' => { 'originInches' => turned['origin'], 'origin' => to_display.call(turned['origin']),
+                            'xAxis' => turned['x_axis'], 'yAxis' => turned['y_axis'], 'planAngleDegrees' => angle,
+                            'minInches' => turned['min'], 'maxInches' => turned['max'],
+                            'min' => to_display.call(turned['min']), 'max' => to_display.call(turned['max']) } }
+        end
+
         def self.na_clip(slot, display)
             Na__ClipBox.Na__Clip__Ensure(slot)
             box = slot.clip
@@ -150,7 +162,7 @@ module Na__PointCloudViewer
                 'enabled'     => box ? box['enabled'] : false,
                 'box'         => box ? { 'minInches' => box['min'], 'maxInches' => box['max'],
                                          'min' => to_display.call(box['min']), 'max' => to_display.call(box['max']),
-                                         'unit' => display['suffix'] } : nil,
+                                         'unit' => display['suffix'] }.merge(self.na_turned_export(box, to_display)) : nil,
                 'activeScene' => slot.clip_active_scene,
                 'scenes'      => slot.clip_scenes.map do |scene|
                     { 'id' => scene['id'], 'name' => scene['name'], 'minInches' => scene['min'], 'maxInches' => scene['max'],

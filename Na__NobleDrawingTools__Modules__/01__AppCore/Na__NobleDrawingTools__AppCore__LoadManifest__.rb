@@ -77,6 +77,7 @@ module Na__NobleDrawingTools
         '04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Pick__.rb',
         '04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Context__.rb',
         '04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__Instance__.rb',
+        '04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__.rb',              # <-- Shared copies in a deep edit: before Deep Scale and Deep Vertex Move
         '04__GeometryHelpers/Na__NobleDrawingTools__DrawnSubtract__.rb',
         '04__GeometryHelpers/Na__NobleDrawingTools__DrawnSlopePush__.rb',
         '04__GeometryHelpers/Na__NobleDrawingTools__CurveUnweld__.rb',
@@ -132,6 +133,8 @@ module Na__NobleDrawingTools
         '34__System__DeepOvolo/Na__NobleDrawingTools__DrawnOvolo__Geometry__.rb',
         '34__System__DeepOvolo/Na__NobleDrawingTools__DrawnOvolo__Revise__.rb',
         '34__System__DeepOvolo/Na__NobleDrawingTools__DrawnOvoloTool__.rb',
+        '31__System__DeepChamfer/Na__NobleDrawingTools__DrawnEdgeTool2d__Pick__.rb',      # <-- After all four profiles: the 2D variants subclass each
+        '31__System__DeepChamfer/Na__NobleDrawingTools__DrawnEdgeTool2dTool__.rb',
         '35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Frame__.rb',
         '35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Field__.rb',
         '35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Commit__.rb',
@@ -141,6 +144,7 @@ module Na__NobleDrawingTools
         '35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Overlay__.rb',
         '35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Keys__.rb',
         '35__System__DeepScale/Na__NobleDrawingTools__DrawnScaleTool__.rb',
+        '35__System__DeepScale/Na__NobleDrawingTools__DrawnStretchTool__.rb',      # <-- Deep Scale locked to stretching: a subclass, so after it
         '36__System__DeepProject/Na__NobleDrawingTools__DrawnProject__Geometry__.rb',
         '36__System__DeepProject/Na__NobleDrawingTools__DrawnProject__Sections__.rb',
         '36__System__DeepProject/Na__NobleDrawingTools__DrawnProject__Target__.rb',

@@ -8,7 +8,9 @@
 #              point_cloud_slice, point_cloud_fit (1.0.14, viewer 0.14.2),
 #              point_cloud_check (1.0.15, viewer 0.14.3),
 #              point_cloud_heightmap (1.0.16, viewer 0.14.4); a slice frame
-#              for point_cloud_slice and point_cloud_heightmap (1.0.19, 0.14.6)
+#              for point_cloud_slice and point_cloud_heightmap (1.0.19, 0.14.6);
+#              point_cloud_ortho_plane (1.0.34, viewer 0.14.7, Noble 3D Tools
+#              0.9.48: a scaled picture of the cloud as a drawing plane)
 # CREATED    : 09-Nov-2026 (1.0.9); points and density 09-Nov-2026 (1.0.12,
 #              viewer 0.14.0, engine ABI 9)
 #
@@ -48,6 +50,9 @@ module Na__SketchUpMcp
         NA_MAX_CHECK_TRIANGLES = 300_000
         NA_GRID_ONLY_KEYS = %w[resolution contour colours overlay_ids overlay_clip].freeze
         NA_PROFILE_ONLY_KEYS = %w[path width step exaggeration].freeze
+        NA_ORTHO_VIEWS = %w[top bottom front back left right wall frame clip].freeze
+        NA_ORTHO_DEPTH_MM = 1000.0
+        NA_ORTHO_WALL_MARGIN_MM = 500.0
 
 # endregion -------------------------------------------------------------------
 
@@ -68,9 +73,13 @@ module Na__SketchUpMcp
             arguments = na_arguments(ctx)
             arguments['clouds'] = na_clouds(params) if Na__Params.Na__Params__Has(params, 'clouds')
             arguments['label'] = Na__Params.Na__Params__String(params, 'label') if Na__Params.Na__Params__Has(params, 'label')
+            if Na__Params.Na__Params__Has(params, 'frame') && action != 'box'
+                raise Na__McpError.new('invalid_params', "frame turns a box; action '#{action}' takes none.", 'Pass frame with action box, min and max.')
+            end
             case action
             when 'box'
                 na_box(params, ctx, arguments)
+                arguments['frame'] = na_clip_frame(params, ctx, operations) if Na__Params.Na__Params__Has(params, 'frame')
             when 'around'
                 arguments['around'] = na_bounds_of(params, ctx)
                 if Na__Params.Na__Params__Has(params, 'margin')
@@ -336,6 +345,161 @@ module Na__SketchUpMcp
         end
 
 # -----------------------------------------------------------------------------
+# REGION | point_cloud_ortho_plane (1.0.34, viewer 0.14.7, Noble 3D Tools 0.9.48)
+# -----------------------------------------------------------------------------
+
+        # A thin seam like the others: the rules live in Noble 3D Tools' Ortho
+        # module (34__SourceCode__ToScaleOrthoTextureMaker, PointCloudOrtho), the
+        # one build path its Point Cloud Ortho Plane button uses too. Here the
+        # call's lengths become model inches, the view becomes a frame, and the
+        # reply's lengths go back to the call's units. The core runs its capture
+        # in an operation it always aborts, then places the plane in its own
+        # "Point Cloud Ortho Plane" step, so the tool has "operation": false and
+        # is not allowed in a batch.
+        def self.Na__Handlers__PointCloud__OrthoPlane(params, ctx)
+            core = na_ortho_core
+            unit = ctx[:unit]
+            view = Na__Params.Na__Params__Enum(params, 'view', NA_ORTHO_VIEWS, nil, required: true)
+            length = nil
+            from_clip = nil
+            frame = case view
+                    when 'clip'
+                        # 1.0.35: the cloud's clip box, level or turned (viewer 0.14.8, Noble 3D Tools 0.9.49).
+                        unless core.respond_to?(:Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameClip)
+                            raise Na__McpError.new('unsupported', "view 'clip' needs Na Noble3d Modelling Tools 0.9.49 or newer.",
+                                                   'Update Noble 3D Tools, use its Reload, then call again.')
+                        end
+                        cloud = Na__Params.Na__Params__Has(params, 'clouds') ? na_clouds(params).first : nil
+                        from_clip = na_ortho_forward { core.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameClip(cloud) }
+                        from_clip[0]
+                    when 'wall'
+                        wall = Na__Params.Na__Params__Hash(params, 'wall', nil, required: true)
+                        points = %w[a b look_from].map { |key| na_ortho_point(wall[key], unit, "wall.#{key}") }
+                        built, length = na_ortho_forward { core.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameWall(*points) }
+                        built
+                    when 'frame'
+                        spec = Na__Params.Na__Params__Hash(params, 'frame', nil, required: true)
+                        {
+                            'origin' => spec['origin'] ? na_ortho_point(spec['origin'], unit, 'frame.origin') : [0.0, 0.0, 0.0],
+                            'x_axis' => spec['x_axis'], 'y_axis' => spec['y_axis']
+                        }
+                    else
+                        origin = Na__Params.Na__Params__Has(params, 'origin') ? na_ortho_point(params['origin'], unit, 'origin') : [0.0, 0.0, 0.0]
+                        na_ortho_forward { core.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__FrameStandard(view, origin) }
+                    end
+            depth = if Na__Params.Na__Params__Has(params, 'depth')
+                        Na__Params.Na__Params__Array(params, 'depth', nil, min_items: 2, max_items: 2).map { |value| Na__Units.Na__Units__ToInches(value, unit, 'depth') }
+                    elsif from_clip
+                        from_clip[3]
+                    else
+                        [NA_ORTHO_DEPTH_MM / 25.4, NA_ORTHO_DEPTH_MM / 25.4]
+                    end
+            extent = Na__Params.Na__Params__Has(params, 'extent') ? Na__Params.Na__Params__Hash(params, 'extent') : {}
+            u = na_ortho_range(extent['u'], unit, 'extent.u')
+            u ||= from_clip[1] if from_clip
+            if u.nil?
+                unless length
+                    raise Na__McpError.new('invalid_params', 'extent.u is required unless view is wall.', 'Give extent {u: [min, max], v: [min, max]} along the frame\'s x and y.')
+                end
+                margin = NA_ORTHO_WALL_MARGIN_MM / 25.4
+                u = [-margin, length + margin]
+            end
+            v = na_ortho_range(extent['v'], unit, 'extent.v')
+            v ||= from_clip[2] if from_clip
+            if v.nil?
+                unless view == 'wall'
+                    raise Na__McpError.new('invalid_params', 'extent.v is required unless view is wall.', 'Give extent {u: [min, max], v: [min, max]} along the frame\'s x and y.')
+                end
+                clouds = Na__Params.Na__Params__Has(params, 'clouds') ? na_clouds(params) : nil
+                v = na_ortho_forward { core.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__AutoV(frame, u, depth, clouds) }
+            end
+            spec = {
+                'frame' => frame, 'u' => u, 'v' => v, 'depth' => depth,
+                'resolution' => Na__Params.Na__Params__Has(params, 'resolution') ? Na__Units.Na__Units__PositiveLength(params['resolution'], unit, 'resolution') : 10.0 / 25.4,
+                'fill' => Na__Params.Na__Params__Boolean(params, 'fill', true),
+                'background' => Na__Params.Na__Params__Enum(params, 'background', %w[white transparent], 'white'),
+                'place' => Na__Params.Na__Params__Boolean(params, 'place', true),
+                'hide' => Na__Params.Na__Params__Enum(params, 'hide', %w[model none], 'model'),
+                'calibrate' => Na__Params.Na__Params__Boolean(params, 'calibrate', true)
+            }
+            spec['dot_px'] = Na__Params.Na__Params__Number(params, 'dot_px', nil, min: 1.0, max: 64.0) if Na__Params.Na__Params__Has(params, 'dot_px')
+            spec['look'] = Na__Params.Na__Params__Hash(params, 'look') if Na__Params.Na__Params__Has(params, 'look')
+            spec['name'] = Na__Params.Na__Params__String(params, 'name') if Na__Params.Na__Params__Has(params, 'name')
+            spec['tag'] = Na__Params.Na__Params__String(params, 'tag') if Na__Params.Na__Params__Has(params, 'tag')
+            spec['save_path'] = Na__Params.Na__Params__String(params, 'save_path') if Na__Params.Na__Params__Has(params, 'save_path')
+            spec['clouds'] = na_clouds(params) if Na__Params.Na__Params__Has(params, 'clouds')
+            if Na__Params.Na__Params__Has(params, 'plane')
+                plane = Na__Params.Na__Params__Hash(params, 'plane')
+                spec['placement'] = Na__Params.Na__Params__Enum(plane, 'at', %w[front frame], 'front')
+                spec['offset'] = Na__Units.Na__Units__ToInches(plane['offset'], unit, 'plane.offset') if Na__Params.Na__Params__Has(plane, 'offset')
+            end
+            result = na_ortho_forward { core.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__Make(spec) }
+            Array(result.delete('warnings')).each { |text| ctx[:warnings] << text.to_s }
+            ctx[:undo_name] = result['undo_step'] if result['placed']
+            na_ortho_out(result, unit)
+        end
+
+        def self.na_ortho_core
+            if defined?(::Na__Noble3dModellingTools::Na__ToScaleOrthoTextureMaker__PointCloudOrtho) &&
+               ::Na__Noble3dModellingTools::Na__ToScaleOrthoTextureMaker__PointCloudOrtho.respond_to?(:Na__ToScaleOrthoTextureMaker__PointCloudOrtho__Make)
+                return ::Na__Noble3dModellingTools::Na__ToScaleOrthoTextureMaker__PointCloudOrtho
+            end
+
+            raise Na__McpError.new('unsupported', 'point_cloud_ortho_plane needs Na Noble3d Modelling Tools 0.9.48 or newer (its Ortho tab\'s Point Cloud Ortho Plane), loaded in this SketchUp.',
+                                   'Update Noble 3D Tools, use its Reload Plugin Data (or restart SketchUp), then call again.')
+        end
+
+        # The core's refusals (Na__PointCloudOrthoError: na_code, na_hint) as Na__McpError.
+        def self.na_ortho_forward
+            yield
+        rescue Na__McpError
+            raise
+        rescue StandardError => error
+            raise unless error.respond_to?(:na_code)
+
+            raise Na__McpError.new(error.na_code, error.message, error.na_hint, error.respond_to?(:na_details) ? error.na_details : nil)
+        end
+
+        def self.na_ortho_point(value, unit, label)
+            unless value.is_a?(Array) && [2, 3].include?(value.length) && value.all? { |item| item.is_a?(Numeric) }
+                raise Na__McpError.new('invalid_params', "#{label} must be [x, y] or [x, y, z] in the call's units, not #{value.inspect}.", nil)
+            end
+            (value + [0.0] * (3 - value.length)).map { |item| Na__Units.Na__Units__ToInches(item, unit, label) }
+        end
+
+        def self.na_ortho_range(value, unit, label)
+            return nil if value.nil?
+            unless value.is_a?(Array) && value.length == 2 && value.all? { |item| item.is_a?(Numeric) }
+                raise Na__McpError.new('invalid_params', "#{label} must be [min, max] in the call's units, not #{value.inspect}.", nil)
+            end
+            value.map { |item| Na__Units.Na__Units__ToInches(item, unit, label) }
+        end
+
+        # Every length in the core's reply (inches) back to the call's units.
+        def self.na_ortho_out(result, unit)
+            per = 1.0 / Na__Units::NA_INCHES_PER_UNIT.fetch(unit)
+            out = ->(inches) { inches.nil? ? nil : (inches.to_f * per).round(4) }
+            pair = ->(values) { Array(values).map { |value| out.call(value) } }
+            result['resolution'] = out.call(result['resolution'])
+            result['spacing'] = out.call(result['spacing'])
+            %w[u v depth].each { |key| result[key] = pair.call(result[key]) }
+            result['frame']['origin'] = pair.call(result['frame']['origin']) if result['frame']
+            result['map']['u0'] = out.call(result['map']['u0']) if result['map']
+            result['map']['v1'] = out.call(result['map']['v1']) if result['map']
+            result['camera']['ortho_height'] = out.call(result['camera']['ortho_height']) if result['camera']
+            result['plane_depth'] = out.call(result['plane_depth']) if result.key?('plane_depth')
+            result['corners'] = result['corners'].map { |point| pair.call(point) } if result['corners']
+            result['units'] = unit
+            placed = result['placed'] ? "placed #{result['name']} (#{result['plane_depth']} #{unit} toward the camera" \
+                                        "#{Array(result['in_front_of']).empty? ? '' : ", in front of #{result['in_front_of'].join(', ')}"})" : 'not placed (place: false)'
+            result['summary'] = "#{result['pixels'][0]} x #{result['pixels'][1]} px at #{result['resolution']} #{unit} a pixel, dots #{result['dot_px'].to_f.round(1)} px, " \
+                                "#{result['pixels_covered_percent']}% covered; #{placed}. PNG #{File.basename(result['png'].to_s)}."
+            result
+        end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 # REGION | Helpers
 # -----------------------------------------------------------------------------
 
@@ -421,6 +585,7 @@ module Na__SketchUpMcp
         end
 
         # The viewer's seam, or a refusal that names the fix.
+
         def self.na_operations
             if defined?(::Na__PointCloudViewer::Na__McpOperations) &&
                ::Na__PointCloudViewer::Na__McpOperations.respond_to?(:Na__PointCloudViewer__McpRead)
@@ -531,6 +696,16 @@ module Na__SketchUpMcp
         end
 
         # min and max in the call's units -> model inches.
+        # 1.0.35: a TURNED clip box, min and max in this frame (viewer 0.14.8,
+        # feature 'turned_clip'); read like a slice's frame.
+        def self.na_clip_frame(params, ctx, operations)
+            unless operations.const_defined?(:NA_FEATURES) && operations::NA_FEATURES.include?('turned_clip')
+                raise Na__McpError.new('unsupported', 'A turned clip box (frame) needs Na Point Cloud Viewer 0.14.8 or newer.',
+                                       'Update the Point Cloud Viewer, use its Reload Plugin (Settings), then call again.')
+            end
+            na_frame(params, ctx, operations)
+        end
+
         def self.na_box(params, ctx, arguments)
             minimum = Na__Units.Na__Units__Point(Na__Params.Na__Params__Required(params, 'min'), ctx[:unit], 'min')
             maximum = Na__Units.Na__Units__Point(Na__Params.Na__Params__Required(params, 'max'), ctx[:unit], 'max')

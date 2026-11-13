@@ -2145,3 +2145,65 @@ always passes whole numbers.
 
 - The plumb wall at x 17,325, sliced in a frame turned 90 degrees, reads its face at -0.4 mm (the plain histogram: x 17,325.4), with the same 14,089 points in the peak bin and the same 41,147 in the box.
 - A 100 mm section cut at 37 degrees through the house: the density grid kept 115,014 points, all on the image, and the renderer drew all 115,014. The two pictures agree on 99.9% of pixels (0.999 correlation; flipped 0.38, mirrored 0.07).
+
+
+## 36. Ortho planes: turned clips and looks for one render (BUILT in v0.14.7)
+
+### 36.1 Why the engine still needs no change
+
+- `composite` gives the engine a level clip box, a camera and a local -> model transform per layer. For a turned box
+  the transform is folded into the frame, f = R (M l + t - O) (section 35.1), and the camera's eye and axes are carried
+  into the same frame (`na_camera_in_frame`). Every point lands on the same pixel as before, and the level box in the
+  frame is the turned box in the model.
+- The Crop and Cut view is off for a turned box: its boxes are level in the model and would be wrong in the frame.
+
+### 36.2 One render only
+
+- `clip_frame`, `clip_min`, `clip_max`, `look`, `dot_px` and `clouds` change that render and nothing else: no cloud's
+  record, saved clip box or look is written. The callers (`point_cloud_ortho_plane`, the Ortho tab's button) hide the
+  model inside an undo operation they abort, so nothing reaches the model either.
+- `dot_px` is in output pixels, not scaled by the viewport, because a plane's dots come from the points' spacing and
+  its resolution: dot = ceil(1.3 x spacing_sparse / resolution), at most 64 (the caller warns that the picture blurs
+  there). The cells are 250 mm, or 4 pixels when that is bigger.
+
+### 36.3 Spacing
+
+- `spacing` counts points in an even grid of `cell`-wide cells over the box's x and y (the frame's when given), then
+  reads the median and the 25th percentile of the cells that hold any. spacing = cell / sqrt(count). The sparse
+  quarter is what a plane uses: on Kann the median filled the trees and left the lawn speckled.
+
+### 36.4 Measured (13-Nov-2026, a copy of Kann 64562)
+
+- The upper garden plan through the tool, with the hand-made plane's dot size: pixel-identical to the hand-made
+  composite (correlation 1.0, mean difference 0.0).
+- Each boundary wall (3.76 degrees off the axes) one render with a turned clip, matching the four level boxes it took
+  by hand.
+
+
+## 37. Turned clip boxes (BUILT in v0.14.8)
+
+### 37.1 What is kept
+
+- A clip box (or clip scene, or a point cloud scene's box) may hold `turned`: `origin`, `x_axis`, `y_axis` (unit,
+  right-handed, z = x cross y) and its own `min`/`max` in that frame, model inches. `min`/`max` beside it are the LEVEL
+  box round the turned one, made again whenever the turn changes and whenever it is read, so they can never disagree.
+- Everything that only needs an area (extents, Zoom to Cloud, the filter preview's region, scene image framing) reads the
+  level box; everything that clips, draws or edits reads the box in its own axes (`Na__Clip__Space`).
+- A frame along the model axes, or a quarter turn of one, is stored as a plain level box.
+- An older viewer reading a model saved with a turned box clips to the level box round it.
+
+### 37.2 Rendering
+
+- Section 36.1's fold, per cloud: when a cloud's own turned box clips, its transform and the camera are folded into the
+  box's frame (`Na__Clip__RenderParts`), and the clip block is the box's own limits. Clouds with level boxes render as
+  before in the same picture; a rigid fold keeps every point's pixel and depth, so the layers still meet.
+- The Crop and Cut view is off for that cloud while its turned box clips (`Na__Boxes__Shown?`), and Crop and Cut will not
+  capture a turned box.
+
+### 37.3 Editing
+
+- The edit tool carries the pick ray into the box's own axes and runs the level box's pick, handle and drag maths there;
+  corners and handles go back through the frame. A turned box's sides move along its own sides.
+- Turn (degrees about the vertical through the centre, sizes along its own sides kept), Level, and Turn to Two Points (x
+  along the clicked line, centred on it, as long as it; depth, height and level kept; the angle kept within 90 degrees of
+  red so Left stays left).

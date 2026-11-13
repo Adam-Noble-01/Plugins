@@ -232,8 +232,20 @@
                         <button type="button" class="naButtonSecondary na-hidden" id="na-clip-copy-others" title="Gives every other point cloud of this model the same clip box (on or off), in one step that Undo takes back">Copy to Other Clouds</button>
                     </div>
                     <p class="na-hint" id="na-clip-edit-hint">Edit Clip Box shows the box in the model so you can move its sides with the mouse.</p>
+                    <!-- Turned clip box (v0.14.8): an angle about the vertical, two
+                         points along a wall face, or back to level. -->
+                    <div class="na-snap-row">
+                        <label class="na-snap-row__check" for="na-clip-turn">Turned from the red axis</label>
+                        <input type="text" class="naInput na-snap-row__input" id="na-clip-turn" spellcheck="false" title="Degrees anticlockwise from the red axis, round the box's centre. Type 0 to level it.">
+                        <span class="na-snap-row__unit">degrees</span>
+                    </div>
+                    <div class="na-button-row">
+                        <button type="button" class="naButtonSecondary" id="na-clip-turn-pick" title="Click two points along a wall face in plan: the box turns square to the line, runs its length, and Edit Clip Box starts so you can push its sides to fit">Turn to Two Points</button>
+                        <button type="button" class="naButtonSecondary" id="na-clip-level" title="Turns the box back level with the model's axes, round its centre, its sizes kept">Level</button>
+                    </div>
+                    <p class="na-hint" id="na-clip-turn-hint"></p>
                     <div class="na-clip-limits" id="na-clip-limits"></div>
-                    <p class="na-hint">Limits are in the model's units. Type a value and press Enter. Clipping only hides points; the LAS is never changed.</p>
+                    <p class="na-hint" id="na-clip-limits-hint">Limits are in the model's units. Type a value and press Enter. Clipping only hides points; the LAS is never changed.</p>
                 </section>
 
                 <section class="na-card">

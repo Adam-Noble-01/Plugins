@@ -5,7 +5,7 @@ These are instructions for AI coding agents working **on** this plugin: Codex / 
 
 ## What This Is
 
-A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 76 tools, and every SketchUp API call it makes is checked against the official API index.
+A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 77 tools, and every SketchUp API call it makes is checked against the official API index.
 
 ```
 MCP client --stdio--> Python server (30__McpServer__Python, stdlib only)
@@ -114,7 +114,7 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
 - **Validation.** `ValidateApiUsage` counts every def under `02__Src__AppModules` as defined, and checks the `60__System__McpOperations` files like the bridge.
 - **Reloading.** A change to the seam needs Element Assembly Studio's Reload Scripts (or `entity_studio_edit {action: "reload"}`) as well as this plugin's Reload Plugin Data.
 
-## The Point Cloud Viewer Seam (point_cloud_state, point_cloud_clip, point_cloud_view, point_cloud_slice, point_cloud_fit, point_cloud_check, point_cloud_heightmap)
+## The Point Cloud Viewer Seam (point_cloud_state, point_cloud_clip, point_cloud_view, point_cloud_slice, point_cloud_fit, point_cloud_check, point_cloud_heightmap; point_cloud_ortho_plane through the Ortho module)
 
 - **Where the rules live.** Every point cloud tool is thin. `10__BridgeHandlers/Na__SketchUpMcp__Handlers__PointCloud__.rb` reads the call's lengths into inches, turns `ids` into world bounds for `around`, picks the capture path for images and passes `per_inch`. Everything else is in Adam's Na Point Cloud Viewer: `../Na__PointCloudTools__PointCloudViewer__Modules__/02__Src__AppModules/95__System__McpOperations`, entry points `Na__PointCloudViewer::Na__McpOperations.Na__PointCloudViewer__McpRead` / `...McpEdit`. It multiplies every length it returns by `per_inch`, so results are in the call's units.
 - **Its refusals.** `Na__PointCloudViewer::Na__McpOperationsError` (code, message, hint, details) becomes `Na__McpError`. Without the viewer (0.13.1 or newer), every one refuses with `unsupported`.
@@ -126,6 +126,8 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
 - **Heights (1.0.16, viewer 0.14.4).** `point_cloud_heightmap` reads lengths, the path and file names here (`na_save_path`, `na_image_path`; a grid-only key on a profile, or the reverse, is refused before the viewer is asked) and calls the seam's `heightmap` or `profile`, which bin an even sample of the box (a profile reads one box per piece of its path) in pure Ruby (`...McpOperations__Height__.rb`: a counting sort, percentiles by pc_terrain.py's rank rule, its rasters.npz layout for files; suite `tests/mcp_height_unit.rb.test`).
 - **A parameter added to an existing tool (1.0.19).** List it in the registry's top-level `property_since` (`"tool.parameter": "x.y.z"`, the bridge version that reads it). A window not yet reloaded would ignore it and answer as if it were not there; the server pings that window's bridge before such a call and refuses it with the fix (Reload Plugin Data).
 - **Angled slices (1.0.19, viewer 0.14.6).** `frame` on `point_cloud_slice` and `point_cloud_heightmap`: `na_frame` turns the origin into inches and an `id` into that group's world origin and axes (`Na__Serializer__ToWorld`); the seam folds the frame into the cloud's transform (`...McpOperations__Frame__.rb`), so the engine needs no change. It refuses `unsupported` unless the viewer lists 'frame' in `NA_FEATURES`.
+- **Turned clip boxes (1.0.35, viewer 0.14.8, feature 'turned_clip').** A cloud's own clip box may be turned: `turned` (origin, x_axis, y_axis and its own min/max, inches) beside `min`/`max`, which are then the level box round it (`50__System__ClipBox/Na__PointCloudViewer__ClipBox__Turned__.rb`, ARCHITECTURE section 37). `point_cloud_clip` box with `frame` sets one (`na_clip_frame`, then the seam's `na_clip_turned_box`), `state` reports it under `clip.turned`, and `composite` draws a saved one by the same fold. Refused `unsupported` without the feature.
+- **Ortho planes (1.0.34, viewer 0.14.7, feature 'ortho'). `composite` takes, for that render only, `clouds`, a turned clip box (`clip_frame` with `clip_min` / `clip_max`: the cloud's transform and the camera are both folded into the frame, so the engine's level box is level there; the Crop and Cut view is off for it), `look` (`point_size_px`, `opacity_percent`, `colour_mode`) and `dot_px` (output pixels, 1 to 64). Nothing is written to a cloud's record. A new read, `spacing` (framed), gives the points' spacing from an even grid of cells: the median and `spacing_sparse` (the 25th percentile). Only the Ortho module calls these today (next section).
 - **Review rules (1.0.17, viewer 0.14.5).**
   - A key sent as `null` is not given: read presence with `Na__Params__Has`, never `params.key?`.
   - What the check and the overlays measure or draw is what SketchUp shows (`na_shown?`: not hidden, tag and tag folders on; `na_walk_shown` never enters a hidden group).
@@ -136,6 +138,20 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
   python 40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py ../Na__PointCloudTools__PointCloudViewer__Modules__/02__Src__AppModules/95__System__McpOperations/tests/mcp_operations_unit.rb.test
   ```
 - **Reloading.** A change to the seam needs the viewer's Reload Plugin (Settings) as well as this plugin's Reload Plugin Data.
+
+## The Ortho Module Seam (point_cloud_ortho_plane, 1.0.34)
+
+- **Where the rules live.** One build path, two front doors. The capture and the plane live in Noble 3D Tools' Ortho module: `../Na__Noble3dModellingTools__Modules__/10__PluginModules/34__SourceCode__ToScaleOrthoTextureMaker/Na__Noble3dModellingTools__ToScaleOrthoTextureMaker__PointCloudOrtho__.rb`, entry `Na__Noble3dModellingTools::Na__ToScaleOrthoTextureMaker__PointCloudOrtho.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__Make(spec)` (inches), with the frame makers beside it (`__FrameStandard`, `__FrameWall`, `__FrameCamera`, `__FrameFace`, `__AutoV`). The Ortho tab's Point Cloud Ortho Plane button (`..._PointCloudOrthoButton__.rb`) calls the same entry. The handler (`Handlers__PointCloud`, region Ortho Plane: `Na__Handlers__PointCloud__OrthoPlane`, `na_ortho_*`) only reads lengths, the view, wall or frame, and forwards; `Na__PointCloudOrthoError` (code, message, hint, details) becomes `Na__McpError`.
+- **It calls the viewer** through its public seam (`composite`, `spacing`, `histogram`, and `state` for view `clip`), and refuses `unsupported` unless the viewer lists 'ortho' in `NA_FEATURES` (0.14.7).
+- **View `clip` (1.0.35, Noble 3D Tools 0.9.49):** `__FrameClip` reads the cloud's clip box from the viewer's `state` and gives the frame square to its front face, its size as the extent and its depth as the slab; the handler's `from_clip` fills extent and depth only where the call leaves them out.
+- **Undo.** The capture hides the model inside an operation it always aborts, then the plane is ONE operation of its own ("Point Cloud Ortho Plane"). So the tool has `"operation": false` and is in `NA_BATCH_FORBIDDEN` (Ruby and Python).
+- **The plane** follows Adam's decisions (spec section 12): a textured face on white, in front of the geometry along the view (ray tests, existing `REF__DrawingPlane__` planes skipped, depth on the 5 mm grid from the model origin), `REF__DrawingPlane__<View>__PointCloudOrtho__<name>` on `06__Drawings`, stamped with `Na__Ortho__Capture` so the tab's Export works on it.
+- **Validation.** `ValidateApiUsage` checks the Ortho module's `*PointCloudOrtho*.rb` files as a partner root (`NA_ORTHO_ROOT`). The core's own suite runs with SketchUp's Ruby:
+  ```bash
+  python 40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py ../Na__Noble3dModellingTools__Modules__/10__PluginModules/34__SourceCode__ToScaleOrthoTextureMaker/tests/point_cloud_ortho_unit.rb.test
+  ```
+- **Reloading.** A change to the core needs Noble 3D Tools' Reload as well as this plugin's Reload Plugin Data; a change to the viewer's side, the viewer's Reload Plugin too.
+- **Spec:** `85__Docs__AgentReference/Specs/Na__SketchUpMcp__Spec__PointCloudOrthoPlane__.md`.
 
 ## The TrueVision GLB Builder Seam (truevision_export, truevision_export_edit, truevision_publish)
 

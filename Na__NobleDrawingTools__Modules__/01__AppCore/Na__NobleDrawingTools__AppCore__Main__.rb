@@ -16,7 +16,8 @@
 # - 01__AppCore              : this file, PathResolver, LoadManifest, Reloader, ModeSwitch
 # - 02__AppData              : AppConfig + UserConfig JSON and loaders, tool memory, persisted drawn-tool settings
 # - 03__AppUtils             : VCB parse, VCB arithmetic, format helpers, keyboard mixin
-# - 04__GeometryHelpers      : voxel grid, solids, roof geom, deep pick, slope, loops, profile sweep
+# - 04__GeometryHelpers      : voxel grid, solids, roof geom, deep pick, slope, loops, profile sweep, deep unique
+#                              (copies of a component in a deep edit: changed as one, the rest kept as they were)
 # - 05__PreviewGraphics      : cube wireframe and drawn shaded previews
 # - 06__Tools__DrawnShared   : drag state machine mixin, shared revise (retype / repeat / ghost), profile sweep tool,
 #                              the 2D camera guard Drawn Plane and Drawn Volume prepend, and the AltGr filter
@@ -27,11 +28,13 @@
 # - 22__System__DrawnStairs  : staircase: a block, a side, then an even flight (a Drawn Volume subclass)
 # - 23__System__DrawnPipework : pipework along selected edges or drawn point by point, bends to a radius
 # - 30__System__DeepPushPull : nested push/pull 3d + 2d; a smoothed surface pushes as one (joint)
-# - 31__System__DeepChamfer  : nested chamfer
+# - 31__System__DeepChamfer  : nested chamfer; the 2D (parallel camera) variants of all four edge tools, which take
+#                              the edge running into the screen behind a corner
 # - 32__System__DeepOgee     : nested ogee moulding (a Deep Chamfer subclass)
 # - 33__System__DeepFillet   : nested fillet / radius (a Deep Chamfer subclass)
 # - 34__System__DeepOvolo    : nested ovolo / cavetto, a quarter circle with a step (a Deep Chamfer subclass)
-# - 35__System__DeepScale    : scale any group or component by its grips, typed dimensions, stretch planes
+# - 35__System__DeepScale    : scale any group or component, or several at once, by its grips, typed dimensions,
+#                              stretch planes; Deep Stretch, the same tool locked to stretching
 # - 36__System__DeepProject  : carry a nested face on to a plane, a point or an object
 # - 37__System__DeepVertexMove : pick vertices inside the selection at any depth, move or stretch them with a gimbal
 # - 40__UserInterface        : right-click HtmlDialog

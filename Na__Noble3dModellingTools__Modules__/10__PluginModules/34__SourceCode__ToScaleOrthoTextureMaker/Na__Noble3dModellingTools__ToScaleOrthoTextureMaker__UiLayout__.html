@@ -50,6 +50,69 @@
             </p>
             <button id="na-btn-export" type="button" class="naOrtho__ButtonSecondary">Export Texture</button>
             <div id="na-status-export" class="naOrtho__Status naOrtho__Status--info">No export run yet.</div>
+
+            <div class="naOrtho__Divider"></div>
+            <h2 class="naOrtho__Subheading">Point Cloud Ortho Plane</h2>
+            <p class="naOrtho__Help naOrtho__Help--secondary">
+                A scaled, square-on picture of the point cloud, placed as a white drawing plane
+                (REF__DrawingPlane__...__PointCloudOrtho__...) in front of the model, to draw over.
+                Always a parallel camera. Saved in the job's 01__ReferenceFiles/12__PointCloud__Orthos.
+            </p>
+
+            <label for="na-cloud-mode">Square To</label>
+            <select id="na-cloud-mode">
+                <option value="view" selected>Current view (Parallel Projection)</option>
+                <option value="face">A face (click it)</option>
+                <option value="wall">A wall (click two ends, then your side)</option>
+                <option value="clip">The clip box (its front face)</option>
+            </select>
+
+            <div class="naOrtho__Row">
+                <div>
+                    <label for="na-cloud-behind">Slab Behind (mm)</label>
+                    <input id="na-cloud-behind" type="number" min="0" step="50" value="50000">
+                </div>
+                <div>
+                    <label for="na-cloud-front">Slab In Front (mm)</label>
+                    <input id="na-cloud-front" type="number" min="0" step="50" value="50000">
+                </div>
+            </div>
+
+            <div class="naOrtho__Row">
+                <div>
+                    <label for="na-cloud-resolution">Resolution (mm a pixel)</label>
+                    <input id="na-cloud-resolution" type="number" min="0.5" max="1000" step="0.5" value="10">
+                </div>
+                <div>
+                    <label for="na-cloud-background">Background</label>
+                    <select id="na-cloud-background">
+                        <option value="white" selected>White</option>
+                        <option value="transparent">Transparent</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="naOrtho__Row">
+                <div>
+                    <label for="na-cloud-placement">Place The Plane</label>
+                    <select id="na-cloud-placement">
+                        <option value="front" selected>In front of the geometry</option>
+                        <option value="frame">On the face itself</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="na-cloud-offset">Further Out (mm)</label>
+                    <input id="na-cloud-offset" type="number" step="5" value="0">
+                </div>
+            </div>
+
+            <label class="naOrtho__Check"><input id="na-cloud-fill" type="checkbox" checked> Fill the dots so they meet (from the points' spacing)</label>
+
+            <label for="na-cloud-name">Name</label>
+            <input id="na-cloud-name" type="text" placeholder="e.g. UpperGarden or BoundaryWall01__East">
+
+            <button id="na-btn-cloud" type="button">Make Plane</button>
+            <div id="na-status-cloud" class="naOrtho__Status naOrtho__Status--info">Checking for the Point Cloud Viewer...</div>
         </div>
     </div>
 

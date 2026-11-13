@@ -238,6 +238,9 @@
       6. Apply Profile        — MainUiLogic, Events
       7. Settings             — UiLogic, Bridge
       8. Gallery              — CardRenderer (depends on SvgGenerator + Store),
+                                ContextMenu (card right-click menu; calls the
+                                Apply, Edit and Draw tabs only when an item
+                                runs, so it may load before them),
                                 MainUiLogic (exports Gallery__Tab)
       9. Edit Profile         — MainUiLogic (depends on Store + SvgGenerator),
                                 Bridge (ReceiveUpdateProfileMetaResult)
@@ -278,8 +281,9 @@
 <script src="02__Src__AppModules/35__System__SettingsMode/Na__ProfileTools__AppUtils__SettingsTab__UiLogic__.js"></script>
 <script src="02__Src__AppModules/35__System__SettingsMode/Na__ProfileTools__AppUtils__SettingsTab__Bridge__.js"></script>
 
-<!-- Gallery Mode — CardRenderer then MainUiLogic -->
+<!-- Gallery Mode — CardRenderer, ContextMenu (the card right-click menu), then MainUiLogic -->
 <script src="02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__CardRenderer__.js"></script>
+<script src="02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__ContextMenu__.js"></script>
 <script src="02__Src__AppModules/30__System__GalleryMode/Na__ProfileTools__Gallery__UiSystem__MainUiLogic__.js"></script>
 
 <!-- Edit Profile Mode — MainUiLogic then Bridge -->

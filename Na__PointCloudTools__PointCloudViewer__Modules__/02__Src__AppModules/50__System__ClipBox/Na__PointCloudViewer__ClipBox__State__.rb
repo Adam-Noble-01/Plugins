@@ -12,6 +12,12 @@
 #   front/back = y, bottom/top = z). Points outside are simply not drawn. The
 #   LAS and the engine's copy of the points are never touched.
 #
+# TURNED BOXES (v0.14.8): a box can turn to follow a wall that is not square
+#   to the model. Its six limits are then along its own sides, kept in
+#   'turned' with its frame, and 'min'/'max' hold the level box round it (see
+#   ClipBox__Turned). Every change here works in the box's own axes
+#   (Na__Clip__Space), so a level box and a turned one are handled alike.
+#
 # ONE BOX PER CLOUD (v0.10.0): every cloud of the model has its own clip box
 #   and its own clip scenes; every function here is handed that cloud's slot.
 #   Copy to Other Clouds gives every other cloud the same box in one undoable
@@ -63,7 +69,9 @@ module Na__PointCloudViewer
             clip && clip['enabled'] ? true : false
         end
 
-        # Appended to the native render parameters.
+        # Appended to the native render parameters. For a turned box this is
+        # the level box round it: the renderer folds the turned box in with
+        # Na__Clip__RenderParts instead, so this is only ever a safe fallback.
         def self.Na__Clip__RenderParams(slot)
             return [0, 0, 0, 0, 0, 0, 0] unless self.Na__Clip__IsActive?(slot)
             [1] + slot.clip['min'] + slot.clip['max']
@@ -71,15 +79,20 @@ module Na__PointCloudViewer
 
         # Part of the image renderer's cache key: any change re-renders.
         def self.Na__Clip__Key(slot)
-            self.Na__Clip__IsActive?(slot) ? (slot.clip['min'] + slot.clip['max']) : nil
+            return nil unless self.Na__Clip__IsActive?(slot)
+            turned = self.Na__Clip__TurnedPart(slot.clip)
+            key = slot.clip['min'] + slot.clip['max']
+            turned ? key + turned['origin'] + turned['x_axis'] + turned['y_axis'] + turned['min'] + turned['max'] : key
         end
 
         def self.Na__Clip__Face(face_id)
             NA_FACES.find { |face| face['id'] == face_id.to_s }
         end
 
+        # A side's limit along the box's own axis (the model's for a level box).
         def self.Na__Clip__FaceValue(slot, face)
-            slot.clip[face['side']][face['axis']]
+            _frame, lo, hi = self.Na__Clip__Space(slot.clip)
+            (face['side'] == 'min' ? lo : hi)[face['axis']]
         end
 
     # endregion ----------------------------------------------------------------
@@ -103,6 +116,9 @@ module Na__PointCloudViewer
                 return
             end
             slot.clip              = self.na_valid_box(record['clip'], record['clip'].is_a?(Hash) && record['clip']['enabled'] == true)
+            if slot.clip.nil? && record['clip'].is_a?(Hash) && record['clip']['turned']
+                Na__DebugTools.Na__Debug__Warn("The turned clip box of #{slot.name} could not be read and was ignored.")
+            end
             slot.clip_scenes       = Array(record['clipScenes']).map { |scene| self.na_valid_scene(scene) }.compact
             slot.clip_active_scene = record['activeClipScene'].is_a?(String) ? record['activeClipScene'] : nil
         rescue StandardError => error
@@ -112,7 +128,7 @@ module Na__PointCloudViewer
         # The record's clip parts for the box and scenes the slot holds now.
         def self.Na__Clip__Part(slot)
             {
-                'clip'            => slot.clip ? { 'enabled' => slot.clip['enabled'] ? true : false, 'min' => slot.clip['min'], 'max' => slot.clip['max'] } : nil,
+                'clip'            => slot.clip ? self.na_record_box(slot.clip) : nil,
                 'clipScenes'      => slot.clip_scenes || [],
                 'activeClipScene' => slot.clip_active_scene
             }
@@ -181,17 +197,19 @@ module Na__PointCloudViewer
             return 'Import a point cloud first.' unless slot
             self.Na__Clip__Ensure(slot)
             return 'There is no clip box yet. Turn clipping on or press Edit Clip Box first.' unless slot.clip
-            box = { 'enabled' => slot.clip['enabled'], 'min' => slot.clip['min'].dup, 'max' => slot.clip['max'].dup }
+            box = self.na_box_dup(slot.clip)
+            _frame, lo, hi = self.Na__Clip__Space(box)              # a turned box's limits are along its own sides
             values.each do |face_id, text|
                 face = self.Na__Clip__Face(face_id)
                 next unless face
-                box[face['side']][face['axis']] = Na__UnitContract.Na__Units__ParseDisplayLength(text, display)
+                (face['side'] == 'min' ? lo : hi)[face['axis']] = Na__UnitContract.Na__Units__ParseDisplayLength(text, display)
             end
             3.times do |axis|
-                if box['max'][axis] - box['min'][axis] < NA_MIN_GAP_INCHES
+                if hi[axis] - lo[axis] < NA_MIN_GAP_INCHES
                     return "#{%w[Left Front Bottom][axis]} must be below #{%w[Right Back Top][axis]}."
                 end
             end
+            self.na_refresh_bounds(box)
             slot.clip = box
             self.Na__Clip__Save(slot, self.na_op(slot, 'Clip Limits'))
         rescue ArgumentError => error
@@ -199,14 +217,17 @@ module Na__PointCloudViewer
         end
 
         # Live, unsaved change from the edit tool (one face). Keeps the box valid.
+        # Along the box's own axis for a turned box (v0.14.8).
         def self.Na__Clip__SetFaceLive(slot, face, value)
             axis = face['axis']
+            _frame, lo, hi = self.Na__Clip__Space(slot.clip)
             value = if face['side'] == 'min'
-                        [value, slot.clip['max'][axis] - NA_MIN_GAP_INCHES].min
+                        [value, hi[axis] - NA_MIN_GAP_INCHES].min
                     else
-                        [value, slot.clip['min'][axis] + NA_MIN_GAP_INCHES].max
+                        [value, lo[axis] + NA_MIN_GAP_INCHES].max
                     end
-            slot.clip[face['side']][axis] = value
+            (face['side'] == 'min' ? lo : hi)[axis] = value
+            self.na_refresh_bounds(slot.clip)
             value
         end
 
@@ -218,7 +239,7 @@ module Na__PointCloudViewer
             return 'There is no clip box to copy yet.' unless slot.clip
             others = Na__CloudSet.Na__Slots__All(slot.session).reject { |other| other.equal?(slot) }
             return 'This model has no other point cloud to copy the box to.' if others.empty?
-            box = { 'enabled' => slot.clip['enabled'] ? true : false, 'min' => slot.clip['min'].dup, 'max' => slot.clip['max'].dup }
+            box = self.na_box_dup(slot.clip).merge('enabled' => slot.clip['enabled'] ? true : false)   # turned too (v0.14.8)
             before = others.map { |other| [other, other.clip, other.clip_active_scene] }
             others.each do |other|
                 self.Na__Clip__Ensure(other)
@@ -276,10 +297,17 @@ module Na__PointCloudViewer
                 next if max[axis] - min[axis] >= NA_MIN_GAP_INCHES
                 return "The box is too thin: each side must be at least #{(NA_MIN_GAP_INCHES * 25.4).round} mm."
             end
+            self.Na__Clip__SetClipOn(session, slots, { 'enabled' => true, 'min' => min, 'max' => max }, text)
+        end
+
+        # The same for any box, level or turned (v0.14.8: the MCP seam's turned
+        # boxes): every slot takes a copy, clipping, in ONE undoable operation.
+        def self.Na__Clip__SetClipOn(session, slots, box, text)
+            return 'There is no point cloud in this model yet.' if slots.empty?
             slots.each { |slot| self.Na__Clip__Ensure(slot) }
             before = slots.map { |slot| [slot, slot.clip, slot.clip_active_scene] }
             slots.each do |slot|
-                slot.clip = { 'enabled' => true, 'min' => min.dup, 'max' => max.dup }
+                slot.clip = self.na_box_dup(box).merge('enabled' => true)
                 slot.clip_active_scene = nil
             end
             begin
@@ -458,9 +486,10 @@ module Na__PointCloudViewer
                 'unit'         => display['suffix'],
                 'otherClouds'  => Na__CloudSet.Na__Slots__All(slot.session).length - 1,
                 'limits'       => NA_FACES.map do |face|
-                    value = clip ? Na__UnitContract.Na__Units__InchesToDisplayText(clip[face['side']][face['axis']], display) : ''
+                    value = clip ? Na__UnitContract.Na__Units__InchesToDisplayText(self.Na__Clip__FaceValue(slot, face), display) : ''
                     { 'id' => face['id'], 'label' => face['label'], 'value' => value }
                 end,
+                'turn'         => self.na_turn_payload(clip),
                 'fullCloudActive' => !(clip && clip['enabled']),
                 'scenes'       => slot.clip_scenes.map do |scene|
                     active = clip && clip['enabled'] && scene['id'] == slot.clip_active_scene ? true : false
@@ -487,16 +516,36 @@ module Na__PointCloudViewer
         end
 
         # A scene always clips when switched to, so its copy is always enabled.
+        # A turned box keeps its turn (v0.14.8).
         def self.na_box_copy(box)
-            { 'enabled' => true, 'min' => box['min'].dup, 'max' => box['max'].dup }
+            copy = { 'enabled' => true, 'min' => box['min'].dup, 'max' => box['max'].dup }
+            turned = self.Na__Clip__TurnedPart(box)
+            copy[NA_TURN_KEY] = Marshal.load(Marshal.dump(turned)) if turned
+            copy
         end
 
         def self.na_same_box?(a, b)
-            (0..2).all? { |i| (a['min'][i] - b['min'][i]).abs < 1e-6 && (a['max'][i] - b['max'][i]).abs < 1e-6 }
+            (0..2).all? { |i| (a['min'][i] - b['min'][i]).abs < 1e-6 && (a['max'][i] - b['max'][i]).abs < 1e-6 } && self.na_same_turn?(a, b)
         end
 
+        # What the cloud's record keeps of a box.
+        def self.na_record_box(box)
+            out = { 'enabled' => box['enabled'] ? true : false, 'min' => box['min'], 'max' => box['max'] }
+            turned = self.Na__Clip__TurnedPart(box)
+            out[NA_TURN_KEY] = turned if turned
+            out
+        end
+
+        # A stored box, checked. A turned part that cannot be used makes the
+        # whole box unusable (nil), never a level box in the wrong place: its
+        # 'min'/'max' would clip a different area from the one saved.
         def self.na_valid_box(raw, enabled)
             return nil unless raw.is_a?(Hash)
+            if raw.key?(NA_TURN_KEY)
+                turned = raw[NA_TURN_KEY]
+                return nil unless turned.is_a?(Hash)
+                return self.Na__Clip__MakeTurned(enabled, turned['origin'], turned['x_axis'], turned['y_axis'], Array(turned['min']), Array(turned['max']))
+            end
             min = Array(raw['min']).map { |v| Float(v) }
             max = Array(raw['max']).map { |v| Float(v) }
             return nil unless min.length == 3 && max.length == 3 && (0..2).all? { |i| max[i] > min[i] }

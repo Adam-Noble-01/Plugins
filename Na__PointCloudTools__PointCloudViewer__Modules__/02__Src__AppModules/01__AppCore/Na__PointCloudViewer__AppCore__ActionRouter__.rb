@@ -55,6 +55,9 @@ module Na__PointCloudViewer
             'clip_scene_activate'     => :na_clip_scene_activate,
             'clip_scene_reorder'      => :na_clip_scene_reorder,
             'clip_copy_to_others'     => :na_clip_copy_to_others,
+            'clip_turn'               => :na_clip_turn,
+            'clip_turn_pick'          => :na_clip_turn_pick,
+            'clip_level'              => :na_clip_level,
             'clip_draw_toggle'        => :na_clip_draw_toggle,
             'clip_draw_set_grid'      => :na_clip_draw_set_grid,
             'clip_set_margin'         => :na_clip_set_margin,
@@ -313,6 +316,21 @@ module Na__PointCloudViewer
                 problem
             end
             Na__DialogManager.Na__Dialog__PushStatus('Every other point cloud now has this clip box. Edit, Undo puts their own boxes back.', 'success') if done
+        end
+
+        # Turned clip boxes (v0.14.8): an angle typed, two points clicked along
+        # a wall face, or back to level.
+        # @delegate: 02__Src__AppModules/50__System__ClipBox/Na__PointCloudViewer__ClipBox__Turned__.rb
+        def self.na_clip_turn(payload)
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__Turn(slot, payload['degrees']) }
+        end
+
+        def self.na_clip_turn_pick(_payload)
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__StartTurnPick(slot) }
+        end
+
+        def self.na_clip_level(_payload)
+            self.na_clip_change { |slot| Na__ClipBox.Na__Clip__Level(slot) }
         end
 
         # Draw Clip Box (v0.13.0): the tool, or finish it when it is drawing.

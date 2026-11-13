@@ -3,6 +3,656 @@
 
 # =============================================================================
 
+## Version 5.2.45 - 13-Nov-2026 - The Edge Tools Cut Into the Material on Every Face: Concave Faces and Openings
+
+### Asked For
+On the McKay slab (FailedChamfer, 61761): *"Why did this chamfer fail? ... can you see some of the chamfers are
+inside-out along some edges? ... I sselected the face as shown img-01 then try to run a chamfer and it creates the
+messed up mesh with incorrect handing along some edges"*. After the diagnosis: *"Yes, fix it"*.
+
+### What Was Wrong
+- **One side of a 16-sided slab was cut OUTWARD.** The top face of the McKay slab (140 deep) was selected with its
+  edges and all 16 chamfered at 40. Fifteen came out right; the 4,050 mm west side of the south projection
+  (x 20,045) was cut the wrong way: the top face ran 40 mm past the slab's side over an overhanging wedge whose face
+  pointed into the solid (inside out), and the chamfers either side of it were mitred to its wrong corners. The
+  slab's volume reads 6.47 litres over a right cut: the 3.24 litre wedge left in, and about as much again hung
+  outside.
+- **The cause: `Na__DrawnChamfer__SignToward`** chose which way is into the material by the AVERAGE of the face's
+  corner points. That point lies inside every convex face, but the slab's top is concave: its average
+  (19,739, 19,134) sat 306 mm west of that side, whose material lies east. Proven read-only in SketchUp: the function
+  itself, run on the untouched bottom face (the same outline), flips exactly that edge.
+- **Edges ON an opening were worse.** The outer loop's average usually sits in the opening, so the cut was led into
+  the hole: across the 35 faces with openings in the McKay model the old rule pointed out of the material on 263 of
+  332 opening edges (and on 91 of their 514 outer edges).
+- **Every edge tool shared it**: Deep Chamfer's solve and the profile sweep's corner frame (Deep Fillet, Ogee, Ovolo,
+  stopped chamfers, and the 2D variants of all of them).
+
+### What It Does Now
+- Every cut goes into the material on any face (convex, L-shaped, notched, stepped, holed) and on the edges round an
+  opening. The McKay slab's 16 edges come out as its outline moved in 40 mm on every side.
+- Nothing else changes: on a convex face the old and new rules always agree, so boxes, boards and roofs cut exactly as
+  before.
+
+### How It Was Done
+- `31__System__DeepChamfer/..DrawnChamfer__Geometry__.rb`: **`Na__DrawnChamfer__SignInto(direction, edge, face,
+  from_point)`** signs the in-plane direction by the face's own winding. SketchUp runs every loop with its face on the
+  left about the loop's normal (the outer loop anticlockwise, openings clockwise), so the loop's normal crossed with
+  the edge as the loop runs it (reversed when `edge.reversed_in?(face)`) points into the material.
+  **`Na__DrawnChamfer__LoopNormal(face)`** is the Newell normal of the positions the outer loop REPORTS, so it agrees
+  with the winding in a closed group, an open one and an open MIRRORED one, where `Face#normal` keeps the front side
+  while the reported winding turns over. `SignToward` stays only as the fallback for a degenerate outline or a face
+  that does not use the edge (`reversed_in?` answers nil).
+- `Na__DrawnChamfer__Solve` and `04__GeometryHelpers/..DrawnProfileSweep__.rb` (`Na__ProfileSweep__CornerFrame`) call
+  `SignInto` for both faces.
+
+### Checked
+- **Read-only in SketchUp 2027, on the McKay model**: the winding rule put 160 of 160 edge uses on the slab and 846 of
+  846 on the 35 faces with openings (332 of them on the openings) into the material, judged by `Face#classify_point`
+  0.5 mm either side. `Edge#reversed_in?` answers nil for a face that does not use the edge, and `Loop#vertices` runs
+  each `Loop#edges` entry start to end exactly when `reversed_in?` is false.
+- **Offline, new suite 252 of 252** (`concave_faces__deep_chamfer.rb.test` in the skill's harness): the McKay outline as
+  read from the model, all 16 top edges cut as one batch through the tool's own hooks (solve, mitre, plan, build: the
+  top is the outline moved in on every side, 34 faces, closed, nothing outside the footprint, the volume of an oracle
+  worked in plain 2D), and the flipped side chamfered and filleted on its own; an L whose corner average lies outside
+  it; a slab with an opening (directions only). Each at the root, closed two deep moved and rotated, OPEN three deep,
+  scaled, mirrored and OPEN mirrored. The doubles gained SketchUp's `Edge#reversed_in?`.
+- **The committed 5.2.44 code fails 144 of the 252** (the first: the x 20,045 side) and **6 of 6 deliberate faults are
+  caught** (`mutate__concave_faces.py`), among them `Face#normal` in place of the loop's own normal: 27 failures, all
+  in the open mirrored group.
+- **Everything else as it was**: ridge ends 142, ball corners 121, 2D edge tools 165, shared components 41, Deep Vertex
+  Move 61, the harness self-test 8. Syntax 126 of 126, lint 0 errors, 0 warnings.
+
+### What Offline Cannot Prove
+- A cut inside a real open MIRRORED group: the doubles' `Face#normal` keeps the front side there (believed, not
+  measured); the new sign does not depend on it either way.
+- Rebuilding a face with an opening: the doubles do not reopen holes, so the directions on openings are proven and the
+  rebuild is the code it always was.
+- Ruby 3.4 loading (2027).
+
+### Known, Not Changed Here
+- **A single chamfer that ends in a re-entrant corner can leave the solid open** when the end face's loop reaches that
+  corner along the top edge: `Na__DrawnChamfer__SubstituteLoop` orders the end face's two new points by distance to
+  the previous loop point, which picks the wrong one there (the L's inner y 200 edge alone leaves 4 edges open,
+  offline). It is older than this fix and separate from it; a batch that mitres every end, such as a whole top face,
+  never reaches it.
+
+### Files
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamfer__Geometry__.rb`
+- `04__GeometryHelpers/Na__NobleDrawingTools__DrawnProfileSweep__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data. A fresh McKay slab (FailedChamfer's bottom face copied into a new group and pushed up 140 is
+      the same outline): double-click its top face, Deep Chamfer 40. All 16 sides cut inward; the x 20,045 side of the
+      south projection is no longer inside out, and both its corners mitre.
+- [ ] Deep Fillet the same edges: every round goes into the slab.
+- [ ] An L-shaped slab: chamfer, then fillet, the whole top loop at once. (One inner edge on its own runs into the
+      known re-entrant corner issue above.)
+- [ ] A slab with an opening (a light well): chamfer an edge of the opening. It cuts into the slab, not into the hole.
+- [ ] The same inside an open group moved and rotated, three deep, in a scaled group, and in a MIRRORED copy (flip it,
+      open it, cut).
+- [ ] A Ctrl+Z after each: one step. A plain box and a roof ridge: exactly as before.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
+## Version 5.2.44 - 13-Nov-2026 - Deep Push/Pull, the Edge Tools and Deep Project: Copies of a Component Handled as in 5.2.43
+
+### Asked For
+Offered after 5.2.43: *"Give Deep Push/Pull, Chamfer/Fillet and Project the same component handling?"* Answer:
+*"Yes, extend it"*.
+
+### What Was Wrong
+- **These tools edited a picked face or edge in its definition in place**, so a push, a chamfer or a projection on
+  one baluster changed every baluster in the model. The tools said so ("Heads up: this definition has 8 instances —
+  pushing changes all of them") but gave no other way.
+- **The edge tools, the same arris picked on several copies** (SHIFT-banked): cut once through the first copy, then
+  refused on every other one, "an edge vanished mid-batch", one undo step per copy. Proven offline: the
+  before-5.2.44 behaviour fails 18 of the 41 checks of the new suite.
+- **The pick set (CTRL+click)** refused a face picked on a second copy (the second click took the first back out),
+  because pushing one face once per copy pushed every copy that many times.
+
+### What It Does Now
+- **A pick inside a copy shared with copies elsewhere is edited in a copy of its own**: push, chamfer, fillet, ogee,
+  ovolo / cavetto, the 2D variants, Deep Project, a Joint surface push, a Quad Offset. The copies elsewhere keep their
+  shape. A copy that is the only one is edited in place, exactly as before.
+- **The same pick on several copies is ONE edit.** Bank the same arris on six balusters: one cut, all six change, no
+  refusals. CTRL+click the top of six balusters (now six picks), push 100: each goes up 100 once, not 600. Copies
+  picked alike stay one component; with copies elsewhere they become one new component together.
+- **Nested**: an edge picked on a baluster in one of two copies of a balustrade makes that balustrade unique first, so
+  the other balustrade is untouched.
+- **One undo step** for the settle and the edit (and one per further context, as the edge tools' batches always
+  were).
+- The grab-time warning now says what happens: *"this component has 8 copies — only this one is pushed, as a
+  component of its own"* (and "chamfered", "filleted", "moulded", "projected").
+- Refused before anything changes, by name: a Live Component, a procedural component, a locked copy that would have to
+  open.
+
+### How It Was Done
+- **`04__GeometryHelpers/..DrawnDeepUnique__.rb`: `Na__DeepUnique__SettleTargets`** for pick-and-edit tools. Plans
+  the picks' paths (a tool-given signature per pick, `PlanTargets` and `SignTree`), decides as in 5.2.43, settles
+  top-down (`SettleChain`: the user's context first, next_transparent; each container opened straight from the last
+  only when its copies must move), then hands back each target moved onto the copy it now sits in (`Rebound`: its
+  `:path`, and `:face` / `:edge` / `:faces` / `:edges` / `:vertices` found in the new definition by their own local
+  geometry, `ShapeIndex` / `MoveEntities`), nil for a rider, plus `:home`, `:pending` and `:selected`. With every copy
+  keeping its definition nothing changes, but the copies are still read closed (`ReadChain`) so riders are found: the
+  gap that left "an edge vanished mid-batch" when every copy was banked (found by the new suite). A set that comes back
+  all riders refuses rather than hand the tool nothing. `OpenFor` gives the commits that open their own context the
+  same flags and way back; `PlacementKey` keys a copy's orientation and scale.
+- **`..DrawnDeepPick__Context__.rb`: `Na__DeepPick__ExecuteInContext(..., home:, pending:, selected:)`**: after a
+  settle it starts transparent, enters from wherever the settle stopped and goes back to the user's own context;
+  without them, exactly as before (the edge tools, Quad Offset and Deep Scale's plain scale all pass their suites
+  unchanged).
+- **Deep Push/Pull** (`..DrawnPushPull__Commit__.rb`): `na_drawn__execute_push` settles the face first (not inside a
+  pick-set chain or a preselection batch) and opens through `OpenFor`; the retype keeps the face as picked, which an
+  undo brings back. **Pick set** (`..PickSet__.rb`): `na_pk__member?` compares the face AND the copy;
+  `na_pk__settle` settles every recipe (signed with its face and its offset in the face's own axes, a surface recipe as
+  its copy alone) before the chain, drops riders, and the chain hops from where the settle stopped, its first step
+  transparent. **Joint** (`..Joint__.rb`) and **Quad Offset** (`..QuadOffset__.rb`) settle their target; the Joint
+  finds its faces again by their world anchors, as it always did once a group opened.
+- **The edge tools** (`31__System__DeepChamfer/..DrawnChamferTool__.rb`, inherited by Fillet, Ogee, Ovolo and the 2D
+  tools): `na_drawn__settle_copies` (an edge signs with its id and how its copy is placed: the setback is one world
+  distance, and a profile with a top and bottom may read world directions) and `na_drawn__settle_abandon`. A single
+  edge is planned on the edge as picked (the refusal check), then solved and planned again on its copy; a batch is
+  grouped AFTER the settle, the first group joining the settle's step, `@na_ch_batch` the edges as they stand during
+  the cut, the retype armed with the edges as picked (riders included when every group cut).
+- **Deep Project** (`..DrawnProject__Commit__.rb`): `na_pj__execute_single` settles the face; its plan is world (a
+  target and a direction), so only the face moves across. A preselection batch is in the user's own context and is
+  unchanged.
+- The three warnings in `..DrawnPushPullTool__.rb`, `..DrawnChamferTool__.rb`, `..DrawnProjectTool__.rb`.
+
+### Checked
+- **Offline, new suite 41 of 41** (`deep_tools_shared_components.rb.test` in the skill's harness): real chamfer cuts
+  (one copy of eight; all six; six of eight; copies turned 90 degrees, cut as a set of their own; a unique copy as
+  before), the real Push/Pull tool (one copy; a unique copy; the pick set on six copies, alone and with two elsewhere),
+  Deep Project, a Joint surface and Quad Offset with their engines stood in for (handed the copy's own geometry, its
+  context open), and a baluster in one of two copies of a balustrade, moved AND rotated; one undo step each, back where
+  the user was, and one Ctrl+Z restoring definitions and geometry.
+- **The before-5.2.44 behaviour fails 18 of the 41 checks; 11 of 11 deliberate faults caught**
+  (`mutate__deep_tools_shared_components.py`): riders not read, picks not moved across, the way back to the wrong
+  context, the pick set deduping across copies again, each of the five tools not settling, Quad Offset cutting the ring
+  as picked, the edge signature without the placement, a single edge cut as picked after the settle.
+- **Everything else as it was**: the edge tools' own suites (Deep Chamfer ridges 142, Deep Fillet ball corners 121, the
+  2D edge tools 165), Deep Vertex Move 61, Deep Scale A to O as in 5.2.43. Syntax 127 of 127, lint 0 errors, 0 warnings.
+
+### What Offline Cannot Prove
+- Real pushes, fillets and projections inside SketchUp on component copies (the suite cuts real chamfers on the doubles;
+  push is a translation double; Project, Joint and Quad Offset engines are stood in for).
+- That copies riding along redraw at once; the real undo merging (judged from the doubles' undo stack).
+- The pick set's retype after a settle (its undo walks back until the faces are back; the faces as picked are what it
+  looks for).
+- Ruby 3.4 loading (2027).
+
+### Files
+- `04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__.rb`, `..DrawnDeepPick__Context__.rb`
+- `30__System__DeepPushPull/Na__NobleDrawingTools__DrawnPushPull__Commit__.rb`, `..PickSet__.rb`, `..Joint__.rb`,
+  `..QuadOffset__.rb`, `..DrawnPushPullTool__.rb`
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamferTool__.rb`
+- `36__System__DeepProject/Na__NobleDrawingTools__DrawnProject__Commit__.rb`, `..DrawnProjectTool__.rb`
+- `.cursor/rules/00-NobleDrawingTools-ProjectStructure-.mdc`
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data. Eight copies of a baluster: Deep Chamfer one corner of ONE: only that baluster changes (it
+      becomes `Baluster#1`); one Ctrl+Z puts it back.
+- [ ] SHIFT-bank the same corner on all eight and cut: all eight cut, nothing refused, still one component.
+- [ ] Deep Push/Pull: CTRL+click the top of six (each stays picked), push 100: six go up 100 once; the other two stay.
+- [ ] Deep Fillet or Ogee the same way, and Deep Project one baluster's top onto a plane.
+- [ ] In one of two copies of a balustrade component, chamfer a baluster: the other balustrade is untouched.
+- [ ] Inside an open group moved and rotated: the same, and you stay in the group.
+- [ ] A Ctrl+Z after each: one step. Typing a new size after a cut (retype): still right?
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
+## Version 5.2.43 - 13-Nov-2026 - Deep Vertex Move & Deep Scale: Copies of a Component Change as One, Copies Elsewhere Are Kept
+
+### Asked For
+*"The deep vertex move and deep scale have poor handling of components, if i use them on components it seems to move
+the vertexes incremenebetally and requires loads of undo steps"*, and *"It needs handling the detect the components in
+the selection and if there are common to each opther to undertsand that and to check if more components the same exist
+in the model, if so make this component/components unique to the others. this prevents screwing up components elsewhere
+in ther model but also allows batch edits to be made (Think streching up these balustrade spindles, each one is a
+component so all could be done at once becasue its the same component"*, *"uising online official Ruby API 2027
+guidance figure out the most robust component handling strategy"*. The screenshot: a run of balusters, each a copy of
+one component, marked to be stretched up.
+
+### What Was Wrong
+- **Deep Vertex Move batched the picks by PATH.** Thirty balusters are thirty paths into ONE definition, so the same
+  vertices were opened and moved thirty times (the tops went up 30 x the distance), each batch its own undo step, and
+  every copy of the baluster in the model moved too, picked or not. Proven offline: the committed code fails 45 of the
+  61 checks of the new suite, among them "moved ONCE, 100 up, not 800".
+- **Deep Scale's stretch made every shared part unique on its own**: thirty balusters stretched taller came out as
+  thirty definitions (no longer one component), each opened and stretched in turn.
+- Both: a part picked inside one copy of a shared container (a baluster in one of two copies of a balustrade) changed
+  the other copy as well.
+
+### What It Does Now
+Both tools plan the edit before anything changes, then:
+- **Copies picked or stretched alike stay ONE component, edited ONCE.** Pick the tops of all the balusters and move
+  them up: each goes up the distance once, one baluster is opened, the rest follow as copies do. One Ctrl+Z.
+- **Copies the edit does not reach keep their definition.** If the baluster is also used elsewhere (another flight,
+  another balustrade), the picked balusters are moved together onto one new definition (SketchUp names it as Make
+  Unique does, `Baluster#1`) and the others are left exactly as they were. If every copy in the model is picked alike,
+  nothing is made unique at all.
+- **Copies that would change differently part**, each set on its own definition: balusters turned 90 degrees read a
+  sideways move differently; some picked on all four corners and some on two; a plane cutting through a detail on
+  some and not others. Where nothing lies outside the edit, the biggest set keeps the old definition. A plane that
+  cuts copies at different heights but moves every point alike is the same edit, and they stay one.
+- **Containers too**: a baluster picked inside one of two copies of a balustrade makes that balustrade unique first,
+  so the other balustrade is untouched. Deep Scale then holds the baluster in its new place.
+- **Groups**: a group copy that must part from its copies is made unique on its own, as SketchUp does when a copy is
+  opened (a group has no `definition=`, so group copies cannot be gathered under one new definition). Group copies
+  that are all in the edit, alike, keep their definition.
+- **Refused before anything moves, by name**: a Live Component or a procedural component (SketchUp 2027): their
+  geometry is generated. A locked object the edit would have to open (Deep Scale used to stop half way there).
+- The status line says what happened: *"6 copies of Baluster changed as one, 2 other copies kept as they were,
+  1 new definition"*. While picking, Deep Vertex Move says *"6 of 8 copies of Baluster picked: only those move, as
+  one"* (it used to warn *"inside Baluster, which has 8 copies"*).
+
+### The Strategy, From the Official Ruby API (ruby.sketchup.com, 2027 docs)
+- `ComponentInstance#make_unique` (6.0): a definition for this instance alone; *nothing happens* if it already is.
+  `ComponentInstance#definition=` (6.0): moves an instance onto another definition, keeping its transformation; answers
+  false on failure. So: make_unique the FIRST copy of a set, `definition=` the rest onto what it got, and read both back.
+- api-issue-tracker #952 (SKEXT-4120, open): after `C1.make_unique` the new definition may land on `C2`. The definition
+  is read back after every make_unique; between components a misplaced one is swapped back with `definition=`; anything
+  that still will not part is refused by name. Never trusted.
+- `Group`: `make_unique` (not deprecated) but no `definition=`, and editing `Group#entities` makes the group unique by
+  itself: every group is a set of its own.
+- `ComponentDefinition#instances` lists instance OBJECTS, not placements (one object inside a group placed three times
+  is one entry). "Is every copy in the edit?" is answered from PLACEMENTS, counted up through the parents (what
+  `count_used_instances` describes), so a copy inside a container placed twice counts twice, and so does everything in
+  an open component with copies (editing inside it changes them all, SketchUp's own rule, kept).
+- `ComponentDefinition#live_component?` (2021.0, "should not be modified") and `#procedural?` (2027.0, its entities are
+  the procedure's output): refused, feature-detected.
+- `Model#active_path=` raises when another copy of a definition on the path is locked: once the edited copies have a
+  definition of their own, a locked copy elsewhere no longer stops the edit.
+- `Model#abort_operation`: never abort a transparent operation (it aborts the one it chains to): a walk that fails part
+  way now commits what stands and says Ctrl+Z takes it back (Deep Scale's walk aborted before).
+
+### How It Was Done
+- **`04__GeometryHelpers/..DrawnDeepUnique__.rb` (new), shared by both tools.** A plan is a tree of NODES (one per path
+  the edit runs through), each with a SIGNATURE: what the edit does to its definition in that definition's own axes,
+  down through everything below it. `Na__DeepUnique__Decide` settles each definition once against its occurrences in the
+  whole model: KEEP (every occurrence a node, one signature) or ISOLATE. `Na__DeepUnique__SettleIn` runs inside the
+  tool's operation, in the open context of the container (the user's own, or the representative just opened), with
+  every copy still closed: finds each planned copy again (`Rebind`: same definition, same place; world where the
+  collection is open, local where it is closed), make_unique / definition= as decided, and hands back one
+  REPRESENTATIVE per final definition; the others ride on its edit. Plus `Enter`, `Restore`, `ClosePending`, `Report`.
+- **Deep Vertex Move** (`..DrawnVertexMove__Commit__.rb`): `Na__VertexMove__Apply` is plan, settle, walk. Signature:
+  the vertices picked through the copy and the offset as it reads in the copy's axes. The user's context first (loose
+  picks, top-level copies settled; next_transparent when a context follows), then each representative opened in turn
+  (its picks found by world position, folded, moved, its own parts settled), straight from context to context, and
+  the user's context put back at the end: ONE undo step, so a retype undoes once (`tally[:ops]` is 1). A container with
+  nothing of its own to move and nothing inside to settle is never opened. Counts multiply by the copies that rode
+  along. `Na__VertexMove__CopiesNote` for the picking status line. The tool caches it per set of picks.
+- **Deep Scale** (`..DrawnScale__Commit__.rb`): `PlanObject` (a single object, with the containers between the user's
+  context and it as `:via` nodes) and `PlanObjects` (a selection) mirror the walk's own test for which parts a plane
+  runs through. Signature: where the field sends every point of the part and everything in it, in the part's own axes
+  (budget 300,000 points; past it a copy signs as itself, which only ever splits). The walk carries `[path, node]`
+  pairs; `StretchContext` settles the planned parts, queues the representatives and carries every other part whole
+  (riders are neither opened nor carried). Stretch planes are copied across every make_unique (`PlanesHook`). The
+  result carries `:copies`, `:shared` and, when the object itself was replaced, `:live_path`.
+- **`..DrawnScaleTool__.rb`**: `na_scale__follow_live_path` holds the object where the stretch left it (the object as
+  first taken is kept for an undo to fall back to); the result line uses the `:shared` words.
+- **Coordinate Rule**: every split happens in an open context with the copies closed; a planned node's world is the
+  product down the path (the first transformation read world in the user's context, the rest local), the signatures
+  are read in each copy's own axes; no `edit_transform` in the new maths.
+- `01__AppCore/..LoadManifest__.rb` (the new file after DeepPick), `..Main__.rb` (folder map), `.cursor/rules`.
+
+### Checked
+- **Offline, Deep Vertex Move suite, 61 of 61** (`vm_shared_components__deep_vertex_move.rb.test`, in the skill's
+  offline harness), every position against raw local data: six picked of eight; all eight (moved once, not eight times);
+  turned copies with a sideways move; a baluster set inside one of two copies of a balustrade at the root, OPEN three
+  deep with every level moved and rotated, and in a non-uniformly scaled open group (moved exactly 100 in the world
+  each time); group copies; a Live Component refused; make_unique landing on another copy (#952) put right; picks on
+  all four corners of some copies and two of others; loose geometry and copies in one move; one undo step, and one
+  Ctrl+Z puts every position AND every definition back.
+- **Offline, Deep Scale Suite O, 70 of 70** (`o_shared_components.rb.test`): six balusters selected with two copies
+  elsewhere; all selected (definition kept); a balustrade moved and rotated, its balusters inside (unique, and shared
+  elsewhere), held at the bottom and at the top; a baluster picked in one of two copies of a balustrade (moved and
+  rotated), with its new path handed back; open three deep and in a scaled group; group copies; a Live Component;
+  #952; a plane cutting copies at two heights (alike: one definition; a ring between: two); two flights selected with
+  the plane through the upper one only.
+- **The committed Deep Vertex Move fails 45 of the 61 checks.** **Deliberate faults, 12 of 13 caught** on a copy of
+  the plugin (riders edited again, copies elsewhere ignored, no definition=, rebinding in the wrong space, make_unique
+  trusted, Live Components let through, the world offset signed, next_transparent dropped, a restore between copies,
+  Deep Scale signing in the frame, a rider carried whole, a part planned through the wrong parent space). The one missed
+  hands a group to definition=, which cannot happen in SketchUp's Ruby (a Group is not a ComponentInstance and every
+  group is a set of its own): a guard, kept. Two faults first slipped through Suite O and two scenes were added (a
+  stretch held at the top; a selection object raised off the frame's origin); one more only because the picked
+  balustrade sat at the origin, now moved and rotated.
+- **The older Deep Scale suites as before 5.2.43**: A 96, B 122, D 20, E 39, F 44, J 1131, K 185, N 97 pass; C 82 of 89,
+  G 35 of 36, I 46 of 47, L 243 of 244 fail exactly as they did before this change; the loader loads with 0 failures.
+- Syntax 127 of 127 files, the Loader too, on SketchUp 2026's Ruby 3.2. Lint 0 errors, 0 warnings.
+
+### What Offline Cannot Prove
+- SketchUp's own `make_unique` and `definition=` inside the walk (the doubles behave as the docs say), how often #952
+  happens, and the names SketchUp gives the new definitions (2026.2 strips trailing digits, #1109).
+- That copies riding along repaint at once, including ones inside containers that were never opened. Expected: the
+  definition is edited from inside one copy's own context, as native component editing is. Not seen yet.
+- The real undo: one step is judged from the doubles' log by SketchUp's documented rules.
+- How long the plan takes on very large components (the signature budget bounds it).
+- That it loads in SketchUp 2027's Ruby 3.4 (Reload Plugin Data will say at once if not).
+
+### Files
+- `04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__.rb` (new)
+- `37__System__DeepVertexMove/Na__NobleDrawingTools__DrawnVertexMove__Commit__.rb`, `..DrawnVertexMoveTool__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Commit__.rb`, `..DrawnScaleTool__.rb`
+- `01__AppCore/Na__NobleDrawingTools__AppCore__LoadManifest__.rb`, `..Main__.rb`, `.cursor/rules/00-NobleDrawingTools-ProjectStructure-.mdc`
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data. Select the balusters (or the balustrade), Deep Vertex Move, box-pick all their tops, type 100:
+      each baluster is 100 taller, not 100 x their number. One Ctrl+Z takes it all back. Entity Info: still one
+      component, same name.
+- [ ] Place a copy of the baluster somewhere else first, then do it again: that copy is untouched, and the picked ones
+      are now one component of their own (Window > Components, In Model: `Baluster#1`, or its 2026 name).
+- [ ] Deep Stretch (or Deep Scale, SHIFT+TAB) the balusters with a plane through them: the same, one definition.
+- [ ] Inside an open group moved and rotated, and in a scaled group: the same, and you stay in the group.
+- [ ] Two copies of a balustrade component: double-click down in Deep Scale to one baluster in ONE of them and
+      stretch it: only that baluster in that balustrade changes; the other balustrade is as it was.
+- [ ] Do the copies that rode along redraw straight away (no stale balusters until you orbit)? Say if not.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
+## Version 5.2.42 - 13-Nov-2026 - Deep Stretch Has Its Own Button and Icon in the Right-Click Menu
+
+### Asked For
+5.2.41 left Deep Stretch lighting Deep Scale's button in the right-click menu, with no icon of its own. Asked whether
+to give it its own button and icon: *"Yes, add it"*.
+
+### What It Does Now
+- **A Deep Stretch button under Deep Scale** in the right-click menu's Modify section, with its own icon. Click it from
+  any tool and Deep Stretch starts.
+- **It lights while Deep Stretch runs** (Deep Scale's button no longer does), and its options hang under it: Handles,
+  About Centre, Dimensions, Dimension Size, Dimension Offset, Clear Stretch Planes. These are Deep Scale's own stored
+  settings, so a change in one tool shows in the other. Stretch Planes and Grips Scale are not offered: Deep Stretch
+  refuses them anyway.
+- **The icon** (`Icon__NobleDrawingTools__DeepStretch__.svg`): a block opened at a band, both ends whole, the band
+  dotted where it grew, a double arrow under it like a dimension line. Drawn with the vector-graphic-artist skill in
+  the NobleDrawingTools family (true isometric, hidden lines removed, stroke 34, `#172b3a`), added to the family's
+  generator (`01__ProductionFiles\Icon__NobleDrawingTools__.generator\gen.py`), which still rebuilds the other 17
+  icons byte for byte. Nine variants were drawn and compared beside Deep Scale, Deep Push / Pull and Deep Project
+  at 256, 48 and 24 px; the chosen one passes the house lint (closest gap 40 at a stroke of 34). Saved in the plugin's
+  `UiIcons__MenuIcons__ToolMenu` and the skill's `20-Series\2026-11-13__NobleDrawingTools__DeepStretch`,
+  byte-identical.
+
+### How It Was Done
+- `40__UserInterface/..RightClickPopup__Html__.rb`: `:drawn_stretch` in `Na__RightClickPopup__IconFiles`, the
+  `stretch_btn` mode button after Deep Scale's.
+- `40__UserInterface/..RightClickPopup__.rb`: the `setStretchMode` callback.
+- `01__AppCore/..ModeSwitch__.rb`: `Na__DrawnMode__SetStretchMode` in `ToolModeSwitching`, so every tool has it.
+- `35__System__DeepScale/..DrawnStretchTool__.rb`: `na_drawn__mode_key` is `:drawn_stretch`, and
+  `Na__DrawnMode__ToolOptions` describes Deep Scale's options less `NA_STRETCH_HIDDEN_OPTIONS`. No second copy of the
+  option table: Deep Scale's stays the one declaration.
+- Deep Scale builds its own status line, so the new mode key changes nothing there.
+
+### Checked
+- **Offline, Suite N 97 of 97** (12 new popup checks): the button, its label, its icon (the delivered SVG, decoded
+  from the menu's data URI), different from Deep Scale's, between Deep Scale and Deep Vertex Move, lit while Deep
+  Stretch runs with its options under it and without the two switches, Deep Scale lit with all of its own while it
+  runs, the mode keys, the callback wired, and a click through the popup starting Deep Stretch.
+- **Deliberate breaks, 5 of 5 caught** (no button, no icon, no callback, Deep Scale's mode key, the switches
+  offered), on a copy whose unbroken run passes 97 of 97.
+- **The popup's real HTML, rendered in Chrome**, Deep Stretch running and Deep Scale running: as described above.
+- The other suites as in 5.2.41. Syntax 125 of 125, lint 0 errors, 0 warnings.
+
+### What Offline Cannot Prove
+- The menu inside SketchUp's own HtmlDialog, and how the icon reads at 22 px on your screen.
+
+### Files
+- `40__UserInterface/UiIcons__MenuIcons__ToolMenu/Icon__NobleDrawingTools__DeepStretch__.svg` (new)
+- `40__UserInterface/Na__NobleDrawingTools__RightClickPopup__Html__.rb`, `..RightClickPopup__.rb`
+- `01__AppCore/Na__NobleDrawingTools__AppCore__ModeSwitch__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnStretchTool__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data, right-click in any tool: Deep Stretch is under Deep Scale with its icon. Click it.
+- [ ] Right-click again: Deep Stretch is lit, with Handles, About Centre, Dimensions and Clear Stretch Planes under it.
+- [ ] Start Deep Scale and right-click: Deep Scale is lit, with Stretch Planes and Grips Scale back.
+- [ ] Does the icon read at the menu's size? If not, say what it looks like to you.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
+## Version 5.2.41 - 13-Nov-2026 - Deep Scale: Several Objects Stretch as One Box; Deep Stretch, Stretch Only on Its Own Key
+
+### Asked For
+*"My Scale tool . . . It can only handle selecting 1 object at a time. See here i want to stretch 2x? make it work
+with multple, it should bound the selection of groups and operate on that"*, and *"secondly add a hotkey binding so i
+can use the tool only in stretch mode so a stretching only hotkey you have to exit the tool to use the other scale
+modes, this precents mistakes if you know you need to stetch only"*. The screenshot: two groups marked 1 and 2 (a
+raised slab and the landing beside the stair) boxed together at 9345 x 4350 x 1430, the card reading STRETCH AT 1
+PLANE Z.
+
+### What Was Wrong
+- Several objects were already boxed as one (5.2.9), but a stretch carried each object whole: one a plane ran
+  through went with the side its middle was on. So two slabs either moved apart or stayed as they were, while the
+  ghost showed them stretching. Nothing in either object got longer.
+- Planes could not be placed on a selection at all, only the centre planes.
+- The room check read a selected object as its box ends, so a shrink could close a part inside it the wrong way out.
+- There was no way to stretch without the switches to scaling one key or one click away.
+
+### What It Does Now
+**Several objects, one box:**
+- **A stretch stretches every object a plane runs through,** opened from inside exactly as a single object's parts
+  are: details keep their size, parts inside follow the same rules, their own saved planes move with them. An object
+  no plane runs through moves whole. A shared copy is made unique first; parts carried whole stay shared.
+- **SHIFT+click another object adds it** to what is held, and the box grows round it. **SHIFT+click a held one takes
+  it out**; taking one out of two leaves the other held as itself again, in its own axes and with its own planes.
+  Only objects in the group you have open (a part inside another object is refused, with the reason).
+- **Planes on a selection:** click a centre line, CTRL anywhere over it, drag a diamond, SHIFT for a mirrored pair,
+  DEL, type a distance, all as on one object. A selection has no definition to save them on, so the tool keeps them
+  while it holds that selection: carried through each stretch or scale, brought back by Ctrl+Z with the shape they
+  went with, not saved in the model, and gone when another selection is taken. The hint line says so.
+- **A shrink stops where details inside an opened object would meet**, read inside it, the same rule as one object.
+- **A locked object a plane runs through** is refused before anything moves, naming it.
+- One undo step, and you are put back in the group you had open. A plain scale of a selection is unchanged.
+
+**Deep Stretch (new command, `NA_DeepStretch`):**
+- Extensions > Na__NobleDrawingTools > **Deep Stretch**, just under Deep Scale Options. Give it a key in Window >
+  Preferences > Shortcuts (filter "stretch"): SketchUp lets a plugin offer a command but not choose its key.
+- It is Deep Scale with Stretch Planes locked on. Every grip stretches; SHIFT on a grip moves every axis together,
+  still a stretch. STRETCH is lit, UNIFORM and NON-UNIFORM greyed, their tips saying why.
+- **Refused, with a beep and "Deep Stretch only stretches: to scale, leave it (Space) and use Deep Scale":**
+  SHIFT+TAB, the Planes button, the three pills, the popup's Stretch Planes and Grips Scale, and the Mode Uniform,
+  Mode Non-Uniform and Stretch Planes Shortcuts commands. A change that would scale any axis is refused outright.
+- Deep Scale's own stored Stretch Planes switch is never written, so Deep Scale is exactly as you left it.
+- Everything else is Deep Scale's: placing planes, typing sizes, TAB about centre, CTRL, several objects at once.
+- The right-click popup lights Deep Scale for it (no icon of its own yet).
+  > **Superseded in 5.2.42:** Deep Stretch has its own button and icon in the right-click menu.
+
+### How It Was Done
+- `..DrawnScale__Commit__.rb`: `Na__ScaleCommit__StretchLoose` in three parts in one undo step: in the user's context
+  the loose points move, objects no plane runs through and guides are carried, and objects a plane runs through are
+  made unique if shared (next_transparent when any is to be opened); then each of those is walked by
+  `Na__ScaleCommit__Walk`, the single object's loop factored out (its plane write is now a block); then the user's
+  context is restored. `Na__ScaleCommit__LooseRigid?` asks a selected object the question a part is asked.
+  `CheckRoomLoose` reads an opened object's own points through `CollectCoords`. The result counts `:objects`.
+- `..DrawnScaleTool__.rb`: `na_scale__stretch_only?` (false here) and `na_scale__refuse_scaling`; `planes_on?` is
+  forced by it; `planes_editable?` no longer excludes a selection; `@na_sc_loose_planes` and `@na_sc_loose_memory`
+  (fingerprint to planes, so an undo brings them back); `na_scale__toggle_in_selection` for SHIFT+click; the commit
+  carries a selection's planes and refuses a scale in Deep Stretch; the hover label and key hints.
+- `..DrawnScale__Planes__.rb`: `save_planes` keeps a selection's planes in the tool; CTRL offers planes on a
+  selection; the hint lines. `..DrawnScale__Mode__.rb`, `..DrawnScale__Keys__.rb`, `..DrawnScale__Overlay__.rb`:
+  the refusals, the tips and words, the menu ticks.
+- `..DrawnStretchTool__.rb` (new): `DrawnStretchTool < DrawnScaleTool`, its title, `na_scale__stretch_only?` true,
+  its hints, and `Na__NobleDrawingTools__DeepStretch`.
+- `01__AppCore/..ModeSwitch__.rb` (`Na__ModeSwitch__ActivateDrawnStretchTool`), `..LoadManifest__.rb` (after Deep
+  Scale), `..Main__.rb` (the folder map), `Na__NobleDrawingTools__Loader__.rb` (`NA_DeepStretch`, menu entry
+  `stretch` after Deep Scale Options), `.cursor/rules`.
+- **Coordinate Rule:** each selected object is opened and, inside, everything reports world; a point goes to the
+  selection's frame (the open group's own axes) through `frame[:inverse]` and back through `frame[:world]`, the same
+  conversion the loose points get in the user's context. Its box for the rigid question is its own eight corners
+  through its transformation, which reads world in the open context. No `edit_transform` in the new maths.
+- **Know:** an opened object's geometry moves inside it, so its axes and insertion point stay where they were, as a
+  stretched object's parts always have.
+
+### Checked
+- **Offline, new Suite N, 85 of 85** (`n_multi_stretch.rb.test`), every vertex against an oracle computed from the
+  raw local data in the open group's own axes: two walls, one turned 90 degrees, with a part across the plane shared
+  with a copy outside, one carried and unmoved, one carried and moved; at the root, OPEN three deep with every level
+  moved AND rotated, and open in a non-uniformly scaled group. One undo step by SketchUp's merge rules, read from the
+  operation log; context restored; the copy outside untouched; the room limit (801, read inside); loose edges plus an
+  object crossed plus one carried; a locked object refused; a selection's planes placed, carried to 500, back to 300
+  after the shape is put back, gone with a new selection; SHIFT+click adding, taking out, refusing a part inside;
+  Deep Stretch's grips, strip, words, every refusal, the menu ticks, a stretch, a scaling field refused, Deep Scale
+  after it as it was; the loader's command and menu place.
+- **Deliberate breaks, 16 of 16 caught**, among them the old carry-whole behaviour, room read from box ends, the walk
+  from the root, an object judged by its own box, the undo chain, each Deep Stretch refusal, planes not carried or
+  not recalled, the plane write dropped from the single-object walk (caught by Suites B and K).
+- **The older suites:** A 96, B 122, D 20, E 39, F 44, J 1131, K 185 all pass; C 82 of 89, G 35 of 36, I 46 of 47
+  and L 243 of 244 fail exactly as they did before this change. Checks that pinned the old behaviour (selection
+  planes not editable, objects carried whole) were changed to the new one, reading world positions.
+- Syntax 126 of 126 files, the Loader too, on SketchUp 2026's Ruby 3.2 (2027's Ruby 3.4 DLL does not boot
+  outside SketchUp); nothing new uses syntax that differs between them. Lint 0 errors, 0 warnings.
+
+### What Offline Cannot Prove
+- That it loads in SketchUp 2027's Ruby 3.4 (Reload Plugin Data will say at once if not).
+- That SketchUp redraws each opened object at once, and how long entering many objects' contexts takes.
+- The real undo: the doubles log the operations, and "one step" is judged from that log by SketchUp's rules.
+- SHIFT+click through a real PickHelper, and how the hover label, tips and hint line look.
+
+### Files
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnStretchTool__.rb` (new)
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Commit__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScaleTool__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Planes__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Mode__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Keys__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Overlay__.rb`
+- `35__System__DeepScale/Na__NobleDrawingTools__DrawnScale__Frame__.rb` (header)
+- `01__AppCore/Na__NobleDrawingTools__AppCore__ModeSwitch__.rb`, `..LoadManifest__.rb`, `..Main__.rb`
+- `Na__NobleDrawingTools__Loader__.rb`, `.cursor/rules/00-NobleDrawingTools-ProjectStructure-.mdc`
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data, select your two slabs, start Deep Scale, SHIFT+TAB, drag the X grip out: both lengthen at
+      the plane, the stair opening and edges either side keep their size. One Ctrl+Z takes it all back.
+- [ ] The same with a plane of your own: click a dashed centre line (or CTRL over the box), drag it to where the
+      stretch should open, then drag a grip. Ctrl+Z: the plane goes back to where it was.
+- [ ] Holding one object, SHIFT+click another: the box grows round both. SHIFT+click one again: it drops out.
+- [ ] Inside a group you have open (moved and rotated), and inside a scaled one: the same, and you stay in it.
+- [ ] Deep Stretch: it is at the bottom of Extensions > Na__NobleDrawingTools until SketchUp restarts (then just under
+      Deep Scale Options). Give it a key in Preferences > Shortcuts (filter "stretch"), press it with a selection:
+      every grip is violet. Try SHIFT+TAB, UNIFORM, the Planes button: each beeps and says why.
+- [ ] Leave it (Space), start Deep Scale: it scales as before, Planes as you last left them.
+
+**Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
+## Version 5.2.40 - 13-Nov-2026 - Edge Treatments in 2D: Hover the Corner, the Edge Behind It Is Cut
+
+### Asked For
+*"In my Noble Drawing tools make new 2D Camera modes for the edge treatment tools such as chamfer fillet etc that
+allow me to use it in a 2d view like with the 2d push pull"*. The screenshots (Kann whitecard): a box projecting from
+the wall, its two top long edges marked in 3D, then the same box seen end-on in an elevation with the two top
+CORNERS marked with arcs: round those, from here.
+
+### What Was Wrong
+In an elevation the edge to round runs straight into the screen. It draws as a POINT, the corner of the profile, so
+Deep Chamfer, Fillet, Ogee and Ovolo had nothing to hover: the pick took one of the profile's own lines instead, which
+cuts across the end of the box, not along it.
+
+### What It Does Now
+- **Each of the four edge tools has a 2D variant**, chosen by the camera exactly as Deep Push Pull 2D is: one command,
+  one shortcut, one popup button per profile, as before. A parallel camera starts Deep Chamfer 2D, Deep Fillet 2D,
+  Deep Ogee 2D or Deep Ovolo 2D; the status bar says which.
+- **Hover a CORNER and the edge running into the screen behind it is the one cut.** A blue ring marks the corner,
+  two ticks run along its two faces, and the card beside it says how long the edge is. Within 12 px of the corner
+  (scaled for high-DPI screens).
+- **The whole run comes with it.** An edge split along its length (a line across a face, a joint) is several edges in
+  a row behind one corner. They are all cut, through their joints, full width, so the round runs the full length the
+  corner stands for instead of stopping part way. The run stops where the faces stop making a corner.
+- **Away from the corners, a line is an edge as in 3D**, so a front edge seen in elevation can still be chamfered, and
+  an isometric parallel view behaves exactly like 3D.
+- **SHIFT+click a corner banks its whole run**; SHIFT+click it again drops it. A banked edge seen end-on gets an amber
+  ring, once per corner.
+- **The preview is drawn for a camera looking down the cut**: the corner being removed shaded on top at the near end
+  only (the far end sits exactly behind it), the profile (chamfer line, fillet arc, ogee S) drawn heavy over it, and
+  the summary card set off the corner into the open, clear of the setback dimensions.
+- **Everything else is the 3D tool's**: the drag up for more and down for less, the limit, CTRL vertex snap, typed
+  sizes, mitres and stops, retype after the cut, double-click repeat, TAB (round/cove, flip, ovolo/cavetto), SHIFT+TAB
+  through the profiles (which now stays in 2D), one undo step per group.
+- **Camera switching is automatic.** Click a 2D scene tab and the next idle mouse move swaps to the 2D variant; orbit
+  into perspective and the 3D tool comes back. What is banked rides across. Never mid-drag.
+
+### How It Was Done
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnEdgeTool2d__Pick__.rb` (new): `Na__EdgeTool2d__ResolveAt`
+  takes the vertices of what the deep edge and face picks offer (so a selected group, the open context and locks rule
+  as in 3D), finds the one nearest the cursor with an edge within 10 degrees of the line of sight, walks the run with
+  `Na__ProfileSweep__Continuation` (the sweep's own through-joint test) and returns the member nearest the camera
+  carrying `:arris` (corner, far end, length, members, the faces' world directions, convex). Also the class table,
+  `Na__EdgeTool2d__WantedClass`, `ClassForCamera`, `NewToolForCamera` and `HandoverIfCameraFlipped`. The camera
+  questions are Deep Push Pull 2D's, reused.
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnEdgeTool2dTool__.rb` (new): the `DrawnEdgeTool2d` module and
+  `DrawnChamfer2dTool`, `DrawnFillet2dTool`, `DrawnOgee2dTool`, `DrawnOvolo2dTool`, each its 3D profile plus the
+  module. The popup key is unchanged (one button). Console: `Na__NobleDrawingTools.Na__NobleDrawingTools__DeepEdgeTool2d(:fillet)`.
+- `31__System__DeepChamfer/...DrawnChamferTool__.rb`: three seams, `na_drawn__edge_at` (the hover, the grab and the
+  SHIFT bank all ask it), `na_drawn__batch_for` and `na_drawn__draw_summary_card`; the handover as the first line of
+  `onMouseMove`. 3D behaviour unchanged.
+- `06__Tools__DrawnShared/...DrawnProfileSweepTool__.rb`: the card through the seam.
+- `31__System__DeepChamfer/...DrawnChamfer__HotSwap__.rb`: knows a 2D variant's profile, treats 2D and 3D of one
+  profile as the same tool, and swaps to the camera's class.
+- `01__AppCore/...ModeSwitch__.rb`: the four activators ask the camera (`Na__ModeSwitch__NewEdgeTool`).
+- `01__AppCore/...LoadManifest__.rb`: the two new files after Deep Ovolo. `...Main__.rb`: the folder map.
+- **Coordinate Rule:** vertex positions go through the pick's own transformation (identity in the open context);
+  screen, depth and preview points are world; nothing touches `edit_transform`. The cut itself is the 3D commit.
+
+### Checked
+- **Offline, the new suite, 165 of 165** (`edge_tools_2d__corner_pick.rb.test`), at the root, closed two deep moved
+  and rotated, OPEN three deep, and closed, rotated and non-uniformly scaled: a 300 x 1200 x 250 box whose top arris
+  is split at 600, seen end-on.
+  - The corner gives both halves of the split arris, driven from the near half; corner, far end and length in world;
+    the faces' directions; from the end face alone; a line away from corners stays a line; refusals; a camera 24
+    degrees off the arris gives no corner.
+  - The 2D Fillet hovers (ring and ticks drawn), grabs the run as one batch anchored on the corner, previews one cap on
+    top and none depth-tested, puts the card on the open side, and cuts R40 in one undo step: an R40 arc in world at
+    the front, no piece of the arris left, still closed. The 2D Chamfer cuts a 30 chord in world, root, scaled, open.
+  - SHIFT banks and drops the run; one amber ring per corner.
+  - The camera handover both ways, carrying the bank, never mid-drag; all four commands start 2D or 3D by camera;
+    SHIFT+TAB stays in 2D and carries the run; the 3D tools unchanged.
+- **Deliberate breaks, 8 of 8 caught:** the corner at the far end, the corner read local (caught only in the groups),
+  no run walk, both caps drawn, no handover, the hot swap blind to 2D, the batch without the run, the card on the
+  material side.
+- **The existing suites still pass:** ridge ends 142 of 142, ball corners 121 of 121. Syntax 124 of 124, lint 0
+  errors, 0 warnings.
+
+### What Offline Cannot Prove
+- That SketchUp's PickHelper offers the corner's edge or end face near a corner as the doubles assume (the deep picks
+  are stood in for).
+- How the ring, ticks, heavy profile and card look on screen, and whether 12 px is the right reach.
+
+### Files
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnEdgeTool2d__Pick__.rb` (new)
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnEdgeTool2dTool__.rb` (new)
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamferTool__.rb`
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamfer__HotSwap__.rb`
+- `06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnProfileSweepTool__.rb`
+- `01__AppCore/Na__NobleDrawingTools__AppCore__ModeSwitch__.rb`
+- `01__AppCore/Na__NobleDrawingTools__AppCore__LoadManifest__.rb`
+- `01__AppCore/Na__NobleDrawingTools__AppCore__Main__.rb`
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data, then on the Kann box: click a 2D scene tab (or Camera > Parallel Projection and an
+      elevation), start Deep Fillet. The status bar says Deep Fillet 2D.
+- [ ] Hover a top corner of the box's end: a blue ring and two ticks, the card says the edge length. Click, drag up,
+      click: the long edge is rounded end to end.
+- [ ] SHIFT+click both top corners, then drag one: both round together (your screenshot).
+- [ ] An edge split along its length: the whole run is rounded, not stopped part way.
+- [ ] Hover the middle of a line in the elevation: that edge, as in 3D.
+- [ ] SHIFT+TAB: Deep Ogee 2D, Deep Ovolo 2D, Deep Chamfer 2D, keeping the corners.
+- [ ] Orbit into perspective with the tool running: back to the 3D tool; a 2D scene tab: back to 2D.
+- [ ] Inside a group you have open, and in one you have not: the same.
+- [ ] If the corner reach (12 px), the ring or the card position feels wrong, say which.
+
+**Status: IMPLEMENTED - VERIFIED IN SKETCHUP 2027 BY ADAM (13-Nov-2026: "It works perfectly!")**
+
+# =============================================================================
+
 ## Version 5.2.39 - 12-Nov-2026 - Edge Treatments Preview Through the Faces They Cut, Like the Subtraction Push
 
 ### Asked For

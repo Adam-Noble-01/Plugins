@@ -13,6 +13,12 @@
                 model instead of routing to Apply Profile. Everything else about
                 the grid (search, view mode, thumbnails) behaves identically, so
                 there is only one place to learn how to find a profile.
+
+   RIGHT-CLICK: A card's right-click opens the profile actions menu (v1.6.18,
+                Na__ProfileTools__Gallery__UiSystem__ContextMenu__.js): Apply
+                Profile To Selection, Create Profile Interactive, Edit Profile
+                Information, Edit Profile Geometry. This file only hands it the
+                card; the menu file owns the menu and its four journeys.
    ============================================================================= */
 
 (function () {
@@ -182,9 +188,17 @@
     // REGION | Full Re-render (toolbar + grid)
     // -------------------------------------------------------------------------
 
+    function Na__Gallery__CloseContextMenu() {
+        var menu = window.Na__ProfileTools__Gallery__ContextMenu;
+        if (menu) menu.Na__CtxMenu__Close();
+    }
+
     function Na__Gallery__Render() {
         var body = na_body();
         if (!body) return;
+
+        // The card a menu is open on is about to be replaced.
+        Na__Gallery__CloseContextMenu();
 
         var armedClass = na_is_armed() ? ' na-gallery-grid--swapArmed' : '';
 
@@ -205,9 +219,37 @@
     // REGION | Card Events
     // -------------------------------------------------------------------------
 
+    // Delegated from the grid, and bound once per grid ELEMENT. A search
+    // keystroke or a renamed card redraws the cards inside the same grid and
+    // calls this again; before v1.6.18 each call stacked another click listener,
+    // so one click ran the selection (or the swap) once per keystroke typed.
+    // Only a full Render makes a new grid, which then needs its own binding.
     function Na__Gallery__AttachCardEvents() {
         var grid = na_grid();
-        if (!grid) return;
+        if (!grid || grid.getAttribute('data-na-card-events') === 'bound') return;
+        grid.setAttribute('data-na-card-events', 'bound');
+
+        // Right-click: the profile actions menu (v1.6.18). Not offered while a
+        // swap is armed: then every card already means "swap to this", and a
+        // menu of other journeys over the pick banner would muddle the one job
+        // the grid is doing. Cancel the swap and the menu is back.
+        grid.addEventListener('contextmenu', function (evt) {
+            var card = evt.target.closest ? evt.target.closest('[data-na-profile-key]') : Na__Gallery__FindCard(evt.target);
+            if (!card) return;
+            evt.preventDefault();
+
+            if (na_is_armed()) {
+                if (window.Na__ProfileTools__BridgeBase) {
+                    window.Na__ProfileTools__BridgeBase.Na__BridgeBase__SetStatus(
+                        'Swapping a profile: click a card to swap to it, or Cancel the swap to get the right-click menu back.');
+                }
+                return;
+            }
+
+            var menu = window.Na__ProfileTools__Gallery__ContextMenu;
+            if (!menu) return;
+            menu.Na__CtxMenu__Open(evt.clientX, evt.clientY, card.getAttribute('data-na-profile-key'), card);
+        });
 
         grid.addEventListener('click', function (evt) {
             var card = evt.target.closest ? evt.target.closest('[data-na-profile-key]') : Na__Gallery__FindCard(evt.target);
@@ -393,6 +435,7 @@
 
     function na_unmount() {
         na_is_mounted = false;
+        Na__Gallery__CloseContextMenu();
         var body = na_body();
         if (body) body.innerHTML = '';
     }

@@ -102,6 +102,18 @@ module Na__PointCloudViewer
             folded + rows.map { |r| self.na_dot(r, shift) }
         end
 
+        # The renderer's camera block (eye, x, y and z axes, then the rest
+        # unchanged) seen from the frame: the eye as a point, the axes turned.
+        # With the cloud's transform folded the same way (Na__Frame__Fold),
+        # every point lands on the same pixel at the same depth (v0.14.7 for
+        # one capture, v0.14.8 for a turned clip box).
+        def self.Na__Frame__Camera(frame, camera_part)
+            rows = frame['axes']
+            turn = ->(v) { rows.map { |r| r[0] * v[0] + r[1] * v[1] + r[2] * v[2] } }
+            self.Na__Frame__ToFrame(frame, camera_part[0, 3]) +
+                turn.call(camera_part[3, 3]) + turn.call(camera_part[6, 3]) + turn.call(camera_part[9, 3]) + camera_part[12..-1]
+        end
+
         # A model point in the frame: R (p - O).
         def self.Na__Frame__ToFrame(frame, point)
             shift = self.na_sub(point.map(&:to_f), frame['origin'])

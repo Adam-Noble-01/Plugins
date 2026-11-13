@@ -54,6 +54,7 @@
 require 'sketchup.rb'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnQuadRings__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnSlopePush__'
 require_relative 'Na__NobleDrawingTools__DrawnPushPull__Revise__'
 
@@ -780,9 +781,27 @@ module Na__NobleDrawingTools
             user_path = model.respond_to?(:active_path) ? model.active_path : nil
             offsets   = na_qo__offsets(layout)
             stats     = nil
+            op_name   = na_qo__operation_name(layout)
 
-            result = Na__NobleDrawingTools.Na__DeepPick__ExecuteInContext(model, target[:path], na_qo__operation_name(layout)) do |entered|
-                stats = na_qo__stitch_rings(model, target, entered, offsets)
+            # SHARED COMPONENTS (5.2.44, DrawnDeepUnique): a quad line inside a
+            # copy shared with copies elsewhere is cut in a copy of its own; its
+            # face or edge and its vertices are moved onto that copy.
+            settle = Na__NobleDrawingTools.Na__DeepUnique__SettleTargets(model, [target], op_name)
+
+            if settle[:refused]
+                UI.beep
+                na_revise__notice("Quad offset not made — #{settle[:refused]}")
+                na_drawn__reset_pick_state
+                return false
+            end
+
+            live = settle[:targets].first
+
+            result = Na__NobleDrawingTools.Na__DeepPick__ExecuteInContext(
+                model, live[:path], op_name,
+                :home => settle[:home], :pending => settle[:pending], :selected => (settle[:pending] ? settle[:selected] : nil)
+            ) do |entered|
+                stats = na_qo__stitch_rings(model, live, entered, offsets)
                 raise 'no ring landed on the faces along this run' if stats[:kept].to_i.zero?
             end
 

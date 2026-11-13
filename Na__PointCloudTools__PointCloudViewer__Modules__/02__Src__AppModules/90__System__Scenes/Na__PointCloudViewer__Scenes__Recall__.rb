@@ -99,9 +99,10 @@ module Na__PointCloudViewer
                 return true
             end
             same = current && (current['enabled'] ? true : false) == (wanted['enabled'] ? true : false) &&
-                   (0..2).all? { |i| (current['min'][i] - wanted['min'][i]).abs < 1e-6 && (current['max'][i] - wanted['max'][i]).abs < 1e-6 }
+                   (0..2).all? { |i| (current['min'][i] - wanted['min'][i]).abs < 1e-6 && (current['max'][i] - wanted['max'][i]).abs < 1e-6 } &&
+                   Na__ClipBox.na_same_turn?(current, wanted)
             return false if same
-            slot.clip = { 'enabled' => wanted['enabled'] ? true : false, 'min' => wanted['min'].dup, 'max' => wanted['max'].dup }
+            slot.clip = Na__ClipBox.na_box_dup(wanted).merge('enabled' => wanted['enabled'] ? true : false)   # turned too (v0.14.8)
             slot.clip_active_scene = nil
             true
         end

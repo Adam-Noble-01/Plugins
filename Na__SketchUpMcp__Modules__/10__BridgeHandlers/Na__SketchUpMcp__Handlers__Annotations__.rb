@@ -148,7 +148,10 @@ module Na__SketchUpMcp
             end
 
             unit = ctx[:unit]
-            prepared = Na__Creation.Na__Creation__Prepare(params.merge('wrap_in' => 'none'), ctx, 'none')
+            # 'path' is the image file here, not an instance path (1.0.34; image_rectify does the same):
+            # Na__Creation__Prepare reads 'path' as an instance path and refused every call.
+            placing = params.reject { |key, _value| key == 'path' }
+            prepared = Na__Creation.Na__Creation__Prepare(placing.merge('wrap_in' => 'none'), ctx, 'none')
             origin = Na__Creation.Na__Creation__Point(params['position'] || [0, 0, 0], prepared, unit, 'position')
             width = Na__Creation.Na__Creation__Length(Na__Params.Na__Params__Required(params, 'width'), prepared, unit, 'width')
             height = Na__Params.Na__Params__Has(params, 'height') ? Na__Creation.Na__Creation__Length(params['height'], prepared, unit, 'height') : 0.0
@@ -157,7 +160,7 @@ module Na__SketchUpMcp
             raise Na__McpError.new('operation_failed', 'SketchUp could not place that image.', 'Check the file is a readable image.') unless image
 
             na_orient_image(image, origin, params, prepared)
-            Na__Creation.Na__Creation__ApplyCommonProperties([image], params.reject { |key, _value| key == 'material' }, ctx, false)
+            Na__Creation.Na__Creation__ApplyCommonProperties([image], placing.reject { |key, _value| key == 'material' }, ctx, false)
             return Na__Serializer.Na__Serializer__Summary(image, ctx, prepared[:container][:path], true) unless Na__Params.Na__Params__Boolean(params, 'as_textured_face', false)
 
             na_explode_image(image, prepared, ctx)

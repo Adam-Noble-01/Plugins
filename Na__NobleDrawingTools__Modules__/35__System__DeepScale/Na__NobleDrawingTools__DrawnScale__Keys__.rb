@@ -29,6 +29,11 @@
 #   each switch can be given its own key in Preferences > Shortcuts. Pressed
 #   with Deep Scale not running, a command starts it first.
 #
+#   DEEP STRETCH (5.2.41) has no switch between scaling and stretching:
+#   SHIFT+TAB, Stretch Planes and the two mode commands are refused with a
+#   line saying so, and its menu ticks show it stretching. Its own command,
+#   Extensions > Na__NobleDrawingTools > Deep Stretch, takes a key of its own.
+#
 # WHY NO LETTERS (5.2.6):
 # - 5.2.0 took A F C X Y Z P D typed on their own. They never got the chance:
 #   SketchUp's own shortcuts (P Push/Pull, D Dimension, C Circle, Z Zoom...)
@@ -123,6 +128,14 @@ module Na__NobleDrawingTools
     # ------------------------------------------------------------
     def self.Na__Scale__HotkeyChecked?(action)
         kind, option, value = NA_SCALE_HOTKEY_ACTIONS[action.to_s.to_sym]
+
+        # Deep Stretch running: it is stretching, whatever Deep Scale's own
+        # stored switches say (5.2.41).
+        tool = Na__NobleDrawingTools.Na__Scale__ActiveTool
+        if tool && tool.na_scale__stretch_only?
+            return true  if option == 'scale_planes'
+            return false if kind == :mode
+        end
 
         case kind
         when :value  then Na__NobleDrawingTools.Na__ToolOptions__Value(option).to_s == value
@@ -414,6 +427,7 @@ module Na__NobleDrawingTools
         def na_scale__hotkey(action)
             kind, option, value = Na__NobleDrawingTools::NA_SCALE_HOTKEY_ACTIONS[action]
             return false unless kind
+            return na_scale__refuse_scaling if na_scale__stretch_only? && (kind == :mode || option == NA_SCALE_OPTION_PLANES) # <-- SHIFT+TAB, the STRETCH pill, a shortcut (5.2.41)
 
             case kind
             when :mode

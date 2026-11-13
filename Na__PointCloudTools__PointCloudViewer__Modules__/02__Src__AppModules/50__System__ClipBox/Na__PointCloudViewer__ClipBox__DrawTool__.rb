@@ -834,7 +834,8 @@ module Na__PointCloudViewer
                 same = slots.all? do |slot|
                     Na__ClipBox.Na__Clip__Ensure(slot)
                     clip = slot.clip
-                    clip && clip['enabled'] && (0..2).all? { |i| (clip['min'][i] - @last['min'][i]).abs < 1e-6 && (clip['max'][i] - @last['max'][i]).abs < 1e-6 }
+                    clip && clip['enabled'] && !Na__ClipBox.Na__Clip__Turned?(clip) &&
+                        (0..2).all? { |i| (clip['min'][i] - @last['min'][i]).abs < 1e-6 && (clip['max'][i] - @last['max'][i]).abs < 1e-6 }
                 end
                 same ? slots : nil
             end

@@ -19,6 +19,13 @@
 #            opened and stretched the same way, all the way down.
 # - Loose geometry has no transformation or definition of its own, so its
 #   points move either way, where they lie (5.2.9, 5.2.22).
+# - A SELECTION of several objects (5.2.41) is boxed as one, in the axes of the
+#   open context. A scale changes each object's transformation, as SketchUp's
+#   own Scale does. A stretch carries whole every object no plane runs through
+#   and opens every object a plane does run through, stretching it from inside
+#   its own context by the same walk as a single object, so two walls selected
+#   together stretch as one wall would. Until 5.2.41 those were carried whole,
+#   which moved them apart while the preview showed them stretching.
 #
 # ONE OBJECT CHANGES, NOT EVERY COPY:
 # - A stretch edits a definition, and a definition can be shared. Scaling one
@@ -26,6 +33,27 @@
 #   made unique first, and so is any shared part inside it that a plane runs
 #   through. Its stretch planes are copied across, so the unique copy still
 #   knows where it stretches. Parts carried whole stay shared.
+#
+# COPIES THAT STRETCH ALIKE STAY ONE COMPONENT (5.2.43):
+# - Until 5.2.43 every shared part a plane ran through was made unique on its
+#   own: thirty balusters stretched taller came out as thirty definitions,
+#   each opened and stretched in turn. Now the stretch is planned before
+#   anything moves (04__GeometryHelpers/..DrawnDeepUnique__.rb). Every object
+#   and part the walk would open is a node, signed with where the field sends
+#   every point of it, read in its own axes. Copies with one signature stay
+#   (or become) one definition and only one of them is opened and stretched;
+#   the rest follow as copies do. A definition all of whose copies in the
+#   whole model are in the stretch, alike, is stretched as it is; otherwise
+#   the copies in the stretch are moved onto a definition of their own
+#   (make_unique, then definition=), planes copied across, and the copies
+#   elsewhere keep the old one.
+# - A part reached by double-clicking down is planned with the containers
+#   above it: a shared container is made unique too, so a baluster stretched
+#   inside one of two copies of a balustrade changes that balustrade only.
+#   Its copy then stands in the new container, and the tool is handed its
+#   new path (:live_path).
+# - The split happens where make_unique belongs: each copy closed, in the
+#   open context of its container, just before that container's own edit.
 #
 # EVERY DEFINITION IS EDITED FROM INSIDE ITS OWN CONTEXT (5.2.6):
 # - Geometry edited from outside its editing context lands in the model but
@@ -71,6 +99,7 @@
 
 require 'sketchup.rb'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__CurveUnweld__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__'
 
 module Na__NobleDrawingTools
 
@@ -226,39 +255,94 @@ module Na__NobleDrawingTools
     # plane runs through, one context at a time, outermost first. Each edit
     # hands back the parts below it that need their own turn.
     #
+    # Planned first (5.2.43): the object, the containers above it below the
+    # user's context, and every part the walk will open are nodes, so each
+    # shared definition is decided once against the whole model. The copy
+    # standing in the user's context is settled there; everything else in
+    # the context of its container, on the way down.
+    #
     # A context that will not open stops the walk there, and the user's own
     # context is put back either way. Nothing is ever edited from outside.
     # ------------------------------------------------------------
     def self.Na__ScaleCommit__Stretch(model, frame, field, planes_after)
-        instance = frame[:instance]
-        path     = Na__NobleDrawingTools.Na__DeepPick__Instances(frame[:path])
-        tally    = { :unique => 0, :rigid => 0, :opened => 0, :moved => 0, :base => path.length }
-        failed   = Na__NobleDrawingTools.Na__ScaleCommit__CheckRoom(frame, field)
+        path   = Na__NobleDrawingTools.Na__DeepPick__Instances(frame[:path])
+        tally  = { :unique => 0, :rigid => 0, :opened => 0, :moved => 0, :base => path.length }
+        failed = Na__NobleDrawingTools.Na__ScaleCommit__CheckRoom(frame, field)
         return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, failed, tally) if failed
+
+        plan, object = Na__NobleDrawingTools.Na__ScaleCommit__PlanObject(model, frame, field, path)
+        return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, plan[:refused], tally, plan) if plan[:refused]
 
         previous = model.active_path
         selected = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)  # <-- Entering a context clears this
         pending  = false                                                    # <-- An edit committed next_transparent, its next entry still to come
+        base     = Array(previous)
 
-        if instance.definition.instances.length > 1
+        if Na__NobleDrawingTools.Na__DeepUnique__NeedsSettle?(plan, plan[:roots])
             model.start_operation(NA_SCALE_OP_STRETCH, true, true, false)     # <-- next_transparent: the object's context entry joins this step
 
             begin
-                Na__NobleDrawingTools.Na__ScaleCommit__MakeUnique(instance)
+                queue = Na__NobleDrawingTools.Na__ScaleCommit__Settle(plan, plan[:roots], model.active_entities, base)
                 model.commit_operation
-                tally[:unique] += 1
                 pending = true
             rescue StandardError => error
                 model.abort_operation
-                return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, "could not make #{frame[:name]} unique — #{error.message}", tally)
+                return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, "could not make #{frame[:name]} unique — #{error.message}", tally, plan)
+            end
+        else
+            begin
+                queue = Na__NobleDrawingTools.Na__ScaleCommit__Settle(plan, plan[:roots], model.active_entities, base)  # <-- Only found again: nothing changes
+            rescue StandardError => error
+                return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, error.message, tally, plan)
             end
         end
 
-        queue  = [path]
+        failed, pending = Na__NobleDrawingTools.Na__ScaleCommit__Walk(model, frame, field, queue, tally, pending, plan) do |target, node|
+            Na__NobleDrawingTools.Na__ScalePlanes__Write(target.last.definition, planes_after) if planes_after && node.equal?(object)
+        end
+
+        restored = Na__NobleDrawingTools.Na__ScaleCommit__Restore(model, previous)
+        Na__NobleDrawingTools.Na__ScaleCommit__ClosePending(model) if pending && !restored
+        Na__NobleDrawingTools.Na__DeepPick__FocusRestore(model, selected)
+
+        result = Na__NobleDrawingTools.Na__ScaleCommit__Result(failed.nil?, failed, tally, plan)
+        live   = object[:live]
+        result[:live_path] = base + Na__NobleDrawingTools.Na__DeepUnique__LivePath(object) if live && live.valid? && !live.equal?(frame[:instance])
+        result
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Stretch a Queue of Contexts, Each From Inside; Returns [failed, pending]
+    # ------------------------------------------------------------
+    # The walk in the header, shared by a single object and a selection
+    # (5.2.41). The queue holds [path, node] pairs from the plan (5.2.43).
+    # Each target is opened, stretched by StretchContext, and the parts it
+    # hands back join the queue. A container above a picked part (:via) is
+    # opened only when something in it has to be settled; otherwise what is
+    # below it is found where it stands. pending comes in as the caller left
+    # it (a settle committed next_transparent) and goes back out true while
+    # an edit's next entry is still to come. The block, when given, runs
+    # inside each target's operation: the object's own planes are written
+    # there. A context that will not open stops the walk; the caller restores
+    # the user's context either way.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__Walk(model, frame, field, queue, tally, pending, plan)
         failed = nil
 
         until queue.empty?
-            target = queue.shift
+            target, node = queue.shift
+            via          = node[:payload][:role] == :via
+
+            if via && !Na__NobleDrawingTools.Na__DeepUnique__NeedsSettle?(plan, node[:children])
+                begin
+                    queue.unshift(*Na__NobleDrawingTools.Na__ScaleCommit__Settle(plan, node[:children], node[:live].definition.entities, target))
+                rescue StandardError => error
+                    failed = error.message
+                    break
+                end
+
+                next
+            end
 
             unless Na__NobleDrawingTools.Na__ScaleCommit__Enter(model, target)
                 failed = "#{Na__NobleDrawingTools.Na__DeepPick__InstanceName(target.last)} would not open for editing — the stretch stopped there; Ctrl+Z takes back what was done"
@@ -269,36 +353,41 @@ module Na__NobleDrawingTools
             model.start_operation(NA_SCALE_OP_STRETCH, true, true, true)      # <-- Joins the entry just made, pulls in the next
 
             begin
-                queue.concat(Na__NobleDrawingTools.Na__ScaleCommit__StretchContext(model, frame, field, target, tally))
-                Na__NobleDrawingTools.Na__ScalePlanes__Write(instance.definition, planes_after) if planes_after && target.length == path.length
-                model.commit_operation
-                pending = true
+                if via
+                    queue.concat(Na__NobleDrawingTools.Na__ScaleCommit__Settle(plan, node[:children], model.active_entities, target))
+                else
+                    queue.concat(Na__NobleDrawingTools.Na__ScaleCommit__StretchContext(model, frame, field, target, tally, plan, node))
+                    yield(target, node) if block_given?
+                end
             rescue StandardError => error
-                model.abort_operation
-                failed = error.message
-                break
+                failed = "#{error.message} — the stretch stopped there; Ctrl+Z takes back what was done"
             end
+
+            model.commit_operation                                            # <-- Never abort a transparent operation (ruby.sketchup.com): it aborts the one it joined
+            pending = true
+            break if failed
         end
 
-        restored = Na__NobleDrawingTools.Na__ScaleCommit__Restore(model, previous)
-        Na__NobleDrawingTools.Na__ScaleCommit__ClosePending(model) if pending && !restored
-        Na__NobleDrawingTools.Na__DeepPick__FocusRestore(model, selected)
-
-        Na__NobleDrawingTools.Na__ScaleCommit__Result(failed.nil?, failed, tally)
+        [failed, pending]
     end
     # ---------------------------------------------------------------
 
     # FUNCTION | The Stretch's Answer in the Shape the Tool Reads
     # ------------------------------------------------------------
-    def self.Na__ScaleCommit__Result(success, error, tally)
+    # :unique counts the definitions made; :copies the copies that were
+    # stretched through another copy's one edit; :shared says so in words.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__Result(success, error, tally, plan = nil)
         {
             :success => success,
             :error   => error,
             :mode    => :stretch,
-            :unique  => tally[:unique],
+            :unique  => plan ? plan[:made] : tally[:unique],
             :rigid   => tally[:rigid],
             :opened  => tally[:opened],
-            :moved   => tally[:moved]
+            :moved   => tally[:moved],
+            :copies  => plan ? plan[:riders].values.sum : 0,
+            :shared  => plan ? Na__NobleDrawingTools.Na__DeepUnique__Report(plan) : ''
         }
     end
     # ---------------------------------------------------------------
@@ -361,8 +450,16 @@ module Na__NobleDrawingTools
     # where the field is defined, and frame[:world] brings the answer back.
     # Asserted, not assumed: a wrong context would move every point by the
     # difference between two spaces.
+    #
+    # Which parts a plane runs through was settled on paper (5.2.43): they
+    # are node's children in the plan, the same test (RigidOver? and the
+    # depth guard) worked out from the same transformations. Each is found
+    # again here, settled onto its final definition while still closed, and
+    # one copy of each final definition is handed back for its turn; the
+    # copies riding on it are neither opened nor carried. Every other part
+    # is carried whole. Returns [path, node] pairs.
     # ------------------------------------------------------------
-    def self.Na__ScaleCommit__StretchContext(model, frame, field, target, tally)
+    def self.Na__ScaleCommit__StretchContext(model, frame, field, target, tally, plan, node)
         unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(model.active_path, target)
             raise ArgumentError, "#{Na__NobleDrawingTools.Na__DeepPick__InstanceName(target.last)} is not the open context"
         end
@@ -388,29 +485,19 @@ module Na__NobleDrawingTools
             tally[:opened] += 1
         end
 
-        next_in_line = []
+        # Closed here, so they can still be made unique before their turn.
+        next_in_line = Na__NobleDrawingTools.Na__ScaleCommit__Settle(plan, node[:children], entities, target)
+        opened       = {}
+        node[:children].each { |child| opened[child[:live]] = true if child[:live] }
 
         parts.each do |part|
             next unless part.valid?
+            next if opened[part]                                              # <-- Stretched from inside: its own turn, or its copy's
 
             part_local = inverse * part.transformation
-            mins, maxs = Na__NobleDrawingTools.Na__ScaleCommit__LocalBox(part.definition.bounds, part_local)
-            rigid      = Na__NobleDrawingTools.Na__ScaleField__RigidOver?(field, mins, maxs)
-            rigid    ||= (target.length + 1 - tally[:base]) > NA_SCALE_MAX_DEPTH   # <-- Past the depth guard a part is carried, never half-stretched
-
-            if rigid
-                part.transform!(world * Na__NobleDrawingTools.Na__ScaleField__Affine(field, mins) * inverse)
-                tally[:rigid] += 1
-                next
-            end
-
-            # Closed here, so it can still be made unique before its turn.
-            if part.definition.instances.length > 1
-                Na__NobleDrawingTools.Na__ScaleCommit__MakeUnique(part)
-                tally[:unique] += 1
-            end
-
-            next_in_line << (target + [part])
+            mins, _max = Na__NobleDrawingTools.Na__ScaleCommit__LocalBox(part.definition.bounds, part_local)
+            part.transform!(world * Na__NobleDrawingTools.Na__ScaleField__Affine(field, mins) * inverse)
+            tally[:rigid] += 1
         end
 
         next_in_line
@@ -448,61 +535,130 @@ module Na__NobleDrawingTools
     end
     # ---------------------------------------------------------------
 
-    # FUNCTION | Stretch Loose Geometry Where It Lies, in the Open Context
+    # FUNCTION | Stretch Loose Geometry, or a Selection of Objects, in the Open Context
     # ------------------------------------------------------------
-    # 5.2.22. Its points go through the field as an object's do, from the
-    # context they already sit in, so no context is entered and it is one
-    # plain operation. Refused if the user has since moved to another context.
+    # 5.2.22, 5.2.41. In three parts, one undo step:
     #
-    # A group or component in the selection keeps its size and moves with its
-    # slice, which is what a stretch promises its details. One a plane runs
-    # through goes with the slice its middle is in: carried, never half
-    # stretched, because opening it would leave the context the loose points
-    # have to be moved from. A guide or a text goes the same way.
+    #   1. In the user's own context, one operation: the loose points go
+    #      through the field as an object's do (they report and take world
+    #      there); every object no plane runs through, and every guide or
+    #      text, is carried whole with its slice; every object a plane DOES
+    #      run through is made unique if it is shared, closed, ready for its
+    #      turn. next_transparent when an object is to be opened.
+    #   2. Each object a plane runs through is opened and stretched from
+    #      inside, by the single object's walk (Na__ScaleCommit__Walk), its
+    #      own parts after it. The frame is the selection's: the open
+    #      context's axes, so a point read inside goes to the frame through
+    #      frame[:inverse] exactly as one read in the user's context does.
+    #   3. The user's context is put back, which the last edit pulls in.
+    #
+    # The selection's own objects sit one below the user's context, so each
+    # is to the walk what a part is to a single object: its own saved planes
+    # move with its geometry (CarryPartPlanes). Refused if the user has since
+    # moved to another context: the points are no longer in the one open.
     # ------------------------------------------------------------
     def self.Na__ScaleCommit__StretchLoose(model, frame, field)
-        result = { :success => false, :error => nil, :mode => :stretch, :unique => 0, :rigid => 0, :opened => 0, :moved => 0 }
+        tally = { :unique => 0, :rigid => 0, :opened => 0, :moved => 0, :base => Na__NobleDrawingTools.Na__ScaleFrame__OpenDepth(model) }
 
         unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(model.active_path, frame[:context])
-            return result.merge(:error => 'the open group changed since the geometry was taken — select it again')
+            return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, 'the open group changed since the geometry was taken — select it again', tally)
         end
 
         list = frame[:entities].select(&:valid?)
-        return result.merge(:error => 'the geometry is no longer there') if list.empty?
+        return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, 'the geometry is no longer there', tally) if list.empty?
 
         failed = Na__NobleDrawingTools.Na__ScaleCommit__CheckRoomLoose(frame, field, list)
-        return result.merge(:error => failed) if failed
+        return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, failed, tally) if failed
 
         vertices = {}
-        whole    = []
+        carried  = []
+        opened   = []
 
         list.each do |entity|
             if entity.is_a?(Sketchup::Edge) || entity.is_a?(Sketchup::Face)
                 entity.vertices.each { |vertex| vertices[vertex.entityID] ||= vertex }
+            elsif Na__NobleDrawingTools.Na__ScaleCommit__Instance?(entity) && !Na__NobleDrawingTools.Na__ScaleCommit__LooseRigid?(frame, field, entity)
+                opened << entity
             else
-                whole << entity
+                carried << entity
             end
         end
 
-        model.start_operation(NA_SCALE_OP_STRETCH, true)
+        # A locked object cannot be opened for editing: say so before anything
+        # moves, rather than stop half way with the rest already stretched.
+        locked = opened.find { |instance| instance.respond_to?(:locked?) && instance.locked? }
+        if locked
+            return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, "#{Na__NobleDrawingTools.Na__DeepPick__InstanceName(locked)} is locked and a plane runs through it — unlock it to stretch it", tally)
+        end
+
+        # On paper first (5.2.43): every object to be opened, and every part
+        # inside one that a plane runs through, so copies that stretch alike
+        # stay one definition and copies outside the stretch are kept apart.
+        plan = Na__NobleDrawingTools.Na__ScaleCommit__PlanObjects(model, frame, field, opened)
+        return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, plan[:refused], tally, plan) if plan[:refused]
+
+        previous = model.active_path
+        selected = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)  # <-- Entering a context clears this
+        pending  = false
+        base     = Array(previous)
+        queue    = []
+
+        model.start_operation(NA_SCALE_OP_STRETCH, true, !opened.empty?, false) # <-- next_transparent: the first object's context entry joins this step
 
         begin
-            entities = model.active_entities
-            moved    = Na__NobleDrawingTools.Na__ScaleCommit__MoveVertices(entities, vertices, frame, field)
+            entities        = model.active_entities
+            tally[:moved]  += Na__NobleDrawingTools.Na__ScaleCommit__MoveVertices(entities, vertices, frame, field)
 
-            whole.each do |entity|
+            carried.each do |entity|
                 mins, maxs = Na__NobleDrawingTools.Na__ScaleCommit__LooseBox(frame, entity)
                 middle     = (0..2).map { |n| (mins[n] + maxs[n]) * 0.5 }
                 delta      = frame[:world] * Na__NobleDrawingTools.Na__ScaleField__Affine(field, middle) * frame[:inverse]
                 entities.transform_entities(delta, [entity])
+                tally[:rigid] += 1
             end
 
+            # Closed here, so they can still be made unique before their turn:
+            # stretching one copy of a window must not stretch every copy, and
+            # copies selected together that stretch alike stay one component.
+            queue = Na__NobleDrawingTools.Na__ScaleCommit__Settle(plan, plan[:roots], entities, base)
+
             model.commit_operation
-            result.merge(:success => true, :moved => moved, :rigid => whole.length)
+            pending = !opened.empty?
         rescue StandardError => error
             model.abort_operation
-            result.merge(:error => error.message)
+            return Na__NobleDrawingTools.Na__ScaleCommit__Result(false, error.message, tally, plan)
         end
+
+        return Na__NobleDrawingTools.Na__ScaleCommit__Result(true, nil, tally, plan) if opened.empty?
+
+        objects         = opened.length                                   # <-- Every object opened, the ones riding on a copy's edit too
+        riding          = plan[:roots].count { |node| node[:final] && !plan[:finals][node[:final]].equal?(node) }
+        failed, pending = Na__NobleDrawingTools.Na__ScaleCommit__Walk(model, frame, field, queue, tally, pending, plan)
+
+        restored = Na__NobleDrawingTools.Na__ScaleCommit__Restore(model, previous)
+        Na__NobleDrawingTools.Na__ScaleCommit__ClosePending(model) if pending && !restored
+        Na__NobleDrawingTools.Na__DeepPick__FocusRestore(model, selected)
+
+        Na__NobleDrawingTools.Na__ScaleCommit__Result(failed.nil?, failed, tally, plan).merge(:objects => objects, :object_riders => riding)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Is This a Group or a Component?
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__Instance?(entity)
+        entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Is an Object in a Selection Carried Whole by This Field?
+    # ------------------------------------------------------------
+    # True when no plane runs through its own box, read in the frame's axes:
+    # the same question a part inside a single object is asked. False sends
+    # it to be opened and stretched from inside.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__LooseRigid?(frame, field, entity)
+        mins, maxs = Na__NobleDrawingTools.Na__ScaleCommit__LooseBox(frame, entity)
+        Na__NobleDrawingTools.Na__ScaleField__RigidOver?(field, mins, maxs)
     end
     # ---------------------------------------------------------------
 
@@ -522,7 +678,15 @@ module Na__NobleDrawingTools
 
     # FUNCTION | Is There Room for This Shrink of Loose Geometry? nil If So, Else Why Not
     # ------------------------------------------------------------
+    # An object a plane runs through is opened by the stretch, so its own
+    # points count, read down through its parts as a single object's are
+    # (5.2.41). The object is closed and reports local, and its
+    # transformation reads world in the open context, so frame[:inverse]
+    # times it takes its points to the frame.
+    # ------------------------------------------------------------
     def self.Na__ScaleCommit__CheckRoomLoose(frame, field, list)
+        return nil unless NA_SCALE_AXES.any? { |axis| field[axis][:mode] == :stretch && field[axis][:delta].to_f < 0.0 }
+
         coords = { :x => [], :y => [], :z => [] }
 
         list.each do |entity|
@@ -531,6 +695,8 @@ module Na__NobleDrawingTools
                     point = vertex.position.transform(frame[:inverse])
                     NA_SCALE_AXES.each_with_index { |axis, n| coords[axis] << point[n].to_f }
                 end
+            elsif Na__NobleDrawingTools.Na__ScaleCommit__Instance?(entity) && !Na__NobleDrawingTools.Na__ScaleCommit__LooseRigid?(frame, field, entity)
+                Na__NobleDrawingTools.Na__ScaleCommit__CollectCoords(entity.definition, frame[:inverse] * entity.transformation, field, coords, 1)
             else
                 mins, maxs = Na__NobleDrawingTools.Na__ScaleCommit__LooseBox(frame, entity)
                 NA_SCALE_AXES.each_with_index { |axis, n| coords[axis].push(mins[n], maxs[n]) }
@@ -686,6 +852,212 @@ module Na__NobleDrawingTools
         maxs    = (0..2).map { |n| corners.map { |point| point[n].to_f }.max }
 
         [mins, maxs]
+    end
+    # ---------------------------------------------------------------
+
+    # endregion -------------------------------------------------------------------
+
+
+    # -----------------------------------------------------------------------------
+    # REGION | Shared Copies — the Stretch on Paper (5.2.43)
+    # -----------------------------------------------------------------------------
+
+    # FUNCTION | Plan One Object's Stretch; Returns [plan, the object's node]
+    # ------------------------------------------------------------
+    # `path` is absolute. The instances between the user's context and the
+    # object are containers (:via): they change only because something in
+    # them does, and are settled first so a shared one never carries the
+    # stretch to its other copies. The object and every part the walk will
+    # open are :target nodes. A node's world is the product of the
+    # transformations down from the user's context: the first reads world
+    # there, the rest local to their parents (note 02).
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__PlanObject(model, frame, field, path)
+        plan   = Na__NobleDrawingTools.Na__DeepUnique__NewPlan(model)
+        below  = path[Na__NobleDrawingTools.Na__ScaleFrame__OpenDepth(model)..-1] || []
+        below  = [frame[:instance]] if below.empty?
+        parent = nil
+        world  = nil
+
+        below[0...-1].each do |instance|
+            world  = world ? world * instance.transformation : instance.transformation
+            parent = Na__NobleDrawingTools.Na__DeepUnique__AddNode(plan, instance, parent, world, { :role => :via })
+        end
+
+        object = Na__NobleDrawingTools.Na__DeepUnique__AddNode(
+            plan, below.last, parent, frame[:world],
+            { :role => :target, :to_frame => Geom::Transformation.new, :depth => 0 }
+        )
+
+        Na__NobleDrawingTools.Na__ScaleCommit__PlanParts(plan, object, frame, field)
+        Na__NobleDrawingTools.Na__ScaleCommit__Sign(plan, field)
+        Na__NobleDrawingTools.Na__DeepUnique__Decide(plan)
+        [plan, object]
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Plan a Selection's Stretch: Every Object a Plane Runs Through
+    # ------------------------------------------------------------
+    # The objects stand in the user's own context, where their
+    # transformations read world; frame[:inverse] takes them into the
+    # selection's axes.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__PlanObjects(model, frame, field, instances)
+        plan = Na__NobleDrawingTools.Na__DeepUnique__NewPlan(model)
+
+        instances.each do |instance|
+            world = instance.transformation
+            node  = Na__NobleDrawingTools.Na__DeepUnique__AddNode(
+                plan, instance, nil, world,
+                { :role => :target, :to_frame => frame[:inverse] * world, :depth => 1 }
+            )
+            Na__NobleDrawingTools.Na__ScaleCommit__PlanParts(plan, node, frame, field)
+        end
+
+        Na__NobleDrawingTools.Na__ScaleCommit__Sign(plan, field)
+        Na__NobleDrawingTools.Na__DeepUnique__Decide(plan)
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Parts Inside a Node That a Plane Runs Through, as Nodes
+    # ------------------------------------------------------------
+    # The walk's own test (StretchContext before 5.2.43): a part whose box,
+    # in the frame's axes, sits inside one slice on every stretching axis is
+    # carried whole; past the depth guard everything is carried. Below the
+    # user's context every definition is closed, so a part's transformation
+    # is local to its parent and to_frame carries each level up.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__PlanParts(plan, node, frame, field)
+        depth    = node[:payload][:depth]
+        to_frame = node[:payload][:to_frame]
+        return if depth + 1 > NA_SCALE_MAX_DEPTH
+
+        node[:definition].entities.each do |entity|
+            next unless Na__NobleDrawingTools.Na__ScaleCommit__Instance?(entity)
+
+            part_frame = to_frame * entity.transformation
+            mins, maxs = Na__NobleDrawingTools.Na__ScaleCommit__LocalBox(entity.definition.bounds, part_frame)
+            next if Na__NobleDrawingTools.Na__ScaleField__RigidOver?(field, mins, maxs)
+
+            child = Na__NobleDrawingTools.Na__DeepUnique__AddNode(
+                plan, entity, node, frame[:world] * part_frame,
+                { :role => :target, :to_frame => part_frame, :depth => depth + 1 }
+            )
+            Na__NobleDrawingTools.Na__ScaleCommit__PlanParts(plan, child, frame, field)
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Sign Every Node: Where the Field Sends Each of Its Points
+    # ------------------------------------------------------------
+    # Read in the node's own axes: every vertex of its definition and of
+    # everything inside it, mapped to the frame, through the field and back.
+    # Two copies whose points all land alike want exactly the same edit —
+    # the same vertices moved, the same parts carried or opened — so they
+    # can share. Only worked out where two nodes share a definition; a
+    # container signs with what is below it.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__Sign(plan, field)
+        points = {}
+        plan[:roots].each { |root| Na__NobleDrawingTools.Na__ScaleCommit__SignNode(plan, root, field, points) }
+        plan
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Sign One Node, Its Children First
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__SignNode(plan, node, field, points)
+        node[:children].each { |child| Na__NobleDrawingTools.Na__ScaleCommit__SignNode(plan, child, field, points) }
+
+        if node[:payload][:role] == :via
+            node[:signature] = [:via, node[:children].map { |child| [child[:instance].entityID, child[:signature]] }]
+            return
+        end
+
+        unless Na__NobleDrawingTools.Na__DeepUnique__Shared?(plan, node)
+            node[:signature] = [:one]                                         # <-- Nothing to compare it with
+            return
+        end
+
+        unless points.key?(node[:definition])
+            points[node[:definition]] = Na__NobleDrawingTools.Na__ScaleCommit__SubtreePoints(plan, node[:definition])
+        end
+
+        list = points[node[:definition]]
+
+        unless list && Na__NobleDrawingTools.Na__DeepUnique__Spend(plan, list.length)
+            node[:signature] = Na__NobleDrawingTools.Na__DeepUnique__Alone(node)   # <-- Too big to compare: it parts, as before 5.2.43
+            return
+        end
+
+        to_frame = node[:payload][:to_frame]
+        back     = to_frame.inverse
+
+        node[:signature] = list.map do |point|
+            goal = Na__NobleDrawingTools.Na__ScaleField__MapPoint(field, point.transform(to_frame)).transform(back)
+            Na__NobleDrawingTools.Na__DeepUnique__Quantise(goal - point)
+        end
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Every Point of a Definition and Everything Inside It, in Its Axes
+    # ------------------------------------------------------------
+    # In a fixed order, so the lists of two copies compare point for point.
+    # nil when there are more than the signing budget has left.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__SubtreePoints(plan, definition)
+        room   = NA_DEEP_UNIQUE_MAX_WORK - plan[:work]
+        points = []
+        return nil unless Na__NobleDrawingTools.Na__ScaleCommit__GatherPoints(definition, Geom::Transformation.new, points, 0, room)
+
+        points
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Gather Points Down Through a Definition; False Past the Cap
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__GatherPoints(definition, xform, points, depth, cap)
+        seen = {}
+
+        definition.entities.each do |entity|
+            if entity.is_a?(Sketchup::Edge)
+                entity.vertices.each do |vertex|
+                    next if seen[vertex.entityID]
+
+                    seen[vertex.entityID] = true
+                    points << vertex.position.transform(xform)
+                end
+            elsif Na__NobleDrawingTools.Na__ScaleCommit__Instance?(entity) && depth < NA_SCALE_MAX_DEPTH
+                return false unless Na__NobleDrawingTools.Na__ScaleCommit__GatherPoints(entity.definition, xform * entity.transformation, points, depth + 1, cap)
+            end
+
+            return false if points.length > cap
+        end
+
+        true
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Settle Planned Copies in a Collection; Returns [path, node] Pairs
+    # ------------------------------------------------------------
+    # Na__DeepUnique__SettleIn with Deep Scale's planes carried across every
+    # make_unique, and each representative's path made from its container's.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__Settle(plan, nodes, entities, base)
+        reps = Na__NobleDrawingTools.Na__DeepUnique__SettleIn(plan, nodes, entities, Na__NobleDrawingTools.Na__ScaleCommit__PlanesHook)
+        reps.map { |rep| [base + [rep[:live]], rep] }
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Carry a Definition's Stretch Planes to Its Unique Copy
+    # ------------------------------------------------------------
+    # The make_unique hook: the copy must still know where it stretches.
+    # ------------------------------------------------------------
+    def self.Na__ScaleCommit__PlanesHook
+        lambda do |before, after|
+            planes = Na__NobleDrawingTools.Na__ScalePlanes__Read(before)
+            Na__NobleDrawingTools.Na__ScalePlanes__Write(after, planes) if !after.equal?(before) && Na__NobleDrawingTools.Na__ScalePlanes__Total(planes) > 0
+        end
     end
     # ---------------------------------------------------------------
 

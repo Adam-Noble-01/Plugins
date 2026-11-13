@@ -23,7 +23,7 @@ module Na__NobleDrawingTools
     NA_CHAMFER_MITRE_TOL      = 0.001                                         # <-- The two lower mitre points must agree to SketchUp's own merge tolerance
 
     # FUNCTION | In-Plane Direction Perpendicular to an Edge, Unsigned
-    # Lies in the face plane; SignToward settles which way is into the material.
+    # Lies in the face plane; SignInto settles which way is into the material.
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__InwardDir(face, edge_vector_unit)
         direction = face.normal.cross(edge_vector_unit)
@@ -34,9 +34,13 @@ module Na__NobleDrawingTools
     # ---------------------------------------------------------------
 
     # FUNCTION | Sign an In-Plane Direction Toward the Face Centroid
-    # A heuristic — exact for convex faces and right for practically every
-    # architectural face; a pathological L-shape whose centroid falls outside
-    # near this edge would flip it.
+    # The FALLBACK only (5.2.45), for a face whose own outline cannot answer
+    # SignInto below. The average of the outer loop's corners lies inside
+    # every convex face, but on a concave one it can sit across an edge's
+    # line from the material (the McKay slab: 306 mm past the side of its
+    # south projection), and for an edge ON an opening it usually sits in
+    # the opening itself (wrong on 263 of 332 such edges in that model).
+    # Either way the cut came out of the material, inside out.
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__SignToward(direction, from_point, face)
         positions = face.outer_loop.vertices.map { |vertex| vertex.position }
@@ -52,6 +56,67 @@ module Na__NobleDrawingTools
         return direction unless toward.valid?
 
         direction.dot(toward) < 0.0 ? direction.reverse : direction
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | The Normal a Face's Own Outline Winds Round (Newell)
+    # From the positions the outer loop REPORTS, so it always agrees with the
+    # winding those same positions show: closed, open, and open inside a
+    # MIRRORED instance, where Face#normal keeps the front side while the
+    # reported winding turns over. Summed from the loop's first point, which
+    # keeps it exact far from the origin. nil for a degenerate loop.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__LoopNormal(face)
+        positions = face.outer_loop.vertices.map { |vertex| vertex.position }
+        return nil if positions.length < 3
+
+        origin = positions.first
+        nx     = 0.0
+        ny     = 0.0
+        nz     = 0.0
+
+        positions.each_with_index do |position, index|
+            here  = position - origin
+            ahead = positions[(index + 1) % positions.length] - origin
+            nx += (here.y.to_f - ahead.y.to_f) * (here.z.to_f + ahead.z.to_f)
+            ny += (here.z.to_f - ahead.z.to_f) * (here.x.to_f + ahead.x.to_f)
+            nz += (here.x.to_f - ahead.x.to_f) * (here.y.to_f + ahead.y.to_f)
+        end
+
+        normal = Geom::Vector3d.new(nx, ny, nz)
+        normal.length.to_f > 0.0 ? normal : nil
+    rescue StandardError
+        nil
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Sign an In-Plane Direction INTO the Face, From Its Own Winding
+    # SketchUp runs every loop of a face with the face on its LEFT, looking
+    # down the loop's normal: the outer loop anticlockwise, each opening
+    # clockwise. So the loop's normal crossed with the edge, the way this
+    # face's loop runs it, points into the material on ANY face: convex,
+    # L-shaped, notched, stepped, holed, and for an edge on an opening. No
+    # centroid, no probe, no tolerance. Measured read-only in SketchUp 2027
+    # (13-Nov-2026): right on 1,006 of 1,006 edge uses, 332 of them on
+    # openings. The centroid answers only when the outline cannot.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__SignInto(direction, edge, face, from_point)
+        loop_normal = Na__NobleDrawingTools.Na__DrawnChamfer__LoopNormal(face)
+        reversed    = edge.reversed_in?(face)                                 # <-- nil when the face does not use this edge
+        along       = edge.end.position - edge.start.position
+
+        if loop_normal && !reversed.nil? && along.length.to_f > 0.0
+            along = along.reverse if reversed                                 # <-- The edge as this face's loop runs it
+            into  = loop_normal.cross(along)
+
+            if into.length.to_f > 0.0
+                return direction.dot(into) < 0.0 ? direction.reverse : direction
+            end
+        end
+
+        Na__NobleDrawingTools.Na__DrawnChamfer__SignToward(direction, from_point, face)
+    rescue StandardError
+        Na__NobleDrawingTools.Na__DrawnChamfer__SignToward(direction, from_point, face)
     end
     # ---------------------------------------------------------------
 
@@ -86,8 +151,10 @@ module Na__NobleDrawingTools
             (v0.y.to_f + v1.y.to_f) * 0.5,
             (v0.z.to_f + v1.z.to_f) * 0.5
         )
-        dir_a = Na__NobleDrawingTools.Na__DrawnChamfer__SignToward(dir_a, midpoint, face_a)
-        dir_b = Na__NobleDrawingTools.Na__DrawnChamfer__SignToward(dir_b, midpoint, face_b)
+        # Into the material by each face's own winding (5.2.45), never by a
+        # centroid, which cut one side of the McKay slab inside out.
+        dir_a = Na__NobleDrawingTools.Na__DrawnChamfer__SignInto(dir_a, edge, face_a, midpoint)
+        dir_b = Na__NobleDrawingTools.Na__DrawnChamfer__SignInto(dir_b, edge, face_b, midpoint)
 
         bisector = Geom::Vector3d.new(
             dir_a.x.to_f + dir_b.x.to_f,

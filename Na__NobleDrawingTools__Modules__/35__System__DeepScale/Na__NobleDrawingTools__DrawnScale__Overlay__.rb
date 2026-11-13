@@ -28,7 +28,7 @@
 #
 # HOST CONTRACT (DrawnScaleTool):
 #   @na_sc_frame, @na_sc_drag, @na_sc_active_dim, @na_axis_lock
-#   na_scale__handle_set, na_scale__planes_on?, na_scale__centre_on?,
+#   na_scale__handle_set, na_scale__planes_on?, na_scale__stretch_only?, na_scale__centre_on?,
 #   na_scale__dims_on?, na_scale__dim_size, na_scale__dim_offset,
 #   na_scale__after_option_changed, na_scale__say
 #
@@ -74,7 +74,8 @@ module Na__NobleDrawingTools
                 :id    => NA_SCALE_OPTION_PLANES,
                 :text  => 'Planes',
                 :state => na_scale__planes_on? ? :on : :plain,
-                :tip   => 'SHIFT+TAB — Stretch Planes: every grip stretches, at a plane through the centre of each axis until you place your own'
+                :tip   => na_scale__stretch_only? ? 'Stretch Planes: always on in Deep Stretch. To scale, leave it (Space) and use Deep Scale' :
+                                                    'SHIFT+TAB — Stretch Planes: every grip stretches, at a plane through the centre of each axis until you place your own'
             }
             entries << {
                 :id    => NA_SCALE_OPTION_CENTRE,
@@ -127,6 +128,8 @@ module Na__NobleDrawingTools
                 na_scale__say(Na__NobleDrawingTools.Na__ToolOptions__CaptionFor(NA_SCALE_OPTION_HANDLES))
                 return true
             end
+
+            return na_scale__refuse_scaling if na_scale__stretch_only? && id == NA_SCALE_OPTION_PLANES # <-- Deep Stretch (5.2.41)
 
             Na__NobleDrawingTools.Na__ToolOptions__Toggle(id)
             Na__NobleDrawingTools.Na__RightClickPopup__RefreshOption(id)

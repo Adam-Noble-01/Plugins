@@ -357,6 +357,8 @@ module Na__PointCloudViewer
             Na__ClipBox.Na__Clip__Ensure(slot)
             clip = slot.clip ? { 'enabled' => slot.clip['enabled'] ? true : false,
                                  'min' => slot.clip['min'].map(&:to_f), 'max' => slot.clip['max'].map(&:to_f) } : nil
+            turned = slot.clip ? Na__ClipBox.Na__Clip__TurnedPart(slot.clip) : nil
+            clip[Na__ClipBox::NA_TURN_KEY] = Marshal.load(Marshal.dump(turned)) if turned   # v0.14.8
             link = slot.record ? slot.record['link'] : nil
             {
                 'visible'  => slot.visible ? true : false,
@@ -588,7 +590,8 @@ module Na__PointCloudViewer
         def self.na_same_clip?(a, b)
             return a.nil? && b.nil? if a.nil? || b.nil?
             return false unless (a['enabled'] ? true : false) == (b['enabled'] ? true : false)
-            (0..2).all? { |i| (a['min'][i] - b['min'][i]).abs < 1e-6 && (a['max'][i] - b['max'][i]).abs < 1e-6 }
+            (0..2).all? { |i| (a['min'][i] - b['min'][i]).abs < 1e-6 && (a['max'][i] - b['max'][i]).abs < 1e-6 } &&
+                Na__ClipBox.na_same_turn?(a, b)
         end
 
         def self.na_scale_min
@@ -662,8 +665,11 @@ module Na__PointCloudViewer
             )
         end
 
+        # A turned box (v0.14.8) is checked and its level bounds made again by
+        # the clip box's own reader, so a scene can never clip a different area.
         def self.na_valid_clip(raw)
             return nil unless raw.is_a?(Hash)
+            return Na__ClipBox.na_valid_box(raw, raw['enabled'] ? true : false) if raw.key?(Na__ClipBox::NA_TURN_KEY)
             min = Array(raw['min']).map { |v| Float(v) }
             max = Array(raw['max']).map { |v| Float(v) }
             return nil unless min.length == 3 && max.length == 3 && (0..2).all? { |i| max[i] > min[i] }

@@ -980,6 +980,7 @@ module Na__NobleDrawingTools
         def na_vm__move_report(tally, description)
             moved = tally[:moved]
             text  = "Moved #{moved} vert#{moved == 1 ? 'ex' : 'ices'} #{description}"
+            text += " — #{tally[:shared]}" unless tally[:shared].to_s.empty?    # <-- 5.2.43: copies moved as one, copies elsewhere kept
             text += " — #{tally[:folded]} fold line#{tally[:folded] == 1 ? '' : 's'} keep bent faces flat" if tally[:folded] > 0
             text += " — #{tally[:welded]} curve#{tally[:welded] == 1 ? '' : 's'} welded back" if tally[:welded].to_i > 0
             text += " — #{tally[:missed]} could not be found" if tally[:missed] > 0
@@ -1437,10 +1438,23 @@ module Na__NobleDrawingTools
 
         # FUNCTION | Say So When the Picks Sit in a Definition With Copies
         # ------------------------------------------------------------
+        # 5.2.43: copies picked alike move as one, and copies the picks do
+        # not reach are kept as they are (DrawnDeepUnique), so the note says
+        # that rather than warning that every copy changes. Worked out once
+        # per set of picks: the status line is asked on every mouse move.
+        # ------------------------------------------------------------
         def na_vm__shared_note(entries)
-            entry  = entries.find { |candidate| candidate[:context][:shared] }
-            shared = entry ? entry[:context][:shared] : nil
-            shared ? " — inside #{shared[:name]}, which has #{shared[:count]} copies" : ''
+            list = entries || []
+            key  = list.map { |entry| entry[:context][:key] }.uniq.sort
+
+            unless @na_vm_copies_note && @na_vm_copies_note[0] == key
+                text               = Na__NobleDrawingTools.Na__VertexMove__CopiesNote(Sketchup.active_model, list)
+                @na_vm_copies_note = [key, text]
+            end
+
+            @na_vm_copies_note[1]
+        rescue StandardError
+            ''
         end
         # ---------------------------------------------------------------
 

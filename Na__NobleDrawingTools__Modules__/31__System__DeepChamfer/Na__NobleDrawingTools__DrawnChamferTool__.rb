@@ -109,6 +109,15 @@
 #   redraws in the new profile instead of starting again. See
 #   DrawnChamferHotSwap.
 #
+# THE 2D VARIANTS (5.2.40, Na__NobleDrawingTools__DrawnEdgeTool2dTool__.rb):
+# - Under a parallel camera each of the four profiles starts as its 2D
+#   variant, a subclass with the DrawnEdgeTool2d module on top: hover the
+#   CORNER of an elevation and the edge running into the screen behind it is
+#   cut, its whole run with it. They replace three seams of this tool
+#   (na_drawn__edge_at, na_drawn__batch_for, na_drawn__draw_summary_card)
+#   and how a cut seen end-on is drawn; the first line of onMouseMove hands
+#   over between 2D and 3D when the camera changes.
+#
 # PRESELECTED LOOSE EDGES:
 # - Select loose edges BEFORE starting the tool and they are the edges it
 #   cuts: banked on activation, and a press anywhere drags them all from the
@@ -123,6 +132,7 @@ require 'sketchup.rb'
 require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnToolShared__'
 require_relative '../06__Tools__DrawnShared/Na__NobleDrawingTools__DrawnRevise__'
 require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepPick__'
+require_relative '../04__GeometryHelpers/Na__NobleDrawingTools__DrawnDeepUnique__'
 require_relative 'Na__NobleDrawingTools__DrawnChamfer__Geometry__'
 require_relative 'Na__NobleDrawingTools__DrawnChamfer__Mitre__'
 require_relative 'Na__NobleDrawingTools__DrawnChamfer__Revise__'
@@ -231,7 +241,7 @@ module Na__NobleDrawingTools
         # passenger that cannot be cut.
         # ------------------------------------------------------------
         def na_drawn__toggle_multi_edge(view, x, y)
-            target = Na__NobleDrawingTools.Na__DeepPick__EdgeAt(view, x, y)
+            target = na_drawn__edge_at(view, x, y)
 
             unless target
                 UI.beep
@@ -449,6 +459,49 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def na_drawn__any_stopped?(solves)
             solves.any? { |solve| Na__NobleDrawingTools.Na__ProfileSweep__Stopped?(solve) }
+        end
+        # ---------------------------------------------------------------
+
+        # endregion -------------------------------------------------------------------
+
+
+        # -----------------------------------------------------------------------------
+        # REGION | Pick Hooks — the Seams the 2D Variants Replace (5.2.40)
+        # -----------------------------------------------------------------------------
+        #
+        # The parallel camera variants (DrawnEdgeTool2d, one per profile) find
+        # an edge differently and draw a card differently; everything else is
+        # this tool's. Each place that finds, batches or labels goes through
+        # one of these, so the variants replace three methods, not the flows.
+        # -----------------------------------------------------------------------------
+
+        # FUNCTION | The Edge Target Under the Cursor, or nil
+        # The hover, the grab and the SHIFT bank all ask here. The 2D variants
+        # answer with the edge running into the screen behind a corner.
+        # ------------------------------------------------------------
+        def na_drawn__edge_at(view, x, y)
+            Na__NobleDrawingTools.Na__DeepPick__EdgeAt(view, x, y)
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Batch a Grab Cuts: the Edge Grabbed, Then Every Banked One
+        # The clicked edge drives the measurement and every banked edge rides
+        # along at the same world setback; clicking an edge already banked
+        # does not double it. The 2D variants add the rest of a corner's run.
+        # ------------------------------------------------------------
+        def na_drawn__batch_for(target)
+            [target] + @na_ch_multi.reject do |banked|
+                banked[:edge] == target[:edge] && banked[:path] == target[:path]
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Draw a Cut's Summary Card
+        # Off the far end of the cut. Seen end-on that end is on top of the
+        # setback dimensions, so the 2D variants set the card off the corner.
+        # ------------------------------------------------------------
+        def na_drawn__draw_summary_card(view, solve, lines)
+            Na__NobleDrawingTools.Na__DrawnPreview__DrawWorldLabel(view, solve[:world][:a1], lines)
         end
         # ---------------------------------------------------------------
 
@@ -697,7 +750,16 @@ module Na__NobleDrawingTools
 
         # ON MOUSE MOVE | Hover Highlight While Idle, Setback While Dragging
         # ------------------------------------------------------------
+        # The first statement is the 2D handover (5.2.40): change to a 2D
+        # scene tab and the profile's parallel camera variant takes over on
+        # the next idle move, orbit into perspective and this one comes back,
+        # the bank riding across. Inert when the 2D module is not loaded, and
+        # never mid-drag.
+        # ------------------------------------------------------------
         def onMouseMove(flags, x, y, view)
+            return if Na__NobleDrawingTools.respond_to?(:Na__EdgeTool2d__HandoverIfCameraFlipped) &&
+                      Na__NobleDrawingTools.Na__EdgeTool2d__HandoverIfCameraFlipped(self, view, @na_state)
+
             na_drawn__sync_modifier(flags)
             na_drawn__ensure_known_state
             @na_last_mouse_x = x
@@ -708,7 +770,7 @@ module Na__NobleDrawingTools
                     if na_ps__active?
                         na_ps__nearest(view, x, y)                            # <-- Preselected edges: the one a press here would drive
                     else
-                        Na__NobleDrawingTools.Na__DeepPick__EdgeAt(view, x, y)
+                        na_drawn__edge_at(view, x, y)
                     end
             else
                 na_drawn__update_cursor(view, x, y)
@@ -755,7 +817,7 @@ module Na__NobleDrawingTools
         # the press landed, without picking at all.
         # ------------------------------------------------------------
         def na_drawn__grab_edge(view, x, y, target = nil)
-            target ||= Na__NobleDrawingTools.Na__DeepPick__EdgeAt(view, x, y)
+            target ||= na_drawn__edge_at(view, x, y)
 
             unless target
                 UI.beep
@@ -838,12 +900,9 @@ module Na__NobleDrawingTools
             @na_press_x           = @na_last_mouse_x
             @na_press_y           = @na_last_mouse_y
 
-            # The batch this drag will cut: the clicked edge drives the
-            # measurement, every banked edge rides along at the same world
-            # setback. Clicking an edge already banked does not double it.
-            @na_ch_batch        = [target] + @na_ch_multi.reject do |banked|
-                banked[:edge] == target[:edge] && banked[:path] == target[:path]
-            end
+            # The batch this drag will cut (na_drawn__batch_for): the clicked
+            # edge drives the measurement, every banked edge rides along.
+            @na_ch_batch        = na_drawn__batch_for(target)
             @na_ch_batch_solves = []
             @na_ch_max_size     = na_lm__max_for(@na_ch_batch)                # <-- Measured once per grab; the scrub runs up to it
             @na_size_d          = na_sc__begin(view, @na_press_y)             # <-- Opens at 25% of it, already showing the cut
@@ -851,9 +910,9 @@ module Na__NobleDrawingTools
 
             if @na_ch_batch.length > 1
                 Sketchup::set_status_text("Dragging #{@na_ch_batch.length} edges together", SB_PROMPT)
-            elsif target[:shared_count].to_i > 1
+            elsif target[:shared_count].to_i > 1                              # <-- 5.2.44: the copy cut becomes its own (DrawnDeepUnique)
                 Sketchup::set_status_text(
-                    "Heads up: this definition has #{target[:shared_count]} instances — #{na_drawn__cut_verb}ing changes all of them",
+                    "Heads up: this component has #{target[:shared_count]} copies — only this one is #{na_drawn__cut_verb}ed, as a component of its own",
                     SB_PROMPT
                 )
             end
@@ -1205,7 +1264,7 @@ module Na__NobleDrawingTools
             stop_line = na_drawn__stop_summary(solve)
             summary_lines << stop_line if stop_line
 
-            Na__NobleDrawingTools.Na__DrawnPreview__DrawWorldLabel(view, world[:a1], summary_lines)
+            na_drawn__draw_summary_card(view, solve, summary_lines)
         end
         # ---------------------------------------------------------------
 
@@ -1351,7 +1410,33 @@ module Na__NobleDrawingTools
             model   = Sketchup.active_model
             members = na_revise__snapshot_members([target], model)           # <-- Read while the edge still exists; the cut erases it
 
-            result = Na__NobleDrawingTools.Na__DeepPick__ExecuteInContext(model, target[:path], "#{na_drawn__cut_title} Edge") do |entered|
+            # SHARED COMPONENTS (5.2.44, DrawnDeepUnique): an edge inside a copy
+            # shared with copies elsewhere is cut in a copy of its own, so the
+            # copies elsewhere keep their arris. The plan above was the
+            # refusal check, on the edge as picked; the copy's edge is solved
+            # and planned again (the same shape, its own faces).
+            settle = na_drawn__settle_copies(model, [target])
+            return false unless settle
+
+            if settle[:pending]
+                begin
+                    target = settle[:targets].first
+                    solve  = na_drawn__solve_member(target, @na_size_d)
+                    raise "this #{na_drawn__cut_title.downcase} cannot be solved in the copy" unless solve
+
+                    plans = na_drawn__plan_cut(target, solve)
+                rescue StandardError => error
+                    na_drawn__settle_abandon(model, settle)
+                    UI.beep
+                    na_revise__notice("#{na_drawn__cut_title} refused: #{error.message} — Ctrl+Z takes back the copy made unique")
+                    return false
+                end
+            end
+
+            result = Na__NobleDrawingTools.Na__DeepPick__ExecuteInContext(
+                model, target[:path], "#{na_drawn__cut_title} Edge",
+                :home => settle[:home], :pending => settle[:pending], :selected => (settle[:pending] ? settle[:selected] : nil)
+            ) do |entered|
                 parent   = target[:edge].parent
                 entities = parent.respond_to?(:entities) ? parent.entities : model.active_entities
 
@@ -1404,19 +1489,37 @@ module Na__NobleDrawingTools
         # ------------------------------------------------------------
         def na_drawn__commit_batch(view, targets)
             model      = Sketchup.active_model
-            groups     = targets.group_by { |t| Na__NobleDrawingTools.Na__DeepPick__Instances(t[:path]) }
+            members    = na_revise__snapshot_members(targets, model)          # <-- Read while every edge still exists (as picked: an undo brings them back)
+
+            # SHARED COMPONENTS (5.2.44, DrawnDeepUnique): the same edge picked
+            # on several copies of one component is ONE cut, made through one of
+            # them, the others riding along (it used to be cut once and then
+            # refused on every other copy, "an edge vanished mid-batch"), and
+            # copies not picked keep their arris. Each group below then re-reads
+            # its edges inside its context, as it always has.
+            settle = na_drawn__settle_copies(model, targets)
+            return false unless settle
+
+            origin = {}.compare_by_identity                                   # <-- An edge as it stands now => as it was picked
+            settle[:targets].each_with_index { |moved, index| origin[moved] = targets[index] if moved }
+            live   = settle[:targets].compact
+            saved  = @na_ch_batch
+            @na_ch_batch = live if settle[:pending]                           # <-- Stops and through joints compare the edges being cut, as they now stand
+
+            groups     = live.group_by { |t| Na__NobleDrawingTools.Na__DeepPick__Instances(t[:path]) }
             cut        = 0
             errors     = []
-            members    = na_revise__snapshot_members(targets, model)          # <-- Read while every edge still exists
-            cut_edges  = []                                                   # <-- The targets whose group actually cut
+            cut_edges  = []                                                   # <-- The targets whose group actually cut, as picked
             cut_solves = []                                                   # <-- Their final solved shapes, for the ghost
             ops        = 0                                                    # <-- One undo step per group that landed
+            chained    = settle[:pending]                                     # <-- The first group joins the settle's step
 
             groups.each_value do |group_targets|
                 group_solves = []                                             # <-- Assigned inside the block, read after it
 
                 result = Na__NobleDrawingTools.Na__DeepPick__ExecuteInContext(
-                    model, group_targets.first[:path], "#{na_drawn__cut_title} Edges"
+                    model, group_targets.first[:path], "#{na_drawn__cut_title} Edges",
+                    :home => settle[:home], :pending => chained, :selected => (chained ? settle[:selected] : nil)
                 ) do |entered|
                     # Validate and solve the whole group first, then mitre any
                     # shared corners, then plan every touched face exactly once,
@@ -1468,15 +1571,20 @@ module Na__NobleDrawingTools
                     na_revise__remember(model, @na_size_d)
                 end
 
+                chained = false
+
                 if result[:success]
                     cut += group_targets.length
                     ops += 1
-                    cut_edges.concat(group_targets)
+                    cut_edges.concat(group_targets.map { |t| origin[t] || t })
                     cut_solves.concat(group_solves)
                 else
                     errors << result[:error]
                 end
             end
+
+            @na_ch_batch = saved
+            cut += settle[:riders] if errors.empty? && cut > 0                # <-- Cut through another copy's one cut
 
             if cut.zero?
                 UI.beep
@@ -1502,8 +1610,9 @@ module Na__NobleDrawingTools
             end
 
             # Only the edges that were actually cut are worth retyping: the ones
-            # whose group refused are still standing exactly as they were.
-            cut_members = members.select { |member| cut_edges.include?(member[:target]) }
+            # whose group refused are still standing exactly as they were. With
+            # every group cut, the edges that rode on a copy's cut count too.
+            cut_members = errors.empty? ? members : members.select { |member| cut_edges.include?(member[:target]) }
             na_revise__capture(cut_members, cut_solves, ops)
 
             @na_ch_multi.clear
@@ -1522,6 +1631,42 @@ module Na__NobleDrawingTools
             entered ? model.edit_transform : Geom::Transformation.new
         rescue StandardError
             Geom::Transformation.new
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Settle the Copies the Edges Sit In; nil When Refused (5.2.44)
+        # ------------------------------------------------------------
+        # DrawnDeepUnique. An edge signs with its id in its definition and the
+        # way its copy is placed (turned, scaled, mirrored): the setback is
+        # one world distance for every edge in the cut, and a profile with a
+        # top and a bottom may read the world's directions, so copies placed
+        # alike cut alike. A refusal (a Live Component, a locked copy) is said
+        # here, before anything changes.
+        # ------------------------------------------------------------
+        def na_drawn__settle_copies(model, targets)
+            sign = lambda do |target|
+                [:edge, target[:edge].entityID, Na__NobleDrawingTools.Na__DeepUnique__PlacementKey(target[:transformation])]
+            end
+
+            settle = Na__NobleDrawingTools.Na__DeepUnique__SettleTargets(model, targets, "#{na_drawn__cut_title} Edge", sign)
+            return settle unless settle[:refused]
+
+            UI.beep
+            Sketchup::set_status_text("#{na_drawn__cut_title} refused: #{settle[:refused]}", SB_PROMPT)
+            na_revise__notice("#{na_drawn__cut_title} refused: #{settle[:refused]}")
+            nil
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Close a Settle's Step When the Cut Will Not Follow It
+        # ------------------------------------------------------------
+        # The copies stay made unique (one Ctrl+Z takes them back); the user is
+        # put back in their own context, which pulls in the step left waiting.
+        # ------------------------------------------------------------
+        def na_drawn__settle_abandon(model, settle)
+            restored = Na__NobleDrawingTools.Na__DeepUnique__Restore(model, settle[:home])
+            Na__NobleDrawingTools.Na__DeepUnique__ClosePending(model, "#{na_drawn__cut_title} Edge") unless restored
+            Na__NobleDrawingTools.Na__DeepPick__FocusRestore(model, settle[:selected])
         end
         # ---------------------------------------------------------------
 

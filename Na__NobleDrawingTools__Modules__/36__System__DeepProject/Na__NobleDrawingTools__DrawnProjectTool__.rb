@@ -803,13 +803,16 @@ module Na__NobleDrawingTools
         end
         # ---------------------------------------------------------------
 
-        # FUNCTION | Say So When the Projection Will Change Every Copy
+        # FUNCTION | Say So When the Face Sits in a Component With Copies
+        # ------------------------------------------------------------
+        # 5.2.44: the copy projected becomes a component of its own and the
+        # copies elsewhere keep their shape (DrawnDeepUnique).
         # ------------------------------------------------------------
         def na_pj__warn_if_shared(picked)
             count = picked[:shared_count].to_i
             return false if count <= 1
 
-            Sketchup::set_status_text("Heads up: this definition has #{count} instances — projecting changes all of them", SB_PROMPT)
+            Sketchup::set_status_text("Heads up: this component has #{count} copies — only this one is projected, as a component of its own", SB_PROMPT)
             @na_last_status_text = nil
             true
         end

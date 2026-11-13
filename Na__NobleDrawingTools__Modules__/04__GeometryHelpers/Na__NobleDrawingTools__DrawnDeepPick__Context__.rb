@@ -57,21 +57,31 @@ module Na__NobleDrawingTools
     #   transform at all. Nothing entered — the target is in the user's own
     #   context, or the open failed — and reads and adds share one space.
     #
+    # AFTER A SETTLE (5.2.44, DrawnDeepUnique): a pick inside a copy shared
+    # with copies elsewhere is moved onto a copy of its own first, in steps
+    # that leave next_transparent set and may leave a container open. Pass
+    # what Na__DeepUnique__SettleTargets handed back: `pending` (the edit then
+    # starts transparent, so it joins that step), `home` (the user's own
+    # context, put back at the end) and `selected` (the selection before the
+    # settle opened anything). Without them this is exactly what it was.
+    #
     # Returns { :success, :error, :entered }.
     # ------------------------------------------------------------
-    def self.Na__DeepPick__ExecuteInContext(model, path, op_name)
+    def self.Na__DeepPick__ExecuteInContext(model, path, op_name, home: nil, pending: false, selected: nil)
         instances   = Na__NobleDrawingTools.Na__DeepPick__Instances(path)
         target_path = instances.empty? ? nil : instances
         entered     = false
+        current     = nil
         previous    = nil
-        selected    = Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)  # <-- Entering a context clears this
+        selected  ||= Na__NobleDrawingTools.Na__DeepPick__FocusSnapshot(model)  # <-- Entering a context clears this
         result      = { :success => false, :error => nil, :entered => false }
 
         if model.respond_to?(:active_path=)
             begin
-                previous = model.active_path                                  # <-- nil at root, else the user's context
+                current  = model.active_path                                  # <-- nil at root, else the user's context (or a container a settle opened)
+                previous = pending ? home : current
 
-                unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(previous, target_path)
+                unless Na__NobleDrawingTools.Na__DeepPick__SameContext?(current, target_path)
                     model.active_path = target_path
                     entered = true
                 end
@@ -80,8 +90,11 @@ module Na__NobleDrawingTools
             end
         end
 
-        if entered
-            model.start_operation(op_name, true, true, true)
+        here    = entered ? target_path : current
+        leaving = !Na__NobleDrawingTools.Na__DeepPick__SameContext?(here, previous)
+
+        if entered || pending
+            model.start_operation(op_name, true, leaving, true)              # <-- Joins the entry (or the settle), pulls in the way back
         else
             model.start_operation(op_name, true)
         end
@@ -96,7 +109,7 @@ module Na__NobleDrawingTools
             result[:error] = error.message
         end
 
-        if entered
+        if leaving
             begin
                 model.active_path = previous
             rescue StandardError

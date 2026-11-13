@@ -74,9 +74,11 @@ module Na__NobleDrawingTools
 
     # FUNCTION | Read the Corner an Edge Makes
     # The chamfer solver's own corner analysis: the inward direction along
-    # each face, the bisector between them, the half-angle and the instance
-    # scale along each direction. nil when the edge cannot carry a profile —
-    # the same refusals as the chamfer.
+    # each face (signed by that face's own winding since 5.2.45, so concave
+    # faces and edges on openings go into the material too), the bisector
+    # between them, the half-angle and the instance scale along each
+    # direction. nil when the edge cannot carry a profile — the same refusals
+    # as the chamfer.
     # ------------------------------------------------------------
     def self.Na__ProfileSweep__CornerFrame(target)
         edge  = target[:edge]
@@ -100,8 +102,10 @@ module Na__NobleDrawingTools
             (v0.y.to_f + v1.y.to_f) * 0.5,
             (v0.z.to_f + v1.z.to_f) * 0.5
         )
-        dir_a = Na__NobleDrawingTools.Na__DrawnChamfer__SignToward(dir_a, midpoint, face_a)
-        dir_b = Na__NobleDrawingTools.Na__DrawnChamfer__SignToward(dir_b, midpoint, face_b)
+        # Into the material by each face's own winding (5.2.45), never by a
+        # centroid: see Na__DrawnChamfer__SignInto.
+        dir_a = Na__NobleDrawingTools.Na__DrawnChamfer__SignInto(dir_a, edge, face_a, midpoint)
+        dir_b = Na__NobleDrawingTools.Na__DrawnChamfer__SignInto(dir_b, edge, face_b, midpoint)
 
         bisector = Geom::Vector3d.new(
             dir_a.x.to_f + dir_b.x.to_f,

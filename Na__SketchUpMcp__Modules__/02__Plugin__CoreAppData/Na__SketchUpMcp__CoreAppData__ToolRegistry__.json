@@ -19,7 +19,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.33",
+        "version": "1.0.35",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -43,6 +43,8 @@
         "agent_outliner.depth": "1.0.31",
         "agent_outliner.action=category_tree": "1.0.32",
         "agent_outliner.prefix": "1.0.32",
+        "point_cloud_clip.frame": "1.0.35",
+        "point_cloud_ortho_plane.view=clip": "1.0.35",
         "entity_studio.action=parameters": "1.0.27",
         "entity_studio.action=elements": "1.0.27",
         "entity_studio.action=openings": "1.0.27",
@@ -1978,7 +1980,7 @@
             "timeout_s": 60,
             "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
             "api": ["Sketchup::Model#overlays", "Sketchup::Model#start_operation", "Sketchup::Model#set_attribute"],
-            "description": "Set or switch a point cloud's clip box through Adam's Na Point Cloud Viewer. A clip box is axis-aligned in model coordinates, one per cloud, saved in the cloud's record in the model: each change is ONE undo step of the viewer's own, named \"Point Cloud: ...\", so model_undo steps 1 reverts it. Clip only when the user asked to work the cloud, and put their clip scene back when done (action scene). action: box (min, max), around (ids: their world bounds grown by margin, default the viewer's selection margin of 100 mm, rounded outwards onto its 5 mm grid, as Clip Box Around Selection does), on and off (clipping on or off, the box kept), scene (cloud, and scene: a clip scene id or name from point_cloud_state, or \"full\" for the whole cloud). box and around also show those clouds and switch the overlay on. clouds: ids or names; default every cloud on show (the active cloud when none is), as Draw Clip Box does. label names the undo step (default \"MCP Clip Box\"). Not allowed in batch_execute.",
+            "description": "Set or switch a point cloud's clip box through Adam's Na Point Cloud Viewer. A clip box is level with the model's axes, or TURNED (viewer 0.14.8: box with frame, its min and max then in the frame, e.g. square to a wall that is not square to the model; point_cloud_state reports it under clip.turned with the level box round it), one per cloud, saved in the cloud's record in the model: each change is ONE undo step of the viewer's own, named \"Point Cloud: ...\", so model_undo steps 1 reverts it. Clip only when the user asked to work the cloud, and put their clip scene back when done (action scene). action: box (min, max; with frame a turned box), around (ids: their world bounds grown by margin, default the viewer's selection margin of 100 mm, rounded outwards onto its 5 mm grid, as Clip Box Around Selection does), on and off (clipping on or off, the box kept), scene (cloud, and scene: a clip scene id or name from point_cloud_state, or \"full\" for the whole cloud). box and around also show those clouds and switch the overlay on. clouds: ids or names; default every cloud on show (the active cloud when none is), as Draw Clip Box does. label names the undo step (default \"MCP Clip Box\"). Not allowed in batch_execute.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1991,6 +1993,7 @@
                     "cloud": {"type": "string", "description": "scene: the cloud (id or name); default the only cloud on show."},
                     "scene": {"type": "string", "description": "scene: a clip scene id or name, or \"full\"."},
                     "label": {"type": "string", "description": "Names the undo step \"Point Cloud: <label>\" (default \"MCP Clip Box\")."},
+                    "frame": {"$use": "frame", "description": "box only: a TURNED clip box, min and max given in this frame (origin with angle, or x_axis and y_axis, or a group's id). Adam edits it in the viewer along its own sides. Needs Na Point Cloud Viewer 0.14.8."},
                     "units": {"$use": "units"}
                 },
                 "required": ["action"],
@@ -2158,6 +2161,245 @@
                     "overwrite": {"type": "boolean"},
                     "units": {"$use": "units"}
                 },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "point_cloud_ortho_plane",
+            "title": "Point Cloud Ortho Plane",
+            "runs_on": "bridge",
+            "handler_key": "point_cloud_ortho_plane",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 180,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::View#write_image",
+                "Sketchup::Camera#height=",
+                "Sketchup::Model#raytest",
+                "Sketchup::Model#abort_operation",
+                "Sketchup::Face#position_material",
+                "Sketchup::ImageRep#load_file"
+            ],
+            "description": "Make a scaled, square-on picture of Adam's point cloud and place it in the model as a white drawing plane to draw over: the route for low-quality clouds (point cloud -> scaled 2D image -> 2D linework -> 3D). Always a parallel camera. view: top, bottom, front, back, left, right (through origin); wall (a and b along the face in plan, look_from any point on your side: the picture runs left to right as seen from there, u along the wall from its left end, v the model's z); or frame (origin, x_axis = picture right, y_axis = picture up; the camera looks along -(x cross y)); or clip (1.0.35: the active cloud's clip box, or clouds[0]'s, level or turned: square to its front face, its size and depth the extent and slab). extent {u, v}: the picture along x and y from the origin (a wall's default: its length plus 500 each end, as high as the cloud reaches). depth [behind, front]: the slab of cloud kept, a turned clip box for this capture only (default 1000 each). resolution: length a pixel (default 10 mm). fill (default true) sizes the dots from the points' spacing so they meet; dot_px sets them; look sets size, opacity and colour for this capture. Zero trace: the model is hidden inside an undo operation that is aborted, the clouds' looks and clip boxes are untouched, the camera is put back, and two crosses prove the pixel map (calibration_px). The PNG is saved in the job's 01__ReferenceFiles/12__PointCloud__Orthos, never over a file (save_path to choose). The plane is a textured face on white (background: transparent on request) placed in front of the model's geometry along the view (plane {at: front or frame, offset}), named REF__DrawingPlane__<View>__PointCloudOrtho__<name> on 06__Drawings, carrying the Ortho tab's Na__Ortho__Capture data: ONE undo step, \"Point Cloud Ortho Plane\". place false writes the PNG only. Draw linework 5 mm in front of the plane. The Ortho tab's Point Cloud Ortho Plane button (Noble 3D Tools 0.9.48) runs the same code. Needs Na Point Cloud Viewer 0.14.7. Not allowed in batch_execute.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view": {
+                        "type": "string",
+                        "enum": [
+                            "top",
+                            "bottom",
+                            "front",
+                            "back",
+                            "left",
+                            "right",
+                            "wall",
+                            "frame",
+                            "clip"
+                        ],
+                        "description": "What the picture is square to (clip: the cloud's clip box, 1.0.35)."
+                    },
+                    "origin": {
+                        "$use": "point",
+                        "description": "top ... right: a point on the picture's plane (default the model origin); u, v and depth are measured from it."
+                    },
+                    "wall": {
+                        "type": "object",
+                        "properties": {
+                            "a": {
+                                "$use": "point",
+                                "description": "One end of the wall face in plan."
+                            },
+                            "b": {
+                                "$use": "point",
+                                "description": "The other end."
+                            },
+                            "look_from": {
+                                "$use": "point",
+                                "description": "Any point on the side you look from (e.g. a metre into the garden)."
+                            }
+                        },
+                        "required": [
+                            "a",
+                            "b",
+                            "look_from"
+                        ],
+                        "additionalProperties": false,
+                        "description": "view wall: the face line in plan and your side."
+                    },
+                    "frame": {
+                        "type": "object",
+                        "properties": {
+                            "origin": {
+                                "$use": "point"
+                            },
+                            "x_axis": {
+                                "$use": "direction",
+                                "description": "Picture right."
+                            },
+                            "y_axis": {
+                                "$use": "direction",
+                                "description": "Picture up (made square to x_axis)."
+                            }
+                        },
+                        "required": [
+                            "x_axis",
+                            "y_axis"
+                        ],
+                        "additionalProperties": false,
+                        "description": "view frame: any plane."
+                    },
+                    "extent": {
+                        "type": "object",
+                        "properties": {
+                            "u": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "[min, max] along x from the origin."
+                            },
+                            "v": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "[min, max] along y from the origin."
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "The picture's area (required except a wall's)."
+                    },
+                    "depth": {
+                        "type": "array",
+                        "items": {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "[behind, front]: the slab of cloud kept behind and in front of the plane (default 1000 each)."
+                    },
+                    "resolution": {
+                        "type": "number",
+                        "minimum": 0.0001,
+                        "description": "Model length a pixel (default 10 mm)."
+                    },
+                    "fill": {
+                        "type": "boolean",
+                        "description": "Size the dots from the points' spacing so they meet (default true)."
+                    },
+                    "dot_px": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 64,
+                        "description": "The dot size in output pixels (instead of fill)."
+                    },
+                    "look": {
+                        "type": "object",
+                        "properties": {
+                            "point_size_px": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10
+                            },
+                            "opacity_percent": {
+                                "type": "integer",
+                                "minimum": 5,
+                                "maximum": 100
+                            },
+                            "colour_mode": {
+                                "type": "string",
+                                "enum": [
+                                    "rgb",
+                                    "black",
+                                    "primary"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "The clouds' look for this capture only."
+                    },
+                    "background": {
+                        "type": "string",
+                        "enum": [
+                            "white",
+                            "transparent"
+                        ],
+                        "description": "Default white (Adam: easier to work with)."
+                    },
+                    "plane": {
+                        "type": "object",
+                        "properties": {
+                            "at": {
+                                "type": "string",
+                                "enum": [
+                                    "front",
+                                    "frame"
+                                ],
+                                "description": "front (default): in front of the model's geometry along the view; frame: on the frame's plane."
+                            },
+                            "offset": {
+                                "type": "number",
+                                "description": "Further toward the camera."
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "place": {
+                        "type": "boolean",
+                        "description": "false: write the PNG only (default true)."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The plane's name tail, e.g. UpperGarden or BoundaryWall01__East."
+                    },
+                    "tag": {
+                        "$use": "tag",
+                        "description": "Default 06__Drawings."
+                    },
+                    "save_path": {
+                        "type": "string",
+                        "description": "An absolute .png path (refused if it exists); default the job folder."
+                    },
+                    "clouds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 16,
+                        "description": "These clouds (ids or names); default every cloud on show and loaded."
+                    },
+                    "hide": {
+                        "type": "string",
+                        "enum": [
+                            "model",
+                            "none"
+                        ],
+                        "description": "model (default): only the clouds are in the picture."
+                    },
+                    "calibrate": {
+                        "type": "boolean",
+                        "description": "Prove the pixel map with two crosses (default true)."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "view"
+                ],
                 "additionalProperties": false
             }
         },

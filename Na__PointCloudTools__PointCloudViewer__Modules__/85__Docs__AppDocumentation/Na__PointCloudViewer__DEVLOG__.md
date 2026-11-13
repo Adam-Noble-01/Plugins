@@ -4,6 +4,117 @@
 
 # =======================================================================================
 
+## Point Cloud Viewer - v0.14.8 - 13-Nov-2026 - Turned Clip Boxes
+
+Status: IMPLEMENTED - NOT YET VERIFIED IN SKETCHUP 2027.
+
+### Summary
+Adam agreed turned clip boxes for the ortho planes ("Yes support turned clip boxes"); 0.14.7 built them for one capture
+only. Asked whether to keep one in the viewer for his own viewing: "Yes, build it". A clip box can now turn to follow a
+wall that is not square to the model (Kann's boundary walls run 3.76 degrees off), and is saved, drawn, rendered, edited,
+kept in clip scenes and point cloud scenes, exported and read by the MCP like a level box. The engine is unchanged (ABI 9):
+the cloud and the camera are folded into the box's frame, as the MCP's turned slices do. ARCHITECTURE section 37.
+
+### Built
+- **`50__System__ClipBox/Na__PointCloudViewer__ClipBox__Turned__.rb` (new):**
+  - the box keeps `turned` (`origin`, `x_axis`, `y_axis`, and its own `min`/`max`, model inches); `min`/`max` beside it
+    stay the LEVEL box round it, so extents, Zoom to Cloud, the filter preview's region and scene image framing work
+    unchanged, and an older viewer clips to that level box instead of failing;
+  - `Na__Clip__Space` gives any box in its own axes, `Na__Clip__CornersModel`, `Na__Clip__MakeTurned` (a frame along the
+    model axes, or a quarter turn, gives a level box), `Na__Clip__TurnedAbout`, `Na__Clip__RenderParts` (the fold);
+  - `Na__Clip__Turn` (an angle about the vertical through the box's centre, sizes kept; 0 levels it), `Na__Clip__Level`,
+    `Na__Clip__TurnAlong` and its tool `Na__ClipTurnTool` (Turn to Two Points: two clicks along a wall face in plan; the
+    box turns square to the line, centres on it, runs its length, keeps its depth, height and level, then Edit Clip Box
+    starts). Each is ONE undo step ("Point Cloud: Turn Clip Box", "Level Clip Box", "Turn Clip Box to Two Points").
+- **State:** the typed limits, the edit tool's live moves, the record, clip scenes, Copy to Other Clouds and the new
+  `Na__Clip__SetClipOn` all work in the box's own axes. A stored turned box that cannot be read is dropped whole (never a
+  level box in the wrong place).
+- **Edit tool:** the cage, the handles, the pick and the drag work in the box's own axes, so a turned box's sides move along
+  its own sides.
+- **Renderer** (`ImageRenderer`, the seam's `composite`, scene image export): a turned box that clips folds that cloud and
+  the camera into its frame, per cloud.
+- **Crop and Cut:** its view waits while a turned box clips (its boxes are level in the model), capture refuses a turned box
+  and says to Level it, and the Clean tab's clip size reads along the box's own sides with "(turned)".
+- **Point cloud scenes** keep and recall a turned box; the JSON config export gives its frame, plan angle and limits.
+- **Clipping tab:** a Turn row on the Clip Box card (degrees from red), Turn to Two Points, Level, and hints that say how a
+  turned box's limits read.
+- **MCP seam:** `state` reports `clip.turned` (frame, plan angle, its own limits) and turned clip scenes; `clip_box` takes
+  `frame` with `min`/`max` in it (Na SketchUp MCP 1.0.35's `point_cloud_clip frame`); `composite` draws a saved turned box;
+  `NA_FEATURES` lists `turned_clip`. `Na__McpFrame.Na__Frame__Camera` is the one camera fold, shared.
+
+### Tested (13-Nov-2026, offline)
+- `50__System__ClipBox/tests/clip_turned_unit.rb.test` (new): 20 checks on the real State, Turned and EditTool files:
+  corners and level bounds of a box turned 30 degrees; aligned and quarter-turned frames come out level; thin boxes refused;
+  sizes and centre kept through a turn, and back to level; Turn and Level each one undo step with the frame saved; bad
+  angles refused with nothing written; Turn to Two Points on Kann's east wall (length, centre, depth, height, angle
+  -86.24 degrees) and the same box clicked either way; the record round trip (a stale level box remade, an unreadable turn
+  dropped); the render key; clip scenes and Copy to Other Clouds keep the turn; typed limits and the drag along the box's
+  own x; picking a turned box's Top and Right sides by ray, and a ray inside the level box round it that misses; the drag
+  following the mouse along the box's x; the fold (points inside test inside, outside test outside, every point keeps its
+  place in the camera); nothing folded with clipping off or a level box.
+- Three planted faults in a scratch copy (camera not folded, a face centre read from the level box, the turn left out of
+  the record) each failed the suite.
+- The seam suites unchanged: 87, 8, 18, 10 and 15 checks. 52 of 52 Ruby files compile (Ruby 3.2.2; SketchUp 2027's 3.4 DLL
+  does not boot embedded); house lint clean on every folder touched; `node --check` on the clip tab's script.
+
+### What offline cannot prove
+- The picture with a turned box in SketchUp (the fold is proven numerically, not on screen), the cage and handles of a turned
+  box, Turn to Two Points' clicks, and the Clipping tab's new row.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Noble 3D Tools' and Na SketchUp MCP's Reload Plugin Data. The engine is unchanged, so the
+   clouds stay loaded. Close and reopen the viewer dialog for the new Turn row.
+2. Clipping tab, Clip Box card: type 3.76 in Turned from the red axis and press Enter: the clouds clip to a turned box; one
+   Ctrl+Z puts it back.
+3. Turn to Two Points, then click the two ends of a boundary wall's face in plan: the box turns along the wall and Edit Clip
+   Box starts; drag the Front and Back handles to the wall's thickness.
+4. Save a clip scene, press Level, then click the scene: the turned box comes back.
+5. Clean tab: Crop and Cut says the box is turned and won't capture it until it is levelled.
+
+## Point Cloud Viewer - v0.14.7 - 13-Nov-2026 - Ortho Planes: Turned Clips and Looks for One Render, and Point Spacing
+
+### Summary
+For Na SketchUp MCP 1.0.34's `point_cloud_ortho_plane` and Noble 3D Tools' Point Cloud Ortho Plane button (0.9.48): a
+scaled, square-on picture of the cloud placed in the model as a plane to draw over, Adam's route for low-quality clouds
+(Kann 64562, a cloud derived from Google Earth). Kann's boundary walls run 3.76 degrees off the axes, so each wall took
+four level clip boxes, four undo steps and a composite by hand. Adam: "Yes support turned clip boxes". The engine is
+unchanged (ABI 9): a turned box folds the frame into the cloud's transform and the camera, as 0.14.6 does for slices.
+ARCHITECTURE section 36.
+
+### Built (`95__System__McpOperations/Na__PointCloudViewer__McpOperations__Main__.rb`)
+- `composite` takes, for that render only (nothing written to any cloud's record, no look changed):
+  - `clouds`: draw only these of the clouds on show;
+  - `clip_frame` with `clip_min` and `clip_max`: a TURNED clip box in place of each cloud's own. The cloud's transform
+    (`Na__McpFrame.Na__Frame__Fold`) and the camera (`na_camera_in_frame`) are both carried into the frame, so the
+    engine's level box is level in the frame and the picture is unchanged. The Crop and Cut view is off for it (its
+    boxes are level in the model), and the reply says so;
+  - `look`: `point_size_px`, `opacity_percent`, `colour_mode` (rgb, black, primary), inside the viewer's own limits;
+  - `dot_px`: the dot in OUTPUT pixels (1 to 64), not scaled by the viewport, so a plane's dots are sized from the
+    points' spacing and its resolution.
+  - The reply adds `dot_px` and `turned_clip`.
+- A new read, `spacing` (framed too): an even grid of cells over the box's x and y, the median count of the cells
+  holding points, `spacing` = cell / sqrt(median), and `spacing_sparse` from the sparser quarter of the cells (the 25th
+  percentile). A plane sizes its dots from `spacing_sparse`, so they meet in the thin areas as well as under trees; the
+  median left speckle on Kann. Refused above 4 M cells.
+- `NA_FEATURES` lists 'ortho', so the MCP and the button can tell a viewer that has it.
+
+### Tested (13-Nov-2026)
+- `tests/mcp_operations_unit.rb.test`: 87 checks (6 new): the feature and the read listed; a 50 mm grid of points on a
+  wall turned 30 degrees reads 50 mm seen along the frame; an empty box gives no spacing; the camera seen from the frame
+  projects every point where the model camera does; the turned box arrives in the frame (nil without one); look and
+  dot_px accepted inside the limits, refused outside.
+- Live in a copy of Kann 64562 (its own window, closed afterwards), through the MCP tool:
+  - the upper garden plan at 10 mm a pixel with the hand-made plane's dot size: pixel-identical to the hand-made picture
+    (correlation 1.0, mean difference 0.0);
+  - the east and west boundary walls, each one render with a turned clip, matching the four-segment composites;
+  - the clouds' own clip boxes and looks as before after every capture.
+
+### Checklist for Adam (in SketchUp)
+1. Reload Plugin (Settings), then Noble 3D Tools' and Na SketchUp MCP's Reload Plugin Data. The engine is unchanged, so
+   the clouds stay loaded.
+2. Ortho tab > Point Cloud Ortho Plane > Make Plane on a parallel view of a cloud: a white plane appears, and the cloud's
+   own clip box and look are as they were.
+
 ## Point Cloud Viewer - v0.14.6 - 09-Nov-2026 - Slices at Any Angle for the MCP (frame)
 
 ### Summary

@@ -18,6 +18,10 @@
 //   on show (state.clipDraw), and holds the snap grid and the selection
 //   margin. Its chip shows the key SketchUp gives the tool, if any.
 //
+// TURNED BOX (v0.14.8): the card's Turn row types the box's angle from the
+//   red axis, Turn to Two Points starts the two-click tool, Level turns it
+//   back (state.clip.turn); a turned box's limits are along its own sides.
+//
 // STATE: everything shown comes from state.clip (Ruby). This file never keeps
 //   its own copy of the box; it only remembers what the user is typing, so a
 //   state push never wipes a half-typed limit or scene name.
@@ -45,6 +49,11 @@
     var na_sorter        = null;     // drag to reorder on the scene list
     var na_list_waiting  = false;    // a repaint held back while a row is being dragged
     var na_margin_shown  = '';       // the selection margin last shown (unchanged text is not re-sent)
+    var na_turn_shown    = '';       // the turn angle last shown (unchanged text is not re-sent)
+
+    var NA_TURN_HINT_LEVEL  = 'To follow a wall that is not square to the model, type the box\'s angle, or press Turn to Two Points and click along the wall face in plan.';
+    var NA_LIMITS_HINT_LEVEL  = 'Limits are in the model\'s units. Type a value and press Enter. Clipping only hides points; the LAS is never changed.';
+    var NA_LIMITS_HINT_TURNED = 'The box is turned, so its limits are along its own sides (Left and Right along it, Front and Back across it), measured from where it was turned, in the model\'s units. Type a value and press Enter.';
 
     var NA_DRAW_HINT_IDLE    = 'Drag out the base rectangle in the model, on a floor, a wall or in the air, then pull the height and click. Corners snap to the grid; hold Ctrl to snap to the model\'s own points instead. Type sizes as you go, for example 2400,3600 and then 2700. The tool stays on for the next area: Esc leaves it.';
     var NA_DRAW_HINT_DRAWING = 'Drawing: drag the base, pull the height and click. Tab changes the base plane (Plan, Front, Side), Backspace steps back, Esc cancels the box or leaves the tool. Right click for the grid and the plane.';
@@ -146,6 +155,35 @@
         var hint = document.getElementById('na-clip-edit-hint');
         hint.textContent = clip.isEditing ? NA_HINT_EDITING : NA_HINT_IDLE;
         hint.classList.toggle('na-hint--live', !!clip.isEditing);
+    }
+
+    // Turned box (v0.14.8)
+    function na_render_turn(clip) {
+        var turn = clip.turn || { turned: false, angle: '', tilted: false };
+        var input = document.getElementById('na-clip-turn');
+        var shown = clip.hasBox ? (turn.tilted ? '' : (turn.angle || '0')) : '';
+        if (document.activeElement !== input && input.value !== shown) input.value = shown;
+        na_turn_shown = shown;
+        input.disabled = !clip.hasBox;
+        document.getElementById('na-clip-turn-pick').disabled = !clip.hasBox;
+        document.getElementById('na-clip-level').disabled = !turn.turned;
+        var hint = document.getElementById('na-clip-turn-hint');
+        if (!clip.hasBox) {
+            hint.textContent = 'Turn Clip on, or draw a box, first: then it can turn to follow a wall.';
+        } else if (turn.tilted) {
+            hint.textContent = 'An agent tilted this box out of level. Type an angle (or 0) to turn it round the vertical again, or press Level.';
+        } else if (turn.turned) {
+            hint.textContent = 'The box is turned ' + turn.angle + ' degrees. Edit Clip Box moves its sides along its own sides. Crop and Cut takes a level box, so its view waits while this one clips.';
+        } else {
+            hint.textContent = NA_TURN_HINT_LEVEL;
+        }
+        document.getElementById('na-clip-limits-hint').textContent = turn.turned ? NA_LIMITS_HINT_TURNED : NA_LIMITS_HINT_LEVEL;
+    }
+
+    function na_send_turn() {
+        var value = document.getElementById('na-clip-turn').value.trim();
+        if (!value || value === na_turn_shown) return;
+        Bridge.na_call('clip_turn', { degrees: value });
     }
 
     // endregion ----------------------------------------------------------------
@@ -358,6 +396,7 @@
         }
         na_render_draw(state);
         na_render_box(na_clip);
+        na_render_turn(na_clip);
         na_render_limits(na_clip);
         na_render_scenes(na_clip);
     };
@@ -395,6 +434,18 @@
         });
         document.getElementById('na-clip-copy-others').addEventListener('click', function () {
             Bridge.na_call('clip_copy_to_others', {});
+        });
+        var turn = document.getElementById('na-clip-turn');
+        turn.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter')  { turn.blur(); }
+            if (event.key === 'Escape') { turn.value = na_turn_shown; turn.blur(); }
+        });
+        turn.addEventListener('change', na_send_turn);
+        document.getElementById('na-clip-turn-pick').addEventListener('click', function () {
+            Bridge.na_call('clip_turn_pick', {});
+        });
+        document.getElementById('na-clip-level').addEventListener('click', function () {
+            Bridge.na_call('clip_level', {});
         });
         document.getElementById('na-scene-save').addEventListener('click', na_save_scene);
         // Full Cloud stays first: it has no grip and no sort id

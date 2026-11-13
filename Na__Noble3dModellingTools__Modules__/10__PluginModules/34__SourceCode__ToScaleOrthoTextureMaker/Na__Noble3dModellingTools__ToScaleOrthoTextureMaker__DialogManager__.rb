@@ -44,6 +44,7 @@ module Na__Noble3dModellingTools
             @na_dialog.show
             na_push_scene_list
             na_push_status('info', NA_READY_STATUS)
+            na_push_cloud_available
             @na_dialog
         rescue StandardError => error
             UI.messagebox("To Scale Ortho Texture Maker dialog error:\n#{error.message}")
@@ -99,6 +100,8 @@ module Na__Noble3dModellingTools
             @na_dialog.add_action_callback('na_requestScenes') { |_context| na_push_scene_list }
             @na_dialog.add_action_callback('na_runProjection') { |_context, payload_json| na_handle_projection(payload_json) }
             @na_dialog.add_action_callback('na_exportTexture') { |_context, payload_json| na_handle_export(payload_json) }
+            @na_dialog.add_action_callback('na_makeCloudPlane') { |_context, payload_json| na_handle_cloud_plane(payload_json) }
+            @na_dialog.add_action_callback('na_requestCloudAvailable') { |_context| na_push_cloud_available }
             @na_dialog.add_action_callback('na_refreshScripts') { |_context| na_handle_refresh_scripts }
             @na_dialog.add_action_callback('na_jsLog') { |_context, message| puts "[Na__ToScaleOrthoTextureMaker__UI] #{message}" }
         end
@@ -121,6 +124,23 @@ module Na__Noble3dModellingTools
             na_push_export_status(result[:success] ? 'success' : 'error', result[:message].to_s)
         rescue StandardError => error
             na_push_export_status('error', "Export request failed: #{error.message}")
+        end
+
+        # Point Cloud Ortho Plane (13-Nov-2026): the same build path as the MCP tool.
+        def self.na_handle_cloud_plane(payload_json)
+            report = ->(type, message) { na_call_dialog(@na_dialog, 'na_setCloudStatus', type, message) }
+            Na__ToScaleOrthoTextureMaker__PointCloudOrthoButton.Na__ToScaleOrthoTextureMaker__PointCloudOrthoButton__Run(na_parse_payload(payload_json), report)
+        rescue StandardError => error
+            na_call_dialog(@na_dialog, 'na_setCloudStatus', 'error', "Point Cloud Ortho Plane failed: #{error.message}")
+        end
+
+        def self.na_push_cloud_available
+            return unless @na_dialog
+
+            available, reason = Na__ToScaleOrthoTextureMaker__PointCloudOrtho.Na__ToScaleOrthoTextureMaker__PointCloudOrtho__Available
+            @na_dialog.execute_script("window.na_setCloudAvailable(#{JSON.generate(available)}, #{JSON.generate(reason.to_s)});")
+        rescue StandardError => error
+            puts "[Na__ToScaleOrthoTextureMaker] cloud availability check failed: #{error.message}"
         end
 
         def self.na_handle_refresh_scripts
