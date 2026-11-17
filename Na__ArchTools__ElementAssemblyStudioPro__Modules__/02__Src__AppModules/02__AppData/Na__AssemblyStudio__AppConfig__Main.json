@@ -3,7 +3,7 @@
         "metadata": {
             "appName"           : "Element Assembly Studio Pro",
             "publisher"         : "Noble Architecture",
-            "version"           : "2.6.0",
+            "version"           : "2.7.3",
             "schemaVersion"     : 1
         },
 
@@ -11,6 +11,7 @@
             { "id": "windows",  "label": "Windows",        "showHeaderActions": true  },
             { "id": "doors",    "label": "Interior Doors", "showHeaderActions": true  },
             { "id": "cabinets", "label": "Cabinetry",      "showHeaderActions": true  },
+            { "id": "runs",     "label": "Assembly Runs",  "showHeaderActions": true  },
             { "id": "settings", "label": "Settings",       "showHeaderActions": false }
         ],
 
@@ -72,6 +73,17 @@
                 "idRegex"                 : "^ACB\\d{3}$",
                 "idFormat"                : "ACB%03d",
                 "definitionNameSuffix"    : "__"
+            },
+            "assemblyRunSystem": {
+                "instanceDictName"        : "Na__AssemblyRunConfiguratorInfo",
+                "instanceIdAttribute"     : "RunID",
+                "definitionDictPrefix"    : "Na__AssemblyRunConfigurator_",
+                "metadataKey"             : "Na__AssemblyRunMetadata",
+                "componentsKey"           : "Na__AssemblyRunComponents",
+                "configurationKey"        : "Na__AssemblyRunConfiguration",
+                "idRegex"                 : "^ARN\\d{3}$",
+                "idFormat"                : "ARN%03d",
+                "definitionNameSuffix"    : "__AssemblyRun__"
             }
         },
 
@@ -119,6 +131,9 @@
             "cabinetry": {
                 "legs"          : "Cabinetry__Legs__",
                 "handles"       : "Cabinetry__Handles__"
+            },
+            "assemblyRun": {
+                "columns"       : "AssemblyRun__Columns__"
             }
         },
 

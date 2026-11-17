@@ -3,6 +3,244 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.7.3 - 17-Nov-2026 - Assembly Runs: One Cill Round the Run, and a Fused Framework That Is One Piece
+
+### Context
+Adam, on the SK02 bay windows (ARN001 and ARN002, built by an agent that day): "Make a way to be able to connect the sills up ... You see how this looks bad? Plus, I don't think the fuse parts are working correctly either. On assemblies using MCP, analyse." And: "the sill should wrap around all of the sides, and there shouldn't be any join lines."
+
+### What Was Wrong (Measured on ARN002, Read Only)
+- Each window built its own 50 x 50 cill, exactly as wide as the window. The run's 50 mullions, 120 corner posts and 50 end blocks all stood from the run's base, so they cut the cill line at every mullion and every corner; at each outside corner the two cills stopped short and left the corner open.
+- Each window built its own internal board with its nosing returned 30 past both sides, so the boards overlapped by 10 at every mullion and by 90 x 90 at each corner.
+- Fuse Framework took only the windows' side frames away. Their heads and bottom rails stayed inside each window, separate solids from the run's mullions and posts, so there was a join line wherever a rail met a mullion or a post.
+
+### New: One Cill and One Window Board Along the Run (`JoinCills`, on by default; new `...AssemblyRun__RunCills__.rb`)
+- The run builds ONE cill and ONE internal window board in place of each panel's own, each mitred round every corner and built as one solid with no join lines (a level face of it is one face along the whole stretch).
+- Posts, infill blocks and corner posts stand on the cill; so do the windows and doors. A gap, a library column or corner column, a window on a sill height (it keeps its own cill) and an empty length at a leg's end break it; a door breaks the board, which stops at the windows either side unless it reaches the path's free end.
+- The cill's size is the run's: `CillHeight_mm` (0 for none) and `CillProjection_mm`, both 50 to start, the window tab's own start. It reaches back to the back of the posts (fused) or of the frames, as a window's own cill does, and takes the window's finish (Sapele, or the frame's with Paint Cill). The board is the first window's own section (reveal depth, nosing overhang and type).
+- In the tab: "One cill along the run" in the Run section, with its height and projection. Both previews draw it: in plan the band round the corners, in elevation a strip along each stretch.
+
+### Changed: Fuse the Framework Builds the Framework as ONE Solid (`...AssemblyRun__FrameworkBuilder__.rb`)
+- A fused window is now built frameless (casements and glass only); the run builds its head and bottom rail at the window's own frame thickness and fuses them with the mullions, jambs, infill blocks and corner posts into `Na__RunFramework__Fused`, in the window's frame finish and frame edge colour. No join lines.
+- A fused run always joins its cills (the switch shows on and fixed): a coupled frame stands on one cill.
+- A door in a fused run keeps its own head and threshold (no side frames, as before) and stands on the cill.
+- Un-fusing and un-joining put each window's own frame, cill and board back exactly as they were (`FrameBeforeFuse`, `CillBeforeJoin`).
+
+### Fixes
+- `open_dialog` ignored `run_id` (only `instance_id` selected the run): both now do (not yet proven live).
+- A run stored before a setting existed showed that setting's field empty in the tab; the tab now reads Ruby's default for it, as Ruby does.
+
+### Known Limits
+- The cill has square ends at the path's free ends (no horns), and runs only at the run's base: a window on a sill height keeps its own cill.
+- A door in a fused run keeps its own frame, so a join line remains where its head meets the framework.
+- Fusing needs SketchUp Pro's solid tools; without them the members are built separately, and the run says so.
+- Runs built before 2.7.3 (SK02's ARN001 and ARN002) keep their old look until they are rebuilt with Update Run, in a window that has loaded 2.7.3.
+
+### Verified
+- **Offline, the pure Ruby** (`AssemblyRunLayout__Spec__.rb.test`): 149 checks, 25 of them new: Adam's ARN002 bay (one cill round both corners, its mitred outline to the millimetre, the board out to the end blocks, mullions, end blocks and corner posts on the cill), a door between windows, library columns, a gap, a raised window, a closed loop (a ring), the switch off, a cill too tall, a cill of 0, open and library corners, an L turning right.
+- **Offline, the real page:** the switch on and fixed when fused, off when unticked, the cill drawn in both previews, Undo bringing it back; a run stored without the new keys shows 50 and 50.
+- **In SketchUp** (a copy of the testbed in its own window; nothing in Adam's models was changed): ARN002's settings rebuilt as a new run gave one fused framework (volume exactly the sum of its 16 members), one cill and one board, all closed solids; un-fused and un-joined it gave each window back its frame, cill and board; joined without fuse the windows stood on the cill; a closed loop gave a ring cill and a ring board; window-door-window gave one cill under all three and a board either side of the door. In the real dialog, ticking Fuse fixed the cill switch on and Update Run built the framework. The seam refused an agent setting `has_cill` on a joined panel.
+- **On SK02 itself** (17-Nov, at Adam's yes, cleared by the orchestrating session): Reload Scripts, then `assembly_run_edit update` with no changes on ARN001 and ARN002, both built by 2.7.2. Each gave one cill (30,940,000 mm³: its mitred U outline, 618,800 mm², times 50), one board and one fused framework (exactly the sum of its 16 members), all closed solids; the envelopes were unchanged (2700 x 1000 x 1475 and x 1275). The framework and cill are on the 5 mm grid; the board's nosing (type 1) sits on 2.5 mm, as the per-window boards' did.
+
+### Files Changed
+- **New:** `55__System__AssemblyRunSystem/...AssemblyRun__RunCills__.rb`, `...AssemblyRun__FrameworkBuilder__.rb`.
+- `...Defaults__.rb` (`JoinCills`, `CillHeight_mm`, `CillProjection_mm`, `NA_WINDOW_PRODUCTS`, limits), `...LayoutResolver__.rb` (settings, panel type flags, stretches, what stands on the cill), `...PanelTypes__.rb` (frameless windows, joined cills, the rails), `...GeometryEngine__.rb`, `...ColumnBuilder__.rb` (corner blocks on the cill, fused members left to the framework), `...MemberSync__.rb` (what the run owns), `...Init__.rb`, `...UiSystem__MainUiLogic__.js` (the switch and sizes, missing settings read from the defaults), `...Viewport__LayoutDrawer__.js` (the cill in both drawings).
+- `60__System__McpOperations/...McpOperations__Runs__.rb` (setting notes, owned keys, `open_dialog` by `run_id`), `AppConfig__Main.json` (2.7.3), `65__Dev__DevTools/...AssemblyRunLayout__Spec__.rb.test`.
+
+### Validation Checklist
+- [ ] Reload Scripts (or restart SketchUp) in the window holding the run.
+- [ ] Select the bay run, Assembly Runs tab: Fuse the framework is on and One cill along the run is on and fixed. Update Run.
+- [ ] Outside: one cill round all three sides, no breaks at the mullions or corners. The frames: no line where a rail meets a mullion.
+- [ ] Inside: one window board round the bay, mitred at the corners.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.7.2 - 16-Nov-2026 - Assembly Runs: Change What a Panel Is, Flip Inside Out, Undo and Redo
+
+### Context
+Adam, after building an L-shaped run of bifolds and double doors:
+1. "Make it so you can right-click or, on the dropdowns, change the type of panel. For example, here I can only make the new panels doors, but you should be able to make the windows sliding or any of the different elements very easily, which you can't."
+2. "When you change direction, there's no way to universally flip the inward and outward direction ... I actually want this run pictured to have the doors facing and the columns facing on the other face of it ... Add a toggle to flip inside out as well to cover this."
+3. "On the diagram editor, there is no Ctrl+Z or Ctrl+Y for forward and backwards, so it's really unforgiving. Add an undo and a redo cache to this as well."
+
+### New: Another Kind of Panel (`...AssemblyRun__RunEdits__.rb`: `na_set_span_product!`, `na_set_fill_product!`, `na_set_type_product!`)
+- **Right-click a span** in either drawing: under the panel's commands, **Change This Panel to** and **Change All N of Type X to**, each with one small button per product of the mode (a new entry kind of `Na_RunContextMenu`: `choices`). The menu's heading now says what the panel is.
+- **The dropdowns:** every panel type list in Legs and Spans (a leg's fill, a listed span) ends with a **Change to** group of the other products. The Panel column of the Panel Types table is no longer locked once a type is built.
+- **The rule, one for every route:** a span (or a leg's fill) that shares its panel type takes a NEW type under the next code, sized as the old one, so nothing else on the run moves; one that has its type to itself changes that type. A type that changes product keeps its code, width and height, keeps its sill only when it is still a window (`Na__Defaults::NA_SILL_PRODUCTS`), and drops what belonged to its old element (id, kept settings, preset, values): it is built again from the new product's starting values.
+- **In the tab the change is staged** (`na_runStageEdit` -> `Na__RunEdits.na_stage!` -> `na_receiveRunStaged`): the preview shows it at once and Update Run builds it. **From the member banner** (a panel selected inside its run, on its own tab) the same two commands rebuild the run at once, as one undo step ("Change Panel to Sliding Doors"): `na_runSetSpanProduct`, `na_runSetTypeProduct`.
+- **The elevation names each panel** under its type letter when the span has the room ("Sliding Doors"), and a span's hover text says what it is.
+- A panel type's row follows its element when the product is changed in the element's own tab (`Na__PanelTypes.na_follow_product!`), so the table and the menus name the panel for what it is.
+
+### New: Flip Inside Out (`Na__RunEdits.na_flip_side!`, the Run section's switch, stored as `Na__RunConfig__SideFlipped`)
+- The elements are seen from the RIGHT of the path. A run that faces the wrong way is put right by storing its path the other way round, where it lies: every span and column keeps its place on the ground, faces the other way and stands on the other side of the line; an inside corner becomes an outside one. Nothing else in the system changed: the resolver and the builders read a path as before.
+- **Open path:** the last point becomes the first, leg 1 the last leg, corner 1 the last corner. **Closed path:** the first point stays and the rest are walked the other way. Each leg's own list is stored in the opposite order; a cabinet fill's leftover moves to the leg's other end, so it stays where it stood.
+- **In plan each span now carries a blue arrowhead** pointing to the side it is seen from, and the plan's label says what they mean ("Plan · ▲ outside", "▲ room side" for cabinets): a thin framework looks the same in plan either way without them. The plan is fitted with a little more room at its top (80 px, was 66) so that label clears the top dimension.
+- **A draft on a measured path keeps its flip.** Create used to take the path exactly as it was picked, whatever the tab had done to it since. The tab now marks a draft whose path IS that measured path (`Na__Defaults::NA_KEY_DRAFT_PATH`): Create takes the placement from the measurement and the path from the draft, so a flip, or a leg's length typed after measuring, is what gets built. A run loaded from the model still builds along the measured path as picked.
+
+### New: Undo and Redo of the Description (`...AssemblyRun__UiSystem__MainUiLogic__.js`, the Undo and redo region)
+- **Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z** while the Assembly Runs tab shows, and two arrows at the left of the preview's tools. The last 100 states of the description are kept; a new change after an Undo drops the steps ahead of it.
+- **What it covers:** everything edited in the tab: a draft, and the staged changes of a built run, New Run and a change of mode included. What is built in the model is SketchUp's own Undo, one step per build.
+- **Where it starts afresh:** a run loaded from the model or just built, the selection leaving it, and a path measured in the model. A step back past those would show a run, or a path, that is not the one in the model.
+- A field holding typing that has not been entered yet keeps the browser's own undo of that typing.
+
+### Agents (`60__System__McpOperations/...McpOperations__Runs__.rb`; Na SketchUp MCP 1.0.37)
+- `assembly_run_edit flip_side` (dry_run too); `set_span_type` takes `product` in place of `code` (with `code` naming the type made or changed); `update` may give a built panel type another `product` (with a preset and values for it). A preset or values alone on a built type is still refused: its settings are its element's.
+
+### Fixes
+- **A cabinet leg written down as a list named types that had no row.** A fill makes the narrower types it needs, and until the run is built they are in the layout only. Changing a leg from "Fill by rule" to "Own list" (or making one of its units unique) on a draft named them all the same, and the next layout refused it ("panel type 'B' is not in the list"). Each is now written down as a panel type at the width it has, in Ruby (`na_materialise_leg!`) and in the tab (`na_list_leg`).
+- **A panel type whose product was changed kept its old element's settings.** Through the agent `update`, a shelved type given another product was built from the old product's kept settings. Every route now uses `na_set_type_product!`.
+
+### Known Limits
+- Undo and Redo do not reach what is built: after Update Run the tab's history starts afresh, and the build is undone in SketchUp (Edit, Undo).
+- A flip renumbers the legs (leg 1 becomes the last leg). A blind corner (Cabinets) names no leg: after a flip it is the other leg that runs into the corner.
+- A flip is refused while the run's path is open as a red line (Edit Path): finish or discard the path edit first.
+- A panel changed to a window has no sill until one is given; a panel changed from a window to a door loses its sill.
+- A SketchUp window that was open before this version was installed runs the old Ruby with the new page until Reload Scripts or a restart: the new commands say so and change nothing.
+
+### Verified
+- **Offline, the pure Ruby** (`AssemblyRunLayout__Spec__.rb.test`, SketchUp's Ruby DLL): 124 checks, 53 of them new: each product route and what a row keeps and drops, the fill-made types of cabinets, flips of open and closed paths with every item's place on the ground compared before and after, a second flip putting everything back, the staged edits by name.
+- **Offline, the real page** (served on localhost; layouts and staged edits by the plugin's own Ruby): the flip switch, Ctrl+Z and Ctrl+Y as key events, the Undo and Redo buttons, the menu's product buttons, the dropdowns' Change to group, the Panel Types product list on a built type, a cabinet's leftover unit made a drawer unit, a cabinet leg made a list; no script errors.
+- **In SketchUp** (the scratch test window): through the agent tools a new L-shaped run (ARN013) was flipped (its inside corner became an outside one, the same elements kept), one of three double doors was made sliding (a new type C), then a bifold (in place, recoded BF1), and its windows were all made sash through `update`; each one undo step. In the real dialog a product change was staged from the right-click menu, undone with Ctrl+Z, redone and built with Update Run; a draft on a measured path was flipped in the tab and created along it (ARN014: placed at the measured point, path stored reversed, doors facing the other side); with a panel selected inside that run, the banner's Change This Panel to Sliding Doors rebuilt it in place.
+- **Not verified:** Ctrl+Z and Ctrl+Y from the keyboard itself in the real dialog (sent there as key events from a script); the dropdowns' Change to group and the flip switch on a BUILT run in the real dialog (both proven in the offline page against the same Ruby; the built-run flip through the agent tool).
+
+### Files Changed
+- `55__System__AssemblyRunSystem`: `...RunEdits__.rb` (products, flip, `na_stage!`, the fill-made types written down), `...RunPipelines__.rb` (`na_pipeline_set_span_product`, `na_pipeline_set_type_product`, `na_pipeline_flip_side`), `...DialogRouter__.rb` (`na_runStageEdit`, `na_runSetSpanProduct`, `na_runSetTypeProduct`, the banner's product and products, Create's draft path marker), `...Defaults__.rb` (`NA_SILL_PRODUCTS`, `SideFlipped`, `NA_KEY_DRAFT_PATH`), `...PanelTypes__.rb` (`na_follow_product!`).
+- `...UiSystem__MainUiLogic__.js` (history, `na_stage`, the flip switch, `na_type_select`, the menu's product rows), `...UiSystem__ContextMenu__.js` (`choices`), `...UiSystem__MemberBanner__.js` (the two product commands), `...UiSystem__Bridge__.js` (`na_receiveRunStaged`), `...Viewport__LayoutDrawer__.js` (product names, facing arrowheads, the plan's top margin), `...Viewport__PreviewPanel__.js` (the plan's label).
+- `60__System__McpOperations/...McpOperations__Runs__.rb` (`flip_side`, `product` on `set_span_type`, a product change on a built type).
+- `Na__AssemblyStudio__UiLayout__.html` (the two history buttons, the plan label's id), `...UiFeature__Styles__AssemblyRun__.css` (the menu's choice buttons, the history buttons), `AppConfig__Main.json` (2.7.2), `65__Dev__DevTools/...AssemblyRunLayout__Spec__.rb.test`.
+
+### Validation Checklist
+- [ ] Reload Scripts (or restart SketchUp) in each window, then open the dialog on Assembly Runs.
+- [ ] Right-click a span: Change This Panel to, Sliding Doors. The span takes a new type letter and the elevation names it; Update Run builds it.
+- [ ] In Legs and Spans, open a Panel type list and pick a product under Change to.
+- [ ] Tick Flip inside out: the plan's arrowheads turn to the other side. Update Run: the doors and columns stand on the other face.
+- [ ] Ctrl+Z steps back through those changes and Ctrl+Y forward; the two arrows in the preview's head do the same.
+- [ ] Measure a path, flip the draft, Create Run on Path: it is built along the measured line, facing the flipped way.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.7.1 - 16-Nov-2026 - Assembly Runs: a Preview You Can Zoom, Dimension and Flip Out
+
+### Context
+Adam, on first use of the tab: "the preview is hard to see, so add the same kind of zoom and dimensions, etc. Then add some tabs to it on the top right. The initial view should be like this, showing both. Have it so that you can make it show just the plan or the elevation, or you can flip it out to the right-hand side. It shows a much bigger window with it and a fully navigatable 2D space, because at the moment you can't zoom in on it and inspect it or anything."
+
+### New: The Preview Panel (`55__System__AssemblyRunSystem/...Viewport__PreviewPanel__.js`, `Na_RunPreview`)
+- **Zoom, pan, fit** as on the other tabs: each drawing is a `Na__Viewport__Instance` viewport (scroll zooms about the cursor, a drag pans, a double click on empty space fits). Reset View fits both. A new layout never throws away the user's zoom.
+- **Four ways to look**, tabs at the top right of the preview: Both (how it opens), Plan, Elevation, and Flip Out.
+- **Flip Out** moves the preview into a panel on the right of the dialog, from under the top bar to the foot, and the dialog is widened to make room (`na_runSetPreviewPanel`: by the room to the screen's right edge, between 520 and 1100 page pixels). The controls and the dock keep the width they had. Both, Plan and Elevation still choose what the panel shows (Both stacks the plan over the elevation). Flip Back, or leaving the tab, narrows the dialog again; coming back to the tab flips out again.
+- **A drag handle** under the docked preview sets its height (120 to 720).
+- The dialog's width before a flip-out is kept in SketchUp's preferences (`Na__AssemblyStudio` / `AssemblyRun__PreviewPanel__WidthBefore`), so a dialog closed while flipped out is narrowed again when it next opens.
+
+### New: Dimensions on Both Drawings (Dimensions switch, on by default)
+- **Plan:** along each leg, every stretch (span, column, post, gap, what a corner takes) and the leg's whole length. The strings go on the side of each leg that faces away from the middle of the run, so they run round the outside of the figure; a straight run's go on the side away from its elements.
+- **Elevation:** under each leg the same two rows; the height up the left; the sill under the first span of each panel type that has one.
+- **Click a value to type a new size**, as in the window preview (`Na__Viewport__Controls.na_setupDimensionEditing`, sums and relative entries included). A leg's length moves the path; a span's width sets its panel type's width; the height sets the run's; a sill sets its type's; a block or gap the run stands between spans sets Width Between. On a built run the change is staged for Update Run, like any field. A closed path's legs, and a type a fill made, are not editable.
+
+### Changed: Labels and Dimensions Keep Their Size on Screen
+- Text was sized as a share of the drawing, so on a 15 m run it was too small to read. The drawer now takes `unit` (millimetres per screen pixel) and every label, tick and row offset is given in pixels (`NA_PX`). The panel draws again whenever the zoom or a pane's size changes, so text stays one size while the drawing grows.
+- A value shows to one decimal when it fits its stretch, to the whole millimetre when only that fits, and not at all when neither does; zoom in and it appears.
+- Plan labels claim their room in order of importance (a leg's length, the type letters, each stretch, the leg's name); one that would sit on another is left out until a zoom gives it room.
+- Label colours are inline styles: the preview stylesheet's `.na-viewport-svg text` fill overrode the `fill` attribute, so every label had been drawn grey.
+
+### Verified
+- **Offline** (the real page served on localhost, its layouts resolved by the plugin's own Ruby resolver through SketchUp's Ruby DLL): Both, Plan and Elevation; flip out and back; leaving the tab and returning; four wheel notches took the plan from 14500 to 2400 across with dimension text 11 px before and after; leg 1's length typed from 5508 to 6000 moved the path and re-laid the leg (three spans at 1966.6); a unit's width typed from 600 to 500 on the kitchen run re-laid both legs; a span clicked and right-clicked; no script errors.
+- **In the real dialog** (the scratch test window): the new preview drew a path measured round two corners (19 editable dimensions); Flip Out took the dialog from 835 to 1916 wide with a 1080 by 1290 panel and Flip Back returned it to 835. Closed while flipped out and opened again, the dialog came back 1916 wide and was narrowed to 835 within two seconds.
+- **Not yet verified in the real dialog:** a wheel zoom, a typed dimension and the drag handle (each proven in the offline page, which runs the same scripts).
+
+### Files Changed
+- **New:** `55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Viewport__PreviewPanel__.js`.
+- `...AssemblyRun__Viewport__LayoutDrawer__.js` (rewritten: unit-based labels, dimensions, fit boxes); `...AssemblyRun__UiSystem__MainUiLogic__.js` (hands the preview its layout and selection; `na_apply_dimension`); `...AssemblyRun__DialogRouter__.rb` (`na_runSetPreviewPanel`, the width put back after a reopen, `minimums` in the bootstrap).
+- `Na__AssemblyStudio__UiLayout__.html` (the preview's tools and view tabs, wrapper ids, the handle, the new script); `...UiFeature__Styles__AssemblyRun__.css` (view tabs, single views, the flipped-out panel); `AppConfig__Main.json` (2.7.1).
+
+### Validation Checklist
+- [ ] Reopen the dialog (or restart SketchUp): the Assembly Runs preview shows Dimensions, Reset View, New Run and the tabs Both, Plan, Elevation, Flip Out.
+- [ ] Scroll over a drawing to zoom, drag to pan, double click empty space to fit: the dimension text stays one size.
+- [ ] Click a leg's length, type a new one, Enter: the path and the spans follow.
+- [ ] Flip Out: the dialog widens and the preview fills the right-hand panel. Flip Back: it returns to its width.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.7.0 - 16-Nov-2026 - Assembly Run Studio: Runs of Windows, Doors and Cabinets Along a Path
+
+### Context
+Adam: "Create a new tab which is named Assembly Run Studio. The aim of this tab is to create an environment for creating runs. This could mean, for example, a conservatory ... an assembly name, panel type A, type B, door type B, door type C ... Equally, it should also be able to be used for setting out the cabinet system ... using a master component that can then serialise and store the path data ... We will have spans and columns referred to in the code." Na SketchUp MCP 1.0.36 is the other half (`assembly_run`, `assembly_run_edit`).
+
+### New: The Run (55__System__AssemblyRunSystem, `Na__AssemblyRunSystem`, file segment `AssemblyRun__`)
+- **One master component:** `ARN001__AssemblyRun__<name>`. Its definition holds the spans (instances of ordinary elements), `Na__Run__Posts`, `Na__Run__Columns` and `Na__Run__Corners`. Its data is stored as every other element's is: instance dictionary `Na__AssemblyRunConfiguratorInfo` / `RunID`, definition dictionary `Na__AssemblyRunConfigurator_<id>` with `Na__AssemblyRunMetadata`, `Na__AssemblyRunComponents` and `Na__AssemblyRunConfiguration` (keys prefixed `Na__RunConfig__`).
+- **Words in the code:** a run has a PATH (plan points in mm, in the run's own frame); the path has LEGS; along a leg stand SPANS (each holds a panel of a panel type) and COLUMNS (None, Infill, Vale260, Vale290, Gap); a CORNER joins two legs (Frames: Post, Vale260, Vale290, Open; Cabinets: CornerUnit, Blind, Open).
+- **Two modes.** Frames: casement, sash, single, double, bifold, sliding; the path is the framework face, seen from its right. Cabinets: base, drawers, wall, tall, wardrobe; the path is the wall line, the room on its right.
+- **One resolver, in Ruby** (`LayoutResolver`, pure): the dialog sends the configuration, Ruby resolves it, the page draws what comes back. No JS twin to keep in step.
+- **Every edit is data, then one rebuild** (`RunEdits`, pure; `RunPipelines`): Make Panel Unique, recode, change a span's type and a new path each change the stored configuration and rebuild through the one build path.
+- **The path is data** (the Profile Path Tracer's method): Edit Path draws it as a red line (`MTE201__LineColour__Red`) in a group inside the run and opens it (`Model#active_path=`, outside any operation). A ModelObserver only schedules a timer; when the line is no longer open it is read back, chained into one path and the run rebuilt. An unchanged line is erased.
+
+### New: Panel Types
+- Every span of one panel type is an instance of ONE element definition (`AWN007__Window__ARN005__Type-A`), built by that element's own pipeline. Change one in its own tab and every span of the type changes.
+- A selected span loads into its own tab with a banner: the panel type's code, how many spans share it, Make Panel Unique, More, Show Run.
+- **The dialog's own right-click menu** (`Na_RunContextMenu`) takes the place of the browser's everywhere except in text fields. On the banner, the selected-element strip and a span in either preview it offers Make Panel Unique, Recode Panel Type, Change This Panel to Type X and Show the Run.
+- **Make Panel Unique** gives the span a new type under the next free code (A to Z, then AA), a copy of the element it was, at the width it has, so nothing else moves. A type no span uses keeps its settings on its row and builds again exactly as it was.
+- **The run sets a panel's size** (`MemberSync`): width, height less the cill and, fused, the two side frames. Changed in the panel's own tab they are put back by one rebuild, with a message naming the Assembly Runs tab. An agent's change to them is refused before anything is built.
+
+### New: Frames
+- **Fuse Framework:** every span is built without side frames (`advanced_frame_controls`, left and right 0); the run adds one mullion between two spans and a jamb where a span meets a column, a corner or the end. The frame values a type had before are kept on its row (`FrameBeforeFuse`) and put back when the fuse is turned off.
+- **Between spans:** nothing, an infill block of a set width, a gap, or a Vale 260 or 290 column on its backing.
+- **Library columns** are copies of the Vale files (`04__Data__AssetLibrary/AssemblyRun__Columns__/`, index `Na__AssemblyRun__ColumnIndex__.json`): `10_1001` 260 inline, `10_1002` 260 corner, `10_1004` 290 inline, `10_1003` 290 corner. Each is stretched to the run's height above z 1000 as a variant of its own (`<file>h<height>`), every nested group made unique first. The `00__Util__Linework__ColumnBackers` tag is hidden when the load creates it.
+- **A sill** on a panel type lifts its spans and shortens them; nothing is built below.
+
+### New: Cabinets
+- **Fill a leg from one standard width:** whole units, the remainder as a narrower unit at the end, the start, split between both, or every unit the same width. The narrower units are panel types the fill makes and keeps in step. A remainder under the minimum becomes an infill block, as tall as the unit beside it.
+- **Corners:** an L-shaped corner base unit (run-owned: carcass, plinths and two doors drawn with the Cabinetry resolver, front and handle builders), a blind corner (the first leg runs in, the second starts clear of its fronts), or open.
+- **Gaps** between unit sets are items on a leg.
+
+### New: The Assembly Runs Tab (tab id `runs`, `Na_RunUI`)
+- Mode chips; plan and elevation previews drawn from Ruby's layout; five sections (Run, Columns and Corners, Path, Legs and Spans, Panel Types); problems listed under the previews.
+- Dock: Measure Path (`Na__RunPathMeasureTool`: click each corner, Enter or a double click at the last, the first point again to close, then the side), Create Run on Path, Create Run, Update Run, Edit Path.
+- **A measured path seeds its legs:** legs of one length share a panel type, a new length gets a copy of the first type under the next code, and each leg starts with one span per starting width of its product (read from the product's own starting values). Before this a path measured round a corner opened on a refused layout.
+
+### New: One Undo Step for a Whole Run (`01__AppCore/...OperationScope__.rb`)
+- SketchUp has no nested operations: a `start_operation` inside another commits the open one. Every build pipeline now opens, commits and aborts through `Na__OperationScope.na_start` / `na_commit` / `na_abort`, which do nothing inside `na_embed { }`. A run of twelve windows is one step; each pipeline alone is unchanged.
+- `na_on_commit(name)` tells listeners after each real commit. They only schedule work.
+
+### New: The Agent Seam (`60__System__McpOperations/...McpOperations__Runs__.rb`)
+- `Na__AssemblyStudio__McpRunRead` (status, parameters, columns, runs, inspect, layout) and `Na__AssemblyStudio__McpRunEdit` (build, update, set_path, make_unique, recode, set_span_type, rename, edit_path, finish_path_edit, discard_path_edit, open_dialog). Agent words map to the stored keys in one place (`na_run_config!`); unknown names and out-of-range values are refused, never clamped.
+
+### Fixes
+- **Every dialog action ran once more for each time the dialog had been opened.** `Na__AssemblyStudio.na_init` runs each system's Init on every open, and each Init appended its selection handler and its dialog hook. HtmlDialog runs every callback registered under one name, so from the second open of a session one Create click built two windows, one on top of the other (measured 16-Nov-2026: AWN013 and AWN014 at the origin). `na_init` now empties both lists first (`SelectionCoordinator.na_clear_handlers`, new `DialogManager.na_clear_system_init_hooks`).
+- **A run rebuilt while open for editing landed in world space.** With a span selected the user is inside the run, and in an open context SketchUp reads and writes coordinates in world space: Make Panel Unique from the banner moved the run's whole contents by the run's placement. `RunPipelines.na_pipeline_update` closes the run back to its parent before the operation (`na_leave_run_context`); the dialog selects the span again, which opens the run once more.
+- **`AttributeDictionary#each_pair` needs a block** in SketchUp (it returns no enumerator): `each_pair.to_h` raised `LocalJumpError`.
+
+### Known Limits
+- **Undo with a span selected:** closing and re-opening the run are steps of SketchUp's own, so a panel command is three Undos (the run opened again, the command, the run closed), not one. From the run tab, or from an agent with the run closed, it is one. A size put back after an edit in the panel's own tab undoes in the same order, then the edit itself (measured: reopen, put-back, close, edit).
+- **Corner unit:** owned by the run, not an ACB element, so it has no tab of its own and takes its style from the panel type beside it.
+- **Library corner columns** stand only at an outside 90 degree corner; any other corner asked for one gets a plain corner block and a warning. A corner unit needs 90 degrees too: otherwise the corner is left open, with a warning.
+- **A closed path** is edited in the model (Edit Path), not in the tab's table.
+- **Interior doors** are not offered in a run.
+- **Edit Path** needs the run in the open context (the model root, or the group being edited).
+- **A selection made by code** (`Selection#add`) raises `onSelectionAdded`, which the selection observer does not listen for: code that selects calls `SelectionCoordinator.na_dispatch_selection` itself. A user's click is unaffected.
+- **TrueVision and ValeVision:** spans are elements nested one level inside the run component. Whether the GLB Builder carries them as it carries elements at the root has not been tested.
+
+### Verified (16-Nov-2026, a scratch copy of the MCP testbed in its own SketchUp window)
+- Built and captured: three double doors butted; fused with 50 mullions and jambs; with 500 infill blocks; three bifolds with Vale 260 columns; a U-shaped conservatory (A x4, B x2, C doors, Vale 260 corners); an L-shaped kitchen (600 units, a fill-made 150 unit, a corner unit, every part solid); wardrobes at equal widths; an L of wardrobes with a blind corner.
+- Over the MCP bridge: build with fused bifolds and Vale 290 ends, make_unique, recode, set_span_type, unfuse, set_path, rename; a width change on a run's panel refused, a glaze bar change allowed.
+- In the real dialog: a path measured round two corners seeded and built in one click (one run); a span selected, its banner and Make Panel Unique; glaze bars set on one of four spans reached all four; a width typed over in the Windows tab put back; a staged change and Update Run; Edit Path, the line's end moved 600, the run rebuilt along it.
+- One Undo removed a whole new run.
+- Offline: `65__Dev__DevTools/Na__AssemblyStudio__DevTools__AssemblyRunLayout__Spec__.rb.test`, 71 of 71 (path maths, the five examples, the cabinet fills, the edits).
+
+### Files Changed
+- **New:** `01__AppCore/...AppCore__OperationScope__.rb`; `06__Tools__MeasurementTools/...RunPathMeasureTool__.rb`; `55__System__AssemblyRunSystem/` (Defaults, PathMath, LayoutResolver, RunEdits, DataSerializer, ColumnLibrary, ColumnBuilder, CornerUnitBuilder, PanelTypes, GeometryEngine, RunPipelines, MemberSync, PathEditor, DialogRouter, Init; UiSystem ContextMenu, MemberBanner, MainUiLogic, Bridge; Viewport LayoutDrawer); `60__System__McpOperations/...McpOperations__Runs__.rb`; `03__Style__AppStylesheets/...UiFeature__Styles__AssemblyRun__.css`; `04__Data__AssetLibrary/AssemblyRun__Columns__/`; the spec above.
+- **Pipelines through the operation scope:** `20__System__WindowSystem/...DialogCallbacks__.rb`, `31__...ExtSingleDoor__GeometryEngine__.rb`, `34__...ExtDouble__GeometryEngine__.rb`, `45__...Cabinetry__DialogRouter__.rb`.
+- **AppCore:** `Main` (requires, the run Init, the two lists emptied), `DialogManager` (`na_clear_system_init_hooks`, reload gate), `SelectionCoordinator` (`na_register_listener`), `TabRouter`, `AppContext`, `ActionDock`.
+- **Seam:** `McpOperations__Main__.rb` (requires Runs), `McpOperations__Elements__.rb` (`na_update` asks `na_run_refuse_owned!`).
+- **Config and page:** `AppConfig__Main.json` (2.7.0; tab `runs`; `attributeDictionaries.assemblyRunSystem`; `assetLibrary.assemblyRun.columns`), `UiLayout__.html`, `CoreUi__Styles__Index__.css`.
+
+### Validation Checklist
+- [ ] Restart SketchUp (new files and the operation scope load at start), open the dialog: the tab strip shows Assembly Runs.
+- [ ] Assembly Runs, Frames: Measure Path round a U, the side outside, Create Run on Path: one run, doors on every leg.
+- [ ] Click a span: its own tab opens with the panel type banner. Change its glaze bars, Update: every span of the type follows.
+- [ ] Right-click the banner: Make Panel Unique. The span has a new code; the run has not moved.
+- [ ] Select the run, Edit Path, move a corner of the red line, click outside: the run rebuilds along it.
+- [ ] Close the dialog, open it again, click Create on the Windows tab once: one window.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.6.0 - 11-Nov-2026 - Agents Drive Every Product: Windows, All Exterior Doors, Interior Doors and Cabinets
 
 ### Context

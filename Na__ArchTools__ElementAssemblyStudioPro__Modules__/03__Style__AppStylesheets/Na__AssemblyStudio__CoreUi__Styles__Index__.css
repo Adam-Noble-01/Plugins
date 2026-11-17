@@ -27,3 +27,7 @@
 /* V2.0.0 interface (top bar, pinned tab head, sections and tiers, search,
    action dock). Last, so its scoped overrides win over the legacy bundle. */
 @import url('Na__AssemblyStudio__UiFeature__Styles__SectionLayout__.css');
+
+/* V2.7.0 Assembly Run Studio: its tab, the panel type banner, the dialog's
+   own right-click menu. Uses the V2.0.0 tokens above. */
+@import url('Na__AssemblyStudio__UiFeature__Styles__AssemblyRun__.css');

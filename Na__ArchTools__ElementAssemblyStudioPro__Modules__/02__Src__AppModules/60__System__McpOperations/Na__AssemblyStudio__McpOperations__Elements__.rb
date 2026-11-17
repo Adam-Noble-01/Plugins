@@ -596,6 +596,7 @@ module Na__McpOperations
 
             { 'key' => key, 'from' => before[key], 'to' => values[key] }
         end
+        na_run_refuse_owned!(instance, element, changes)                       # <-- A run's panel: the run sets its sizes (V2.7.0)
         copies = instance.definition.instances.length
         warnings << "#{copies} copies share this definition: all of them change." if copies > 1
 

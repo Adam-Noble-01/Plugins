@@ -72,6 +72,8 @@ User clicks toolbar button -> Na__AssemblyStudio.na_init
                        (one Ruby<->JS helper set)
 ```
 
+The Assembly Run system (55, V2.7.0) sits above the element systems: `AssemblyRun::RunPipelines` calls `WindowSystem::DialogCallbacks.na_pipeline_*` and `Cabinetry::DialogRouter.na_pipeline_*` inside `AppCore::OperationScope.na_embed`, and reads elements through `McpOperations.na_element_of`. Nothing in the element systems requires it; they reach it only through `OperationScope`'s commit listeners and `SelectionCoordinator`'s listeners.
+
 ## Inter-system contract: WindowSystem <-> ExteriorSingleDoorSystem
 
 `Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::PanelInterface` is the only door-panel touchpoint that WindowSystem references. It exposes:
@@ -98,7 +100,7 @@ Each system registers a handler descriptor:
 
 ```
 {
-    :tab_id      => 'windows' | 'doors' | 'cabinets',
+    :tab_id      => 'windows' | 'doors' | 'cabinets' | 'runs',
     :resolve_id  => proc { |instance| <id_string_or_nil> },
     :on_selected => proc { |instance, id| ... },
     :on_cleared  => proc { ... }
@@ -106,6 +108,8 @@ Each system registers a handler descriptor:
 ```
 
 `AppCore::SelectionCoordinator` walks the registry on every selection change. Adding a new system never edits AppCore.
+
+A LISTENER (`na_register_listener(name) { |selection| }`, V2.7.0) is told of every selection change whichever handler owns the element. The Assembly Run system uses one to show the panel type banner over an element's own tab. Both registries, and the init hooks below, are emptied at the start of every `Na__AssemblyStudio.na_init` (each open of the dialog): HtmlDialog runs every callback registered under one name.
 
 ## DialogManager system init hook registry
 
@@ -140,9 +144,12 @@ This pattern means:
 45__InteriorCabinetry       - UiSystem Config, Viewport LayoutResolver, UiSystem LayoutMap,
                               Elevation + Section generators, MainUiLogic (Na_CabinetUI), Bridge
 50__PresetsLibrarySystem    - Bridge, SvgCapture, CardRenderer, MainUiLogic (Na_PresetsUI), EditorUiLogic (Na_PresetEditorUI)
+55__AssemblyRunSystem       - UiSystem ContextMenu (Na_RunContextMenu), MemberBanner, Viewport LayoutDrawer,
+                              Viewport PreviewPanel (Na_RunPreview: zoom, dimensions, view tabs, flip-out; V2.7.1),
+                              MainUiLogic (Na_RunUI), Bridge. No layout maths in JS: Ruby resolves, the page draws.
 ```
 
-The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, `Na_CabinetUI`, `Na_SettingsUI`) and via the `data-na-tab-id` attribute on tab buttons. Adding a new tab = add a button with `data-na-tab-id="newTab"` plus a JS module that exposes `Na_NewtabUI` (or `Na_<TabId>UI`).
+The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, `Na_CabinetUI`, `Na_RunUI`, `Na_SettingsUI`) and via the `data-na-tab-id` attribute on tab buttons. Adding a new tab = add a button with `data-na-tab-id="newTab"` plus a JS module that exposes `Na_NewtabUI` (or `Na_<TabId>UI`).
 
 ## JS <-> Ruby callback table
 
@@ -204,6 +211,18 @@ The TabRouter resolves tab modules by global name (`Na_DynamicUI`, `Na_DoorUI`, 
 | window.na_receiveCabinetAssetOptions(json) | Handle and leg lists with their preview data                         |
 | window.na_receivePresetsLibrary(json)| Push the scanned presets library into the gallery/editor cache             |
 | window.na_receivePresetsSaveResult(json) | Push a preset save/update result back to the editor                    |
+| window.na_receiveRunBootstrap(json)  | Assembly Runs: defaults, option lists, limits, presets, product widths     |
+| window.na_receiveRunLayout(json)     | The layout Ruby resolved for the page's configuration (`na_runResolve`)    |
+| window.na_setInitialRunConfig(json)  | A run selected or just built: its stored data and layout                   |
+| window.na_clearCurrentRun()          | No run selected: the description stays as a draft                          |
+| window.na_receiveRunPath(json)       | A path measured in the model `{ active, points, closed, legs, length }`    |
+| window.na_runMeasureCancelled()      | Clear measure-active styling on the button                                 |
+| window.na_setRunMember(json)         | The selected element is a span of a run: show the panel type banner        |
+| window.na_clearRunMember()           | The selection is no span of a run: hide the banner                         |
+| window.na_setRunPathEdit(json)       | A run's path is open as a red line (Edit Path becomes Finish Path Edit)    |
+| window.na_receiveRunStaged(json)     | A named edit Ruby made to the page's description `{ ok, edit, root, layout, message }` (V2.7.2) |
+
+Assembly Runs, JS -> Ruby (`55__System__AssemblyRunSystem/...AssemblyRun__DialogRouter__.rb`): `na_runRequestBootstrap`, `na_runResolve`, `na_runMeasurePath`, `na_runClearMeasuredPath`, `na_runCreate`, `na_runUpdate`, `na_runRename`, `na_runMakeUnique`, `na_runRecode`, `na_runSetSpanType`, `na_runSelectMember`, `na_runSelectRun`, `na_runEditPath`, `na_runFinishPathEdit`, `na_runDiscardPathEdit`, `na_runJsLog`, `na_runSetPreviewPanel` (V2.7.1: widen the dialog for the flipped-out preview, or narrow it again), `na_runStageEdit` (V2.7.2: `{ root, edit, leg, span, code, product }`; edit is span_product, fill_product, type_product or flip; nothing is built), `na_runSetSpanProduct` and `na_runSetTypeProduct` (V2.7.2: the member banner's product commands, built at once). `na_runCreate` may carry `Na__AssemblyRunDraftPath: "page"` beside the root's three blocks (V2.7.2: the draft's path is the measured path as the tab now holds it); it is read and dropped, never stored.
 
 All `Ruby -> JS` calls go through `AppCore::UiBridge.na_execute_json_function` / `na_execute_numeric_function` / `na_send_status` / `na_invoke`. No direct `dialog.execute_script("window.na_X(...)")` should appear anywhere outside `UiBridge`.
 
@@ -229,6 +248,8 @@ All `Ruby -> JS` calls go through `AppCore::UiBridge.na_execute_json_function` /
 - `02__Src__AppModules/33__System__ExteriorMultiFoldingDoorSystem` - multi-panel bifolding exterior door subsystem (Phase-1 scaffold; filenames use the very short `ExtFold__` segment for MAX_PATH; per-layout sub-files use `Layout__<Algorithm>__`, e.g. `Layout__EqualEqual__`, `Layout__AllOneWay__`, `Layout__MasterSlaves__`).
 - `02__Src__AppModules/40__System__InteriorDoorSystem` - interior door subsystem.
 - `02__Src__AppModules/45__System__InteriorCabinetry` - kitchen and fitted wardrobe cabinets (filenames use `Cabinetry__`).
+- `02__Src__AppModules/55__System__AssemblyRunSystem` - assembly runs: the other systems' elements set out along a path (filenames use `AssemblyRun__`).
+- `02__Src__AppModules/60__System__McpOperations` - the agent seam Na SketchUp MCP calls (elements, presets, runs).
 - `03__Style__AppStylesheets` - app stylesheets.
 - `04__Data__AssetLibrary` - handle/architrave/hinge, window board and cabinet leg/handle asset JSON.
 - `65__Dev__DevTools` - dev-only exporters and utilities.

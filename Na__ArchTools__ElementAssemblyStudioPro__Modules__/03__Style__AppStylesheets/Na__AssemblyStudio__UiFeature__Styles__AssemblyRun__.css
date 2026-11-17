@@ -1,0 +1,702 @@
+/* =============================================================================
+   ELEMENT ASSEMBLY STUDIO PRO - ASSEMBLY RUN STUDIO STYLES
+   =============================================================================
+   FILE       : Na__AssemblyStudio__UiFeature__Styles__AssemblyRun__.css
+   PURPOSE    : The Assembly Run Studio tab (its fields, tables, leg cards and
+                previews), the "editing panel type A" banner shown on the
+                element tabs, and the dialog's own right-click menu.
+   CREATED    : 16-Nov-2026 (V2.7.0)
+
+   Uses the V2.0.0 interface tokens (--na-lay-*) and its section cards
+   (.na-lay-sec), so the tab reads as one with the others. Imported last.
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   REGION | Dock: the runs tab shows only its own buttons
+   ----------------------------------------------------------------------------- */
+
+body[data-na-active-tab="runs"] .na-dock [data-na-dock-tab]:not([data-na-dock-tab="runs"]) {
+    display              : none !important;
+}
+
+body[data-na-active-tab="runs"] .na-dock .na-dock-live {
+    display              : none;                                   /* A run is rebuilt on Update, never live */
+}
+
+/* -----------------------------------------------------------------------------
+   REGION | Member banner (on the Windows, Interior Doors and Cabinetry tabs)
+   ----------------------------------------------------------------------------- */
+
+.na-run-member {
+    display              : flex;
+    align-items          : center;
+    gap                  : 10px;
+    margin               : 0 0 7px;
+    padding              : 7px 10px;
+    background           : var(--na-lay-amber-soft);
+    border               : 1px solid #f0cf94;
+    border-left          : 4px solid var(--na-lay-amber);
+    border-radius        : 8px;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-run-member.na-hidden,
+body[data-na-active-tab="runs"] .na-run-member,
+body[data-na-active-tab="settings"] .na-run-member,
+body.na-presets-mode .na-run-member {
+    display              : none;
+}
+
+.na-run-member__chip {
+    flex                 : none;
+    padding              : 3px 9px;
+    background           : var(--na-lay-amber);
+    border-radius        : 11px;
+    font-size            : 11px;
+    font-weight          : 700;
+    letter-spacing       : 0.04em;
+    text-transform       : uppercase;
+    color                : #ffffff;
+    white-space          : nowrap;
+}
+
+.na-run-member__chip b {
+    margin-left          : 4px;
+    font-size            : 13px;
+}
+
+.na-run-member__text {
+    flex                 : 1;
+    min-width            : 0;
+}
+
+.na-run-member__btn {
+    flex                 : none;
+    height               : 26px;
+    padding              : 0 10px;
+    background           : var(--na-lay-card);
+    border               : 1px solid #e3c486;
+    border-radius        : 6px;
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-amber-ink);
+    cursor               : pointer;
+}
+
+.na-run-member__btn:hover:not(:disabled) {
+    background           : #fff8ea;
+}
+
+.na-run-member__btn:disabled {
+    opacity              : 0.45;
+    cursor               : default;
+}
+
+/* -----------------------------------------------------------------------------
+   REGION | Right-click menu
+   ----------------------------------------------------------------------------- */
+
+.na-run-menu {
+    position             : fixed;
+    z-index              : 9000;
+    min-width            : 232px;
+    max-width            : 340px;
+    padding              : 5px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 9px;
+    box-shadow           : 0 10px 28px -8px rgba(18, 28, 40, 0.38);
+    font-size            : 12.5px;
+}
+
+.na-run-menu__heading {
+    padding              : 5px 9px 6px;
+    font-size            : 10.5px;
+    font-weight          : 700;
+    letter-spacing       : 0.06em;
+    text-transform       : uppercase;
+    color                : var(--na-lay-faint);
+}
+
+.na-run-menu__item {
+    display              : flex;
+    align-items          : baseline;
+    gap                  : 12px;
+    width                : 100%;
+    padding              : 7px 9px;
+    background           : none;
+    border               : 0;
+    border-radius        : 6px;
+    font-family          : inherit;
+    font-size            : inherit;
+    text-align           : left;
+    color                : var(--na-lay-ink);
+    cursor               : pointer;
+}
+
+.na-run-menu__item:hover:not(:disabled) {
+    background           : var(--na-lay-blue-soft);
+}
+
+.na-run-menu__item:disabled {
+    color                : var(--na-lay-faint);
+    cursor               : default;
+}
+
+.na-run-menu__label {
+    flex                 : 1;
+    font-weight          : 600;
+    white-space          : nowrap;
+}
+
+.na-run-menu__hint {
+    font-size            : 11px;
+    color                : var(--na-lay-mute);
+    white-space          : nowrap;
+}
+
+.na-run-menu__sep {
+    height               : 1px;
+    margin               : 4px 6px;
+    background           : var(--na-lay-line-soft);
+}
+
+.na-run-menu__ask {
+    display              : flex;
+    align-items          : center;
+    gap                  : 7px;
+    padding              : 5px 9px;
+}
+
+.na-run-menu__field {
+    width                : 76px;
+    height               : 26px;
+    padding              : 0 7px;
+    border               : 1px solid var(--na-lay-blue);
+    border-radius        : 5px;
+    font-family          : var(--na-lay-mono);
+    font-size            : 12.5px;
+    text-transform       : uppercase;
+}
+
+.na-run-menu__ok {
+    height               : 26px;
+    padding              : 0 11px;
+    background           : var(--na-lay-blue);
+    border               : 0;
+    border-radius        : 5px;
+    font-family          : inherit;
+    font-weight          : 700;
+    color                : #ffffff;
+    cursor               : pointer;
+}
+
+/* A label with one small button per choice under it (V2.7.2): "Change This
+   Panel to", then each product. The buttons wrap inside the menu's width. */
+.na-run-menu__choices {
+    padding              : 6px 9px 7px;
+}
+
+.na-run-menu__choices-head {
+    display              : flex;
+    align-items          : baseline;
+    gap                  : 12px;
+    margin-bottom        : 6px;
+    color                : var(--na-lay-ink);
+}
+
+.na-run-menu__choice-list {
+    display              : flex;
+    flex-wrap            : wrap;
+    gap                  : 5px;
+}
+
+.na-run-menu__choice {
+    height               : 24px;
+    padding              : 0 9px;
+    background           : var(--na-lay-tint);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 12px;
+    font-family          : inherit;
+    font-size            : 11.5px;
+    color                : var(--na-lay-ink-2);
+    white-space          : nowrap;
+    cursor               : pointer;
+}
+
+.na-run-menu__choice:hover:not(:disabled) {
+    background           : var(--na-lay-blue-soft);
+    border-color         : var(--na-lay-blue);
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-run-menu__choice:disabled {
+    opacity              : 0.45;
+    cursor               : default;
+}
+
+/* -----------------------------------------------------------------------------
+   REGION | The tab: mode hint, previews, problems
+   ----------------------------------------------------------------------------- */
+
+/* Undo and Redo in the preview's head (V2.7.2): two arrows, a little larger
+   than the tools' text so they read as arrows. */
+.na-lay-preview .na-lay-preview__tool.na-run-history {
+    min-width            : 28px;
+    padding-left         : 6px;
+    padding-right        : 6px;
+    font-size            : 15px;
+    line-height          : 1;
+}
+
+.na-run-modehint {
+    align-self           : center;
+    padding-bottom       : 3px;
+    font-size            : 12px;
+    color                : var(--na-lay-mute);
+}
+
+/* The two drawings. data-na-run-view on the section says which show: both
+   (side by side), plan or elevation (one, the full width). The height is the
+   section's --na-run-preview-height, set by the drag handle under it. */
+.na-run-previews {
+    display              : grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap                  : 0;
+}
+
+.na-run-preview[data-na-run-view="plan"] .na-run-previews,
+.na-run-preview[data-na-run-view="elevation"] .na-run-previews {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.na-run-preview[data-na-run-view="plan"] #na-run-elevation-cell,
+.na-run-preview[data-na-run-view="elevation"] #na-run-plan-cell {
+    display              : none;
+}
+
+.na-run-previews .na-canvas-wrapper {
+    height               : var(--na-run-preview-height, 250px);
+}
+
+.na-run-previews svg text {
+    font-family          : var(--na-font-family);
+}
+
+/* A dimension value. The shared rule (.na-viewport-svg .na-dim-edit:hover text)
+   still turns an editable one blue under the cursor. */
+.na-viewport-svg text.na-run-dim {
+    fill                 : #303030;
+}
+
+.na-run-span {
+    cursor               : pointer;
+}
+
+.na-run-span:hover {
+    filter               : brightness(0.94);
+}
+
+/* ----------------------------------------------------- The preview's view tabs */
+
+.na-run-views {
+    display              : inline-flex;
+    margin-left          : 4px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 7px;
+    overflow             : hidden;
+}
+
+.na-run-view {
+    padding              : 3px 10px;
+    background           : transparent;
+    border               : 0;
+    border-left          : 1px solid var(--na-lay-line);
+    font-family          : inherit;
+    font-size            : 11.5px;
+    color                : var(--na-lay-ink-2);
+    cursor               : pointer;
+}
+
+.na-run-view:first-child {
+    border-left          : 0;
+}
+
+.na-run-view:hover {
+    background           : var(--na-lay-tint);
+}
+
+.na-run-view.na-run-view--on,
+.na-run-view[aria-pressed="true"] {
+    background           : var(--na-lay-blue-soft);
+    color                : var(--na-lay-blue-ink);
+    font-weight          : 600;
+}
+
+/* ---------------------------------------- Flip Out: the preview in a side panel
+   body.na-run-flipped is set by Na_RunPreview while the preview is flipped out
+   on this tab. The controls and the dock keep the width the page had
+   (--na-run-left); the preview fills everything to their right, from under
+   the top bar (--na-run-panel-top) to the foot of the dialog. */
+
+body.na-run-flipped[data-na-active-tab="runs"] .na-main-content,
+body.na-run-flipped[data-na-active-tab="runs"] .na-dock {
+    width                : var(--na-run-left, 760px);
+    max-width            : 100%;
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs {
+    position             : fixed;
+    z-index              : 35;
+    top                  : var(--na-run-panel-top, 0px);
+    right                : 0;
+    bottom               : 0;
+    left                 : var(--na-run-left, 760px);
+    display              : flex;
+    flex-direction       : column;
+    margin               : 0;
+    border-width         : 0 0 0 1px;
+    border-radius        : 0;
+    box-shadow           : -8px 0 18px -14px rgba(18, 28, 40, 0.35);
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs .na-run-previews {
+    flex                 : 1;
+    min-height           : 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows   : minmax(0, 1fr) minmax(0, 1fr);
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs[data-na-run-view="plan"] .na-run-previews,
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs[data-na-run-view="elevation"] .na-run-previews {
+    grid-template-rows   : minmax(0, 1fr);
+}
+
+/* A cell stays the flex column it is (display is left alone, so the rule
+   that hides the drawing not on show still wins); its canvas takes the room. */
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs .na-door-viewport-cell {
+    min-height           : 0;
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs .na-door-viewport-cell + .na-door-viewport-cell {
+    border-left          : 0;
+    border-top           : 1px solid var(--na-lay-line-soft);
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs .na-canvas-wrapper {
+    flex                 : 1;
+    height               : auto;
+    min-height           : 0;
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-preview-runs .na-run-problems {
+    margin               : 0;
+    padding              : 0 8px 6px;
+}
+
+body.na-run-flipped[data-na-active-tab="runs"] #na-run-preview-resize-handle {
+    display              : none;
+}
+
+.na-run-problems {
+    margin               : 6px 0 0;
+    padding              : 0;
+    list-style           : none;
+}
+
+.na-run-problems[hidden] {
+    display              : none;
+}
+
+.na-run-problem {
+    margin-top           : 3px;
+    padding              : 5px 9px;
+    background           : var(--na-lay-amber-soft);
+    border-radius        : 6px;
+    font-size            : 12px;
+    color                : var(--na-lay-amber-ink);
+}
+
+.na-run-problem--error {
+    background           : #fdecea;
+    color                : #a3261c;
+    font-weight          : 600;
+}
+
+/* -----------------------------------------------------------------------------
+   REGION | The tab: fields, tables, leg cards
+   ----------------------------------------------------------------------------- */
+
+.na-run-grid {
+    display              : grid;
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    gap                  : 8px 14px;
+    align-items          : start;
+}
+
+.na-run-field {
+    display              : flex;
+    flex-wrap            : wrap;
+    align-items          : center;
+    gap                  : 3px 6px;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-run-field--full {
+    grid-column          : 1 / -1;
+}
+
+.na-run-field__label {
+    flex                 : 1 0 100%;
+    font-size            : 11.5px;
+    font-weight          : 600;
+    color                : var(--na-lay-mute);
+}
+
+.na-run-field__note {
+    flex                 : 1 0 100%;
+    font-size            : 11px;
+    color                : var(--na-lay-faint);
+}
+
+.na-run-input {
+    height               : 28px;
+    min-width            : 0;
+    width                : 104px;
+    padding              : 0 7px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+    font-family          : inherit;
+    font-size            : 12.5px;
+    color                : var(--na-lay-ink);
+}
+
+select.na-run-input {
+    width                : auto;
+    max-width            : 100%;
+    padding-right        : 4px;
+}
+
+.na-run-input:focus {
+    outline              : none;
+    border-color         : var(--na-lay-blue);
+    box-shadow           : 0 0 0 2px var(--na-lay-blue-soft);
+}
+
+.na-run-input:disabled {
+    background           : var(--na-lay-tint);
+    color                : var(--na-lay-faint);
+}
+
+.na-run-input--wide { width: 100%; }
+.na-run-input--mini { width: 64px; height: 22px; }
+.na-run-input--code { width: 58px; font-family: var(--na-lay-mono); font-weight: 700; text-transform: uppercase; }
+
+.na-run-unit {
+    font-style           : normal;
+    font-size            : 11px;
+    color                : var(--na-lay-faint);
+}
+
+.na-run-toggle {
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 7px;
+    font-weight          : 600;
+    cursor               : pointer;
+}
+
+.na-run-table {
+    width                : 100%;
+    border-collapse      : collapse;
+    font-size            : 12.5px;
+}
+
+.na-run-table th {
+    padding              : 3px 6px 5px;
+    border-bottom        : 1px solid var(--na-lay-line);
+    font-size            : 10.5px;
+    font-weight          : 700;
+    letter-spacing       : 0.06em;
+    text-align           : left;
+    text-transform       : uppercase;
+    color                : var(--na-lay-faint);
+}
+
+.na-run-table td {
+    padding              : 4px 6px;
+    border-bottom        : 1px solid var(--na-lay-line-soft);
+    vertical-align       : middle;
+    white-space          : nowrap;
+}
+
+.na-run-table--types td:nth-child(2) {
+    white-space          : normal;
+}
+
+.na-run-table--types td:nth-child(2) > * {
+    margin-right         : 6px;
+}
+
+.na-run-row--auto td {
+    background           : var(--na-lay-tint);
+}
+
+.na-run-count {
+    font-weight          : 700;
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-run-built {
+    padding              : 1px 7px;
+    background           : var(--na-lay-blue-soft);
+    border-radius        : 9px;
+    font-family          : var(--na-lay-mono);
+    font-size            : 11px;
+    font-weight          : 700;
+    color                : var(--na-lay-blue-ink);
+}
+
+.na-run-mute {
+    font-size            : 11.5px;
+    color                : var(--na-lay-faint);
+}
+
+.na-run-actions {
+    display              : flex;
+    flex-wrap            : wrap;
+    gap                  : 6px;
+    margin-top           : 8px;
+}
+
+.na-run-btn {
+    height               : 26px;
+    padding              : 0 10px;
+    background           : var(--na-lay-card);
+    border               : 1px solid var(--na-lay-line);
+    border-radius        : 6px;
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-blue-ink);
+    cursor               : pointer;
+}
+
+.na-run-btn:hover {
+    background           : var(--na-lay-blue-soft);
+    border-color         : #bcd4f2;
+}
+
+.na-run-link {
+    padding              : 0;
+    background           : none;
+    border               : 0;
+    font-family          : inherit;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-blue-ink);
+    text-decoration      : underline;
+    cursor               : pointer;
+}
+
+.na-run-x {
+    width                : 20px;
+    height               : 20px;
+    padding              : 0;
+    background           : none;
+    border               : 0;
+    border-radius        : 50%;
+    font-size            : 15px;
+    line-height          : 1;
+    color                : var(--na-lay-mute);
+    cursor               : pointer;
+}
+
+.na-run-x:hover {
+    background           : #fdecea;
+    color                : #a3261c;
+}
+
+.na-run-note {
+    margin-top           : 8px;
+    font-size            : 11.5px;
+    color                : var(--na-lay-mute);
+}
+
+.na-run-note--go {
+    margin               : 0 0 8px;
+    padding              : 6px 9px;
+    background           : #e8f5ea;
+    border-radius        : 6px;
+    color                : var(--na-lay-green-ink);
+    font-weight          : 600;
+}
+
+.na-run-leg {
+    margin-bottom        : 8px;
+    padding              : 8px 10px 10px;
+    background           : var(--na-lay-tint);
+    border               : 1px solid var(--na-lay-line-soft);
+    border-radius        : 8px;
+}
+
+.na-run-leg:last-child {
+    margin-bottom        : 0;
+}
+
+.na-run-leg__head {
+    display              : flex;
+    align-items          : center;
+    gap                  : 9px;
+    margin-bottom        : 8px;
+    font-size            : 12.5px;
+}
+
+.na-run-leg__head span {
+    flex                 : 1;
+    color                : var(--na-lay-mute);
+}
+
+.na-run-chips {
+    display              : flex;
+    flex-wrap            : wrap;
+    align-items          : center;
+    gap                  : 5px;
+}
+
+.na-run-chip {
+    display              : inline-flex;
+    align-items          : center;
+    gap                  : 5px;
+    padding              : 3px 4px 3px 8px;
+    background           : #e5e8ec;
+    border-radius        : 7px;
+    font-size            : 12px;
+    font-weight          : 600;
+    color                : var(--na-lay-ink-2);
+}
+
+.na-run-chip--span {
+    background           : var(--na-lay-blue-soft);
+}
+
+.na-run-chip select.na-run-input {
+    height               : 22px;
+    font-size            : 12px;
+    font-weight          : 700;
+}
+
+/* The selected run's strip: id, name, whether its staged changes are built. */
+#na-run-info .na-selected-strip__dates {
+    flex                 : 1;
+}
+
+#na-info-run-state {
+    font-weight          : 600;
+    color                : var(--na-lay-amber-ink);
+}

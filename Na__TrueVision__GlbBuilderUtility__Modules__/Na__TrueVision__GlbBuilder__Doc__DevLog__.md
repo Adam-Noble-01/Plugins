@@ -8,6 +8,17 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.16.0 - 17-Nov-2026
+#### Water Exports in Every Mode
+Adam: "Seek out TrueVision 3D, the downstream app, and the TrueVision 3D sync, which gets it into that app, and add handling for a water material." (17-Nov-2026, with the SK02 hot tub asset)
+
+- The SSOT has a water material, `MAT150__Water__ClearDefault` (`MAT150__GenericWater`, SSOT 1.10.0), with a `WaterSurface` block and a seamless ripple normal map in `Na__DataLib__CoreTextures__`.
+- A water material (a `MAT###__Water__` name, or an indexed name whose SSOT entry has `WaterSurface`) now passes the gate in every mode, `:no_materials` included, as `MAT000E__` exempt materials always have. Whitecard exports, the MCP's default and ValeVision Cloud Sync's, used to write it as "Default", and the water was lost.
+- It is enriched from the SSOT in every mode. Where the SSOT this export read has no entry for it (the SSOT is read from GitHub `main` first, so a local edit is not seen until it is pushed), the SketchUp material's own opacity passes through instead, as for exempt materials.
+- `extras.Na__WaterSurface` (TileSizeMm, SecondTileSizeMm, RippleStrength) goes on its glTF material, from the SSOT entry or the MAT150 defaults: TrueVision v2.188.0 reads it to draw the water, so a GLB carries its water whatever the app's copy of the SSOT says.
+- MaterialHandling 3.2.0, MaterialLookupSystem 1.2.0. Cloud Sync needs no change: it exports through `Na__PublicApi__PerformExport`.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.15.0 - 10-Nov-2026
 #### Library Parts Keep Their Own Linework Node and Say What They Are
 Adam: "make it so anything in my SketchUp Library is known to ValeVision as one of these assets requiring culling as the authored assets already contain numbers, meta data and loads of other stuff we can use to gurantee its exported, update ValeVision Cloud Sync if required"

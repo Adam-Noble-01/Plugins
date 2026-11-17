@@ -33,7 +33,9 @@ require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Un
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__Fuse__Shared__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__GeometryHelpers__InsertionFrame__'
 
-# AppCore (UiBridge -> DialogManager -> SelectionCoordinator)
+# AppCore (OperationScope -> UiBridge -> DialogManager -> SelectionCoordinator)
+# @delegate: Na__AssemblyStudio__AppCore__OperationScope__.rb (V2.7.0 One undo step for a pipeline that calls other pipelines)
+require_relative 'Na__AssemblyStudio__AppCore__OperationScope__'
 require_relative 'Na__AssemblyStudio__AppCore__UiBridge__'
 require_relative 'Na__AssemblyStudio__AppCore__DialogManager__'
 require_relative 'Na__AssemblyStudio__AppCore__SelectionCoordinator__'
@@ -54,6 +56,8 @@ require_relative '../40__System__InteriorDoorSystem/Na__AssemblyStudio__Interior
 # @delegate: ../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Init__.rb
 require_relative '../45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Init__'
 require_relative '../50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__Init__'
+# @delegate: ../55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Init__.rb (V2.7.0 Assembly Run Studio: runs of the other tabs' elements along a path)
+require_relative '../55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Init__'
 # @delegate: ../60__System__McpOperations/Na__AssemblyStudio__McpOperations__Main__.rb (V2.5.3 Agent seam for Na SketchUp MCP; V2.6.0 every product, it requires the rest of the seam)
 require_relative '../60__System__McpOperations/Na__AssemblyStudio__McpOperations__Main__'
 
@@ -103,6 +107,15 @@ module Na__AssemblyStudio
         MaterialManager.na_initialize_standard_materials
         MaterialManager.na_ensure_safety_materials
 
+        # Every open of the dialog runs each system's Init again, and each
+        # Init adds its selection handler and its dialog hook. Left to pile
+        # up, the second open of a session registered every dialog callback
+        # twice, and HtmlDialog runs every callback registered under one
+        # name: one click on Create built two windows, one on top of the
+        # other (found 16-Nov-2026, V2.7.0). Both lists start empty here.
+        SelectionCoordinator.na_clear_handlers
+        DialogManager.na_clear_system_init_hooks
+
         # Per-system init hooks
         Na__AssemblyStudio::Na__WindowSystem::Na__Init.na_init                       if defined?(Na__AssemblyStudio::Na__WindowSystem::Na__Init)
         Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__Init.na_init           if defined?(Na__AssemblyStudio::Na__ExteriorSingleDoorSystem::Na__Init)
@@ -112,6 +125,7 @@ module Na__AssemblyStudio
         Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init.na_init                 if defined?(Na__AssemblyStudio::Na__InteriorDoorSystem::Na__Init)
         Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__Init.na_init            if defined?(Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__Init)
         Na__AssemblyStudio::Na__PresetsLibrarySystem::Na__Init.na_init               if defined?(Na__AssemblyStudio::Na__PresetsLibrarySystem::Na__Init)
+        Na__AssemblyStudio::Na__AssemblyRunSystem::Na__Init.na_init                  if defined?(Na__AssemblyStudio::Na__AssemblyRunSystem::Na__Init)
 
         # Selection observer
         SelectionCoordinator.na_attach

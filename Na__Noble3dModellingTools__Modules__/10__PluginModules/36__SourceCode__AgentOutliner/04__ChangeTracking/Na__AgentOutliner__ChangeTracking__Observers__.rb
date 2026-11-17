@@ -32,6 +32,24 @@
 #   valid?. The tracker prunes them after each full pass; Detach skips them.
 # - RELOAD SAFE: the classes are reopened by Reload Plugin Data, so observers
 #   already attached run the new code; the watch list survives (guarded).
+# - PERSISTENT ID NOTICES, ONE PER TICK (0.1.19): SketchUp sends
+#   onPidChanged once per entity whose id it renumbers. A library file loaded
+#   and undone sends thousands (16,276 for the Tuscan column 11_2402), each a
+#   slow call into Ruby: the Gallery's read of a sofa arrangement took 108 s
+#   watched against 0.9 s unwatched (17-Nov-2026). The tracker needs only the
+#   first ("the next pass must be a full one"), so that first notice takes
+#   onPidChanged off ModelWatch until the next timer tick. SketchUp asks
+#   respond_to? before every notice, so the rest cost nothing. It decides at
+#   each DefinitionList#load whether anyone takes them, and a load that starts
+#   with onPidChanged defined stays slow (the sofa: 10 to 21 s, against 0.9 s):
+#   code that loads a component and keeps it wraps the load in
+#   Na__Observers__WithoutIdNotices.
+# - QUIET LOADS (0.1.19): Na__Observers__Quietly runs a block that loads into
+#   an operation it always aborts (the Component Editor's library reads):
+#   no persistent id notices, and the operation, its undo notice (SketchUp
+#   2026 reports abort_operation as onTransactionUndo, not
+#   onTransactionAbort) and the tag it brought in and took out go unrecorded,
+#   so no full pass is booked for a model that has not changed.
 #
 # =============================================================================
 
@@ -46,6 +64,10 @@ module Na__AgentOutliner
         @na_app_observer  = nil   unless defined?(@na_app_observer)
         @na_install_timer = false unless defined?(@na_install_timer)
         @na_error_counts  = {}    unless defined?(@na_error_counts)
+        @na_quiet         = 0     unless defined?(@na_quiet)                           # <-- 0.1.19: above 0 inside Na__Observers__Quietly
+        @na_pid_rearm_at  = nil   unless defined?(@na_pid_rearm_at)                    # <-- 0.1.19: when the timer that takes id notices again was booked
+
+        NA_PID_REARM_LOST_S = 2.0 unless defined?(NA_PID_REARM_LOST_S)                 # <-- A re-arm timer this late is taken as lost: the next operation re-arms
 
 # endregion -------------------------------------------------------------------
 
@@ -86,6 +108,7 @@ module Na__AgentOutliner
                 watched_ids: {}
             }
             @na_watches << watch                                                         # <-- Listed first, so WatchEntities finds it
+            self.na_pid_notices(true) if @na_quiet.zero?                                 # <-- 0.1.19: a fresh watch takes id notices
             model.add_observer(watch[:model_obs])
             model.definitions.add_observer(watch[:defs_obs])
             model.selection.add_observer(watch[:sel_obs])
@@ -175,6 +198,50 @@ module Na__AgentOutliner
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Run a Load That Is Always Undone, Unseen by the Tracker (0.1.19)
+        # ------------------------------------------------------------
+        # For code that loads into the open model inside an operation it always
+        # aborts, so the model is exactly as it was afterwards: the Component
+        # Editor's library reads (Na__LibrarySafeLoad). Inside the block there are
+        # no persistent id notices, and the operation, its undo notice and any tag
+        # the file brought in and took out again are not recorded. Returns the
+        # block's value. Never wrap an operation that commits: its changes would
+        # go unseen until the next full pass.
+        def self.Na__Observers__Quietly
+            @na_quiet += 1
+            self.na_pid_notices(false)
+            yield
+        ensure
+            @na_quiet -= 1
+            self.na_pid_notices(true) if @na_quiet.zero?
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Is a Quiet Load Running? (0.1.19)
+        # ------------------------------------------------------------
+        def self.Na__Observers__Quiet?
+            @na_quiet.to_i > 0
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Load a Component That Stays, Without Id Notices (0.1.19)
+        # ------------------------------------------------------------
+        # For code that loads a component and keeps it (Insert At Cursor or At
+        # Axis, an agent placing one): wrap only the DefinitionList#load call. The
+        # entities it brings are all new, so their id notices carry nothing, and
+        # the operation is recorded as usual. SketchUp decides at the load whether
+        # anyone takes the notices: with onPidChanged defined, placing the sofa
+        # arrangement 18_1339 took 20.7 s; without, 0.98 s, the same 42 objects
+        # recorded new (17-Nov-2026). Returns the block's value.
+        def self.Na__Observers__WithoutIdNotices
+            was_on = ModelWatch.method_defined?(:onPidChanged, false)
+            self.na_pid_notices(false)
+            yield
+        ensure
+            self.na_pid_notices(true) if was_on && !self.Na__Observers__Quiet?
+        end
+        # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -218,32 +285,46 @@ module Na__AgentOutliner
 
         # CLASS | Operations, Undo, Redo, Open Groups, Saves
         # ------------------------------------------------------------
+        # Inside Na__Observers__Quietly the operation callbacks hand nothing on
+        # (0.1.19): a load that is always undone leaves nothing to record.
         class ModelWatch < Sketchup::ModelObserver
             def onTransactionStart(_model)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
+                Na__AgentOutliner::Na__Observers.na_pid_heal
                 Na__AgentOutliner::Na__ActorDetect.Na__Actor__TransactionStart
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onTransactionStart', error)
             end
 
             def onTransactionCommit(model)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnCommit(model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onTransactionCommit', error)
             end
 
             def onTransactionAbort(model)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnAbort(model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onTransactionAbort', error)
             end
 
+            # SketchUp 2026 reports abort_operation here too (traced 17-Nov-2026).
             def onTransactionUndo(model)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnUndoRedo(model, 'undo')
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onTransactionUndo', error)
             end
 
             def onTransactionRedo(model)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnUndoRedo(model, 'redo')
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onTransactionRedo', error)
@@ -265,11 +346,15 @@ module Na__AgentOutliner
 
             # SketchUp renumbers persistent ids now and then (grouping, and a
             # definition copied in 2023.1): the next pass must be a full one.
-            def onPidChanged(model, _old_pid, _new_pid)
-                Na__AgentOutliner::Na__Tracker.Na__Tracker__OnFullNeeded(model)
+            # 0.1.19: onPidChanged is this method's other name while id notices
+            # are on; the first notice takes that name away until the next timer
+            # tick (Na__Observers.na_pid_changed), so SketchUp sends no more.
+            def na_on_pid_changed(model, _old_pid, _new_pid)
+                Na__AgentOutliner::Na__Observers.na_pid_changed(model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onPidChanged', error)
             end
+            alias_method :onPidChanged, :na_on_pid_changed                              # <-- On when the file loads (and again on Reload Plugin Data)
 
             # SketchUp 2026 and earlier (deprecated from 2027.0).
             def onDeleteModel(model)
@@ -359,26 +444,36 @@ module Na__AgentOutliner
 
         # CLASS | Tags Shown, Hidden, Added, Removed (the dialog greys rows)
         # ------------------------------------------------------------
+        # A library file read quietly brings its tags in and takes them out
+        # again: nothing for the dialog (0.1.19).
         class LayersWatch < Sketchup::LayersObserver
             def onLayerChanged(layers, _layer)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnTagsChanged(layers.model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onLayerChanged', error)
             end
 
             def onLayerAdded(layers, _layer)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnTagsChanged(layers.model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onLayerAdded', error)
             end
 
             def onLayerRemoved(layers, _layer)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnTagsChanged(layers.model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onLayerRemoved', error)
             end
 
             def onLayerFolderChanged(layers, _folder)
+                return if Na__AgentOutliner::Na__Observers.Na__Observers__Quiet?
+
                 Na__AgentOutliner::Na__Tracker.Na__Tracker__OnTagsChanged(layers.model)
             rescue StandardError => error
                 Na__AgentOutliner::Na__Observers.na_report('onLayerFolderChanged', error)
@@ -446,6 +541,56 @@ module Na__AgentOutliner
             yield
         rescue StandardError => error
             Na__AgentOutliner::Na__DebugTools.Na__Debug__Warn("Releasing an observer: #{error.message}")
+        end
+
+        # The first persistent id notice of a tick (0.1.19): book the full pass,
+        # then take the notices off until the next tick. Called inside SketchUp's
+        # notice: only a method is removed and a timer booked, nothing in the model.
+        def self.na_pid_changed(model)
+            self.na_pid_notices(false)
+            self.na_book_pid_rearm
+            return if self.Na__Observers__Quiet?
+
+            Na__AgentOutliner::Na__Tracker.Na__Tracker__OnFullNeeded(model)
+        end
+
+        # Id notices on (ModelWatch#onPidChanged defined) or off (removed). SketchUp
+        # asks respond_to? before each notice: a class without the method costs
+        # nothing, where an empty method still cost 6.7 s per column read.
+        def self.na_pid_notices(on)
+            armed = ModelWatch.method_defined?(:onPidChanged, false)
+            if on && !armed
+                ModelWatch.send(:alias_method, :onPidChanged, :na_on_pid_changed)
+            elsif !on && armed
+                ModelWatch.send(:remove_method, :onPidChanged)
+            end
+            true
+        end
+
+        # ONE timer to take id notices again.
+        def self.na_book_pid_rearm
+            return if @na_pid_rearm_at
+
+            @na_pid_rearm_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            UI.start_timer(0, false) do
+                Na__AgentOutliner::Na__Observers.na_pid_rearm_now
+            end
+        end
+
+        def self.na_pid_rearm_now
+            @na_pid_rearm_at = nil
+            self.na_pid_notices(true) unless self.Na__Observers__Quiet?             # <-- A quiet load switches them back on when it ends
+        rescue StandardError => error
+            Na__AgentOutliner::Na__DebugTools.Na__Debug__Warn("Taking id notices again: #{error.message}")
+        end
+
+        # A re-arm timer booked over NA_PID_REARM_LOST_S ago that never ran is
+        # taken as lost: the next operation to start takes id notices again.
+        def self.na_pid_heal
+            return unless @na_pid_rearm_at
+            return if Process.clock_gettime(Process::CLOCK_MONOTONIC) - @na_pid_rearm_at <= NA_PID_REARM_LOST_S
+
+            self.na_pid_rearm_now
         end
 
         # An erased definition's Entities raise on every call and have no valid?:

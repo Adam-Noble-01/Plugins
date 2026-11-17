@@ -41,6 +41,12 @@
 #   takes the placement and its turns together.
 #   Insert At Axis: one step, whether or not it had to load the file.
 #
+# THE LOAD AND THE AGENT OUTLINER (17-Nov-2026):
+#   Both loads run inside Na__LibrarySafeLoad.WithoutIdNotices: the Agent
+#   Outliner records the placement as usual, but SketchUp sends no persistent id
+#   notice for every entity the file brings in. With them, placing the sofa
+#   arrangement 18_1339 took 20.7 s with the tracker on; without, 0.98 s.
+#
 # =============================================================================
 
 module Na__ComponentEditorTools
@@ -79,7 +85,7 @@ module Na__ComponentEditorTools
 
             model.start_operation("Insert At Axis: #{File.basename(component_path.to_s, '.*')}", true)
             definition = Na__LibrarySafeLoad.Na__ComponentEditorTools__LoadedDefinitionFor(model, component_path.to_s) ||
-                         model.definitions.load(component_path.to_s)
+                         Na__LibrarySafeLoad.Na__ComponentEditorTools__WithoutIdNotices { model.definitions.load(component_path.to_s) }   # <-- 17-Nov-2026: the tracker's id notices made big components slow
             unless definition
                 model.abort_operation
                 return { ok: false, message: 'Could not load component definition.' }
@@ -108,7 +114,7 @@ module Na__ComponentEditorTools
 
             model.start_operation("Na Library - Load #{File.basename(component_path, '.*')}", true)
             begin
-                definition = model.definitions.load(component_path)
+                definition = Na__LibrarySafeLoad.Na__ComponentEditorTools__WithoutIdNotices { model.definitions.load(component_path) }   # <-- 17-Nov-2026: see Insert At Axis
             rescue Exception                                                                            # <-- Anything at all: abort, then raise it on
                 model.abort_operation
                 raise

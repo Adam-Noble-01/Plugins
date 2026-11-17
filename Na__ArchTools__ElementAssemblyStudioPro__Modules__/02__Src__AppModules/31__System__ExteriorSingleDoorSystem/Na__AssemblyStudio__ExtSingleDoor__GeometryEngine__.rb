@@ -24,6 +24,7 @@ require_relative 'Na__AssemblyStudio__ExtSingleDoor__DataSerializer__'
 require_relative 'Na__AssemblyStudio__ExtSingleDoor__FuseParts__Panel__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__EdgeColourPainter__'
 require_relative '../20__System__WindowSystem/Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
+require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__OperationScope__'
 
 module Na__AssemblyStudio
 module Na__ExteriorSingleDoorSystem
@@ -40,6 +41,7 @@ module Na__GeometryEngine
     DebugTools         = Na__AssemblyStudio::Na__AppUtils::Na__DebugTools
     EdgeColourPainter  = Na__AssemblyStudio::Na__WindowSystem::Na__EdgeColourPainter
     LeadedGlassBuilder = Na__AssemblyStudio::Na__WindowSystem::Na__LeadedGlassBuilder
+    OperationScope = Na__AssemblyStudio::Na__AppCore::Na__OperationScope                       # <-- V2.7.0 Its own undo step, or joined to an Assembly Run's
 
 # endregion -------------------------------------------------------------------
 
@@ -58,7 +60,7 @@ module Na__GeometryEngine
         model = Sketchup.active_model
         return nil unless model
 
-        model.start_operation('Create Exterior Single Door', true)
+        OperationScope.na_start(model, 'Create Exterior Single Door', true)
         begin
             door_id ||= DataSerializer.na_allocate_adr_id(model)
             definition = model.definitions.add("#{door_id}#{NA_DEFINITION_SUFFIX}")
@@ -72,10 +74,10 @@ module Na__GeometryEngine
             DataSerializer.na_set_door_id_on_instance(instance, door_id)
             DataSerializer.na_save(instance, config)
             TagManager.na_apply_tag_to_entity(instance, :proposed_doors)
-            model.commit_operation
+            OperationScope.na_commit(model)
             instance
         rescue StandardError => error
-            model.abort_operation
+            OperationScope.na_abort(model)
             DebugTools.na_debug_error('Exterior Single Door creation failed', error)
             nil
         end
@@ -96,7 +98,7 @@ module Na__GeometryEngine
         model = Sketchup.active_model
         return false unless model
         operation_name = transparent ? 'Live Update Exterior Single Door' : 'Update Exterior Single Door'
-        model.start_operation(operation_name, true, false, transparent)
+        OperationScope.na_start(model, operation_name, true, false, transparent)
         begin
             door_id = DataSerializer.na_get_door_id_from_instance(instance)
             definition = instance.definition
@@ -106,10 +108,10 @@ module Na__GeometryEngine
             na_apply_edge_colours(config, definition.entities)
             DataSerializer.na_set_door_id_on_instance(instance, door_id)
             DataSerializer.na_save(instance, config)
-            model.commit_operation
+            OperationScope.na_commit(model)
             true
         rescue StandardError => error
-            model.abort_operation
+            OperationScope.na_abort(model)
             DebugTools.na_debug_error('Exterior Single Door update failed', error)
             false
         end

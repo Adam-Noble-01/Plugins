@@ -71,6 +71,14 @@ module Na__AssemblyStudio
                 @na_system_init_hooks << block if block_given?
             end
 
+            # FUNCTION | Forget Every System Init Hook (V2.7.0)
+            # ------------------------------------------------------------
+            # Called by Na__AssemblyStudio.na_init before the systems register
+            # again, so each open of the dialog starts from none. See there.
+            def self.na_clear_system_init_hooks
+                @na_system_init_hooks = []
+            end
+
             # -----------------------------------------------------------------
             # REGION | Dialog Lifecycle
             # -----------------------------------------------------------------
@@ -332,6 +340,11 @@ module Na__AssemblyStudio
                 if defined?(::Na__AssemblyStudio::Na__InteriorCabinetrySystem) &&
                    ::Na__AssemblyStudio::Na__InteriorCabinetrySystem.respond_to?(:na_reset_for_developer_reload)
                     ::Na__AssemblyStudio::Na__InteriorCabinetrySystem.na_reset_for_developer_reload
+                end
+
+                if defined?(::Na__AssemblyStudio::Na__AssemblyRunSystem) &&
+                   ::Na__AssemblyStudio::Na__AssemblyRunSystem.respond_to?(:na_reset_for_developer_reload)
+                    ::Na__AssemblyStudio::Na__AssemblyRunSystem.na_reset_for_developer_reload
                 end
             rescue StandardError => e
                 DebugTools.na_debug_warn("Developer reload finalize failed: #{e.message}")

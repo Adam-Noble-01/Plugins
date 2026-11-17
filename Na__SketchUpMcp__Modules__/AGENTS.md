@@ -5,7 +5,7 @@ These are instructions for AI coding agents working **on** this plugin: Codex / 
 
 ## What This Is
 
-A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 77 tools, and every SketchUp API call it makes is checked against the official API index.
+A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 79 tools, and every SketchUp API call it makes is checked against the official API index.
 
 ```
 MCP client --stdio--> Python server (30__McpServer__Python, stdlib only)
@@ -113,6 +113,18 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
 - **Test model.** `../Na__ArchTools__ElementAssemblyStudioPro__Modules__/65__Dev__DevTools/TestModels/Na__AssemblyStudio__McpTestbed__.skp`: open it in its own window (`sketchup_open_window`), never test in Adam's models.
 - **Validation.** `ValidateApiUsage` counts every def under `02__Src__AppModules` as defined, and checks the `60__System__McpOperations` files like the bridge.
 - **Reloading.** A change to the seam needs Element Assembly Studio's Reload Scripts (or `entity_studio_edit {action: "reload"}`) as well as this plugin's Reload Plugin Data.
+
+## The Assembly Run Seam (assembly_run, assembly_run_edit; 1.0.36 to 1.0.38)
+
+- **What a run is.** Element Assembly Studio Pro 2.7.0's Assembly Run Studio: ONE master component (`ARN001__AssemblyRun__<name>`) holding a path, its legs, the spans along each leg (each an instance of a panel type's one element) and the columns and corners between them. Modes Frames and Cabinets. The plugin's `85__Docs__AppDocumentation/Na__AssemblyStudio__Architecture__.md`, section "Assembly Runs", is the reference.
+- **Where the rules live.** `10__BridgeHandlers/Na__SketchUpMcp__Handlers__AssemblyRun__.rb` is thin: it resolves `instance_id` to the run's instance, `path` and `side` to model points, and forwards to `Na__AssemblyStudio::Na__McpOperations.Na__AssemblyStudio__McpRunRead` / `...McpRunEdit` in `../Na__ArchTools__ElementAssemblyStudioPro__Modules__/02__Src__AppModules/60__System__McpOperations/Na__AssemblyStudio__McpOperations__Runs__.rb`. Layout rules, limits and refusals are the plugin's; never copy one here. An older plugin is refused with the version needed.
+- **Lengths.** `path`, `path_local` and `side` follow the call's `units`. Inside `settings`, `panel_types`, `legs` and `corners` every length is mm, as the dialog stores them.
+- **Undo.** The run pipeline opens one operation and the element pipelines join it (`Na__OperationScope` in the plugin), so a run of any size is one step. `assembly_run_edit` has `"operation": false`, is in `NA_BATCH_FORBIDDEN` here and in `Server__ToolRunner__.py`, and has `timeout_s: 300`.
+- **Panels.** A span is an ordinary element: `entity_studio inspect` and `entity_studio_edit update` take its `instance_id` (from `assembly_run inspect`). Its width and height (and side frames on a fused run) are the run's, and a change to them there is refused with the fix. An `update` with a run open for editing closes it first: in an open context SketchUp writes world coordinates.
+- **What a panel is, and which way a run faces (1.0.37, plugin 2.7.2).** `set_span_type` with `product` changes one span's product (a new type when it shares its type, else its own type changes); `update` may give a built type another `product`. Either way the element is built again from that product's start. `flip_side` turns a run inside out by storing its path reversed, so leg and span numbers change: read them again with `inspect` before the next call that names a span. The rules are `Na__RunEdits` in the plugin (`na_set_span_product!`, `na_set_type_product!`, `na_flip_side!`), shared with the dialog.
+- **One cill, and a fused framework in one piece (1.0.38, plugin 2.7.3).** `JoinCills` (on unless false; always on when fused) builds one cill and one internal window board along the run, mitred round every corner, in place of each panel's own; `CillHeight_mm` and `CillProjection_mm` size the cill. `FuseFramework` builds every frame member (window heads and bottom rails, mullions, jambs, blocks, corner posts) as one solid round frameless windows. `inspect` and `layout` report the stretches (`cills`, `boards`). Where they break and why: the plugin's `Na__RunCills` header. A joined panel's own cill and board, and a fused window's head and bottom, belong to the run: `entity_studio_edit update` refuses them.
+- **Test model.** As the Element Assembly Studio seam: a copy of its testbed in its own window. Never build runs in Adam's models to try something.
+- **Reloading.** As the Element Assembly Studio seam. New plugin files (2.7.0 adds a folder) need SketchUp restarted once.
 
 ## The Point Cloud Viewer Seam (point_cloud_state, point_cloud_clip, point_cloud_view, point_cloud_slice, point_cloud_fit, point_cloud_check, point_cloud_heightmap; point_cloud_ortho_plane through the Ortho module)
 

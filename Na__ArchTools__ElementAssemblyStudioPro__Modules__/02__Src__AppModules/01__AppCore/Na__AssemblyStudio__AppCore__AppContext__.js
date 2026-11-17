@@ -28,6 +28,7 @@
     var NA_TAB_WINDOWS             = 'windows';
     var NA_TAB_DOORS               = 'doors';
     var NA_TAB_CABINETS            = 'cabinets';
+    var NA_TAB_RUNS                = 'runs';                           // Assembly Run Studio (V2.7.0)
     var NA_TAB_SETTINGS            = 'settings';
     var NA_TAB_PRESETS             = 'presets';
     var NA_TAB_PRESET_EDITOR       = 'preset_editor';
@@ -37,7 +38,7 @@
     var na_live_state = { windows: false, doors: false, cabinets: false };
 
     // The dock's step 1 button says what it measures on each tab.
-    var NA_MEASURE_LABELS = { cabinets: 'Measure Run' };
+    var NA_MEASURE_LABELS = { cabinets: 'Measure Run', runs: 'Measure Path' };
     var NA_MEASURE_LABEL_DEFAULT = 'Measure Opening';
 
     // -----------------------------------------------------------------------
@@ -181,11 +182,23 @@
         }
     }
 
+    // Assembly runs measure a PATH: each corner in turn, then the side the
+    // elements are seen from. The tab's own module starts the tool.
+    function na_dispatch_measure_runs() {
+        if (typeof Na_RunUI === 'undefined' || typeof Na_RunUI.na_measure !== 'function') {
+            console.warn('[Na_AppContext] Na_RunUI.na_measure unavailable');
+            return;
+        }
+        na_toggle_class(NA_BTN_MEASURE_ID, NA_BTN_MEASURE_ACTIVE_CLS, true);
+        Na_RunUI.na_measure();
+    }
+
     Na_AppContext.na_dispatch_measure = function () {
         var tab = na_resolve_active_tab();
         if      (tab === NA_TAB_WINDOWS)  na_dispatch_measure_windows();
         else if (tab === NA_TAB_DOORS)    na_dispatch_measure_doors();
         else if (tab === NA_TAB_CABINETS) na_dispatch_measure_cabinets();
+        else if (tab === NA_TAB_RUNS)     na_dispatch_measure_runs();
         else                              console.warn('[Na_AppContext] Measure ignored on tab:', tab);
     };
 
@@ -253,7 +266,7 @@
     Na_AppContext.na_apply_visibility = function () {
         var tab      = na_resolve_active_tab();
         var hideBoth = (tab === NA_TAB_SETTINGS) || na_is_presets_tab(tab);
-        na_set_button_hidden(NA_BTN_LIVE_ID,    hideBoth);
+        na_set_button_hidden(NA_BTN_LIVE_ID,    hideBoth || tab === NA_TAB_RUNS);    // A run is rebuilt on Update Run, never live
         na_set_button_hidden(NA_BTN_MEASURE_ID, hideBoth);
     };
 

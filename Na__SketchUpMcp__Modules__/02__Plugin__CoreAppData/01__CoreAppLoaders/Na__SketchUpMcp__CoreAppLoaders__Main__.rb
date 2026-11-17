@@ -66,6 +66,7 @@ require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Annotation
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Components__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__AssetLibrary__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__EntityStudio__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__AssemblyRun__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__PointCloud__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__EntityEdit__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__Attributes__'

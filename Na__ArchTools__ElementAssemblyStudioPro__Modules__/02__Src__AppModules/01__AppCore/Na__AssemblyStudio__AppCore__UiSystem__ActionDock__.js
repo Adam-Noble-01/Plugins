@@ -84,6 +84,19 @@
             placingHint      : 'Placing: click in the model. Over a unit it goes beside it, over a wall it backs onto it. Tab turns, Esc finishes.',
             idleHint         : 'Nothing selected. Set the unit up, then Create at Cursor, or ① measure a run along a wall.',
             thing            : 'unit'
+        },
+        // Assembly runs measure a PATH and keep it until a run is built on it
+        // (V2.7.0). Update Run is enabled only while a run is loaded.
+        runs: {
+            measuredButtonId : 'na-btn-run-create-at-measurement',
+            isEditing        : () => {
+                const update = document.getElementById('na-btn-run-update');
+                return !!update && !update.disabled;
+            },
+            measuringHint    : 'Click each corner of the path, Enter at the last, then the side the elements are seen from. Esc cancels.',
+            measuredHint     : () => 'Path measured. Set the run up, then press ② Create Run on Path.',
+            idleHint         : 'No run selected. Set one up and Create Run, or ① measure its path in the model first.',
+            thing            : 'run'
         }
     };
 
@@ -154,7 +167,8 @@
             'na-btn-measure', 'na-btn-live', 'na-window-info',
             'na-btn-create-at-measurement', 'na-btn-door-create-at-measurement',
             'na-btn-door-update',
-            'na-btn-cab-create-at-measurement', 'na-btn-cab-update', 'na-btn-cab-create'
+            'na-btn-cab-create-at-measurement', 'na-btn-cab-update', 'na-btn-cab-create',
+            'na-btn-run-create-at-measurement', 'na-btn-run-update'
         ];
         const observer = new MutationObserver(na_refresh_hint);
         ids.forEach(id => {

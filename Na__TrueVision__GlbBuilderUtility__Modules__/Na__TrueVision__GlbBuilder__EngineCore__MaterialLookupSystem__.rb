@@ -19,6 +19,13 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 17-Nov-2026 - Version 1.2.0 (GLB Builder 2.16.0)
+# - Na__MaterialLookup__IsWaterMaterial?: a MAT###__Water__ name, or an indexed
+#   name whose SSOT entry carries a WaterSurface block (MAT150__GenericWater,
+#   SSOT 1.10.0). MaterialHandling lets water through every export mode.
+# - WATER_SURFACE_DEFAULTS: the MAT150 WaterSurface values, written into the
+#   GLB as extras when the SSOT this export read has no entry for the name.
+#
 # 15-Mar-2026 - Version 1.1.0
 # - Migrated from bespoke GitHub Pages HTTP fetch to centralised Na__DataLib
 #   cache system (URL -> temp cache -> local fallback).
@@ -44,6 +51,12 @@ module TrueVision3D
         MATERIALS_ROOT_KEY     = "Na__DataLib__CoreIndex__Materials".freeze   # <-- Root key in centralised JSON
         INDEXED_MATERIAL_REGEX = /^MAT\d{3}__/                               # <-- Matches MAT + 3 digits + __
         EXEMPT_MATERIAL_REGEX  = /^MAT000E__/                                # <-- "Material Exempt" prefix for indexed_only inclusion
+        WATER_MATERIAL_REGEX   = /^MAT\d{3}__Water__/                        # <-- Water by name (MAT150__Water__ClearDefault), SSOT or not
+        WATER_SURFACE_DEFAULTS = {                                           # <-- MAT150__GenericWater's WaterSurface (SSOT 1.10.0)
+            "TileSizeMm"       => 700,
+            "SecondTileSizeMm" => 430,
+            "RippleStrength"   => 1.4
+        }.freeze
         # ------------------------------------------------------------
 
     # endregion -------------------------------------------------------------------
@@ -174,6 +187,24 @@ module TrueVision3D
         def self.Na__MaterialLookup__IsExemptMaterial?(material_name)
             return false unless material_name.is_a?(String)
             EXEMPT_MATERIAL_REGEX.match?(material_name)
+        end
+        # ---------------------------------------------------------------
+
+
+        # HELPER FUNCTION | Check If Material Is Water
+        # ---------------------------------------------------------------
+        # True for a MAT###__Water__ name (regex only, so it works in
+        # :no_materials, where the library is not loaded), or for an
+        # indexed name whose library entry carries a WaterSurface block.
+        # Water exports in every mode: a hot tub or a pool keeps its water
+        # in a whitecard export (SSOT 1.10.0, meta.waterNote).
+        # ---------------------------------------------------------------
+        def self.Na__MaterialLookup__IsWaterMaterial?(material_name)
+            return false unless material_name.is_a?(String)
+            return true if WATER_MATERIAL_REGEX.match?(material_name)
+            return false unless INDEXED_MATERIAL_REGEX.match?(material_name) && @material_lookup_index
+            config = @material_lookup_index[material_name]
+            config.is_a?(Hash) && config["WaterSurface"].is_a?(Hash)
         end
         # ---------------------------------------------------------------
 

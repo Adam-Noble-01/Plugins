@@ -32,6 +32,7 @@ module Na__AssemblyStudio
             DialogManager = Na__AssemblyStudio::Na__AppCore::Na__DialogManager
 
             @na_handlers       = []
+            @na_listeners      = {}                                    # <-- V2.7.0 name => Proc(selection): told of every change
             @na_observer       = nil
             @na_observed_model = nil
 
@@ -49,6 +50,27 @@ module Na__AssemblyStudio
             def self.na_handlers
                 @na_handlers
             end
+
+            # FUNCTION | Register a Listener Told of Every Selection Change (V2.7.0)
+            # ------------------------------------------------------------
+            # A handler owns an element and its tab; a listener only looks.
+            # The Assembly Run system uses one to say when the element
+            # selected (whichever tab it loads into) is a span of a run.
+            # Registered by name, so a reload replaces it instead of adding.
+            # @param name [Symbol]
+            # @yield [Sketchup::Selection]
+            def self.na_register_listener(name, &block)
+                @na_listeners[name] = block if name && block_given?
+            end
+
+            def self.na_notify_listeners(selection)
+                @na_listeners.each do |name, listener|
+                    listener.call(selection)
+                rescue StandardError => e
+                    DebugTools.na_debug_warn("Selection listener '#{name}' failed: #{e.message}")
+                end
+            end
+            private_class_method :na_notify_listeners
 
             # -----------------------------------------------------------------
             # REGION | Observer Attach / Detach
@@ -88,6 +110,7 @@ module Na__AssemblyStudio
                     na_clear_all
                     return
                 end
+                na_notify_listeners(selection)
                 return unless selection.length == 1 && selection.first.is_a?(Sketchup::ComponentInstance)
 
                 instance = selection.first
@@ -114,6 +137,7 @@ module Na__AssemblyStudio
             end
 
             def self.na_clear_all
+                na_notify_listeners(Sketchup.active_model.selection) if Sketchup.active_model
                 @na_handlers.each do |handler|
                     handler[:on_cleared].call
                 rescue StandardError => e

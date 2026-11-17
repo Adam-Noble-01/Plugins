@@ -32,6 +32,8 @@
 #   Openings    every opening in a wall, as the opening tools would measure it
 #   Elements    elements, inspect, openings, build, update, rename
 #   Presets     save / update / archive / restore presets, DXF, asset lists
+#   Runs        Assembly Run Studio: runs of elements along a path (V2.7.0;
+#               its own entry points, Na__AssemblyStudio__McpRunRead / McpRunEdit)
 #
 # WHAT IT REUSES (no second copy of any rule):
 # - Builds and updates run the dialog's own pipelines (V2.6.0): WindowSystem
@@ -602,6 +604,7 @@ require_relative 'Na__AssemblyStudio__McpOperations__SideEffects__'
 require_relative 'Na__AssemblyStudio__McpOperations__Openings__'
 require_relative 'Na__AssemblyStudio__McpOperations__Elements__'
 require_relative 'Na__AssemblyStudio__McpOperations__Presets__'
+require_relative 'Na__AssemblyStudio__McpOperations__Runs__'
 
 # endregion -------------------------------------------------------------------
 

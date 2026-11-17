@@ -68,6 +68,7 @@ NA_IMPORT_FORMATS = {
 NA_BATCH_FORBIDDEN = {'batch_execute': 'batches cannot nest', 'model_file': 'call model_file on its own',
                       'input_pick': 'it hands SketchUp to Adam and waits for him; call it on its own',
                       'proposal_preview': 'it asks Adam in the Agent Outliner; call it on its own',
+                      'assembly_run_edit': 'a run is built in one undo operation of its own, which would end the batch; call it on its own',
                       'point_cloud_ortho_plane': 'it captures in an undo operation it always aborts, then places the plane in its own; call it on its own'}
 
 # Tools whose action "wait" is answered by polling: (poll action, default wait_s, seconds between polls).

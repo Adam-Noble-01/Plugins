@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Tags__.json",
         "description"       : "Single source of truth for all Noble Architecture standard SketchUp tags (layers). Drives the TrueVision3D GlbBuilder export segmentation, storey detection, Layout linework thickness mapping, and tag creation. All field names use domain prefixes: Tag__ (core identity), Glb__ (GLB exporter), Storey__ (storey system), Layout__ (SketchUp Layout), SitePlan__ (site plan drawing export).",
-        "version"           : "2.12.0",
-        "lastUpdated"       : "19-Oct-2026",
+        "version"           : "2.13.0",
+        "lastUpdated"       : "17-Nov-2026",
         "namingConvention"  : "Tags use the format: {NN}__{Category}__{Subcategory}. The numeric prefix controls sort order and export range grouping. Double underscores separate all name parts.",
         "fieldPrefixes"     : {
             "Tag__"    : "Core SketchUp tag identity (name, description)",
@@ -219,6 +219,12 @@
                 "Tag__Description"           : "Reference geometry and drawing data (images, PDFs, etc.) imported for modeling guidance only. Always excluded from GLB export.",
                 "Glb__ExportRangeNumbers"    : null,
                 "Glb__FullyExcluded"         : true
+            },
+            "06__Reference__ExistingConditions__Model": {
+                "Tag__SketchUpName"            : "06__Reference__ExistingConditions__Model",
+                "Tag__Description"             : "The existing building kept in a proposed or concept model as a working reference only (added 17-Nov-2026, SK02). Put on ONE root container (EXISTING__REFERENCE__ExistingConditionsModel) that holds the existing storeys as nested groups on their 90-93 storey tags, each element keeping its own 10-19 tag so the existing work scenes still switch it storey by storey. Never exported: the 06 range is skipped at the root, and the tag is listed in ExportExclusions so the linetype walk never enters it. The existing model reaches TrueVision only from its own existing-conditions export.",
+                "Glb__ExportRangeNumbers"      : null,
+                "Glb__FullyExcluded"           : true
             },
             "00__OriginPoint": {
                 "Tag__SketchUpName"            : "00__OriginPoint",
@@ -1684,6 +1690,9 @@
             "05__CadNotUsed",
             "05__Mirror",
             "06__Drawings",
+            "06__Reference__CadData__General",
+            "06__Reference__Drawings__General",
+            "06__Reference__ExistingConditions__Model",
             "02__ClearanceLines",
             "02__DoorHelpers__RotationPivots",
             "Na__Door__Open",

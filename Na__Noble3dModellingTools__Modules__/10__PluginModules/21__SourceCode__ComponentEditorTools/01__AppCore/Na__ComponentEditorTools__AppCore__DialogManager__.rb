@@ -536,33 +536,74 @@ module Na__ComponentEditorTools
             )
         end
 
+        # Scan and Refresh (17-Nov-2026): the folder is scanned (names and dates,
+        # quick), then only files that are new, changed or failed last time are
+        # read, one per timer tick, with progress in the status line; the rest come
+        # from the per-file cache (path::mtime). SketchUp stays usable, and the
+        # Gallery keeps what it shows until the read ends. Refresh no longer
+        # deletes the cache: it re-scans and reads what changed (to read every
+        # file again, delete the cache folder in SketchUp's temp folder).
         def self.Na__ComponentEditorTools__HandleScanLibrary(force_refresh: false)
             if !force_refresh && @na_library_cache
                 self.Na__ComponentEditorTools__PushLibraryData(@na_library_cache)
                 return
             end
 
-            if force_refresh
-                @na_library_cache = nil
-                Na__LibraryExtractor.Na__ComponentEditorTools__PurgeLastResult
-                Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
-            end
-
-            self.Na__ComponentEditorTools__PushStatus('Scanning library...', 'info')
-            scan_result = Na__LibraryScanner.Na__ComponentEditorTools__ScanLibrary
-
-            unless scan_result[:ok]
-                self.Na__ComponentEditorTools__PushStatus(scan_result[:message], 'error')
+            if Na__LibraryExtractor.Na__ComponentEditorTools__ExtractRunning?
+                self.Na__ComponentEditorTools__PushStatus(Na__LibraryExtractor.Na__ComponentEditorTools__ExtractStatusText, 'info')
                 return
             end
 
-            self.Na__ComponentEditorTools__PushStatus(
-                "#{scan_result[:message]} Extracting metadata (this may take a moment for large libraries)...",
-                'info'
-            )
-            entries = Na__LibraryExtractor.Na__ComponentEditorTools__ExtractAll(scan_result[:entries])
-            folders = Na__LibraryScanner.Na__ComponentEditorTools__FolderList
+            self.Na__ComponentEditorTools__PushStatus('Scanning library...', 'info')
+            self.Na__ComponentEditorTools__StartLibraryRead(NA_LIBRARY_READ_ROUNDS, { read: 0, started: Time.now })
+        rescue => error
+            self.Na__ComponentEditorTools__PushStatus("Scan failed: #{error.class}: #{error.message}", 'error')
+        end
 
+        # Rounds a read may run: a file saved while the library was being read
+        # (the MCP filing a component, an edit in the Index) is read in another.
+        NA_LIBRARY_READ_ROUNDS = 3 unless defined?(NA_LIBRARY_READ_ROUNDS)
+
+        def self.Na__ComponentEditorTools__StartLibraryRead(rounds_left, tally)
+            scan_result = Na__LibraryScanner.Na__ComponentEditorTools__ScanLibrary
+            unless scan_result[:ok]
+                self.Na__ComponentEditorTools__PushStatus(scan_result[:message], 'error')
+                return false
+            end
+
+            started = Na__LibraryExtractor.Na__ComponentEditorTools__ExtractAllInSteps(
+                scan_result[:entries],
+                on_progress: proc { |info|
+                    self.Na__ComponentEditorTools__PushStatus(Na__LibraryExtractor.Na__ComponentEditorTools__ExtractStatusText(info), 'info')
+                },
+                on_done: proc { |entries, info|
+                    self.Na__ComponentEditorTools__FinishLibraryRead(scan_result, entries, info, rounds_left - 1, tally)
+                }
+            )
+            return true if started
+
+            self.Na__ComponentEditorTools__PushStatus(Na__LibraryExtractor.Na__ComponentEditorTools__ExtractStatusText, 'info')
+            false
+        end
+
+        def self.Na__ComponentEditorTools__FinishLibraryRead(scan_result, entries, info, rounds_left, tally)
+            unless entries
+                self.Na__ComponentEditorTools__PushStatus("Library read stopped: #{info[:error]}", 'error')
+                return
+            end
+
+            tally[:read] += info[:read].to_i
+
+            if rounds_left > 0
+                rescan = Na__LibraryScanner.Na__ComponentEditorTools__ScanLibrary
+                read_keys = scan_result[:entries].map { |entry| entry[:cache_key] }
+                if rescan[:ok] && rescan[:entries].map { |entry| entry[:cache_key] } != read_keys
+                    self.Na__ComponentEditorTools__PushStatus('The library changed while it was being read: reading the changes...', 'info')
+                    return self.Na__ComponentEditorTools__StartLibraryRead(rounds_left, tally)
+                end
+            end
+
+            folders = Na__LibraryScanner.Na__ComponentEditorTools__FolderList
             library_data = {
                 'ok'           => true,
                 'library_path' => scan_result[:library_path],
@@ -573,11 +614,21 @@ module Na__ComponentEditorTools
 
             @na_library_cache = library_data
             Na__LibraryExtractor.Na__ComponentEditorTools__SaveLastResult(library_data)
-
             self.Na__ComponentEditorTools__PushLibraryData(library_data)
-            self.Na__ComponentEditorTools__PushStatus("Library loaded: #{entries.length} component(s). Use Refresh to re-scan.", 'success')
+
+            seconds = (Time.now - tally[:started]).round
+            failed  = entries.reject { |entry| entry['ok'] }
+            summary = "Library loaded: #{entries.length} component(s), #{tally[:read]} read from disk in #{seconds} s, the rest from the cache."
+            if failed.any?
+                failed.each { |entry| puts "[Na__ComponentEditorTools] Could not read #{entry['path']}: #{entry['error']}" }
+                names = failed.first(3).map { |entry| entry['file_name'] }.join(', ')
+                names += ', ...' if failed.length > 3
+                self.Na__ComponentEditorTools__PushStatus("#{summary} #{failed.length} could not be read: #{names} (#{failed.first['error']}).", 'error')
+            else
+                self.Na__ComponentEditorTools__PushStatus("#{summary} Use Refresh to re-scan.", 'success')
+            end
         rescue => error
-            self.Na__ComponentEditorTools__PushStatus("Scan failed: #{error.class}: #{error.message}", 'error')
+            self.Na__ComponentEditorTools__PushStatus("Library read failed: #{error.class}: #{error.message}", 'error')
         end
 
         def self.Na__ComponentEditorTools__HandleGetGallery

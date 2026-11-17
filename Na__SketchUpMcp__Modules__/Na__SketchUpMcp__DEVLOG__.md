@@ -3,6 +3,57 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.38 - 17-Nov-2026 - Assembly Runs: One Cill Round the Run, a Fused Framework in One Piece
+
+- **What Adam asked for** (of Element Assembly Studio Pro 2.7.3, on the SK02 bay windows): the cills joined up, wrapping round every side with no join lines, and Fuse the framework working as it should.
+- **What agents get.** Three run settings pass through `settings` as they are: `JoinCills` (on unless false; always on when fused), `CillHeight_mm`, `CillProjection_mm`. `FuseFramework` now builds the frame members as ONE solid round frameless windows. `assembly_run inspect` and `layout` report `cills` and `boards` (the stretches, with each cill's mitred outline), and a build's `counts` gain `framework`, `cills` and `boards`. `entity_studio_edit update` on a span refuses the values the run now owns (a joined panel's `has_cill` and `window_board_enabled`, a fused window's head and bottom).
+- **Fix (in the plugin's seam):** `assembly_run_edit open_dialog` with `run_id` now selects that run; it took only `instance_id`.
+- **Where.** The registry only: both tools' `settings` description names the three settings; `assembly_run_edit`'s description says what Fuse and the joined cill build (2048 characters, the limit). The rules are the plugin's (`Na__RunCills`, `Na__FrameworkBuilder`).
+- **Versions.** `bridge_version` and `server.version` are `1.0.38`. 79 tools.
+- **Verified offline:** ValidateApiUsage passed; BridgeCore 190 of 190; PythonServer 65 OK; `--check` 79 tools on 1.0.38.
+- **Verified live** (a copy of the testbed in its own window, through this server's tools while it still ran 1.0.37: the new settings pass straight through, so they needed no restart): `build` of Adam's ARN002 settings gave one fused framework, one cill and one board, all closed solids; `update` with `FuseFramework` and `JoinCills` false put each window's own frame, cill and board back; a closed loop and window-door-window built as described; the refusal on `has_cill` (a dry run). The `open_dialog` fix was made after these checks and is not yet proven live. The 1.0.38 registry text is seen only after the MCP client restarts.
+
+### Validation Checklist
+- [ ] Reload Scripts in Element Assembly Studio (2.7.3), then Reload Plugin Data here: the status dialog shows bridge 1.0.38.
+- [ ] Restart the MCP client: `sketchup_status` shows server 1.0.38.
+- [ ] `assembly_run_edit open_dialog` with only `run_id`: the tab shows that run.
+- [ ] Ask an agent to "join the cills on that bay": `assembly_run_edit update` with `settings: {JoinCills: true}` (or fused, already joined).
+
+## Na SketchUp MCP | Version 1.0.37 - 16-Nov-2026 - Assembly Runs: flip_side, and a Product on set_span_type
+
+- **What Adam asked for** (of the dialog, Element Assembly Studio Pro 2.7.2): to change what a panel is "very easily" ("make the windows sliding or any of the different elements"), and "a toggle to flip inside out" for a run built facing the wrong way. Agents get the same two through the same rules.
+- **`assembly_run_edit flip_side`** (`instance_id` or `run_id`; `dry_run`): the run is turned inside out where it stands. Its elements face the other way and stand on the other side of its path, which is stored reversed, so the legs are numbered from the other end and an inside corner becomes an outside one. One undo step, "Flip Run Inside Out". Refused while that run's path is open as a red line.
+- **`set_span_type` takes `product`** in place of `code`: that one span becomes the product. A span that shares its panel type takes a new type (the next code, or `code`), sized as the old one; a span with its type to itself changes that type. Built from the product's starting values. One undo step, "Change Panel to Sliding Doors".
+- **`update` may give a built panel type another `product`** (with a `preset` and `values` for it): every span of the type is built again from that product's start. A preset or values alone on a built type is still refused, with the fix.
+- **Where.** `Handlers__AssemblyRun` (`flip_side` in its action lists); the registry: `assembly_run_edit` gains the action, the `product` property and a description of 2046 characters (limit 2048); `property_since` `assembly_run_edit.action=flip_side` and `assembly_run_edit.product` at 1.0.37. The rules are the plugin's (`...McpOperations__Runs__.rb`, `Na__RunEdits`); an Element Assembly Studio older than 2.7.2 refuses `flip_side` by name.
+- **Versions.** `bridge_version` and `server.version` are `1.0.37`. 79 tools.
+- **Verified offline:** ValidateApiUsage passed; BridgeCore 190 of 190; PythonServer 65 OK; `--check` 79 tools on 1.0.37.
+- **Verified live** (the scratch test window, bridge 1.0.37 after Reload Plugin Data, calls sent with `su_bridge.py`): a new L-shaped Frames run with a right turn was flipped (dry run, then for real: its Post corner turned from inside to outside, the same elements kept); one of three double doors made sliding (new type C), then a bifold with `code: "BF1"` (in place); `update` made its three casements sash windows; the refusals for the product a span already is, a product of the other mode, neither `code` nor `product`, and values alone on a built type.
+- **Not yet verified:** the new action and property through an MCP client's own tool list (the client must be restarted to read the registry).
+
+### Validation Checklist
+- [ ] Reload Scripts in Element Assembly Studio (2.7.2), then Reload Plugin Data here: the MCP status dialog shows bridge 1.0.37.
+- [ ] Restart the MCP client, then ask an agent to "flip that run so the doors face the other way": one `assembly_run_edit flip_side`.
+- [ ] Ask it to "make the middle doors sliding": `set_span_type` with `product: "sliding"`.
+
+## Na SketchUp MCP | Version 1.0.36 - 16-Nov-2026 - Assembly Runs (assembly_run, assembly_run_edit)
+
+- **What Adam asked for.** A new tab in Element Assembly Studio Pro, Assembly Run Studio, for runs of his windows, doors and cabinets along a path (conservatories, rows of doorsets, kitchens, wardrobes), with "full support for MCP ... Expand this so agents can use the tools." Element Assembly Studio Pro 2.7.0 is the other half.
+- **`assembly_run` (read):** status, parameters, columns, runs, inspect, layout. `layout` resolves a description without building it (each leg's items with stations and widths, each panel type's width, warnings and errors). `inspect` gives each span's key (`L1S2`) with its element's `instance_id`, which `entity_studio inspect` and `entity_studio_edit update` take.
+- **`assembly_run_edit` (change):** build, update, set_path, make_unique, recode, set_span_type, rename, edit_path, finish_path_edit, discard_path_edit, open_dialog. One undo step per call with the plugin's own name, however many elements it builds, so it has `"operation": false`, is in `NA_BATCH_FORBIDDEN` (bridge and Python runner) and has `timeout_s: 300`.
+- **A run's panel keeps the run's sizes.** `entity_studio_edit update` on a span refuses a change to its width or height (and, on a fused run, its side frames), naming `assembly_run_edit update` as the fix. Every other setting of the panel is changed there and reaches every span of its type. The `entity_studio_edit` description says so (1898 characters).
+- **Where.** `10__BridgeHandlers/Na__SketchUpMcp__Handlers__AssemblyRun__.rb` (resolves `instance_id`, `path` and `side` to an instance and model points, forwards to the plugin's seam, refuses with the version needed when the plugin is older than 2.7.0); two routes in `CommandRouter`; the registry (`assembly_run` description 1731 characters, `assembly_run_edit` 2031); `CoreAppLoaders__Main__`; `Server__ToolRunner__.py` (batch refusal); AGENTS.md; the agent guide.
+- **Versions.** `bridge_version` and `server.version` are `1.0.36`. 79 tools.
+- **Verified offline:** ValidateApiUsage passed (79 tools; 8 Element Assembly Studio seam files checked); RunRubyChecks 56/56 files compile, BridgeCore 190 of 190; PythonServer 65 OK; `--check` 79 tools on 1.0.36.
+- **Verified live** (a scratch copy of the Element Assembly Studio testbed in its own SketchUp window, bridge 1.0.36, calls sent over the bridge with `su_bridge.py`, because the session's MCP client had started on 1.0.35): build with fused bifolds and Vale 290 end columns, the path turned round by `side`; make_unique, recode, set_span_type; update (unfuse, 100 infill joints); set_path; rename; an L of wardrobes with a blind corner; a cabinets leg whose 100 remainder became an infill block as tall as its wardrobes. Through the client's own `entity_studio_edit`: a width change on a run's panel refused, a glaze bar change built on both copies.
+- **Not yet verified:** the two new tools called through an MCP client's own tool list (the client must be restarted to list them); `edit_path` driven by an agent while Adam moves the line.
+
+### Validation Checklist
+- [ ] Restart SketchUp (Element Assembly Studio 2.7.0 loads new files at start), or Reload Plugin Data here after it: the MCP status dialog shows bridge 1.0.36.
+- [ ] Restart the MCP client: `assembly_run` and `assembly_run_edit` are listed (79 tools).
+- [ ] Ask an agent for "three sets of bifold doors with Vale 260 columns between them along this line": one `assembly_run_edit build`, one undo step.
+- [ ] Ask it to "make the middle one unique and give it glazing bars": `make_unique`, then `entity_studio_edit update` on that span.
+
 ## Na SketchUp MCP | Version 1.0.35 - 13-Nov-2026 - Turned Clip Boxes (point_cloud_clip frame); Ortho Planes From the Clip Box
 
 - **What Adam asked for.** After 1.0.34's ortho planes (turned clips for one capture only), asked whether to build a turned clip box kept in the Point Cloud Viewer for his own viewing: "Yes, build it". Viewer 0.14.8 keeps one (the Clipping tab's Turn row, Turn to Two Points, Level); this release lets agents read, set and use it.

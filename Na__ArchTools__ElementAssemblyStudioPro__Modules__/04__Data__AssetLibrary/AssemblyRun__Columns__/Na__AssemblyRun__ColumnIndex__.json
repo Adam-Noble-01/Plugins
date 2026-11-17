@@ -1,0 +1,42 @@
+{
+    "meta": {
+        "Na__Asset__IndexName"   : "Assembly Run Studio - Library Columns",
+        "Na__Asset__Purpose"     : "The library columns a run can stand between spans and at corners. Each file is a copy of the component in Adam's core library (Va__CoreLib__3dAssets, 10__Columns), loaded as it is: the library keeps the master.",
+        "Na__Asset__CopiedOn"    : "16-Nov-2026",
+        "Na__Asset__HowToUpdate" : "Copy the newer .skp from the library folder named in LibraryPath over the file here, and bring LibraryModified up to date. Sizes are in Na__AssemblyStudio__AssemblyRun__Defaults__.rb (NA_LIBRARY_COLUMNS)."
+    },
+    "columns": [
+        {
+            "ColumnKind"      : "Vale260",
+            "Role"            : "Inline",
+            "File"            : "10_1001__Column__Standard__Inline__w260mm__.skp",
+            "LibraryCode"     : "10_1001",
+            "LibraryPath"     : "Va__CoreLib__3dAssets/10__Columns/10_1000__Column__Standard__w260mm/10_1001__Column__Standard__Inline__w260mm__.skp",
+            "LibraryModified" : "2026-07-12 11:23"
+        },
+        {
+            "ColumnKind"      : "Vale260",
+            "Role"            : "Corner",
+            "File"            : "10_1002__Column__Standard__Corner__w260mm__.skp",
+            "LibraryCode"     : "10_1002",
+            "LibraryPath"     : "Va__CoreLib__3dAssets/10__Columns/10_1000__Column__Standard__w260mm/10_1002__Column__Standard__Corner__w260mm__.skp",
+            "LibraryModified" : "2026-07-12 11:23"
+        },
+        {
+            "ColumnKind"      : "Vale290",
+            "Role"            : "Inline",
+            "File"            : "10_1004__Column__Standard__w290mm__Inline__.skp",
+            "LibraryCode"     : "10_1004",
+            "LibraryPath"     : "Va__CoreLib__3dAssets/10__Columns/10_1002__Column__Standard__w290mm/10_1004__Column__Standard__w290mm__Inline__.skp",
+            "LibraryModified" : "2026-08-15 09:08"
+        },
+        {
+            "ColumnKind"      : "Vale290",
+            "Role"            : "Corner",
+            "File"            : "10_1003__Column__Standard__w290mm__Corner__.skp",
+            "LibraryCode"     : "10_1003",
+            "LibraryPath"     : "Va__CoreLib__3dAssets/10__Columns/10_1002__Column__Standard__w290mm/10_1003__Column__Standard__w290mm__Corner__.skp",
+            "LibraryModified" : "2026-08-15 09:08"
+        }
+    ]
+}

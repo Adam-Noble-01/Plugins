@@ -12,7 +12,8 @@
 # DESCRIPTION:
 # - Supports three material export modes controlled via the UI:
 #   :no_materials   - Sanitised whitecard export; MAT000E__ exempt materials
-#                     still export with colour + embedded texture
+#                     still export with colour + embedded texture, and so
+#                     does water (MAT###__Water__ / SSOT WaterSurface)
 #   :all_materials  - All SketchUp materials exported with PBR enrichment
 #   :indexed_only   - Only standard indexed materials (MAT___) and exempt
 #                     materials (MAT000E__) exported
@@ -29,6 +30,15 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 17-Nov-2026 - Version 3.2.0 (GLB Builder 2.16.0)
+# - WATER exports in every mode, :no_materials (whitecard) included, so the
+#   water in a hot tub or a pool reaches TrueVision whatever the export. It is
+#   a MAT###__Water__ name or an SSOT entry with WaterSurface (MAT150). It is
+#   enriched from the SSOT in every mode; when the SSOT this export read has
+#   no entry for it, the SketchUp material's own opacity passes through
+#   instead. extras.Na__WaterSurface carries its ripple settings into the
+#   GLB, so TrueVision knows it for water before the SSOT is pushed.
+#
 # 21-Aug-2026 - Version 3.1.1
 # - SketchUp opacity passthrough for non-indexed materials: MAT000E__ exempt
 #   materials now export their tray Opacity as baseColorFactor alpha with
@@ -123,13 +133,14 @@ module TrueVision3D
             material_name = material.respond_to?(:display_name) ? material.display_name : ""
             is_indexed    = self.Na__MaterialLookup__IsIndexedMaterial?(material_name)
             is_exempt     = self.Na__MaterialLookup__IsExemptMaterial?(material_name)
+            is_water      = self.Na__MaterialLookup__IsWaterMaterial?(material_name)
 
-            # MODE GATES | MAT000E__ exempt materials always pass (every mode).
-            # :no_materials  -> whitecard unless exempt
+            # MODE GATES | MAT000E__ exempt materials and water always pass (every mode).
+            # :no_materials  -> whitecard unless exempt or water
             # :indexed_only  -> indexed + exempt only
             # :all_materials -> everything
             if @export_mode == :no_materials
-                return 0 unless is_exempt
+                return 0 unless is_exempt || is_water
             elsif @export_mode == :indexed_only
                 return 0 unless is_indexed || is_exempt
             end
@@ -151,16 +162,31 @@ module TrueVision3D
             }
 
             # Enrich indexed materials with PBR metadata (not exempt materials).
-            if is_indexed && (@export_mode == :indexed_only || @export_mode == :all_materials)
+            # Water is enriched in every mode, whitecard included.
+            enriched     = false
+            water_config = nil
+            if is_indexed && (@export_mode == :indexed_only || @export_mode == :all_materials || is_water)
                 library_data = self.Na__MaterialLookup__FetchLibrary
                 if library_data
                     self.Na__MaterialLookup__BuildIndex
                     config = self.Na__MaterialLookup__GetConfig(material_name)
                     if config
                         self.Na__MaterialLookup__EnrichGltfMaterial(gltf_material, config)
+                        enriched     = true
+                        water_config = config["WaterSurface"] if config["WaterSurface"].is_a?(Hash)
                         Na__Log__Puts "    [MaterialEngine] Enriched: #{material_name}"
                     end
                 end
+            end
+
+            # WATER SURFACE | Its ripple settings travel with the GLB, from the SSOT
+            # entry or the MAT150 defaults, so TrueVision draws it as water even
+            # where its own copy of the SSOT has no entry for this name yet.
+            if is_water
+                gltf_material["extras"] = (gltf_material["extras"] || {}).merge(
+                    "Na__WaterSurface" => (water_config || WATER_SURFACE_DEFAULTS).to_h
+                )
+                Na__Log__Puts "    [MaterialEngine] Water material exported: #{material_name} (enriched=#{enriched})"
             end
 
             # SKETCHUP OPACITY PASSTHROUGH | MAT000E__ exempt materials (and any
@@ -169,7 +195,7 @@ module TrueVision3D
             # Materials tray Opacity slider — is the only truth available.
             # Indexed MAT###__ materials are deliberately excluded: EnrichGltfMaterial
             # owns their alpha so the materials library stays the single source of truth.
-            unless is_indexed
+            if !is_indexed || (is_water && !enriched)                     # <-- Water the SSOT does not know yet keeps its SketchUp opacity
                 su_alpha = self.Na__MaterialEngine__ResolveSketchUpAlpha(material)
                 if su_alpha < 1.0
                     gltf_material["pbrMetallicRoughness"]["baseColorFactor"][3] = su_alpha  # <-- Alpha channel carries SU opacity

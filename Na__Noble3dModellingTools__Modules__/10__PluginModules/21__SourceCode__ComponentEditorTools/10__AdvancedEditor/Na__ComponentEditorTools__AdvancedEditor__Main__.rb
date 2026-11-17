@@ -207,9 +207,7 @@ module Na__ComponentEditorTools
                 FileUtils.copy_file(path, backup)
                 raise 'Backup verification failed. The component was not saved.' unless fingerprint(backup) == @session[:fingerprint]
                 raise "SketchUp could not save the file. Original backup: #{backup}" unless model.save
-                @session[:fingerprint] = fingerprint(path)
-                Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
-                Na__LibraryScanner.Na__ComponentEditorTools__InvalidateCache
+                @session[:fingerprint] = fingerprint(path)                                     # <-- The Gallery's cache is keyed by path::mtime: this file is read again, the rest stay cached
                 result("File saved. Original backup: #{backup}")
             end
         end

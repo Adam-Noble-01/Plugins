@@ -1,0 +1,524 @@
+# =============================================================================
+# ELEMENT ASSEMBLY STUDIO PRO - DEV TOOLS - ASSEMBLY RUN LAYOUT SPEC
+# =============================================================================
+#
+# FILE       : Na__AssemblyStudio__DevTools__AssemblyRunLayout__Spec__.rb.test
+# AUTHOR     : Noble Architecture
+# PURPOSE    : Offline checks of the Assembly Run system's pure Ruby: the path
+#              maths, the layout resolver and the run edits. No SketchUp
+#              process: the three modules call no Sketchup or Geom methods.
+# CREATED    : 16-Nov-2026 (V2.7.0)
+#
+# RUN IT (SketchUp's own Ruby, through the plugin development skill)
+#   python su_ruby.py run --modules-root "<...>/Na__ArchTools__ElementAssemblyStudioPro__Modules__" "<this file>"
+#   The last line reads "N passed, 0 failed"; the exit status is 1 on a failure.
+#
+# WHAT EACH BLOCK PROVES
+#   Path maths   : turns, cleaning, leg rows there and back, chaining loose
+#                  line segments into one path (Edit Path reads a line back).
+#   Examples 1-5 : Adam's own examples from the V2.7.0 brief (three double
+#                  doors butted, fused, with 500 infill blocks, bifolds with
+#                  Vale 260 columns, the U-shaped conservatory).
+#   Cabinets     : the four infill rules, the narrow remainder, the L-shaped
+#                  corner unit, a gap between unit sets.
+#   Run edits    : Make Panel Unique, recode, change one span's type, new path.
+#   Another product (V2.7.2) : one span, a leg's fill, a whole type; what a
+#                  row keeps (code, width, height, a window's sill) and what
+#                  it drops (its element); the fill-made types of cabinets.
+#   Flip inside out (V2.7.2) : open and closed paths, each item's place on
+#                  the ground before and after, a second flip, cabinets.
+#   Staged edits (V2.7.2)    : the tab's named edits, as it sends them.
+#
+# The .rb.test ending keeps SketchUp and Reload Scripts from loading it.
+#
+# =============================================================================
+
+# require, not load: the files require_relative each other, and a file loaded
+# as well as required is read twice (a warning for every constant).
+root = File.expand_path(File.join($NA_MODULES_ROOT, '02__Src__AppModules', '55__System__AssemblyRunSystem'))
+require File.join(root, 'Na__AssemblyStudio__AssemblyRun__Defaults__.rb')
+require File.join(root, 'Na__AssemblyStudio__AssemblyRun__PathMath__.rb')
+require File.join(root, 'Na__AssemblyStudio__AssemblyRun__LayoutResolver__.rb')
+require File.join(root, 'Na__AssemblyStudio__AssemblyRun__RunEdits__.rb')
+
+D = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__Defaults
+P = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__PathMath
+R = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__LayoutResolver
+E = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__RunEdits
+
+# -----------------------------------------------------------------------------
+# REGION | Helpers
+# -----------------------------------------------------------------------------
+
+$pass = 0
+$fail = 0
+def check(label, got, want)
+    ok = want.is_a?(Float) ? (got.to_f - want).abs < 0.06 : got == want
+    ok ? $pass += 1 : $fail += 1
+    puts "#{ok ? 'ok  ' : 'FAIL'} #{label}#{ok ? '' : "  got #{got.inspect}  want #{want.inspect}"}"
+end
+
+# A run configuration: the mode's defaults with these short keys over them.
+def cfg(over)
+    D.na_default_config(over.delete(:mode) || 'Frames')[D::NA_KEY_CONFIGURATION].merge(over.transform_keys { |k| D.na_key(k) })
+end
+
+# One leg as a line of text: a span is its type code, anything else the first
+# letter of its role and its width ("A m50 A", "A v260 A", "A A g600 A A").
+def kinds(layout, leg)
+    layout[:legs][leg][:items].map { |i| i[:kind] == 'Span' ? i[:type] : (i[:role][0, 1].downcase + i[:width].round.to_s) }.join(' ')
+end
+
+def refused(label, wanted_text)
+    yield
+    check label, 'no error', 'error'
+rescue ArgumentError => e
+    check label, e.message.include?(wanted_text), true
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Path Maths
+# -----------------------------------------------------------------------------
+
+check 'turn left 90', P.na_turn_deg([1, 0], [0, 1]), 90.0
+check 'turn right 90', P.na_turn_deg([1, 0], [0, -1]), -90.0
+pts = P.na_clean_points([[0, 0], [0, 0], [1000, 0], [2000, 0], [2000, 1500], [0, 0]], true)
+check 'clean drops repeats, straight points and the closing repeat', pts, [[0.0, 0.0], [2000.0, 0.0], [2000.0, 1500.0]]
+rows = P.na_leg_rows([[0, 0], [4000, 0], [4000, 3000], [0, 3000]], false)
+check 'leg rows', rows.map { |r| [r['Length_mm'], r['Turn_deg']] }, [[4000.0, 90.0], [3000.0, 90.0], [4000.0, 0.0]]
+check 'rows back to points', P.na_points_from_leg_rows(rows), [[0.0, 0.0], [4000.0, 0.0], [4000.0, 3000.0], [0.0, 3000.0]]
+chain = P.na_chain_segments([[[4000, 0], [4000, 3000]], [[4000, 0], [0, 0]], [[0, 3000], [4000, 3000]]], [0, 0])
+check 'chain order from the start end', chain[:points], [[0.0, 0.0], [4000.0, 0.0], [4000.0, 3000.0], [0.0, 3000.0]]
+check 'chain open', chain[:closed], false
+refused('branch refused', 'branches') { P.na_chain_segments([[[0, 0], [10, 0]], [[0, 0], [0, 10]], [[0, 0], [-10, 0]]]) }
+check 'side right', P.na_side_of([[0, 0], [1000, 0]], false, [500, -200]), :right
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Frames - the Five Examples
+# -----------------------------------------------------------------------------
+
+# Example 1: three sets of double doors, butted (no fuse)
+l = R.na_resolve(cfg(PathPoints: [[0, 0], [5400, 0]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'double' }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 3 } }]))
+check 'ex1 no errors', l[:errors], []
+check 'ex1 sequence', kinds(l, 0), 'A A A'
+check 'ex1 width', l[:types]['A'][:width], 1800.0
+check 'ex1 count', l[:types]['A'][:count], 3
+
+# Example 2: fused, 50 mullions and 50 jambs
+l = R.na_resolve(cfg(PathPoints: [[0, 0], [5600, 0]], FuseFramework: true, PanelTypes: [{ 'Code' => 'A', 'Product' => 'double' }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 3 } }]))
+check 'ex2 no errors', l[:errors], []
+check 'ex2 sequence', kinds(l, 0), 'j50 A m50 A m50 A j50'
+check 'ex2 width', l[:types]['A'][:width], 1800.0
+check 'ex2 last station', l[:legs][0][:items].last[:s1], 5600.0
+
+# Example 3: 500 infill blocks between
+l = R.na_resolve(cfg(PathPoints: [[0, 0], [6400, 0]], JointColumn: 'Infill', JointWidth_mm: 500, PanelTypes: [{ 'Code' => 'A', 'Product' => 'double' }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 3 } }]))
+check 'ex3 sequence', kinds(l, 0), 'A i500 A i500 A'
+check 'ex3 width', l[:types]['A'][:width], 1800.0
+
+# Example 4: three bifolds with Vale 260 columns between
+l = R.na_resolve(cfg(PathPoints: [[0, 0], [9520, 0]], JointColumn: 'Vale260', PanelTypes: [{ 'Code' => 'A', 'Product' => 'bifold' }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 3 } }]))
+check 'ex4 sequence', kinds(l, 0), 'A v260 A v260 A'
+check 'ex4 width', l[:types]['A'][:width], 3000.0
+check 'ex4 column backing', l[:legs][0][:items][1][:y1], 95.0
+
+# Example 5: U-shaped conservatory, Vale 260 corners, doors on the front
+u = cfg(PathPoints: [[0, 0], [3000, 0], [3000, 4500], [0, 4500]], CornerColumn: 'Vale260',
+        PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement', 'SillHeight_mm' => 600 }, { 'Code' => 'B', 'Product' => 'casement', 'SillHeight_mm' => 600 },
+                     { 'Code' => 'C', 'Product' => 'double', 'Width_mm' => 1800 }],
+        Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } },
+               { 'Items' => [{ 'Kind' => 'Span', 'PanelType' => 'B' }, { 'Kind' => 'Span', 'PanelType' => 'C' }, { 'Kind' => 'Span', 'PanelType' => 'B' }] },
+               { 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } }])
+l = R.na_resolve(u)
+check 'ex5 no errors', l[:errors], []
+check 'ex5 two corners', l[:corners].map { |c| [c[:kind], c[:toward_band], c[:square], c[:setback_in]] }, [['Vale260', true, true, 165.0], ['Vale260', true, true, 165.0]]
+check 'ex5 leg 1 usable', l[:legs][0][:usable], 2835.0
+check 'ex5 A width', l[:types]['A'][:width], 1417.5
+check 'ex5 B width', l[:types]['B'][:width], (4500.0 - 330 - 1800) / 2
+check 'ex5 A count', l[:types]['A'][:count], 4
+check 'ex5 A height', l[:types]['A'][:height], 1500.0
+check 'ex5 C height', l[:types]['C'][:height], 2100.0
+check 'ex5 first span of leg 2 starts after the corner', l[:legs][1][:items][0][:s0], 165.0
+check 'ex5 corner outline is an L', l[:corners][0][:outline].length, 6
+
+# One type cannot be two widths
+bad = R.na_resolve(cfg(PathPoints: [[0, 0], [3000, 0], [3000, 4500]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }],
+                       Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } }, { 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } }]))
+check 'two widths for one type is an error', bad[:errors].any? { |e| e.include?('Panel type A comes out at') }, true
+
+# Inside corner (turning away): a post fills the notch, no setback
+l = R.na_resolve(cfg(PathPoints: [[0, 0], [3000, 0], [3000, -2000]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }, { 'Code' => 'B', 'Product' => 'casement' }],
+                     Legs: [{ 'Fill' => { 'PanelType' => 'A' } }, { 'Fill' => { 'PanelType' => 'B' } }]))
+check 'inside corner no setback', [l[:corners][0][:toward_band], l[:corners][0][:setback_in], l[:legs][0][:usable]], [false, 0.0, 3000.0]
+check 'inside corner post outline', l[:corners][0][:outline].map { |p| p.map(&:round) }, [[3000, 0], [3000, 70], [3070, 70], [3070, 0]]
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Cabinets
+# -----------------------------------------------------------------------------
+
+# 600 units with the remainder at the end, at both ends, or shared equally
+c = cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3350, 0]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }])
+l = R.na_resolve(c)
+check 'cab end no errors', l[:errors], []
+check 'cab end sequence', kinds(l, 0), 'A A A A A B'
+check 'cab end infill width', l[:types]['B'][:width], 350.0
+check 'cab derived', [l[:derived_types], l[:types]['B'][:derived_from], l[:types]['B'][:auto]], [['B'], 'A', true]
+l = R.na_resolve(c.merge(D.na_key('Legs') => [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'Both' } }]))
+check 'cab both sequence', kinds(l, 0), 'B A A A A A B'
+check 'cab both infill width', l[:types]['B'][:width], 175.0
+l = R.na_resolve(c.merge(D.na_key('Legs') => [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'Equal' } }]))
+check 'cab equal sequence', kinds(l, 0), 'B B B B B B'
+check 'cab equal width', l[:types]['B'][:width], 558.3
+l = R.na_resolve(c.merge(D.na_key('PathPoints') => [[0, 0], [3100, 0]]))
+check 'cab narrow remainder becomes an infill block', kinds(l, 0), 'A A A A A i100'
+
+# L-shaped room corner with a corner unit (turning right, towards the room)
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3300, 0], [3300, -2700]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }],
+                     Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }, { 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }]))
+check 'L kitchen no errors', l[:errors], []
+check 'L kitchen corner', [l[:corners][0][:kind], l[:corners][0][:toward_band], l[:corners][0][:setback_in], l[:corners][0][:setback_out]], ['CornerUnit', true, 900.0, 900.0]
+check 'L kitchen leg 1', kinds(l, 0), 'A A A A'
+check 'L kitchen leg 2', kinds(l, 1), 'A A A'
+check 'L kitchen leg 2 starts after the corner unit', l[:legs][1][:items][0][:s0], 900.0
+
+# A gap between unit sets
+gap_items = [{ 'Kind' => 'Span', 'PanelType' => 'A' }, { 'Kind' => 'Span', 'PanelType' => 'A' }, { 'Kind' => 'Column', 'Column' => 'Gap', 'Width_mm' => 600 },
+             { 'Kind' => 'Span', 'PanelType' => 'A' }, { 'Kind' => 'Span', 'PanelType' => 'A' }]
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3000, 0]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }], Legs: [{ 'Items' => gap_items }]))
+check 'gap sequence', kinds(l, 0), 'A A g600 A A'
+# 4 x 600 and the 600 gap fill the 3000 leg exactly, so nothing is left over to warn of.
+check 'gap set fills the leg exactly', [l[:legs][0][:leftover].round(1), l[:warnings].any? { |w| w.include?('left empty') }], [0.0, false]
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3500, 0]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }], Legs: [{ 'Items' => gap_items }]))
+check 'a longer leg leaves the rest warned', [l[:legs][0][:leftover].round(1), l[:warnings].any? { |w| w.include?('500mm is left empty') }], [500.0, true]
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Refusals and the Report
+# -----------------------------------------------------------------------------
+
+l = R.na_resolve(cfg(Height_mm: 9000, PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }]))
+check 'limit refused', l[:errors].any? { |e| e.include?('Height_mm is 9000') }, true
+l = R.na_resolve(cfg(PanelTypes: [{ 'Code' => 'A', 'Product' => 'base' }]))
+check 'wrong product for the mode', l[:errors].any? { |e| e.include?('not a Frames product') }, true
+check 'report is plain data', R.na_report(R.na_resolve(u))['legs'][0]['items'][0]['kind'], 'Span'
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Run Edits (Each a Change to the Configuration)
+# -----------------------------------------------------------------------------
+
+copy = lambda { |config| Marshal.load(Marshal.dump(config)) }
+legs = D.na_key('Legs')
+rows = D.na_key('PanelTypes')
+
+# Make Panel Unique: the leg's fill becomes a list, the span a new type at its present width
+config = copy.call(u)
+layout = R.na_resolve(config)
+code   = E.na_make_unique!(config, layout, 0, 1, { 'windowConfiguration' => { 'horizontal_glaze_bars' => 2 } })
+check 'unique takes the next free code', code, 'D'
+check 'unique writes the leg down, keeping its rule for the record', [config[legs][0]['Items'].map { |i| i['PanelType'] }, config[legs][0]['FillWas']], [%w[A D], { 'PanelType' => 'A', 'Count' => 2 }]
+made = config[rows].find { |row| row['Code'] == 'D' }
+check 'unique keeps the width, the settings and where it came from', [made['Width_mm'], made['UniqueOf'], made['SeedRoot']['windowConfiguration']['horizontal_glaze_bars']], [1417.5, 'A', 2]
+after = R.na_resolve(config)
+check 'unique leaves every width as it was', [after[:errors], after[:types]['A'][:width], after[:types]['D'][:width], after[:types]['A'][:count]], [[], 1417.5, 1417.5, 3]
+refused('a span already on its own is refused', 'already unique') { E.na_make_unique!(config, after, 0, 1, {}) }
+refused('a code already in use is refused', 'already on this run') { E.na_make_unique!(copy.call(u), R.na_resolve(u), 0, 1, {}, 'B') }
+refused('a code that is no code is refused', 'will not do') { E.na_make_unique!(copy.call(u), R.na_resolve(u), 0, 1, {}, '9X') }
+
+# Recode: the row, every leg that uses it and every type made from it
+config = copy.call(u)
+check 'recode returns the new code', E.na_recode!(config, 'a', 'w1'), 'W1'
+check 'recode reaches every leg', [config[legs][0]['Fill']['PanelType'], config[legs][2]['Fill']['PanelType'], config[rows].map { |row| row['Code'] }], ['W1', 'W1', %w[W1 B C]]
+check 'recode still resolves', R.na_resolve(config)[:types]['W1'][:count], 4
+refused('recode to a code in use is refused', 'already on this run') { E.na_recode!(copy.call(u), 'A', 'C') }
+
+# Change one span's type
+config = copy.call(u)
+E.na_set_span_type!(config, R.na_resolve(config), 1, 2, 'A')
+check 'one span given another type', config[legs][1]['Items'].map { |i| i['PanelType'] }, %w[B C A]
+refused('a type not on the run is refused', 'no panel type') { E.na_set_span_type!(copy.call(u), R.na_resolve(u), 1, 0, 'Z') }
+refused('a span that is not there is refused', 'there is no span 5') { E.na_set_span_type!(copy.call(u), R.na_resolve(u), 1, 4, 'A') }
+
+# A new path keeps each leg's contents by position and drops what it no longer has
+config = copy.call(u)
+E.na_set_path!(config, [[0, 0], [3600, 0], [3600, 4500]], false)
+check 'a shorter path drops the last leg', [config[D.na_key('PathPoints')].length, config[legs].length, config[legs][1]['Items'].length], [3, 2, 3]
+refused('a path of one point is refused', 'at least two points') { E.na_set_path!(copy.call(u), [[0, 0]], false) }
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Another Product (V2.7.2)
+# -----------------------------------------------------------------------------
+
+row_of = lambda { |config, code| config[rows].find { |row| row['Code'] == code } }
+
+# One span of a shared type: a new type under the next code, sized as the old one
+config = copy.call(u)
+done   = E.na_set_span_product!(config, R.na_resolve(config), 0, 1, 'sliding')
+check 'a shared span takes a new type', done, { :code => 'D', :made => true }
+check 'the leg is written down with the new type in place', [config[legs][0]['Items'].map { |i| i['PanelType'] }, config[legs][0]['FillWas']], [%w[A D], { 'PanelType' => 'A', 'Count' => 2 }]
+check 'a door takes no sill, and shares the leg as the old type did', row_of.call(config, 'D'), { 'Code' => 'D', 'Product' => 'sliding' }
+after = R.na_resolve(config)
+check 'nothing else on the run moves', [after[:errors], after[:types]['A'][:width], after[:types]['D'][:width], after[:types]['A'][:count], after[:types]['D'][:height]], [[], 1417.5, 1417.5, 3, 2100.0]
+
+config = copy.call(u)
+E.na_set_span_product!(config, R.na_resolve(config), 0, 1, 'sash', 'w2')
+check 'a window keeps the sill, and the code asked for is used', row_of.call(config, 'W2'), { 'Code' => 'W2', 'Product' => 'sash', 'SillHeight_mm' => 600 }
+
+# A span with its type to itself: that type changes, and what was its element's goes
+config = copy.call(u)
+row_of.call(config, 'C').merge!('ElementId' => 'ADR007', 'PresetCode' => 'P001', 'Values' => { 'x' => 1 }, 'FrameBeforeFuse' => {}, 'UniqueOf' => 'B')
+done = E.na_set_span_product!(config, R.na_resolve(config), 1, 1, 'bifold')
+check 'a span on its own changes its type', done, { :code => 'C', :made => false }
+check 'the type keeps its code and width and drops its element', row_of.call(config, 'C'), { 'Code' => 'C', 'Product' => 'bifold', 'Width_mm' => 1800 }
+check 'its leg is left as it was', config[legs][1]['Items'].map { |i| i['PanelType'] }, %w[B C B]
+refused('the product it already is, is refused', 'is already Casement Window') { E.na_set_span_product!(copy.call(u), R.na_resolve(u), 0, 0, 'casement') }
+refused('a product of the other mode is refused', 'not a Frames product') { E.na_set_span_product!(copy.call(u), R.na_resolve(u), 0, 0, 'wardrobe') }
+refused('a span that is not there is refused before anything changes', 'there is no span 9') { E.na_set_span_product!(copy.call(u), R.na_resolve(u), 0, 8, 'sash') }
+
+# A whole type: every span of it, the sill kept only under a window
+config = copy.call(u)
+check 'a type given another product keeps its code', E.na_set_type_product!(config, 'a', 'Sash'), 'A'
+check 'window to window keeps the sill', row_of.call(config, 'A'), { 'Code' => 'A', 'Product' => 'sash', 'SillHeight_mm' => 600 }
+E.na_set_type_product!(config, 'A', 'double')
+check 'window to door drops the sill', row_of.call(config, 'A'), { 'Code' => 'A', 'Product' => 'double' }
+check 'every span of the type follows', [R.na_resolve(config)[:types]['A'][:product], R.na_resolve(config)[:types]['A'][:count]], ['double', 4]
+
+# A leg's fill: a new type when another leg uses the old one, else the old one changes
+config = copy.call(u)
+done   = E.na_set_fill_product!(config, R.na_resolve(config), 0, 'sliding')
+check 'a fill whose type another leg uses takes a new type', [done, config[legs][0]['Fill'], config[legs][2]['Fill']['PanelType']], [{ :code => 'D', :made => true }, { 'PanelType' => 'D', 'Count' => 2 }, 'A']
+two = cfg(PathPoints: [[0, 0], [3000, 0], [3000, -2000]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }, { 'Code' => 'B', 'Product' => 'casement' }],
+          Legs: [{ 'Fill' => { 'PanelType' => 'A' } }, { 'Fill' => { 'PanelType' => 'B', 'Count' => 2 } }])
+config = copy.call(two)
+done   = E.na_set_fill_product!(config, R.na_resolve(config), 1, 'sash')
+check 'a fill with its type to itself changes that type', [done, config[rows].map { |row| [row['Code'], row['Product']] }], [{ :code => 'B', :made => false }, [%w[A casement], %w[B sash]]]
+refused('a leg with its own list is changed span by span', 'own list of spans') { E.na_set_fill_product!(copy.call(u), R.na_resolve(u), 1, 'sash') }
+# A leg left empty takes the first type: that still counts as another leg using it
+bare = cfg(PathPoints: [[0, 0], [3000, 0], [3000, -3000]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }], Legs: [{ 'Fill' => { 'PanelType' => 'A' } }])
+config = copy.call(bare)
+check 'a leg left empty still claims the first type', E.na_set_fill_product!(config, R.na_resolve(config), 0, 'double')[:made], true
+
+# Cabinets: the narrower types a fill made follow their parent; one of them changes as a span
+built = copy.call(c)
+built[rows] << { 'Code' => 'B', 'Product' => 'base', 'Width_mm' => 350, 'Auto' => true, 'DerivedFrom' => 'A', 'ElementId' => 'ACB002' }
+config = copy.call(built)
+E.na_set_type_product!(config, 'A', 'drawers')
+check 'a fill-made type follows its parent, built as a copy of it', row_of.call(config, 'B'), { 'Code' => 'B', 'Product' => 'drawers', 'Width_mm' => 350, 'Auto' => true, 'DerivedFrom' => 'A', 'SeedFrom' => 'A' }
+check 'the fill still sets the leg out the same', kinds(R.na_resolve(config), 0), 'A A A A A B'
+refused('a fill-made type on its own is refused', 'follows it') { E.na_set_type_product!(copy.call(built), 'B', 'wall') }
+config = copy.call(built)
+done   = E.na_set_span_product!(config, R.na_resolve(config), 0, 5, 'drawers')
+check 'the one span of a fill-made type: the leg becomes a list and the type the span\'s own, at the width the fill gave it',
+      [done, row_of.call(config, 'B'), config[legs][0]['Items'].length], [{ :code => 'B', :made => false }, { 'Code' => 'B', 'Product' => 'drawers', 'Width_mm' => 350.0 }, 6]
+after = R.na_resolve(config)
+check 'the leg stands as it did', [after[:errors], kinds(after, 0), after[:types]['B'][:width], after[:types]['B'][:auto]], [[], 'A A A A A B', 350.0, false]
+
+# A draft: the fill-made types are in the layout only, with no rows yet
+config = copy.call(c)
+done   = E.na_set_span_product!(config, R.na_resolve(config), 0, 5, 'drawers')
+check 'a draft\'s fill-made span changes the same way', [done, row_of.call(config, 'B'), kinds(R.na_resolve(config), 0)], [{ :code => 'B', :made => false }, { 'Code' => 'B', 'Product' => 'drawers', 'Width_mm' => 350.0 }, 'A A A A A B']
+both = c.merge(legs => [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'Both' } }])
+config = copy.call(both)
+done   = E.na_set_span_product!(config, R.na_resolve(config), 0, 0, 'drawers')
+after  = R.na_resolve(config)
+check 'one of two fill-made spans takes a new type; the other keeps the type the fill made', [done, after[:errors], kinds(after, 0), after[:types]['B'][:product], after[:types]['C'][:product], after[:types]['C'][:width]],
+      [{ :code => 'C', :made => true }, [], 'C A A A A A B', 'base', 'drawers', 175.0]
+
+# A leg written down as a list keeps the types its fill made (they had no row: the next layout refused it)
+config = copy.call(c)
+E.na_set_span_type!(config, R.na_resolve(config), 0, 0, 'A')
+after = R.na_resolve(config)
+check 'a listed leg\'s fill-made type is given its row', [after[:errors], kinds(after, 0), row_of.call(config, 'B')], [[], 'A A A A A B', { 'Code' => 'B', 'Product' => 'base', 'Width_mm' => 350.0, 'SeedFrom' => 'A' }]
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Flip Inside Out (V2.7.2)
+# -----------------------------------------------------------------------------
+
+points  = D.na_key('PathPoints')
+corners = D.na_key('Corners')
+flipped = D.na_key('SideFlipped')
+
+# Where a leg's items stand on the ground: [type or role, plan x, plan y] of each middle
+ground = lambda do |layout|
+    layout[:legs].flat_map do |leg|
+        leg[:items].map do |item|
+            middle = P.na_point_on_leg(leg, (item[:s0] + item[:s1]) / 2.0)
+            [item[:kind] == 'Span' ? item[:type] : item[:role], middle[0].round(1) + 0.0, middle[1].round(1) + 0.0]   # <-- + 0.0: a -0.0 would sort apart
+        end
+    end.sort_by(&:to_s)
+end
+
+# A straight leg: every span and column keeps its place, the band changes side
+line = cfg(PathPoints: [[0, 0], [4000, 0]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'double', 'Width_mm' => 1000 }, { 'Code' => 'B', 'Product' => 'casement' }],
+           Legs: [{ 'Items' => [{ 'Kind' => 'Span', 'PanelType' => 'A' }, { 'Kind' => 'Column', 'Column' => 'Gap', 'Width_mm' => 500 }, { 'Kind' => 'Span', 'PanelType' => 'B' }] }])
+config = copy.call(line)
+before = R.na_resolve(config)
+check 'the flip answers with the switch as it now stands', E.na_flip_side!(config), true
+after  = R.na_resolve(config)
+check 'the path is stored the other way round, where it lies', config[points], [[4000.0, 0.0], [0.0, 0.0]]
+check 'the leg\'s items are stored in the opposite order', [kinds(before, 0), kinds(after, 0)], ['A g500 B', 'B g500 A']
+check 'every item keeps its place on the ground', ground.call(after), ground.call(before)
+check 'the elements now stand on the other side of the line', [before[:legs][0][:left], after[:legs][0][:left]], [[0.0, 1.0], [0.0, -1.0]]
+E.na_flip_side!(config)
+check 'a second flip puts everything back', [config[points], config[legs], config[flipped]], [[[0.0, 0.0], [4000.0, 0.0]], line[legs], false]
+
+# The U: leg 1 becomes the last leg, corner 1 the last corner, outside corners become inside ones
+config = copy.call(u)
+config[legs][0] = { 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } }
+config[legs][2] = { 'Items' => [{ 'Kind' => 'Span', 'PanelType' => 'A' }, { 'Kind' => 'Span', 'PanelType' => 'C' }] }
+config[legs][1] = { 'Fill' => { 'PanelType' => 'B', 'Count' => 2 } }
+config[corners] = [{ 'Column' => 'Open' }]
+E.na_flip_side!(config)
+check 'open path: the last point is now the first', config[points], [[0.0, 4500.0], [3000.0, 4500.0], [3000.0, 0.0], [0.0, 0.0]]
+check 'open path: the legs change ends, each read from its other end', [config[legs][0]['Items'].map { |i| i['PanelType'] }, config[legs][1]['Fill']['PanelType'], config[legs][2]['Fill']['PanelType']], [%w[C A], 'B', 'A']
+check 'open path: corner 1 is now the last corner', config[corners], [{}, { 'Column' => 'Open' }]
+after = R.na_resolve(config)
+check 'what were outside corners are inside ones', after[:corners].map { |corner| corner[:toward_band] }, [false, false]
+check 'a library corner column on an inside corner is said, not hidden', after[:warnings].any? { |w| w.include?('inside corner') }, true
+
+# A closed path: the first point stays, the rest are walked the other way
+ring = cfg(PathPoints: [[0, 0], [3000, 0], [3000, 3000], [0, 3000]], PathClosed: true, PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }],
+           Legs: [1, 2, 3, 4].map { |count| { 'Fill' => { 'PanelType' => 'A', 'Count' => count } } }, Corners: [{}, { 'Column' => 'Open' }])
+config = copy.call(ring)
+E.na_flip_side!(config)
+check 'closed path: point 1 stays point 1', config[points], [[0.0, 0.0], [0.0, 3000.0], [3000.0, 3000.0], [3000.0, 0.0]]
+check 'closed path: the legs are walked the other way', config[legs].map { |leg| leg['Fill']['Count'] }, [4, 3, 2, 1]
+check 'closed path: corner 1 stays, the rest follow their points', config[corners], [{}, {}, {}, { 'Column' => 'Open' }]
+before = R.na_resolve(ring)
+after  = R.na_resolve(config)
+open_at = lambda { |layout| layout[:corners].find { |corner| corner[:kind] == 'Open' }[:point].map(&:round) }
+check 'closed path: the open corner is at the same place', [open_at.call(before), open_at.call(after)], [[3000, 0], [3000, 0]]
+E.na_flip_side!(config)
+check 'closed path: a second flip puts everything back', [config[points], config[legs], config[corners]], [ring[points].map { |point| point.map(&:to_f) }, ring[legs], ring[corners]]
+
+# Cabinets: a fill's leftover moves to the leg's other end, so it stays where it stands
+config = copy.call(c)
+before = R.na_resolve(config)
+E.na_flip_side!(config)
+after  = R.na_resolve(config)
+check 'cabinets: the leftover is now at the start of the leg', [config[legs][0]['Fill']['Infill'], kinds(after, 0)], ['Start', 'B A A A A A']
+check 'cabinets: every unit keeps its place on the ground', ground.call(after), ground.call(before)
+refused('a path of one point cannot be turned round', 'at least two points') { E.na_flip_side!(cfg(PathPoints: [[0, 0]])) }
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Edits the Tab Stages by Name (V2.7.2)
+# -----------------------------------------------------------------------------
+
+config = copy.call(u)
+said   = E.na_stage!(config, R.na_resolve(config), 'span_product', { 'leg' => 0, 'span' => 1, 'product' => 'sliding' })
+check 'a staged span product says what it made', said, 'Leg 1 span 2 is now panel type D, Sliding Doors: a new type.'
+said = E.na_stage!(config, R.na_resolve(config), 'span_product', { 'leg' => 1, 'span' => 1, 'product' => 'bifold' })
+check 'a staged change in place says which type changed', said, 'Panel type C is now Bifold Doors.'
+said = E.na_stage!(config, R.na_resolve(config), 'fill_product', { 'leg' => 2, 'product' => 'sash' })
+check 'a staged fill product', [said, config[legs][2]['Fill']['PanelType']], ['Leg 3 now fills with panel type E, Sash Window: a new type.', 'E']
+said = E.na_stage!(config, R.na_resolve(config), 'type_product', { 'code' => 'B', 'product' => 'single' })
+check 'a staged type product', [said, row_of.call(config, 'B')['Product']], ['Panel type B is now Single Door.', 'single']
+check 'a staged flip', [E.na_stage!(config, R.na_resolve(config), 'flip', {}), config[flipped]], ['The run is turned inside out. Its legs are now numbered from the other end.', true]
+check 'the staged description still resolves', R.na_resolve(config)[:errors], []
+refused('an edit the tab does not stage is refused', 'not an edit the tab stages') { E.na_stage!(copy.call(u), R.na_resolve(u), 'explode', {}) }
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | One Cill and One Window Board Along the Run (V2.7.3)
+# -----------------------------------------------------------------------------
+
+C3 = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__RunCills
+span = lambda { |code| { 'Kind' => 'Span', 'PanelType' => code } }
+item_z = lambda { |layout, leg, role| layout[:legs][leg][:items].select { |i| i[:role] == role }.map { |i| i[:z0] } }
+
+# Adam's SK02 bay, ARN002 as it stood on 17-Nov-2026: 950 / 2600 / 950, fused, 50 mullions, 120 corner posts, 50 end blocks
+bay = cfg(PathPoints: [[0, 0], [950, 0], [950, 2600], [0, 2600]], Height_mm: 1250, FuseFramework: true, MullionWidth_mm: 50, JambWidth_mm: 0,
+          PostDepth_mm: 90, EndColumn: 'Infill', EndWidth_mm: 50, CornerColumn: 'Post', CornerPostSize_mm: 120,
+          PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement', 'Width_mm' => 755 }, { 'Code' => 'B', 'Product' => 'casement', 'Width_mm' => 750 },
+                       { 'Code' => 'C', 'Product' => 'casement' }],
+          Legs: [{ 'Items' => [span.call('C')] }, { 'Items' => [span.call('A'), span.call('B'), span.call('A')] }, { 'Items' => [span.call('C')] }])
+l = R.na_resolve(bay)
+check 'bay: no errors', l[:errors], []
+check 'bay: one cill from the wall, round both corners, back to the wall', [l[:cills].length, l[:cills][0][:start], l[:cills][0][:end], l[:cills][0][:spans].length], [1, [0, 0.0], [2, 950.0], 5]
+check 'bay: the cill is mitred round both corners (50 proud, 90 deep)',
+      l[:cills][0][:outline][:outer].map { |p| p.map(&:round) },
+      [[0, 90], [860, 90], [860, 2510], [0, 2510], [0, 2650], [1000, 2650], [1000, -50], [0, -50]]
+check 'bay: one window board, out to the end blocks at the wall', [l[:boards].length, l[:boards][0][:start], l[:boards][0][:end]], [1, [0, 0.0], [2, 950.0]]
+check 'bay: every window gives up its cill, board and frame', l[:types].values.map { |t| [t[:cill_joined], t[:board_joined], t[:frameless], t[:cill_lift]] }.uniq, [[true, true, true, 50.0]]
+check 'bay: the mullions stand on the cill', item_z.call(l, 1, 'Mullion'), [50.0, 50.0]
+check 'bay: so do the end blocks and the corner posts', [item_z.call(l, 0, 'Infill'), item_z.call(l, 2, 'Infill'), l[:corners].map { |c| c[:z0] }], [[50.0], [50.0], [50.0, 50.0]]
+check 'bay: every window stands on it', l[:legs].flat_map { |leg| leg[:items].select { |i| i[:kind] == 'Span' }.map { |i| i[:base_z] } }.uniq, [50.0]
+check 'bay: the report carries no walk entries', R.na_report(l)['cills'][0].keys.include?('segments'), false
+
+# A door between two windows: one cill under all three, a board each side of the door (the posts beside it dropped)
+mixed = cfg(PathPoints: [[0, 0], [4000, 0]], FuseFramework: true,
+            PanelTypes: [{ 'Code' => 'W', 'Product' => 'casement', 'Width_mm' => 1000 }, { 'Code' => 'D', 'Product' => 'double' }],
+            Legs: [{ 'Items' => [span.call('W'), span.call('D'), span.call('W')] }])
+l = R.na_resolve(mixed)
+check 'a door: one cill under windows and door', [l[:cills].length, l[:cills][0][:spans]], [1, %w[L1S1 L1S2 L1S3]]
+check 'a door: a board each side, from the wall to the window (the mullions beside the door dropped)', l[:boards].map { |b| [b[:start], b[:end]] }, [[[0, 0.0], [0, 1050.0]], [[0, 2950.0], [0, 4000.0]]]
+check 'a door keeps its own frame, the windows do not', [l[:types]['D'][:frameless], l[:types]['W'][:frameless], l[:types]['D'][:cill_joined]], [false, true, true]
+
+# A library column breaks the cill and the board; so does a gap
+cols = cfg(PathPoints: [[0, 0], [5000, 0]], JointColumn: 'Vale260',
+           PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } }])
+l = R.na_resolve(cols)
+check 'a library column: a cill each side, it stands on its own base', [l[:cills].length, l[:boards].length, item_z.call(l, 0, 'Vale260')], [2, 2, [0.0]]
+gaps = cfg(PathPoints: [[0, 0], [3000, 0]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement', 'Width_mm' => 1000 }],
+           Legs: [{ 'Items' => [span.call('A'), { 'Kind' => 'Column', 'Column' => 'Gap', 'Width_mm' => 1000 }, span.call('A')] }])
+check 'a gap breaks it', R.na_resolve(gaps)[:cills].map { |c| c[:spans] }, [['L1S1'], ['L1S2']]
+
+# A window on a sill height keeps its own cill and frame, and breaks the run's
+raised = cfg(PathPoints: [[0, 0], [3000, 0]], FuseFramework: true,
+             PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement', 'Width_mm' => 1000 }, { 'Code' => 'B', 'Product' => 'casement', 'SillHeight_mm' => 600 }],
+             Legs: [{ 'Items' => [span.call('A'), span.call('B'), span.call('A')] }])
+l = R.na_resolve(raised)
+check 'a raised window breaks the cill', l[:cills].map { |c| c[:spans] }, [['L1S1'], ['L1S3']]
+check 'a raised window keeps its own', [l[:types]['B'][:cill_joined], l[:types]['B'][:frameless], l[:legs][0][:items].find { |i| i[:type] == 'B' }[:base_z]], [false, false, 600.0]
+
+# A closed loop of windows: one ring
+ring3 = cfg(PathPoints: [[0, 0], [3000, 0], [3000, 3000], [0, 3000]], PathClosed: true, CornerColumn: 'Post',
+            PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }], Legs: [1, 1, 1, 1].map { { 'Fill' => { 'PanelType' => 'A', 'Count' => 1 } } })
+l = R.na_resolve(ring3)
+outline = l[:cills][0][:outline]
+check 'a closed loop: one closed cill, a ring', [l[:cills].length, l[:cills][0][:closed], outline[:inner].nil?], [1, true, false]
+check 'the ring: 50 proud outside, back to the posts inside (3100 and 2860 square)',
+      [C3.na_area(outline[:outer]).abs.round, C3.na_area(outline[:inner]).abs.round], [3100 * 3100, 2860 * 2860]
+
+# Switched off, and not fused: each panel keeps its own; fused, the cill is always joined
+off = cfg(PathPoints: [[0, 0], [3000, 0]], JoinCills: false, PanelTypes: [{ 'Code' => 'A', 'Product' => 'casement' }], Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Count' => 2 } }])
+l = R.na_resolve(off)
+check 'off: no stretches, every panel keeps its own', [l[:cills], l[:boards], l[:types]['A'][:cill_joined], l[:legs][0][:items][0][:base_z]], [[], [], false, 0.0]
+check 'fused: joined whatever the switch says', R.na_resolve(off.merge(D.na_key('FuseFramework') => true))[:settings][:join_cills], true
+check 'cabinets never join', R.na_resolve(c)[:settings][:join_cills], false
+l = R.na_resolve(bay.merge(D.na_key('CillHeight_mm') => 1240))
+check 'a cill that leaves no panel is refused', l[:errors].any? { |e| e.include?('cill leaves no height') }, true
+check 'a cill of 0 stands nothing up', item_z.call(R.na_resolve(bay.merge(D.na_key('CillHeight_mm') => 0)), 1, 'Mullion'), [0.0, 0.0]
+
+# An open corner carries it round; a library corner breaks it
+corners = bay.merge(D.na_key('Corners') => [{ 'Column' => 'Open' }, { 'Column' => 'Vale260' }],
+                    rows => [{ 'Code' => 'E', 'Product' => 'casement' }, { 'Code' => 'F', 'Product' => 'casement' }, { 'Code' => 'G', 'Product' => 'casement' }],
+                    legs => [{ 'Items' => [span.call('E')] }, { 'Items' => [span.call('F'), span.call('F'), span.call('F')] }, { 'Items' => [span.call('G')] }])
+l = R.na_resolve(corners)
+check 'an open corner carries the cill round it, a library corner breaks it',
+      [l[:errors], l[:cills].length, l[:cills][0][:ranges].map { |r| r[:leg] }, l[:cills][1][:start], l[:corners].map { |c| c[:z0] }],
+      [[], 2, [0, 1], [2, 165.0], [50.0, 0.0]]
+
+# The band itself: an L turning right, mitred on both sides
+band = C3.na_band_outline([[0, 0], [1000, 0], [1000, -800]], -50, 90, false)
+check 'an L turning right is mitred on both sides', band[:outer].map { |p| p.map(&:round) }, [[0, 90], [1090, 90], [1090, -800], [950, -800], [950, -50], [0, -50]]
+
+# endregion -------------------------------------------------------------------
+
+puts "\n#{$pass} passed, #{$fail} failed"
+exit($fail.zero? ? 0 : 1)

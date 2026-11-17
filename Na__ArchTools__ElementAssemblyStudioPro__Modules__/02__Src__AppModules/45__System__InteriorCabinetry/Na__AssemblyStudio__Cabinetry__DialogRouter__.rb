@@ -44,6 +44,7 @@ require 'sketchup.rb'
 require 'json'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__UiBridge__'
+require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__OperationScope__'
 require_relative '../04__GeometryHelpers/Na__AssemblyStudio__ComponentNameSuffix__'
 require_relative '../06__Tools__MeasurementTools/Na__AssemblyStudio__MeasurementTools__RunMeasureTool__'
 require_relative '../07__Tools__PlacementTools/Na__AssemblyStudio__PlacementTools__CabinetPlacementTool__'
@@ -71,6 +72,7 @@ module Na__InteriorCabinetrySystem
         AssetLibrary    = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__AssetLibrary
         DataSerializer  = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__DataSerializer
         GeometryEngine  = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__GeometryEngine
+        OperationScope  = Na__AssemblyStudio::Na__AppCore::Na__OperationScope                       # <-- V2.7.0 The pipelines' undo steps: their own, or joined to a run's
 
         NA_TYPE_LABELS = { "Base" => "Base Unit", "Wall" => "Wall Unit", "Tower" => "Tall Unit" }.freeze
 
@@ -337,7 +339,7 @@ module Na__InteriorCabinetrySystem
         # @return [Sketchup::ComponentInstance]
         def self.na_pipeline_create(root, transform, operation_name = "Create Cabinet")
             model = Sketchup.active_model
-            model.start_operation(operation_name, true)
+            OperationScope.na_start(model, operation_name, true)
             started = true
 
             cabinet_id = DataSerializer.na_generate_next_id
@@ -349,10 +351,10 @@ module Na__InteriorCabinetrySystem
             unit_type = LayoutResolver.na_effective(config)[:type]
             DataSerializer.na_apply_identity(instance, cabinet_id, unit_type, na_metadata(root)["Na__Cabinet__ComponentName"].to_s)
             DataSerializer.na_save(cabinet_id, root)
-            model.commit_operation
+            OperationScope.na_commit(model)
             instance
         rescue StandardError
-            begin; model.abort_operation if started; rescue StandardError; end
+            begin; OperationScope.na_abort(model) if started; rescue StandardError; end
             raise
         end
         # ---------------------------------------------------------------
@@ -367,7 +369,7 @@ module Na__InteriorCabinetrySystem
             raise "#{instance.definition.name} is not a cabinet" unless cabinet_id
 
             model = Sketchup.active_model
-            model.start_operation(live ? "Live Update Cabinet" : "Update Cabinet", true, false, live)
+            OperationScope.na_start(model, live ? "Live Update Cabinet" : "Update Cabinet", true, false, live)
             started = true
 
             na_stamp_metadata(root, cabinet_id, created: false)
@@ -376,10 +378,10 @@ module Na__InteriorCabinetrySystem
 
             DataSerializer.na_apply_identity(instance, cabinet_id, LayoutResolver.na_effective(config)[:type])
             DataSerializer.na_save(cabinet_id, root)
-            model.commit_operation
+            OperationScope.na_commit(model)
             instance
         rescue StandardError
-            begin; model.abort_operation if started; rescue StandardError; end
+            begin; OperationScope.na_abort(model) if started; rescue StandardError; end
             raise
         end
         # ---------------------------------------------------------------
@@ -396,15 +398,15 @@ module Na__InteriorCabinetrySystem
             unit_type = LayoutResolver.na_effective(data[Defaults::NA_KEY_CONFIGURATION] || {})[:type]
 
             model = Sketchup.active_model
-            model.start_operation("Rename Cabinet", true)
+            OperationScope.na_start(model, "Rename Cabinet", true)
             started = true
             full_name = DataSerializer.na_apply_identity(instance, cabinet_id, unit_type, name.to_s)
             na_metadata(data)["Na__Cabinet__ComponentName"] = NameSuffix.na_extract(full_name.to_s, Defaults.na_name_head(cabinet_id, unit_type))
             DataSerializer.na_save(cabinet_id, data)
-            model.commit_operation
+            OperationScope.na_commit(model)
             full_name
         rescue StandardError
-            begin; model.abort_operation if started; rescue StandardError; end
+            begin; OperationScope.na_abort(model) if started; rescue StandardError; end
             raise
         end
         # ---------------------------------------------------------------

@@ -35,6 +35,7 @@
         windows       : 'Na_DynamicUI',       // Window system kept the historical IIFE name for compatibility
         doors         : 'Na_DoorUI',
         cabinets      : 'Na_CabinetUI',       // Interior Cabinetry (kitchens and fitted wardrobes)
+        runs          : 'Na_RunUI',           // Assembly Run Studio (runs of elements along a path)
         settings      : 'Na_SettingsUI',
         presets       : 'Na_PresetsUI',       // PresetsLibrary gallery page
         preset_editor : 'Na_PresetEditorUI'   // PresetsLibrary editor page

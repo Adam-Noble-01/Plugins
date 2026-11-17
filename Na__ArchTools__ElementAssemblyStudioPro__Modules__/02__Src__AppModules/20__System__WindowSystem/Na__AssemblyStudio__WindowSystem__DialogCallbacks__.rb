@@ -25,6 +25,7 @@ require_relative 'Na__AssemblyStudio__WindowSystem__SashHornBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__WindowBoardBuilder__'
 require_relative 'Na__AssemblyStudio__WindowSystem__EdgeColourPainter__'
 require_relative 'Na__AssemblyStudio__WindowSystem__LeadedGlassBuilder__'
+require_relative '../01__AppCore/Na__AssemblyStudio__AppCore__OperationScope__'
 
 module Na__AssemblyStudio
     module Na__WindowSystem
@@ -44,6 +45,7 @@ module Na__AssemblyStudio
             PlacementTool  = Na__AssemblyStudio::Na__PlacementTools::Na__WindowPlacementTool
             InsertionFrame = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame                  # <-- Wall-aware insertion transform helper
             ComponentNameSuffix = Na__AssemblyStudio::Na__GeometryHelpers::Na__ComponentNameSuffix        # <-- Optional user-authored name tail (never touches the fixed head)
+            OperationScope = Na__AssemblyStudio::Na__AppCore::Na__OperationScope                          # <-- V2.7.0 The pipelines' undo steps: their own, or joined to a run's
 
             @na_dialog               = nil
             @na_window_component     = nil
@@ -1514,6 +1516,11 @@ module Na__AssemblyStudio
             # dialog state: tracking, the placement tool and the status line
             # stay with the dialog handlers.
             #
+            # V2.7.0: each opens, commits and aborts its step through
+            # Na__OperationScope, so an Assembly Run can build many elements
+            # inside ONE step of its own (Na__OperationScope.na_embed). Called
+            # on their own they behave exactly as before.
+            #
             # The hinged exterior doors (single, double) need no pipeline of
             # their own: their engines already open the operation, fuse, paint
             # edges and save. na_pipeline_create / na_pipeline_update hold the
@@ -1576,7 +1583,7 @@ module Na__AssemblyStudio
             def self.na_pipeline_create_window(config, frame, name: "")
                 model         = Sketchup.active_model
                 window_config = config["windowConfiguration"]
-                model.start_operation("Create Window", true)
+                OperationScope.na_start(model, "Create Window", true)
                 started = true
 
                 window_id = DataSerializer.na_generate_next_window_id
@@ -1601,10 +1608,10 @@ module Na__AssemblyStudio
                 # given: the dialog names it from WINDOW INFO once it is placed.
                 DataSerializer.na_set_window_id_on_instance(instance, window_id, name.to_s)
                 DataSerializer.na_save_window_data(window_id, config)
-                model.commit_operation
+                OperationScope.na_commit(model)
                 instance
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------
@@ -1618,7 +1625,7 @@ module Na__AssemblyStudio
 
                 model         = Sketchup.active_model
                 window_config = config["windowConfiguration"]
-                model.start_operation("Update Window", true)
+                OperationScope.na_start(model, "Update Window", true)
                 started = true
 
                 metadata = config["windowMetadata"].is_a?(Array) ? config["windowMetadata"][0] : nil
@@ -1634,10 +1641,10 @@ module Na__AssemblyStudio
 
                 DataSerializer.na_set_window_id_on_instance(instance, window_id, name)
                 DataSerializer.na_save_window_data(window_id, config)
-                model.commit_operation
+                OperationScope.na_commit(model)
                 instance
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------
@@ -1648,7 +1655,7 @@ module Na__AssemblyStudio
             # definition, so an empty result is refused here before commit.
             def self.na_pipeline_create_bifold_door(window_config, frame, name: "")
                 model = Sketchup.active_model
-                model.start_operation("Create Bifold Door", true)
+                OperationScope.na_start(model, "Create Bifold Door", true)
                 started = true
 
                 Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
@@ -1667,10 +1674,10 @@ module Na__AssemblyStudio
                     bifold_serializer.na_save_door_data(door_id, na_build_bifold_save_payload(door_id, window_config, true))
                 end
                 na_pipeline_apply_name(instance, name) unless name.to_s.empty?
-                model.commit_operation
+                OperationScope.na_commit(model)
                 instance
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------
@@ -1681,7 +1688,7 @@ module Na__AssemblyStudio
                 raise "No bifold door to update" unless instance && instance.valid?
                 window_config = config["windowConfiguration"] || {}
                 model = Sketchup.active_model
-                model.start_operation("Update Bifold Door", true)
+                OperationScope.na_start(model, "Update Bifold Door", true)
                 started = true
 
                 Na__AssemblyStudio::Na__ExteriorMultiFoldingDoorSystem.na_require_bifold_modules
@@ -1699,10 +1706,10 @@ module Na__AssemblyStudio
                     bifold_serializer.na_save_door_data(door_id, na_build_bifold_save_payload(door_id, window_config, false))
                 end
 
-                model.commit_operation
+                OperationScope.na_commit(model)
                 instance
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------
@@ -1711,7 +1718,7 @@ module Na__AssemblyStudio
             # ------------------------------------------------------------
             def self.na_pipeline_create_sliding_door(window_config, frame, name: "")
                 model = Sketchup.active_model
-                model.start_operation("Create Sliding Door", true)
+                OperationScope.na_start(model, "Create Sliding Door", true)
                 started = true
 
                 Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
@@ -1730,10 +1737,10 @@ module Na__AssemblyStudio
                     sliding_serializer.na_save_door_data(door_id, na_build_sliding_save_payload(door_id, window_config, true))
                 end
                 na_pipeline_apply_name(instance, name) unless name.to_s.empty?
-                model.commit_operation
+                OperationScope.na_commit(model)
                 instance
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------
@@ -1744,7 +1751,7 @@ module Na__AssemblyStudio
                 raise "No sliding door to update" unless instance && instance.valid?
                 window_config = config["windowConfiguration"] || {}
                 model = Sketchup.active_model
-                model.start_operation("Update Sliding Door", true)
+                OperationScope.na_start(model, "Update Sliding Door", true)
                 started = true
 
                 Na__AssemblyStudio::Na__ExteriorSlidingDoorSystem.na_require_sliding_modules
@@ -1762,10 +1769,10 @@ module Na__AssemblyStudio
                     sliding_serializer.na_save_door_data(door_id, na_build_sliding_save_payload(door_id, window_config, false))
                 end
 
-                model.commit_operation
+                OperationScope.na_commit(model)
                 instance
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------
@@ -1915,13 +1922,13 @@ module Na__AssemblyStudio
             def self.na_pipeline_rename_transparent(instance, requested_raw)
                 return nil if requested_raw == ComponentNameSuffix::NA_KEEP
                 model = Sketchup.active_model
-                model.start_operation("Rename Component", true, false, true)
+                OperationScope.na_start(model, "Rename Component", true, false, true)
                 started = true
                 tail = na_pipeline_apply_name(instance, requested_raw)
-                model.commit_operation
+                OperationScope.na_commit(model)
                 tail
             rescue StandardError
-                begin; model.abort_operation if started; rescue StandardError; end
+                begin; OperationScope.na_abort(model) if started; rescue StandardError; end
                 raise
             end
             # ---------------------------------------------------------------

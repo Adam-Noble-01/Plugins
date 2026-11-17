@@ -19,7 +19,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.35",
+        "version": "1.0.38",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -45,6 +45,8 @@
         "agent_outliner.prefix": "1.0.32",
         "point_cloud_clip.frame": "1.0.35",
         "point_cloud_ortho_plane.view=clip": "1.0.35",
+        "assembly_run_edit.action=flip_side": "1.0.37",
+        "assembly_run_edit.product": "1.0.37",
         "entity_studio.action=parameters": "1.0.27",
         "entity_studio.action=elements": "1.0.27",
         "entity_studio.action=openings": "1.0.27",
@@ -1774,7 +1776,7 @@
                 "Sketchup::Entities#add_instance",
                 "UI::HtmlDialog#execute_script"
             ],
-            "description": "Create, change and maintain Element Assembly Studio Pro windows, exterior doors (single, double, bifold, sliding), interior doors and cabinets through the dialog's own build pipelines: each build or rebuild is ONE undo step with the plugin's own name (e.g. 'Create Window', 'Update Bifold Door'). action: build (type and/or preset, values on top; placed into opening {wall_id, index} (from entity_studio openings) or {point_a, point_b, point_d}: fit (default true) sizes it as Measure Opening would, height less the cill; or at position + direction (along the wall, left to right seen from outside); cabinets take run {point_a, point_b, side (a point on the room side)} and run_offset mm; name gives the name tail; dry_run checks everything and builds nothing); update (instance_id: values merged onto its stored ones, or preset (keep_size default true), reset (keys back to a new element's), opening refits the size only; never moves it; every copy of the definition changes; returns the changed values; dry_run); rename (instance_id, name: the tail after the coded head); export_dxf (file: absolute .dxf; from instance_id, preset or type; windows and single / double doors; overwrite); save_preset (name agreed with Adam first; from instance_id, preset or type plus values), update_preset (code: name / description / keywords and/or values or instance_id; keeps a .bak), archive_preset / restore_preset (code: moved to and from the archive, never deleted), refresh_preview (code; dialog open), open_dialog (instance_id selects it so the dialog shows it), reload. values use the dialog's keys (entity_studio parameters lists them with ranges): out-of-range values, unknown keys and options the dialog does not offer are refused. Builds go at the model root. Not allowed in batch_execute.",
+            "description": "Create, change and maintain Element Assembly Studio Pro windows, exterior doors (single, double, bifold, sliding), interior doors and cabinets through the dialog's own build pipelines: each build or rebuild is ONE undo step with the plugin's own name (e.g. 'Create Window', 'Update Bifold Door'). action: build (type and/or preset, values on top; placed into opening {wall_id, index} (from entity_studio openings) or {point_a, point_b, point_d}: fit (default true) sizes it as Measure Opening would, height less the cill; or at position + direction (along the wall, left to right seen from outside); cabinets take run {point_a, point_b, side (a point on the room side)} and run_offset mm; name gives the name tail; dry_run checks everything and builds nothing); update (instance_id: values merged onto its stored ones, or preset (keep_size default true), reset (keys back to a new element's), opening refits the size only; never moves it; every copy of the definition changes; returns the changed values; dry_run); rename (instance_id, name: the tail after the coded head); export_dxf (file: absolute .dxf; from instance_id, preset or type; windows and single / double doors; overwrite); save_preset (name agreed with Adam first; from instance_id, preset or type plus values), update_preset (code: name / description / keywords and/or values or instance_id; keeps a .bak), archive_preset / restore_preset (code: moved to and from the archive, never deleted), refresh_preview (code; dialog open), open_dialog (instance_id selects it so the dialog shows it), reload. values use the dialog's keys (entity_studio parameters lists them with ranges): out-of-range values, unknown keys and options the dialog does not offer are refused. A panel of an assembly run keeps the width and height its run gives it (change those with assembly_run_edit). Builds go at the model root. Not allowed in batch_execute.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1940,6 +1942,602 @@
                     "overwrite": {
                         "type": "boolean",
                         "description": "export_dxf: replace an existing file."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "assembly_run",
+            "title": "Assembly Run",
+            "runs_on": "bridge",
+            "handler_key": "assembly_run",
+            "mutates": false,
+            "timeout_s": 90,
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Entity#attribute_dictionaries",
+                "Sketchup::ComponentDefinition#instances",
+                "Sketchup::Model#active_path"
+            ],
+            "description": "Read Adam's Assembly Run Studio (Element Assembly Studio Pro 2.7.0 or newer): runs of his windows, exterior doors and cabinets set out along a path. A run is ONE master component. Its path has legs; along each leg stand spans (each holds a panel: a window, door set or cabinet of a panel type A, B, C ...) and columns between them, with a block, library column or corner unit at each corner. Every span of one panel type is an instance of ONE element, so changing one changes them all. Modes: Frames (casement, sash, single, double, bifold, sliding; the path is the framework face, seen from its right) and Cabinets (base, drawers, wall, tall, wardrobe; the path is the wall line, the room on its right). action: status (modes, products, column and corner kinds, library columns, runs in the model, whether a path edit is open); parameters (every run setting: meaning, limits, start per mode; how panel types and legs are written; query filters); columns (the Vale 260 and 290 library columns: width inline, leg at a corner); runs (every run: instance_id, id such as ARN001, mode, legs, spans, panel types, origin mm); inspect (instance_id or run_id: the stored configuration, the resolved layout, each panel type with its element id, width and span keys, and each span's key such as L1S2 with its element's instance_id: pass that to entity_studio inspect or entity_studio_edit update to read or change that panel type's own settings); layout (resolve a description without building: mode, settings, panel_types, legs, corners and path or path_local as assembly_run_edit build takes them; returns each leg's items with stations and widths, each type's width, warnings and errors). Lengths mm; path and side follow units. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "status",
+                            "parameters",
+                            "columns",
+                            "runs",
+                            "inspect",
+                            "layout"
+                        ]
+                    },
+                    "instance_id": {
+                        "$use": "id",
+                        "description": "inspect: the run (from runs)."
+                    },
+                    "run_id": {
+                        "type": "string",
+                        "description": "inspect: the run by its id, e.g. \"ARN001\"."
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "parameters: words in a setting's name or meaning."
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "Frames",
+                            "Cabinets"
+                        ],
+                        "description": "Frames: windows and exterior doors; the path is the framework face, seen from its right (the outside). Cabinets: fitted units; the path is the wall line, the room on its right."
+                    },
+                    "path": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 3
+                        },
+                        "minItems": 2,
+                        "description": "The path's corners in order, as model points in the call's units, at the run's base level. For a new run the first is its origin and the first leg its X."
+                    },
+                    "path_local": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        },
+                        "minItems": 2,
+                        "description": "The path in the run's own plan, [[x, y], ...] in mm (the first leg usually along +x). layout without model points; set_path on a placed run."
+                    },
+                    "side": {
+                        "$use": "point",
+                        "description": "Any point on the side the elements are seen from: the outside (Frames), the room (Cabinets). The path is turned round so that side is on its right."
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "The path is a loop: its last point joins its first."
+                    },
+                    "settings": {
+                        "type": "object",
+                        "description": "Run settings by name, in mm: Height_mm, FuseFramework, JoinCills, CillHeight_mm, CillProjection_mm, MullionWidth_mm, JambWidth_mm, PostDepth_mm, PostInset_mm, JointColumn, JointWidth_mm, EndColumn, EndWidth_mm, CornerColumn, CornerPostSize_mm, UnitDepth_mm, FrontAllowance_mm, CornerUnitLeg_mm, FillerHeight_mm. assembly_run parameters explains each."
+                    },
+                    "panel_types": {
+                        "type": "array",
+                        "description": "The panel types by code. update: a code already on the run is changed (width, height, sill, label only once it is built), a new code is added.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "string",
+                                    "description": "A, B, C ... (a letter, then up to five letters or digits)."
+                                },
+                                "product": {
+                                    "type": "string",
+                                    "enum": [
+                                        "casement",
+                                        "sash",
+                                        "single",
+                                        "double",
+                                        "bifold",
+                                        "sliding",
+                                        "base",
+                                        "drawers",
+                                        "wall",
+                                        "tall",
+                                        "wardrobe"
+                                    ],
+                                    "description": "What the panel is. Frames: casement, sash, single, double, bifold, sliding. Cabinets: base, drawers, wall, tall, wardrobe."
+                                },
+                                "preset": {
+                                    "type": "string",
+                                    "description": "Start from a preset, e.g. \"EAS008\" (entity_studio list_presets)."
+                                },
+                                "values": {
+                                    "type": "object",
+                                    "description": "The product's own settings on top (entity_studio parameters lists them; refused when out of range)."
+                                },
+                                "width": {
+                                    "type": [
+                                        "number",
+                                        "null"
+                                    ],
+                                    "description": "mm. Leave out (or null) and the spans of this type share what their leg has left."
+                                },
+                                "height": {
+                                    "type": [
+                                        "number",
+                                        "null"
+                                    ],
+                                    "description": "Frames, mm. Leave out for the run's Height_mm less the sill."
+                                },
+                                "sill": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "description": "mm above the run's base (a window over a dwarf wall)."
+                                },
+                                "label": {
+                                    "type": "string",
+                                    "description": "A note for the dialog's type table."
+                                }
+                            },
+                            "required": [
+                                "code"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "legs": {
+                        "type": "array",
+                        "description": "One entry per leg, in path order. update: null keeps a leg as it is. A leg left out fills with the first panel type.",
+                        "items": {
+                            "type": [
+                                "object",
+                                "null"
+                            ],
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "description": "The leg's spans and columns in order, left to right seen from the side the elements face.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "span": {
+                                                "type": "string",
+                                                "description": "A panel type code: a span holding that panel."
+                                            },
+                                            "column": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Infill",
+                                                    "Vale260",
+                                                    "Vale290",
+                                                    "Gap"
+                                                ],
+                                                "description": "What stands here: a block, a library column, or nothing (Gap)."
+                                            },
+                                            "width": {
+                                                "type": "number",
+                                                "description": "mm, for an Infill or Gap column (default JointWidth_mm). Library columns keep their own width."
+                                            },
+                                            "gap": {
+                                                "type": "number",
+                                                "description": "mm left empty: the same as {column: \"Gap\", width}."
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "fill": {
+                                    "type": "object",
+                                    "description": "A rule in place of a list.",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string",
+                                            "description": "The panel type code to fill with."
+                                        },
+                                        "count": {
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 60,
+                                            "description": "Frames: how many spans (default 1)."
+                                        },
+                                        "infill": {
+                                            "type": "string",
+                                            "enum": [
+                                                "End",
+                                                "Start",
+                                                "Both",
+                                                "Equal"
+                                            ],
+                                            "description": "Cabinets: where the width left after whole standard units goes; Equal makes every unit the same width."
+                                        },
+                                        "standard_width": {
+                                            "type": "number",
+                                            "description": "Cabinets, mm: the standard unit (default the type's width, else 600)."
+                                        },
+                                        "min_infill": {
+                                            "type": "number",
+                                            "description": "Cabinets, mm: a remainder narrower than this is an infill block, not a unit (default 150)."
+                                        }
+                                    },
+                                    "required": [
+                                        "type"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "corners": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "",
+                                "Post",
+                                "Vale260",
+                                "Vale290",
+                                "Open",
+                                "CornerUnit",
+                                "Blind"
+                            ]
+                        },
+                        "description": "What stands at each corner, in path order (\"\" = the CornerColumn setting). Frames: Post, Vale260, Vale290, Open. Cabinets: CornerUnit, Blind, Open."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "assembly_run_edit",
+            "title": "Assembly Run Edit",
+            "runs_on": "bridge",
+            "handler_key": "assembly_run_edit",
+            "mutates": true,
+            "operation": false,
+            "timeout_s": 300,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Model#active_path",
+                "Sketchup::Model#active_path=",
+                "Sketchup::Model#start_operation",
+                "Sketchup::Entities#add_instance",
+                "Sketchup::Entities#clear!",
+                "Sketchup::Entities#transform_by_vectors",
+                "Sketchup::DefinitionList#load",
+                "Sketchup::Face#pushpull",
+                "Sketchup::Model#add_observer"
+            ],
+            "description": "Build and change Assembly Run Studio runs through the dialog's own pipelines: each call is ONE undo step ('Create Assembly Run' ...) however many windows, doors or cabinets it builds. action: build (mode; path: the corners as model points, in order; side: a point on the side the elements are seen from; closed; settings; panel_types [{code, product, preset, values, width, height, sill}] (no width: the type shares its leg); legs, one per leg: {items: [{span: \"A\"}, {column: \"Vale260\"}, {column: \"Infill\", width}, {gap: 600}]} or {fill: {type, count}} (Frames) or {fill: {type, infill: End | Start | Both | Equal}} (Cabinets: whole standard units, the rest a narrower unit); corners; name; dry_run builds nothing); update (instance_id or run_id: settings, panel_types, legs, corners merged onto its own; remove_types; name; dry_run. A built type's own settings change on its element (entity_studio_edit update, a span's instance_id); another product here rebuilds it from that product's start); set_path (path or path_local: each leg keeps its contents); flip_side (turns the run inside out where it stands: it faces the other way, its path is stored reversed, legs renumber; dry_run); make_unique (leg and span, both from 1, or span_key L1S2: that panel becomes a new type, a copy of what it was; code names it); recode (from, to); set_span_type (leg, span; code: a type on the run, or product: that span becomes it, as a new type if its type is shared); rename (name: the tail after ARN001__AssemblyRun__); edit_path (a red line inside the run for Adam to move; it rebuilds when he steps out), finish_path_edit, discard_path_edit; open_dialog (the tab, showing the run). FuseFramework true: the run builds the frame members (window heads and bottom rails, mullions, jambs, posts) as ONE solid round frameless windows. JoinCills (on unless false; always when fused): ONE cill and ONE window board along the run, mitred at corners (CillHeight_mm, CillProjection_mm). Out-of-range values and unknown names are refused. Not allowed in batch_execute.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "build",
+                            "update",
+                            "set_path",
+                            "flip_side",
+                            "make_unique",
+                            "recode",
+                            "set_span_type",
+                            "rename",
+                            "edit_path",
+                            "finish_path_edit",
+                            "discard_path_edit",
+                            "open_dialog"
+                        ]
+                    },
+                    "instance_id": {
+                        "$use": "id",
+                        "description": "The run to change (from assembly_run runs)."
+                    },
+                    "run_id": {
+                        "type": "string",
+                        "description": "The run by its id instead, e.g. \"ARN001\"."
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "Frames",
+                            "Cabinets"
+                        ],
+                        "description": "Frames: windows and exterior doors; the path is the framework face, seen from its right (the outside). Cabinets: fitted units; the path is the wall line, the room on its right."
+                    },
+                    "path": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 3
+                        },
+                        "minItems": 2,
+                        "description": "The path's corners in order, as model points in the call's units, at the run's base level. For a new run the first is its origin and the first leg its X."
+                    },
+                    "path_local": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        },
+                        "minItems": 2,
+                        "description": "The path in the run's own plan, [[x, y], ...] in mm (the first leg usually along +x). layout without model points; set_path on a placed run."
+                    },
+                    "side": {
+                        "$use": "point",
+                        "description": "Any point on the side the elements are seen from: the outside (Frames), the room (Cabinets). The path is turned round so that side is on its right."
+                    },
+                    "closed": {
+                        "type": "boolean",
+                        "description": "The path is a loop: its last point joins its first."
+                    },
+                    "settings": {
+                        "type": "object",
+                        "description": "Run settings by name, in mm: Height_mm, FuseFramework, JoinCills, CillHeight_mm, CillProjection_mm, MullionWidth_mm, JambWidth_mm, PostDepth_mm, PostInset_mm, JointColumn, JointWidth_mm, EndColumn, EndWidth_mm, CornerColumn, CornerPostSize_mm, UnitDepth_mm, FrontAllowance_mm, CornerUnitLeg_mm, FillerHeight_mm. assembly_run parameters explains each."
+                    },
+                    "panel_types": {
+                        "type": "array",
+                        "description": "The panel types by code. update: a code already on the run is changed (once it is built: width, height, sill, label, or its product, which builds it again from that product's start with any preset and values given), a new code is added.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "string",
+                                    "description": "A, B, C ... (a letter, then up to five letters or digits)."
+                                },
+                                "product": {
+                                    "type": "string",
+                                    "enum": [
+                                        "casement",
+                                        "sash",
+                                        "single",
+                                        "double",
+                                        "bifold",
+                                        "sliding",
+                                        "base",
+                                        "drawers",
+                                        "wall",
+                                        "tall",
+                                        "wardrobe"
+                                    ],
+                                    "description": "What the panel is. Frames: casement, sash, single, double, bifold, sliding. Cabinets: base, drawers, wall, tall, wardrobe."
+                                },
+                                "preset": {
+                                    "type": "string",
+                                    "description": "Start from a preset, e.g. \"EAS008\" (entity_studio list_presets)."
+                                },
+                                "values": {
+                                    "type": "object",
+                                    "description": "The product's own settings on top (entity_studio parameters lists them; refused when out of range)."
+                                },
+                                "width": {
+                                    "type": [
+                                        "number",
+                                        "null"
+                                    ],
+                                    "description": "mm. Leave out (or null) and the spans of this type share what their leg has left."
+                                },
+                                "height": {
+                                    "type": [
+                                        "number",
+                                        "null"
+                                    ],
+                                    "description": "Frames, mm. Leave out for the run's Height_mm less the sill."
+                                },
+                                "sill": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "description": "mm above the run's base (a window over a dwarf wall)."
+                                },
+                                "label": {
+                                    "type": "string",
+                                    "description": "A note for the dialog's type table."
+                                }
+                            },
+                            "required": [
+                                "code"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "legs": {
+                        "type": "array",
+                        "description": "One entry per leg, in path order. update: null keeps a leg as it is. A leg left out fills with the first panel type.",
+                        "items": {
+                            "type": [
+                                "object",
+                                "null"
+                            ],
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "description": "The leg's spans and columns in order, left to right seen from the side the elements face.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "span": {
+                                                "type": "string",
+                                                "description": "A panel type code: a span holding that panel."
+                                            },
+                                            "column": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Infill",
+                                                    "Vale260",
+                                                    "Vale290",
+                                                    "Gap"
+                                                ],
+                                                "description": "What stands here: a block, a library column, or nothing (Gap)."
+                                            },
+                                            "width": {
+                                                "type": "number",
+                                                "description": "mm, for an Infill or Gap column (default JointWidth_mm). Library columns keep their own width."
+                                            },
+                                            "gap": {
+                                                "type": "number",
+                                                "description": "mm left empty: the same as {column: \"Gap\", width}."
+                                            }
+                                        },
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "fill": {
+                                    "type": "object",
+                                    "description": "A rule in place of a list.",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string",
+                                            "description": "The panel type code to fill with."
+                                        },
+                                        "count": {
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 60,
+                                            "description": "Frames: how many spans (default 1)."
+                                        },
+                                        "infill": {
+                                            "type": "string",
+                                            "enum": [
+                                                "End",
+                                                "Start",
+                                                "Both",
+                                                "Equal"
+                                            ],
+                                            "description": "Cabinets: where the width left after whole standard units goes; Equal makes every unit the same width."
+                                        },
+                                        "standard_width": {
+                                            "type": "number",
+                                            "description": "Cabinets, mm: the standard unit (default the type's width, else 600)."
+                                        },
+                                        "min_infill": {
+                                            "type": "number",
+                                            "description": "Cabinets, mm: a remainder narrower than this is an infill block, not a unit (default 150)."
+                                        }
+                                    },
+                                    "required": [
+                                        "type"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "corners": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "",
+                                "Post",
+                                "Vale260",
+                                "Vale290",
+                                "Open",
+                                "CornerUnit",
+                                "Blind"
+                            ]
+                        },
+                        "description": "What stands at each corner, in path order (\"\" = the CornerColumn setting). Frames: Post, Vale260, Vale290, Open. Cabinets: CornerUnit, Blind, Open."
+                    },
+                    "remove_types": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "update: panel type codes to take off the run (none of its spans may still use them)."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "build / update / rename: the run's name tail, e.g. \"Conservatory__Framework\"."
+                    },
+                    "leg": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "make_unique / set_span_type: the leg, numbered from 1 along the path."
+                    },
+                    "span": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "make_unique / set_span_type: the span on that leg, numbered from 1."
+                    },
+                    "span_key": {
+                        "type": "string",
+                        "description": "make_unique / set_span_type: the span by its key instead, e.g. \"L1S2\" (assembly_run inspect lists them)."
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "make_unique: the new type's code (default the next free letter). set_span_type: the type to give the span; with product, the code of the type that is made or changed (default the next free letter, or the code it has)."
+                    },
+                    "product": {
+                        "type": "string",
+                        "enum": [
+                            "casement",
+                            "sash",
+                            "single",
+                            "double",
+                            "bifold",
+                            "sliding",
+                            "base",
+                            "drawers",
+                            "wall",
+                            "tall",
+                            "wardrobe"
+                        ],
+                        "description": "set_span_type: make that one span this product (a product of the run's mode). A span that shares its panel type takes a new type, sized as the old one; a span with its type to itself changes that type. Built from the product's starting values."
+                    },
+                    "from": {
+                        "type": "string",
+                        "description": "recode: the code the panel type has."
+                    },
+                    "to": {
+                        "type": "string",
+                        "description": "recode: the code to give it."
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "build / update / flip_side: resolve the layout and check everything, build nothing."
                     },
                     "units": {
                         "$use": "units"

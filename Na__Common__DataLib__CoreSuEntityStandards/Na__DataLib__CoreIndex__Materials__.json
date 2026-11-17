@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.9.1",
-        "lastUpdated"       : "03-Nov-2026",
+        "version"           : "1.10.0",
+        "lastUpdated"       : "17-Nov-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -14,6 +14,7 @@
         "exemptNote"        : "MAT000E__ materials export in EVERY mode (including no_materials / whitecard) but do NOT receive PBR enrichment from the library. Their colour and opacity come from the SketchUp material itself -- the GLB exporter writes the Materials tray Opacity slider as baseColorFactor alpha + alphaMode BLEND -- and ValeVision3D PureEngine exempts them from the opaque whitecard replacement. An exempt material MAY still be catalogued here (see MAT105__GenericGlass__WhitecardTranslucent) so plugins can discover and create it; in that case the entry is a reference recipe for building the SketchUp material, not a set of render-time overrides.",
         "isExemptNote"      : "IsExempt: true marks a catalogued material whose SketchUpName carries the MAT000E__ exempt prefix. Plugins should create it from the values here, then let the SketchUp material drive colour and opacity downstream.",
         "nprSeriesNote"     : "MAT200__PainterlyNprSeries__ (30-Oct-2026) holds one swatch for every material class in PainterlyNPR's material library (Na__PainterlyNPR 07__Data__MaterialRecipes/PainterlyNPR__MaterialLibrary__Register__.json; the classes themselves are its 13__Scene__MaterialClasses), for painting a SketchUp model that ValeVision AURA draws in pen and wash. A different workflow from every other series, so every one is exempt: SketchUpName MAT000E__Npr__<NprClassKey> exports in every mode, whitecard included, with its own colour, and the class key stays readable in the GLB builder's <tag>::<material> node name. Catalogue key: MAT2 + the class Id in two digits (MAT202 is Brick); the sky (class 0) is not a material. BaseColor is the class's Albedo; NprClassKey, NprClassId, NprClassLabel and NprGroup (the register's group) are PainterlyNPR's own. Na PainterlyNPR Assets' Materials tab creates and paints them. Keep them out of ValeVision 3D and TrueVision presentation models: exempt, they are never whitecarded there.",
+        "waterNote"         : "WaterSurface (17-Nov-2026, MAT150__GenericWater) marks a material as water for every renderer. The GLB Builder (2.16.0 on) exports a water material in every mode, whitecard and no_materials included, so the water in a hot tub or a pool reaches TrueVision whatever the export, under its own MAT name with its colour and opacity from here. TrueVision (v2.188.0 on) draws it as water: transparent, glossy, reflecting the scene environment, its NormalUrl ripple map laid in world space in two crossing layers (TileSizeMm and SecondTileSizeMm) at RippleStrength, and excluded from the AO pass. BaseColorUrl is SketchUp's display texture only, sized TileSizeMm in SketchUp. A MAT###__Water__ name with no WaterSurface block is still drawn as water, with the MAT150 values. The textures live in Na__DataLib__CoreTextures__ beside this file (seamless, 512 px; generator in the SketchUp skill, learning/generators/water). The site plan's 2D water is MAT802; PainterlyNPR's is MAT222.",
         "defaultMaterial"   : "MAT001__Default is the reference template showing ALL possible keys with their default values. Other materials only need to specify keys that differ. Omitted keys inherit the default at render time.",
         "divergenceNote"    : "No local material-library JSON copies remain. The old Window Configurator local copy (Na__AppConfig__MaterialsLibrary.json) was deleted in the Element Assembly Studio Pro v0.9.10 DataLib migration; Na__AssemblyStudio__AppData__MaterialManager__.rb now loads this centralised file live via Na__DataLib__CacheData. That module still hardcodes NA_SAFETY_GLASS_COLOR / NA_SAFETY_GLASS_ALPHA as a last-resort fallback for MAT101__GenericGlass when the library can't be loaded -- keep those two constants in sync with MAT101 here. The old ValeDesignSuite WindowPanelConfigurator (non-indexed 'natural-wood'/'glass' ComponentMaterial strings) is fully retired and no longer in use.",
         "GitHub__RepoUrl"   : "https://github.com/Adam-Noble-01/Plugins/tree/main/Na__Common__DataLib__CoreSuEntityStandards",
@@ -126,7 +127,8 @@
                     "EmissiveUrl"   : null,
                     "OcclusionUrl"  : null,
                     "AlphaUrl"      : null
-                }
+                },
+                "WaterSurface"      : null
             }
         },
 
@@ -234,6 +236,35 @@
                 "PbrRoughness"      : 0.0,
                 "PbrMetallic"       : 1.0,
                 "EnvMapIntensity"   : 1.0
+            },
+            "MAT150__GenericWater": {
+                "SketchUpName"      : "MAT150__Water__ClearDefault",
+                "Description"       : "Clear water for 3D models: hot tubs, pools and formal water features. Transparent, glossy and double-sided, with a seamless ripple normal map; drawn as water by TrueVision and exported in every GLB mode (see meta.waterNote). Paint the water plane's faces, not the component.",
+                "BaseColor"         : "rgb(40, 110, 135)",
+                "Opacity"           : 0.65,
+                "Transparent"       : true,
+                "IsDoubleSided"     : true,
+                "DepthWrite"        : false,
+                "PbrRoughness"      : 0.05,
+                "PbrMetallic"       : 0.0,
+                "EnvMapIntensity"   : 1.0,
+                "NormalScale"       : 0.6,
+                "AoExclude"         : true,
+                "ProfileLineExclude": true,
+                "TextureMaps": {
+                    "BaseColorUrl"  : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreTextures__/MAT150__Water__ClearDefault__BaseColor__.png",
+                    "NormalUrl"     : "https://raw.githubusercontent.com/Adam-Noble-01/Plugins/main/Na__Common__DataLib__CoreSuEntityStandards/Na__DataLib__CoreTextures__/MAT150__Water__ClearDefault__Normal__.png",
+                    "RoughnessUrl"  : null,
+                    "MetallicUrl"   : null,
+                    "EmissiveUrl"   : null,
+                    "OcclusionUrl"  : null,
+                    "AlphaUrl"      : null
+                },
+                "WaterSurface": {
+                    "TileSizeMm"       : 700,
+                    "SecondTileSizeMm" : 430,
+                    "RippleStrength"   : 1.4
+                }
             },
             "MAT160__Generic__PlantFoliage": {
                 "SketchUpName"       : "MAT160__Generic__PlantFoliage",

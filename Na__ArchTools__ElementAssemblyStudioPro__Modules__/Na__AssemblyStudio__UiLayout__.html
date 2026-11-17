@@ -20,6 +20,30 @@
      - Every action sits in the pinned dock at the foot of the dialog:
        (1) Measure Opening -> (2) Insert at Measured Point side by side, then
        Create at Cursor, Update and Live Mode. The status bar lives there too.
+
+     CHANGES IN V2.7.2 (Assembly Runs: undo, another product, flip inside out):
+     - Two buttons in the runs preview's head, #na-btn-run-undo and
+       #na-btn-run-redo: Na_RunUI steps its description back and forward
+       (Ctrl+Z, Ctrl+Y). The rest of V2.7.2 is drawn by the tab's own scripts
+       (the Flip Inside Out switch, the product choices in its dropdowns and
+       in the right-click menu), so nothing else here changed.
+
+     CHANGES IN V2.7.1 (Assembly Runs preview):
+     - The runs preview has its own tools and view tabs (#na-run-views: Both,
+       Plan, Elevation, Flip Out), wrapper ids for its two zoomable drawings
+       and a drag handle. Na_RunPreview (Viewport__PreviewPanel__.js) owns
+       them. Flipped out, body.na-run-flipped lays the preview out as a panel
+       on the right and Ruby widens the dialog to make room.
+
+     CHANGES IN V2.7.0 (Assembly Run Studio):
+     - A fourth configurator tab, Assembly Runs (id "runs", module Na_RunUI):
+       runs of the other tabs' elements set out along a path. Its sections are
+       drawn by its own MainUiLogic, not the section layout: a run is tables
+       of legs and panel types, not one product's flat list of settings.
+     - #na-run-member-bar, above the tab panels: shown on an element tab when
+       the element selected is a span of a run ("editing panel type A").
+     - The browser's right-click menu is replaced by the dialog's own
+       (Na_RunContextMenu), which carries a panel's commands.
      ============================================================================= -->
 
 <head>
@@ -76,6 +100,16 @@
                         title="Kitchen and fitted wardrobe units: base, drawer, wall, tall and wardrobe"
                         onclick="Na_TabRouter.na_activateTab('cabinets')">
                     Cabinetry
+                </button>
+                <button id="na-tab-button-runs"
+                        class="na-tab"
+                        role="tab"
+                        aria-controls="na-tab-runs"
+                        aria-selected="false"
+                        data-na-tab-id="runs"
+                        title="Assembly Run Studio: runs of windows, doors or cabinets along a path. A conservatory's framework, door sets between columns, a kitchen layout"
+                        onclick="Na_TabRouter.na_activateTab('runs')">
+                    Assembly Runs
                 </button>
             </nav>
 
@@ -139,6 +173,24 @@
          REGION | Main Content - scrolls beneath the top chrome, above the dock
          ========================================================================== -->
     <main class="na-main-content">
+
+    <!-- ==========================================================================
+         REGION | Run Member Banner - the element selected is a span of a run
+         Shown on the Windows, Interior Doors and Cabinetry tabs by
+         Na_RunMemberBanner (window.na_setRunMember). Right-click it, or the
+         selected element's strip, for the panel's commands.
+         ========================================================================== -->
+    <section id="na-run-member-bar" class="na-run-member na-hidden" aria-live="polite">
+        <span class="na-run-member__chip">Panel type<b id="na-run-member-code">A</b></span>
+        <span id="na-run-member-text" class="na-run-member__text"></span>
+        <button id="na-run-member-unique" type="button" class="na-run-member__btn"
+                title="Give this one span its own panel type and code, a copy of the type it is now">Make Panel Unique</button>
+        <button id="na-run-member-more" type="button" class="na-run-member__btn"
+                title="Recode the panel type, or give this span another type">More&hellip;</button>
+        <button id="na-run-member-show" type="button" class="na-run-member__btn"
+                title="Select the run and show it in Assembly Runs">Show Run</button>
+    </section>
+    <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
          REGION | Tab Panel - Windows & Exterior Doors
@@ -449,6 +501,91 @@
     <!-- endregion ============================================================== -->
 
     <!-- ==========================================================================
+         REGION | Tab Panel - Assembly Runs (the Assembly Run Studio)
+         Na_RunUI draws the mode strip, the two previews and every section
+         (Run, Columns and Corners, Path, Legs and Spans, Panel Types) from the
+         run's own payload; Ruby resolves the layout the previews show.
+         ========================================================================== -->
+    <div id="na-tab-runs"
+         class="na-tab-panel na-hidden"
+         role="tabpanel"
+         aria-labelledby="na-tab-button-runs"
+         data-na-tab-id="runs">
+
+        <div id="na-panel-top-runs" class="na-panel-top">
+            <div class="na-panel-toolbar">
+                <div id="na-lay-products-runs" class="na-lay-products" aria-label="Kind of run"></div>
+            </div>
+
+            <!-- The preview (V2.7.1). The tabs on the right choose what it shows:
+                 Both (how it opens), Plan or Elevation alone, and Flip Out,
+                 which moves it into a large panel on the right of the dialog
+                 (Ruby widens the dialog to make room). Each drawing zooms,
+                 pans and fits as the other tabs' previews do, and its
+                 dimensions can be typed over. Na_RunPreview owns all of it. -->
+            <section id="na-preview-runs" class="na-lay-preview na-door-viewport-section na-run-preview" data-na-run-view="both">
+                <div class="na-lay-preview__head">
+                    <h2>Preview</h2>
+                    <span id="na-preview-size-runs" class="na-lay-preview__size"></span>
+                    <span class="na-lay-preview__spacer"></span>
+                    <!-- Undo and Redo of the description (V2.7.2): Na_RunUI binds them, and Ctrl+Z / Ctrl+Y. -->
+                    <button id="na-btn-run-undo" type="button" class="na-lay-preview__tool na-run-history" aria-label="Undo" disabled
+                            title="Undo the last change made in this tab (Ctrl+Z). What is built in the model is undone in SketchUp.">&#8630;</button>
+                    <button id="na-btn-run-redo" type="button" class="na-lay-preview__tool na-run-history" aria-label="Redo" disabled
+                            title="Redo the change just undone (Ctrl+Y)">&#8631;</button>
+                    <button id="na-btn-dims-runs" type="button" class="na-lay-preview__tool" aria-pressed="true"
+                            title="Dimensions on both drawings. Click a value to type a new size.">Dimensions</button>
+                    <button id="na-btn-run-reset-view" type="button" class="na-lay-preview__tool"
+                            title="Fit both drawings again">Reset View</button>
+                    <button type="button" class="na-lay-preview__tool" onclick="na_newRunDraft()"
+                            title="Start a fresh run of this kind (the run in the model is left as it is)">New Run</button>
+                    <div id="na-run-views" class="na-run-views" role="tablist" aria-label="What the preview shows">
+                        <button type="button" role="tab" class="na-run-view na-run-view--on" data-na-run-view="both" aria-selected="true"
+                                title="Plan and elevation together">Both</button>
+                        <button type="button" role="tab" class="na-run-view" data-na-run-view="plan" aria-selected="false"
+                                title="The plan alone">Plan</button>
+                        <button type="button" role="tab" class="na-run-view" data-na-run-view="elevation" aria-selected="false"
+                                title="The elevation alone, every leg unfolded">Elevation</button>
+                        <button id="na-run-view-flip" type="button" class="na-run-view na-run-view--flip" aria-pressed="false"
+                                title="Open the preview in a large panel on the right of the dialog, to zoom and inspect it. Click again to put it back.">Flip Out</button>
+                    </div>
+                </div>
+                <div id="na-run-previews" class="na-run-previews">
+                    <div id="na-run-plan-cell" class="na-door-viewport-cell">
+                        <div id="na-run-plan-label" class="na-door-viewport-label">Plan</div>
+                        <div id="na-run-plan-wrapper" class="na-canvas-wrapper"
+                             title="Scroll to zoom, drag to pan, double click empty space to fit. Click a span to pick it out, right-click it for its commands, click a dimension to type a new size. The blue arrowheads point to the side each span faces.">
+                            <svg id="na-run-plan-svg" class="na-viewport-svg"></svg>
+                        </div>
+                    </div>
+                    <div id="na-run-elevation-cell" class="na-door-viewport-cell">
+                        <div class="na-door-viewport-label">Elevation, every leg unfolded</div>
+                        <div id="na-run-elevation-wrapper" class="na-canvas-wrapper"
+                             title="Seen from the side the elements face. Scroll to zoom, drag to pan, double click empty space to fit. Click a dimension to type a new size.">
+                            <svg id="na-run-elevation-svg" class="na-viewport-svg"></svg>
+                        </div>
+                    </div>
+                </div>
+                <ul id="na-run-problems" class="na-run-problems" hidden></ul>
+                <div id="na-run-preview-resize-handle" class="na-resize-handle" title="Drag to resize the preview"></div>
+            </section>
+        </div>
+
+        <!-- The run selected in the model. The ARN###__AssemblyRun__ head is
+             fixed; the Run section's name field adds the Outliner tail. -->
+        <section id="na-run-info" class="na-selected-strip na-hidden">
+            <div class="na-selected-strip__row">
+                <span id="na-info-run-id" class="na-selected-strip__id">-</span>
+                <span id="na-info-run-name" class="na-selected-strip__dates"></span>
+                <span id="na-info-run-state"></span>
+            </div>
+        </section>
+
+        <div id="na-run-sections" class="na-lay-sections"></div>
+    </div>
+    <!-- endregion ============================================================== -->
+
+    <!-- ==========================================================================
          REGION | Tab Panel - Settings
          ========================================================================== -->
     <div id="na-tab-settings"
@@ -561,6 +698,14 @@
                         disabled>
                     <b>2</b><span>Insert in Run</span>
                 </button>
+                <button id="na-btn-run-create-at-measurement"
+                        type="button"
+                        data-na-dock-tab="runs"
+                        class="na-dock__step na-dock__step--go na-btn-create-measure na-btn-disabled"
+                        onclick="na_createRun()"
+                        disabled>
+                    <b>2</b><span>Create Run on Path</span>
+                </button>
             </div>
             <span class="na-dock__sep" aria-hidden="true"></span>
             <button id="na-btn-create" type="button" data-na-dock-tab="windows"
@@ -576,6 +721,14 @@
                     title="Place units with the mouse: over a unit to go beside it, over a wall to back onto it. Tab turns, Esc finishes.">Create at Cursor</button>
             <button id="na-btn-cab-update" type="button" data-na-dock-tab="cabinets"
                     class="na-btn na-btn-success na-dock__btn" onclick="na_updateCabinet()" disabled>Update Unit</button>
+            <button id="na-btn-run-create" type="button" data-na-dock-tab="runs"
+                    class="na-btn na-btn-primary na-dock__btn" onclick="na_createRun()"
+                    title="Build the run. Without a measured path it is placed at the model's origin, to be moved into place.">Create Run</button>
+            <button id="na-btn-run-update" type="button" data-na-dock-tab="runs"
+                    class="na-btn na-btn-success na-dock__btn" onclick="na_updateRun()" disabled>Update Run</button>
+            <button id="na-btn-run-editpath" type="button" data-na-dock-tab="runs"
+                    class="na-btn na-dock__btn" onclick="na_editRunPath()" disabled
+                    title="Draw the run's path as a red line inside it and open it: move its corners with SketchUp's own tools, step out, and the run rebuilds along it.">Edit Path</button>
         </div>
         <div id="na-cab-run-readout" class="na-dock__run" data-na-dock-tab="cabinets" hidden></div>
     </footer>
@@ -715,6 +868,19 @@
     <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__Viewport__SectionGenerator__.js"></script>
     <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__MainUiLogic__.js"></script>
     <script src="02__Src__AppModules/45__System__InteriorCabinetry/Na__AssemblyStudio__Cabinetry__UiSystem__Bridge__.js"></script>
+
+    <!-- AssemblyRun system tab modules (V2.7.0): the dialog's own right-click
+         menu, the "editing panel type A" banner, the drawer that draws the
+         layout Ruby resolves (there is no JS layout twin), the preview panel
+         that zooms, dimensions and flips it out (V2.7.1), the tab, its bridge -->
+    <!-- @delegate: 02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Viewport__LayoutDrawer__.js -->
+    <!-- @delegate: 02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Viewport__PreviewPanel__.js -->
+    <script src="02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__UiSystem__ContextMenu__.js"></script>
+    <script src="02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__UiSystem__MemberBanner__.js"></script>
+    <script src="02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Viewport__LayoutDrawer__.js"></script>
+    <script src="02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__Viewport__PreviewPanel__.js"></script>
+    <script src="02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__UiSystem__MainUiLogic__.js"></script>
+    <script src="02__Src__AppModules/55__System__AssemblyRunSystem/Na__AssemblyStudio__AssemblyRun__UiSystem__Bridge__.js"></script>
 
     <!-- PresetsLibrary system (Presets Gallery + Preset Editor tabs; loaded after every main-tab system so capture/apply can reach them all) -->
     <script src="02__Src__AppModules/50__System__PresetsLibrarySystem/Na__AssemblyStudio__PresetsLibrary__UiSystem__Bridge__.js"></script>

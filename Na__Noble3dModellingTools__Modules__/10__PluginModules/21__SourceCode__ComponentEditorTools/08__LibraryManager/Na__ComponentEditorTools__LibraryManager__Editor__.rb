@@ -11,6 +11,12 @@
 #              set/delete attribute dictionary pairs.
 # CREATED    : 2026
 #
+# THE GALLERY'S CACHE (17-Nov-2026):
+#   Edits leave the Gallery's per-file cache alone. Its keys are path::mtime, so
+#   a file saved here (new mtime) or renamed or moved (new path) is read again
+#   on the next scan and every other file stays cached. Clearing the whole cache
+#   after each edit made the next Refresh read every library file again.
+#
 # =============================================================================
 
 require 'fileutils'
@@ -62,9 +68,6 @@ module Na__ComponentEditorTools
                 end
             end
 
-            Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
-            Na__LibraryScanner.Na__ComponentEditorTools__InvalidateCache
-
             if new_file_path && new_file_path != file_path && File.exist?(file_path)
                 File.rename(file_path, new_file_path)
                 self.Na__ComponentEditorTools__Result(true, "Renamed to \"#{new_def_name}\". File moved to #{File.basename(new_file_path)}.", new_file_path)
@@ -87,9 +90,6 @@ module Na__ComponentEditorTools
                 Na__LibrarySerializer.Na__ComponentEditorTools__WriteToDefinition(definition, payload_hash)
                 nil
             end
-
-            Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
-            Na__LibraryScanner.Na__ComponentEditorTools__InvalidateCache
 
             self.Na__ComponentEditorTools__Result(true, 'Library data saved to component.', file_path)
         rescue => error
@@ -139,9 +139,6 @@ module Na__ComponentEditorTools
                 return self.Na__ComponentEditorTools__Result(false, "Field is not editable: #{field}")
             end
 
-            Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
-            Na__LibraryScanner.Na__ComponentEditorTools__InvalidateCache
-
             label = NA_FIELD_LABELS[field] || field
             self.Na__ComponentEditorTools__Result(true, "#{label} saved.", new_path)
         rescue => error
@@ -182,9 +179,6 @@ module Na__ComponentEditorTools
 
                 nil
             end
-
-            Na__LibraryExtractor.Na__ComponentEditorTools__InvalidateCache
-            Na__LibraryScanner.Na__ComponentEditorTools__InvalidateCache
 
             self.Na__ComponentEditorTools__Result(true, 'Component metadata updated and saved to disk.', file_path)
         rescue => error
