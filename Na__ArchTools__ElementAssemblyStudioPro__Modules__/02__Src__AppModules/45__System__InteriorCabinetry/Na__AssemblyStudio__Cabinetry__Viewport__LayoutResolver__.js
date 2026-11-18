@@ -166,13 +166,16 @@
         const layout = isWall ? na_choice(cfg, 'WallFrontLayout', ['Doors', 'Open'])
                      : (isBase ? na_choice(cfg, 'BaseFrontLayout', ['Doors', 'DrawerDoors', 'Drawers', 'Open'])
                                : na_choice(cfg, 'TowerFrontLayout', ['Doors', 'SplitDoors', 'Open']));
+        // V2.7.5 (as the Ruby twin): a floor unit with neither a plinth nor legs
+        // stands on the floor; on legs alone it keeps its height.
+        const raised = na_flag(cfg, 'PlinthEnabled') || na_flag(cfg, 'LegsEnabled');
 
         return {
             type            : type,
             width           : na_number(cfg, 'Width_mm', 50, 3000),
             height          : height,
             depth           : depth,
-            zBase           : isWall ? na_number(cfg, 'WallMountHeight_mm', 0, 4000) : na_number(cfg, 'PlinthHeight_mm', 0, 400),
+            zBase           : isWall ? na_number(cfg, 'WallMountHeight_mm', 0, 4000) : (raised ? na_number(cfg, 'PlinthHeight_mm', 0, 400) : 0),
             board           : board,
             back            : na_number(cfg, 'BackPanelThickness_mm', 0, 40),
             backInset       : Math.min(na_number(cfg, 'BackPanelInset_mm', 0, 200), depth / 2),

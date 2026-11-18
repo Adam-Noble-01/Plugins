@@ -23,6 +23,7 @@
 #     Na__Run__Framework                   V2.7.3, fused: every frame member as ONE solid
 #     Na__Run__Cill                        V2.7.3: one cill per stretch, round every corner
 #     Na__Run__WindowBoard                 V2.7.3: one internal window board per stretch
+#     Na__Run__Worktop                     V2.7.4, Cabinets: one worktop per stretch of base units
 #
 # ORDER MATTERS ON A REBUILD
 #   1. Elements first, while the old spans still stand: the id allocators
@@ -85,7 +86,8 @@ module Na__AssemblyRunSystem
         #                   with no errors
         # @return [Hash] { :components => [row per span], :warnings => [String],
         #                  :counts => { :spans, :posts, :columns, :corners,
-        #                  :corner_units, :framework, :cills, :boards } }
+        #                  :corner_units, :framework, :cills, :boards, :worktops },
+        #                  :worktops => [a row per worktop built, its sizes] }
         def self.na_build_run(definition, config, layout, run_id)
             model    = Sketchup.active_model
             standing = PanelTypes.na_standing_members(DataSerializer.na_members(definition))
@@ -100,13 +102,15 @@ module Na__AssemblyRunSystem
             counts[:framework]    = fused ? FrameworkBuilder.na_build_framework(definition.entities, layout, elements) : 0
             counts[:cills]        = FrameworkBuilder.na_build_cills(definition.entities, layout, elements, config)
             counts[:boards]       = FrameworkBuilder.na_build_boards(definition.entities, layout, elements, config)
+            worktops              = FrameworkBuilder.na_build_worktops(definition.entities, layout, elements)
+            counts[:worktops]     = worktops.length
             counts[:spans]        = components.length
 
             elements[:temporary].each { |instance| instance.erase! if instance.valid? }
             DebugTools.na_debug_geometry("Run #{run_id}: #{counts[:spans]} spans, #{counts[:posts]} posts, #{counts[:columns]} columns, " \
                                          "#{counts[:corners]} corner blocks, #{counts[:corner_units]} corner units, framework #{counts[:framework]} members, " \
-                                         "#{counts[:cills]} cills, #{counts[:boards]} window boards")
-            { :components => components, :warnings => elements[:warnings], :counts => counts }
+                                         "#{counts[:cills]} cills, #{counts[:boards]} window boards, #{counts[:worktops]} worktops")
+            { :components => components, :warnings => elements[:warnings], :counts => counts, :worktops => worktops }
         end
         # ---------------------------------------------------------------
 

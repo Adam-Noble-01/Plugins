@@ -520,5 +520,83 @@ check 'an L turning right is mitred on both sides', band[:outer].map { |p| p.map
 
 # endregion -------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# REGION | One Worktop Along the Base Units (V2.7.4)
+# -----------------------------------------------------------------------------
+
+kitchen_types = [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }, { 'Code' => 'D', 'Product' => 'drawers', 'Width_mm' => 600 },
+                 { 'Code' => 'T', 'Product' => 'tall', 'Width_mm' => 600 }, { 'Code' => 'W', 'Product' => 'wall', 'Width_mm' => 600 }]
+gap  = lambda { |width, worktop = nil| { 'Kind' => 'Column', 'Column' => 'Gap', 'Width_mm' => width, 'Worktop' => worktop }.compact }
+line = lambda { |length, items, over = {}| R.na_resolve(cfg({ mode: 'Cabinets', PathPoints: [[0, 0], [length, 0]], PanelTypes: kitchen_types, Legs: [{ 'Items' => items }] }.merge(over))) }
+runs = lambda { |layout| layout[:worktops].map { |w| w[:spans] } }
+
+# The L kitchen of the Cabinets block: one worktop over all seven units and the corner unit, mitred
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3300, 0], [3300, -2700]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }],
+                     Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }, { 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }]))
+check 'L kitchen: one worktop, round the corner unit', [l[:errors], l[:worktops].length, l[:worktops][0][:spans].length, l[:worktops][0][:ranges].map { |r| r[:leg] }],
+      [[], 1, 7, [0, 1]]
+check 'L kitchen: from the wall at the start to the wall at the end', [l[:worktops][0][:start], l[:worktops][0][:end], l[:worktops][0][:centreline]],
+      [[0, 0.0], [1, 2700.0], [[0.0, 0.0], [3300.0, 0.0], [3300.0, -2700.0]]]
+band = C3.na_band_outline(l[:worktops][0][:centreline], -605, 0, false)
+check 'L kitchen: the band 605 deep (560 carcass, 20 door, 25 overhang) is mitred at the corner',
+      band[:outer].map { |p| p.map(&:round) }, [[0, 0], [3300, 0], [3300, -2700], [2695, -2700], [2695, -605], [0, -605]]
+
+# What breaks it and what carries it
+check 'a tall unit breaks it', runs.call(line.call(2400, [span.call('A'), span.call('A'), span.call('T'), span.call('A')])), [%w[L1S1 L1S2], %w[L1S4]]
+check 'a wall unit breaks it', runs.call(line.call(1800, [span.call('A'), span.call('W'), span.call('D')])), [%w[L1S1], %w[L1S3]]
+check 'drawers and a gap (a dishwasher) carry it', runs.call(line.call(1800, [span.call('A'), gap.call(600), span.call('D')])), [%w[L1S1 L1S2]]
+check 'a gap given Worktop false (a cooker) breaks it', runs.call(line.call(1800, [span.call('A'), gap.call(600, false), span.call('A')])), [%w[L1S1], %w[L1S2]]
+l = line.call(1840, [gap.call(620), gap.call(620), span.call('A')])
+check 'the utility: two 620 appliance spaces under it, from the wall', [runs.call(l), l[:worktops][0][:start], l[:worktops][0][:end]], [[%w[L1S1]], [0, 0.0], [0, 1840.0]]
+check 'a gap between two tall units has no worktop', runs.call(line.call(1800, [span.call('T'), gap.call(600), span.call('T')])), []
+check 'switched off, none', line.call(1200, [span.call('A'), span.call('A')], Worktop: false)[:worktops], []
+check 'Frames runs never have one', R.na_resolve(bay)[:worktops], []
+
+# An empty length before a corner breaks it: the second worktop starts at the corner unit
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3300, 0], [3300, -2700]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }],
+                     Legs: [{ 'Items' => [span.call('A'), span.call('A'), span.call('A')] }, { 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }]))
+check 'an empty length breaks it; the next starts at the corner unit', [runs.call(l), l[:worktops][1][:start]], [[%w[L1S1 L1S2 L1S3], %w[L2S1 L2S2 L2S3]], [0, 2400.0]]
+
+# A blind corner carries it round
+l = R.na_resolve(cfg(mode: 'Cabinets', CornerColumn: 'Blind', PathPoints: [[0, 0], [3000, 0], [3000, -2400]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }],
+                     Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }, { 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }]))
+check 'a blind corner carries it round', [l[:errors], l[:worktops].length, l[:worktops][0][:ranges].map { |r| r[:leg] }], [[], 1, [0, 1]]
+
+# The end overhang: only at the path's free ends, never beside a tall unit
+l = line.call(2400, [span.call('A'), span.call('A'), span.call('A'), span.call('A')], WorktopEndOverhang_mm: 50, WorktopBackOverhang_mm: 300)
+check 'an island: 50 past both free ends, its back overhang kept', [l[:worktops][0][:centreline], l[:worktops][0][:extend], l[:settings][:worktop_back]],
+      [[[-50.0, 0.0], [2450.0, 0.0]], [50.0, 50.0], 300.0]
+l = line.call(1800, [span.call('A'), span.call('A'), span.call('T')], WorktopEndOverhang_mm: 50)
+check 'the end overhang stops at a tall unit', [l[:worktops][0][:centreline], l[:worktops][0][:extend]], [[[-50.0, 0.0], [1200.0, 0.0]], [50.0, 0.0]]
+
+# An Equal fill rounds each unit down to 0.1 mm (6 x 583.3 = 3499.8): the worktop still reaches the path's end
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3500, 0]], PanelTypes: [{ 'Code' => 'B', 'Product' => 'base' }],
+                     Legs: [{ 'Fill' => { 'PanelType' => 'B', 'Infill' => 'Equal', 'StandardWidth_mm' => 600 } }]))
+check 'an Equal fill: the worktop runs to the path end, not 0.2 short', [l[:worktops][0][:end], l[:worktops][0][:centreline]], [[0, 3499.8], [[0.0, 0.0], [3500.0, 0.0]]]
+
+# A closed loop of base units with open corners (turning away from the units): one ring
+l = R.na_resolve(cfg(mode: 'Cabinets', CornerColumn: 'Open', PathPoints: [[0, 0], [2400, 0], [2400, 2400], [0, 2400]], PathClosed: true,
+                     PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }], Legs: Array.new(4) { { 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } } }))
+check 'a closed loop: one ring of worktop', [l[:errors], l[:worktops].length, l[:worktops][0][:closed], l[:worktops][0][:spans].length], [[], 1, true, 16]
+
+# Limits, refused never clamped
+check 'a 5mm worktop is refused', line.call(1200, [span.call('A'), span.call('A')], WorktopThickness_mm: 5)[:errors].any? { |e| e.include?('WorktopThickness_mm') }, true
+
+# V2.7.5: overhangs to 1500 (SK02's island needs 695 behind the hob run)
+check 'a 695 back overhang is taken', line.call(1200, [span.call('A'), span.call('A')], WorktopBackOverhang_mm: 695)[:errors], []
+check 'a 1600 back overhang is refused', line.call(1200, [span.call('A'), span.call('A')], WorktopBackOverhang_mm: 1600)[:errors].any? { |e| e.include?('WorktopBackOverhang_mm') }, true
+
+# V2.7.5: cut-outs, kept in the run's own plan; a bad one is named and refused
+hob = { 'Label' => 'Hob', 'Outline_mm' => [[620, -555], [1180, -555], [1180, -65], [620, -65]] }
+l = line.call(1800, [span.call('A'), span.call('A'), span.call('A')], WorktopCutouts: [hob])
+check 'a hob cut-out passes through, in the run\'s plan', [l[:errors], l[:worktop_cutouts].map { |c| [c[:label], c[:outline].length] }], [[], [['Hob', 4]]]
+l = line.call(1800, [span.call('A'), span.call('A'), span.call('A')], WorktopCutouts: [{ 'Label' => 'Bad', 'Outline_mm' => [[0, 0], [5, 0]] }])
+check 'a cut-out of two points is refused', l[:errors].any? { |e| e.include?('WorktopCutouts Bad') }, true
+l = line.call(1800, [span.call('A'), span.call('A'), span.call('A')], WorktopCutouts: [{ 'Label' => 'Thin', 'Outline_mm' => [[0, 0], [5, 0], [5, -300], [0, -300]] }])
+check 'a cut-out with a 5mm side is refused', l[:errors].any? { |e| e.include?('the least is 10') }, true
+check 'Frames runs keep no cut-outs', R.na_resolve(bay.merge(D.na_key('WorktopCutouts') => [hob]))[:worktop_cutouts], []
+
+# endregion -------------------------------------------------------------------
+
 puts "\n#{$pass} passed, #{$fail} failed"
 exit($fail.zero? ? 0 : 1)

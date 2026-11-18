@@ -128,7 +128,7 @@ window.NA_CABINET_SIZE_CONFIG = [
         id          : 'Na__CabinetConfig__TowerDepth_mm',
         label       : 'Carcass Depth',
         type        : 'slider',
-        min         : 250,
+        min         : 150,                                                  // <-- V2.7.4: down to 150 for open display shelving (SK02's 200-deep TV wall); was 250
         max         : 700,
         step        : 5,
         default     : 560,

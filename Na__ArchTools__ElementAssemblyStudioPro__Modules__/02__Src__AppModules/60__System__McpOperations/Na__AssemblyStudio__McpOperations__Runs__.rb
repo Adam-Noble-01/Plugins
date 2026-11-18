@@ -83,7 +83,14 @@ module Na__McpOperations
         'UnitDepth_mm'      => 'Cabinets: carcass depth, for corners and infill blocks.',
         'FrontAllowance_mm' => 'Cabinets: fronts and handles in front of the carcass, cleared by the second leg at a Blind corner.',
         'CornerUnitLeg_mm'  => 'Cabinets: the length of each arm of an L-shaped corner unit, along its wall.',
-        'FillerHeight_mm'   => 'Cabinets: how tall an infill block stands.'
+        'FillerHeight_mm'   => 'Cabinets: how tall an infill block stands.',
+        'Worktop'           => 'Cabinets: true (the start) builds ONE worktop over each stretch of base and drawer units, mitred round every corner, with no join lines. Infill blocks, gaps (appliance spaces) and corners carry it; a wall, tall or wardrobe unit breaks it, and so does a gap item given worktop: false (a cooker space). It sits on the units\' tops (plinth and carcass, from their own settings).',
+        'WorktopThickness_mm'    => 'Cabinets, the worktop: its thickness.',
+        'WorktopOverhang_mm'     => 'Cabinets, the worktop: how far it stands past the units\' fronts (their doors; the carcass when open-fronted).',
+        'WorktopBackOverhang_mm' => 'Cabinets, the worktop: how far it runs behind the path (the wall line). 0 against a wall; an island\'s far side takes its overhang here.',
+        'WorktopEndOverhang_mm'  => 'Cabinets, the worktop: how far it runs past each free end of an open path. Where a tall unit or a cooker space stops it, it ends square at them.',
+        'WorktopMaterialId'      => 'Cabinets, the worktop: a material id from the plugin\'s library, as a unit\'s own Na__CabinetConfig__CarcassMaterialId takes (MAT...); empty (the start) takes the carcass finish of the units under it. An id not in the library is reported and the carcass finish used.',
+        'WorktopCutouts'         => 'Cabinets, the worktop (2.7.5): holes and notches cut through it, a list of {label, world: [[x0, y0], [x1, y1]]} (two opposite corners in world mm, as a plan reads them) or {label, local: [[x0, y0], [x1, y1]]} (the run\'s own plan). Kept in the run\'s own plan, so they move with it; inspect shows them as {Label, Outline_mm}. A rectangle reaching the worktop\'s edge is a notch (a sit-on sink). Given here it replaces the run\'s list; [] clears it. SketchUp Pro.'
     }.freeze
 
 # endregion -------------------------------------------------------------------
@@ -231,7 +238,8 @@ module Na__McpOperations
             'panel_type'  => 'code (A, B2 ...), product, preset (a preset code), values (the product\'s own settings: entity_studio parameters), ' \
                              'width (mm; leave out to share the leg), height (Frames; leave out for the run\'s height less the sill), sill (mm above the run\'s base). ' \
                              'Another product on a type already built builds every span of it again from that product\'s start.',
-            'leg'         => 'items: [{span: "A"}, {column: "Infill" | "Vale260" | "Vale290" | "Gap", width}] in order along the leg; ' \
+            'leg'         => 'items: [{span: "A"}, {column: "Infill" | "Vale260" | "Vale290" | "Gap", width}, {gap: 600}] in order along the leg ' \
+                             '(Cabinets: worktop: false on a gap or infill item stops the worktop either side, as for a cooker space; the MCP tools take it from Na SketchUp MCP 1.0.39); ' \
                              'or fill: {type, count} (Frames) / {type, infill: End | Start | Both | Equal, standard_width, min_infill} (Cabinets).',
             'summary'     => "#{rows.length} run setting#{rows.length == 1 ? '' : 's'}. A panel type\'s own settings are its product\'s: read them with entity_studio parameters."
         }
@@ -317,7 +325,8 @@ module Na__McpOperations
     def self.na_run_layout(params)
         root = na_run_defaults.na_default_config(na_run_mode(params, nil))
         na_run_config!(root, params)
-        na_run_apply_path!(root, params)
+        frame = na_run_apply_path!(root, params)
+        na_run_localise_cutouts!(root[na_run_defaults::NA_KEY_CONFIGURATION], frame ? frame[:transform] : nil)
         layout = na_run_pipelines.na_layout(root)
         {
             'ok'       => layout[:errors].empty?,
@@ -341,6 +350,7 @@ module Na__McpOperations
         root  = na_run_defaults.na_default_config(na_run_mode(params, nil))
         na_run_config!(root, params)
         frame = na_run_apply_path!(root, params)
+        na_run_localise_cutouts!(root[na_run_defaults::NA_KEY_CONFIGURATION], frame ? frame[:transform] : Sketchup.active_model.axes.transformation)
         layout = na_run_pipelines.na_layout(root)
         na_run_refuse_layout(layout) unless layout[:errors].empty?
         if params['dry_run'] == true
@@ -367,6 +377,7 @@ module Na__McpOperations
         na_run_refuse_mode_change(params, root)
         na_run_config!(root, params)
         na_run_apply_path!(root, params, instance) if params['path_points'] || params['path_local']
+        na_run_localise_cutouts!(root[na_run_defaults::NA_KEY_CONFIGURATION], instance.transformation)
         layout = na_run_pipelines.na_layout(root)
         na_run_refuse_layout(layout) unless layout[:errors].empty?
         if params['dry_run'] == true
@@ -715,17 +726,21 @@ module Na__McpOperations
 
     # HELPER FUNCTION | One Leg Item: {span: "A"} | {column: "Infill", width} | {gap: 600}
     # ------------------------------------------------------------
+    # A column or gap may add worktop: false (V2.7.4): a Cabinets run's
+    # worktop stops either side of it, as at a cooker space.
     def self.na_run_item(item, leg_index, place, problems)
         defaults = na_run_defaults
+        stop     = item.is_a?(Hash) && item['worktop'] == false ? false : nil
         if item.is_a?(Hash) && !item['span'].to_s.strip.empty?
             { 'Kind' => defaults::NA_ITEM_SPAN, 'PanelType' => item['span'].to_s.strip.upcase }
         elsif item.is_a?(Hash) && item.key?('gap')
-            { 'Kind' => defaults::NA_ITEM_COLUMN, 'Column' => defaults::NA_COLUMN_GAP, 'Width_mm' => item['gap'] }
+            { 'Kind' => defaults::NA_ITEM_COLUMN, 'Column' => defaults::NA_COLUMN_GAP, 'Width_mm' => item['gap'], 'Worktop' => stop }.compact
         elsif item.is_a?(Hash) && !item['column'].to_s.strip.empty?
             kind = defaults::NA_COLUMN_KINDS.find { |name| name.casecmp?(item['column'].to_s.strip) } || item['column'].to_s.strip
-            { 'Kind' => defaults::NA_ITEM_COLUMN, 'Column' => kind, 'Width_mm' => item['width'] }.compact
+            { 'Kind' => defaults::NA_ITEM_COLUMN, 'Column' => kind, 'Width_mm' => item['width'], 'Worktop' => stop }.compact
         else
-            problems << "legs[#{leg_index}].items[#{place}]: write {span: \"A\"}, {column: \"Infill\" | \"Vale260\" | \"Vale290\" | \"Gap\", width} or {gap: 600}."
+            problems << "legs[#{leg_index}].items[#{place}]: write {span: \"A\"}, {column: \"Infill\" | \"Vale260\" | \"Vale290\" | \"Gap\", width} or {gap: 600} " \
+                        "(a column or gap may add worktop: false)."
             nil
         end
     end
@@ -765,6 +780,65 @@ module Na__McpOperations
         nil
     end
     private_class_method :na_run_apply_path!
+    # ---------------------------------------------------------------
+
+    # FUNCTION | A Call's Worktop Cut-Outs Into the Run's Own Plan (V2.7.5)
+    # ------------------------------------------------------------
+    # settings.WorktopCutouts as an agent writes them: {label, world: [[x0,
+    # y0], [x1, y1]]} (two opposite corners, world mm, as a plan reads
+    # them), {label, local: [[x0, y0], [x1, y1]]} (the run's own plan) or
+    # {label, outline_local: [[x, y] ...]}. Kept as the run keeps them,
+    # {Label, Outline_mm} in its own plan, so a cut-out moves with the run.
+    # A row already in that form (from inspect, or the tab) is kept as it is.
+    # @param transform [Geom::Transformation, nil] the run's placement (nil:
+    #     world and the run's plan are the same)
+    def self.na_run_localise_cutouts!(config, transform)
+        key  = na_run_defaults.na_key('WorktopCutouts')
+        rows = config[key]
+        return unless rows.is_a?(Array)
+        inverse  = transform ? transform.inverse : nil
+        problems = []
+        config[key] = rows.each_with_index.filter_map do |row, index|
+            unless row.is_a?(Hash)
+                problems << "WorktopCutouts[#{index}]: write {label, world: [[x0, y0], [x1, y1]]}."
+                next nil
+            end
+            next row if row.key?('Outline_mm')
+            label   = (row['label'] || row['Label']).to_s.strip
+            outline =
+                if row['world'].is_a?(Array)
+                    corners = na_run_corners(row['world'])
+                    corners && corners.map do |x, y|
+                        point = Geom::Point3d.new(x.mm, y.mm, 0)
+                        point = point.transform(inverse) if inverse
+                        [point.x.to_mm.round(2), point.y.to_mm.round(2)]
+                    end
+                elsif row['local'].is_a?(Array)
+                    na_run_corners(row['local'])
+                elsif row['outline_local'].is_a?(Array)
+                    row['outline_local']
+                end
+            unless outline
+                problems << "WorktopCutouts[#{index}]#{label.empty? ? '' : " (#{label})"}: give world or local as two opposite corners [[x0, y0], [x1, y1]] in mm, or outline_local."
+                next nil
+            end
+            { 'Label' => label.empty? ? "Cut-out #{index + 1}" : label, 'Outline_mm' => outline }
+        end
+        return if problems.empty?
+        na_refuse('invalid_params', "The worktop's cut-outs have #{problems.length} problem#{problems.length == 1 ? '' : 's'}: #{problems.join(' | ')}",
+                  'assembly_run parameters {query: "cutout"} shows the form.', { 'problems' => problems })
+    end
+    private_class_method :na_run_localise_cutouts!
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Two Opposite Corners as the Four of a Rectangle (or Nil)
+    # ------------------------------------------------------------
+    def self.na_run_corners(pair)
+        return nil unless pair.length == 2 && pair.all? { |point| point.is_a?(Array) && point.length >= 2 && point[0].is_a?(Numeric) && point[1].is_a?(Numeric) }
+        (x0, y0), (x1, y1) = pair
+        [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map { |x, y| [x.to_f, y.to_f] }
+    end
+    private_class_method :na_run_corners
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | A Path Problem as a Refusal
@@ -867,6 +941,7 @@ module Na__McpOperations
             'panel_types'     => types,
             'spans'           => members,
             'counts'          => report ? report[:counts].transform_keys(&:to_s) : nil,
+            'worktops'        => report && !Array(report[:worktops]).empty? ? report[:worktops] : nil,   # <-- V2.7.4: each worktop's sizes as built
             'undo_name'       => undo_name,
             'warnings'        => report ? report[:warnings] : layout[:warnings]
         }.compact
@@ -895,8 +970,12 @@ module Na__McpOperations
                 item[:kind] == 'Span' ? item[:type] : "#{item[:role].downcase} #{item[:width].round}"
             }.join(', ')
         end
+        worktops = Array(layout[:worktops]).map { |stretch| "#{stretch[:spans].first} to #{stretch[:spans].last}" }
+        cutouts  = Array(layout[:worktop_cutouts]).map { |cutout| cutout[:label] }
         "#{layout[:mode]}, #{layout[:span_count]} span#{layout[:span_count] == 1 ? '' : 's'}; " +
             types.map { |type| "#{type[:code]} = #{type[:product]} #{type[:width].round(1)}mm x#{type[:count]}" }.join(', ') + '; ' + legs.join('; ') + '.' +
+            (worktops.empty? ? '' : " Worktop#{worktops.length == 1 ? '' : 's'}: #{worktops.join('; ')}.") +
+            (cutouts.empty? ? '' : " Cut-outs: #{cutouts.join(', ')}.") +
             (layout[:warnings].empty? ? '' : " Note: #{layout[:warnings].join(' ')}")
     end
     private_class_method :na_run_layout_summary

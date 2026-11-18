@@ -3,6 +3,84 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.7.5 - 18-Nov-2026 - Worktop Cut-Outs and Notches, Longer Overhangs; a Unit With No Plinth or Legs Stands on the Floor
+
+### Context
+Three gaps found while SK02's kitchen was built with 2.7.4, the same night, under Adam's instruction relayed to the agent building it ("build tools or update the plugin"): the island (KT01) needs a 695 back overhang and 2.7.4 stopped at 600; GO 48 wants a hob cut-out, an island sink and a Belfast sink's front notch; and an open tall unit with its plinth and legs off still stood 150 up (R23, ARN025: z 150 to 2600, 150 into the slab above). Made in a staging copy and swapped in at once, as 2.7.4 was.
+
+### New: Worktop Cut-Outs and Notches (`WorktopCutouts`, SketchUp Pro)
+- A run setting: a list of rectangles cut through the worktop. An agent writes `{label, world: [[x0, y0], [x1, y1]]}` (two opposite corners, world mm, as a plan reads them) or `{label, local: ...}` (the run's own plan); the seam keeps each as `{Label, Outline_mm}` in the run's own plan, so a cut-out moves with the run. Given again it replaces the list; `[]` clears it. Through MCP it rides in `settings`, which the 1.0.38 schema passes.
+- The builder (`FrameworkBuilder.na_cut_worktop!`) makes each cut-out that overlaps a worktop a cutter: its outline from below the underside to above the top, carried 20 past any side that reaches the worktop's edge, so a rectangle at the front edge is a clean notch with no coplanar sliver. `cutter.subtract(worktop)`, on a copy kept until the result is proved a closed solid; a cut that fails is put back whole and named in the warnings. The cut faces take the worktop's finish. A cut-out that lies on no worktop is named too.
+- The build result lists each worktop's `cutouts`; the layout summary names them; the plan preview draws them dashed over the units.
+
+### Changed: Overhangs to 1500 (were 600)
+- `WorktopOverhang_mm`, `WorktopBackOverhang_mm`, `WorktopEndOverhang_mm`: 0 to 1500, for SK02's island (695 behind the hob run) and seating overhangs.
+
+### Fixed: A Floor Unit With Neither a Plinth Nor Legs Stands on the Floor (Cabinetry, both twins)
+- `Na__LayoutResolver.na_effective` (Ruby) and its JS twin: the carcass starts at `PlinthHeight_mm` only when the plinth or the legs are on; with both off it starts at 0. On legs alone it keeps its height (the legs stand there).
+- A run rebuilds a cabinet element still standing where an older version put it (`PanelTypes.na_cabinet_off_floor?`: it should stand on the floor and its definition's lowest point is above it), so the unit, its infill blocks and its worktop agree. One already on the floor (`PlinthHeight_mm` 0, SK02's workaround) is kept as it is. A cabinet outside a run keeps its geometry until it is built again in its own tab.
+
+### Known Limits
+- Cut-outs are rectangles given by corners (world or the run's plan), not tied to a span: a cut-out stays where it was put when the units move. No radiused corners, no undermount rebates.
+
+### Verified
+- **Offline:** the run spec, 173 checks (6 new: the 695 overhang taken and 1600 refused, a cut-out passed through in the run's plan, two kinds of bad cut-out refused, Frames keeping none); the cabinet spec, 90 (2 new: plinth and legs off on the floor; legs only, or a plinth only, 150 up), the Ruby twin giving the same (0, 150, 150).
+- **In SketchUp** (a copy of the 2.7.4 testbed in its own window; nothing in Adam's models was changed): loading 2.7.5 over 2.7.4, back to 2.7.4 and over again left the model's fingerprint unchanged (every definition, entity count, attribute value, material, tag; digest 107eaaf2). The fused bay (90,540,000 and 30,940,000 mm3) and a 2.7.4 kitchen's two worktops (43,560,000 each) rebuilt unchanged. A hob 560 x 490 cut from the L kitchen's worktop: 119,583,000 mm3 (130,559,000 less 560 x 490 x 40), one closed solid, its top one face with the hole. A Belfast notch 595 x 595 from the utility worktop's front edge: 30,367,000 (44,528,000 less 595 x 595 x 40). The island at a 695 back overhang with a 450 x 800 sink: 115,600,000 (2500 x 1300 x 40 less 450 x 800 x 40). An open tall unit with plinth and legs off, built by 2.7.4 at z 150 to 2600, rebuilt by its run to 0 to 2450; the workaround (PlinthHeight 0) rebuilt unchanged at 0 to 2450. The plan preview drew the cut-out.
+
+### Files Changed
+- `55__System__AssemblyRunSystem/...Defaults__.rb` (limits, `WorktopCutouts`), `...LayoutResolver__.rb` (`na_worktop_cutouts`), `...FrameworkBuilder__.rb` (the cut), `...PanelTypes__.rb` (`na_cabinet_off_floor?`), `...Viewport__LayoutDrawer__.js` (cut-outs in plan).
+- `45__System__InteriorCabinetry/...Cabinetry__LayoutResolver__.rb` and `...Cabinetry__Viewport__LayoutResolver__.js` (the floor), `60__System__McpOperations/...McpOperations__Runs__.rb` (the setting, world to the run's plan, the summary), `AppConfig__Main.json` (2.7.5), `65__Dev__DevTools/...AssemblyRunLayout__Spec__.rb.test`, `...CabinetLayout__Spec__.js`, `85__Docs__AppDocumentation/...Architecture__.md`.
+
+### Validation Checklist
+- [ ] Reload Scripts in the window holding the runs.
+- [ ] A Cabinets run given `WorktopCutouts`: the hole or notch is cut, the worktop one solid.
+- [ ] A Cabinetry unit with Plinth and Legs both off stands on the floor.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.7.4 - 18-Nov-2026 - Assembly Runs: One Worktop Along the Base Units; Fill-Made Types Keep Their Parent's Settings
+
+### Context
+Built overnight for the agent building SK02's kitchen and utility runs (SMART__PlansHelper), on Adam's instruction to it: "use my Entity Studio Pro runs tool to create all of the cabinets ... if the tools are not available, build tools or update the plugin". A base or drawers run had no worktop, and a type made by an Equal fill came out at a plain unit's start (SK02 ARN012). Made in a staging copy and swapped in at once, so SK02, building runs with 2.7.3 meanwhile, never read a half-changed file.
+
+### New: One Worktop Along the Base Units (Cabinets; `Worktop`, on by default)
+- The run builds ONE worktop over each stretch of base and drawer units (`Na__Run__Worktop` / `Na__RunWorktop__01`), mitred round every corner as the 2.7.3 cill is (`Na__RunCills.na_worktop_stretches`, the same sweep): one solid, its top and underside one face each.
+- What carries it: base and drawer units, infill blocks, gaps (an appliance space: a washing machine, a dishwasher), a corner unit, a blind corner, an open corner. What breaks it: a wall, tall or wardrobe unit, a gap or block marked `Worktop: false` (a cooker space; the tab's "worktop" tick on the item), and an empty length at a leg's end. A stretch with no base or drawer unit is not built.
+- Its sizes are the units' own, read from each type's element as the Cabinetry tab reads them (`na_effective`): underside on the units' tops (plinth plus carcass), front at the carcass depth plus the door (none when open-fronted) plus `WorktopOverhang_mm`. Units of different heights or depths under one worktop: it sits on the highest and overhangs the deepest, and the run says so.
+- `WorktopThickness_mm` 40, `WorktopOverhang_mm` 25, `WorktopBackOverhang_mm` 0 (behind the wall line: an island's far side), `WorktopEndOverhang_mm` 0 (past each free end of an open path; never beside a tall unit or a cooker space), `WorktopMaterialId` "" (a library id; empty takes the units' carcass finish; an id not in the library is reported and the carcass used). Limits: thickness 10 to 200, each overhang 0 to 600.
+- A worktop that reaches a free end runs to the path's own end, not the last unit's: an Equal fill rounds each unit down to 0.1 mm (6 x 583.3 = 3499.8 on a 3500 path).
+- The tab: "One worktop along the run" in the Run section, with its four sizes; a "worktop" tick on each gap or block of a listed leg. Both previews draw it (sized from the first unit type's product start, as the units' heights already are).
+- The agent seam: the six settings in `assembly_run parameters`; `{gap: 600, worktop: false}` or `{column: "Infill", width, worktop: false}` on a leg item (the dialog's tick and a direct seam call take it now; the MCP tools' schema refuses it until Na SketchUp MCP 1.0.39, drafted and held for Adam's review); a build or update returns `worktops` (each one's spans, underside, top, front, back and thickness, and whether it is a solid), and the layout summary names each worktop's spans.
+
+### Fixed: A Type Made by a Fill Takes Its Parent's Settings (`...PanelTypes__.rb` `na_adopt_derived!`)
+- A fill-made type copied only its parent's kept seed, never the preset or values the parent was described with. An Equal fill gives every span the derived width, so the parent itself is never built and the derived type fell back to the product's start: on SK02 (ARN012) a 430-deep, 300-high open base with a 100 plinth came out 560 deep, 720 high, with doors. It now takes the parent's preset and values (or the parent's element, when it has one).
+- A type already built keeps its element and the values set on it: a rebuild writes only a changed width into a standing element.
+
+### Changed: Tall and Wardrobe Carcass Depth Down to 150 (was 250)
+- For open display shelving (SK02's 200-deep TV wall). `...Cabinetry__UiSystem__Config__.js`, and the parameter catalogue regenerated (its only change).
+
+### Known Limits
+- No cut-outs (sink, hob), no upstand or splashback, square ends. Bar handles stand 16 past a 25 overhang, as they usually do.
+- The preview sizes a worktop from the product's start; the build from the units themselves.
+- Runs built before 2.7.4 get a worktop over their base units at their next rebuild (the switch is on by default).
+
+### Verified
+- **Offline** (`AssemblyRunLayout__Spec__.rb.test`): 167 checks, 18 new: the L kitchen (one worktop round the corner unit, the band mitred at 605), a tall unit, a wall unit, a gap, a cooker gap, the utility (two 620 spaces from the wall), a gap between tall units (none), off, Frames (none), an empty length before a corner, a blind corner, the island's end and back overhangs, a tall unit stopping the end overhang, an Equal fill reaching the path end, a closed ring, a refused thickness.
+- **In SketchUp** (a copy of the testbed in its own window, the staged files loaded over 2.7.3; nothing in Adam's models was changed): a fused bay built with 2.7.3 and rebuilt with 2.7.4 kept its framework (90,540,000 mm3) and cill (30,940,000 mm3) exactly. A 2.7.3 L kitchen rebuilt gained one worktop: 870 to 910, front 605, a closed solid of 130,559,000 mm3 (its mitred outline times 40), 8 faces, every corner on the 5 mm grid. The ARN012 repro built with 2.7.3 gave 560 x 870 units; with 2.7.4 the fill-made type took the parent's 430 / 300 / 100 open settings and the worktop sat at 400, front 455, to the path end (3500). A type fixed by hand on its element kept those values through a rebuild. The utility: one worktop over both 620 spaces and the unit. A kitchen of tall, base, dishwasher gap, drawers, cooker gap (`worktop: false`) and three bases: two worktops. The island: -50 to 2450, 300 behind the path, in the material named; an unknown id was reported. A 200-deep open tall unit built (1000 x 1970 x 200); 140 was refused.
+- **The real page, offline** (served from the staging copy): the switch and sizes, the summary ("560 deep · 38 worktop"), the worktop in both drawings, and the gap's tick splitting it in two.
+
+### Files Changed
+- `55__System__AssemblyRunSystem/...Defaults__.rb` (the settings, `NA_WORKTOP_PRODUCTS`, limits), `...RunCills__.rb` (the worktop walk and its free ends), `...LayoutResolver__.rb` (settings, `Worktop: false` on items, `:worktops`), `...FrameworkBuilder__.rb` (`na_build_worktops`, its sizes and finish), `...GeometryEngine__.rb`, `...RunPipelines__.rb` (the report's worktops), `...PanelTypes__.rb` (the fill fix), `...DialogRouter__.rb` (the preview's worktop), `...UiSystem__MainUiLogic__.js`, `...Viewport__LayoutDrawer__.js`.
+- `60__System__McpOperations/...McpOperations__Runs__.rb` (setting notes, `worktop` on items, `worktops` in the result, the summary), `45__System__InteriorCabinetry/...Cabinetry__UiSystem__Config__.js` and `02__AppData/...ParameterCatalogue__.json` (tall depth 150), `AppConfig__Main.json` (2.7.4), `65__Dev__DevTools/...AssemblyRunLayout__Spec__.rb.test`, `85__Docs__AppDocumentation/...Architecture__.md` (Assembly Runs).
+
+### Validation Checklist
+- [ ] Reload Scripts (or restart SketchUp) in the window holding the runs.
+- [ ] Select a Cabinets run of base units, Assembly Runs tab: "One worktop along the run" is on. Update Run.
+- [ ] One worktop over the base and drawer units, mitred at the corners, stopping at a tall unit; over a gap left for an appliance.
+- [ ] A Cabinetry tall unit's carcass depth goes down to 150.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.7.3 - 17-Nov-2026 - Assembly Runs: One Cill Round the Run, and a Fused Framework That Is One Piece
 
 ### Context

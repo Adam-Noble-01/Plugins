@@ -7224,7 +7224,7 @@
      "label": "Carcass Depth",
      "unit": "mm",
      "type": "slider",
-     "min": 250,
+     "min": 150,
      "max": 700,
      "step": 5,
      "default": 560,

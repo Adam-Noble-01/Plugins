@@ -503,7 +503,8 @@ module Na__AssemblyRunSystem
                 :root     => root,
                 :layout   => layout,
                 :warnings => (layout[:warnings] + built[:warnings]).uniq,
-                :counts   => built[:counts]
+                :counts   => built[:counts],
+                :worktops => built[:worktops] || []                              # <-- V2.7.4: each worktop as built, its sizes in mm
             }
         end
         private_class_method :na_report

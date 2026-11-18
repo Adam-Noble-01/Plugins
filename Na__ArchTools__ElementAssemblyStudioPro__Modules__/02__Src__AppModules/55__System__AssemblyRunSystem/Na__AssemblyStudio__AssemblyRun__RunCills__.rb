@@ -37,6 +37,18 @@
 #   it reaches the path's free end (under the end block or jamb there).
 # - A stretch with no span (no window, for a board) is not built.
 #
+# THE WORKTOP (V2.7.4, Cabinets runs; asked for 17-Nov-2026 for SK02's kitchen)
+# - One worktop per stretch of base and drawer units, walked the same way:
+#     carries  a base or drawer unit, an infill block, a gap (an appliance
+#              space: a washing machine under the worktop), a corner unit, a
+#              blind corner and an open corner
+#     breaks   a wall, tall or wardrobe unit, a gap marked Worktop false (a
+#              cooker space), and the empty length left at a leg's end
+#   A stretch with no base or drawer unit is not built. Where a stretch
+#   reaches a free end of an open path it is made longer by the run's end
+#   overhang. How deep and how high it is comes from the units themselves,
+#   so the builder sizes it (Na__FrameworkBuilder.na_build_worktops).
+#
 # THE BAND (na_band_outline)
 # - y is measured to the LEFT of the path, as everywhere in a run: in Frames
 #   mode the frames stand on the left and the outside is on the right, so a
@@ -67,6 +79,10 @@ module Na__AssemblyRunSystem
 
         NA_TOLERANCE_MM  = 0.5                                                   # <-- Less than this along a leg is no length at all
         NA_PARALLEL_SINE = 1.0e-9                                                # <-- Two legs this close to parallel meet in a straight line
+
+        # The corners a worktop turns round (V2.7.4): each has a base unit,
+        # or the empty square of an open corner, under it.
+        NA_WORKTOP_CORNERS = [Defaults::NA_CORNER_UNIT, Defaults::NA_CORNER_BLIND, Defaults::NA_CORNER_OPEN].freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -121,6 +137,24 @@ module Na__AssemblyRunSystem
                         item[:z0] = lift
                     end
                 end
+            end
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Stretches a Cabinets Run's One Worktop Runs Along (V2.7.4)
+        # ------------------------------------------------------------
+        # @param end_overhang [Float] mm the worktop runs on past a free end
+        #     of an open path
+        # @return [Array<Hash>] stretches as na_stretches gives them, each
+        #     with :extend => [mm added at its start, mm added at its end];
+        #     its :centreline already includes them
+        def self.na_worktop_stretches(legs, corners, types, closed, end_overhang = 0.0)
+            walk   = na_worktop_walk(legs, corners, types)
+            groups = na_group(walk, closed, :worktop).select { |group| group[:segments].any? { |segment| segment[:span] } }
+            groups.each_with_index.map do |group, index|
+                stretch = na_describe(group, legs, index)
+                na_extend_free_ends!(stretch, legs, end_overhang.to_f, closed)
+                stretch
             end
         end
         # ---------------------------------------------------------------
@@ -264,6 +298,70 @@ module Na__AssemblyRunSystem
               :cill => carries, :board => carries, :span => false, :window => false }
         end
         private_class_method :na_corner_segment
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Walk for a Worktop: What Carries It and What Breaks It (V2.7.4)
+        # ------------------------------------------------------------
+        # The same entries as na_walk, flagged :worktop, with :span marking
+        # the base and drawer units (a stretch needs one).
+        def self.na_worktop_walk(legs, corners, types)
+            corner_after = corners.each_with_object({}) { |corner, found| found[corner[:leg_in]] = corner }
+            legs.each_with_index.flat_map do |leg, index|
+                items    = Array(leg[:items])
+                segments = items.map { |item| na_worktop_item_segment(item, leg, types) }
+                last_end = items.empty? ? leg[:setback_start].to_f : items.last[:s1].to_f
+                stop     = leg[:length].to_f - leg[:setback_end].to_f
+                if stop - last_end > NA_TOLERANCE_MM
+                    segments << { :kind => :empty, :leg => index, :s0 => last_end, :s1 => stop, :worktop => false, :span => false }
+                end
+                corner = corner_after[index]
+                segments << na_corner_segment(corner, legs).merge(:worktop => NA_WORKTOP_CORNERS.include?(corner[:kind])) if corner
+                segments
+            end
+        end
+        private_class_method :na_worktop_walk
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | One Item of a Leg as a Worktop Walk Entry
+        # ------------------------------------------------------------
+        def self.na_worktop_item_segment(item, leg, types)
+            entry = { :kind => :item, :leg => leg[:index], :s0 => item[:s0].to_f, :s1 => item[:s1].to_f, :item => item,
+                      :worktop => false, :span => false }
+            case item[:kind]
+            when Defaults::NA_ITEM_SPAN
+                unit = Defaults::NA_WORKTOP_PRODUCTS.include?((types[item[:type]] || {})[:product].to_s)
+                entry.merge!(:worktop => unit, :span => unit)
+            when Defaults::NA_ITEM_COLUMN
+                entry[:worktop] = item[:worktop] != false && [Defaults::NA_COLUMN_INFILL, Defaults::NA_COLUMN_GAP].include?(item[:role])
+            end
+            entry
+        end
+        private_class_method :na_worktop_item_segment
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Run a Worktop to the Path's Free Ends, Then On Past Them
+        # ------------------------------------------------------------
+        # Only where the stretch reaches a free end of an open path: beside a
+        # tall unit or a cooker space it stops where they start. It is taken
+        # from the path's own end, not the last unit's: an Equal fill rounds
+        # each unit down to 0.1 mm, and the worktop would stop just short.
+        def self.na_extend_free_ends!(stretch, legs, overhang, path_closed)
+            stretch[:extend] = [0.0, 0.0]
+            return if path_closed || stretch[:closed] || stretch[:centreline].length < 2
+
+            points = stretch[:centreline]
+            first  = legs.first
+            last   = legs.last
+            if stretch[:start][0].zero? && stretch[:start][1] <= NA_TOLERANCE_MM
+                points[0] = PathMath.na_add(first[:p0], first[:dir], -overhang)
+                stretch[:extend][0] = overhang
+            end
+            if stretch[:end][0] == last[:index] && stretch[:end][1] >= last[:length].to_f - NA_TOLERANCE_MM
+                points[-1] = PathMath.na_add(last[:p0], last[:dir], last[:length].to_f + overhang)
+                stretch[:extend][1] = overhang
+            end
+        end
+        private_class_method :na_extend_free_ends!
         # ---------------------------------------------------------------
 
         # FUNCTION | Group the Walk Into Unbroken Stretches of One Kind

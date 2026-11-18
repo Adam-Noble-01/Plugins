@@ -31,6 +31,9 @@
 #                                                          corner posts
 #   Na__Run__Cill           Na__RunCill__01                one solid per stretch
 #   Na__Run__WindowBoard    Na__RunWindowBoard__01         one solid per stretch
+#   Na__Run__Worktop        Na__RunWorktop__01             V2.7.4, Cabinets: one
+#                                                          solid per stretch of
+#                                                          base and drawer units
 #   A group is made only when it has something to hold. Without SketchUp
 #   Pro's solid tools the framework's members are left as separate solids,
 #   and the run says so.
@@ -54,6 +57,11 @@
 # - The framework: each window's own head and bottom thickness (from
 #   Na__PanelTypes), the run's mullion and jamb widths and post depth, and
 #   the first window's frame finish and frame edge colour.
+# - The worktop (V2.7.4): its underside on the units' tops (plinth and
+#   carcass), its front the units' fronts plus WorktopOverhang_mm, its back
+#   the path (the wall line) plus WorktopBackOverhang_mm, WorktopThickness_mm
+#   thick, all read from each unit type's own settings as the Cabinetry tab
+#   reads them. Its finish is WorktopMaterialId, else the units' carcass.
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -87,6 +95,10 @@ module Na__AssemblyRunSystem
         NA_FRAMEWORK_FUSED   = "Na__RunFramework__Fused".freeze
         NA_CILL_GROUP        = "Na__Run__Cill".freeze
         NA_BOARD_GROUP       = "Na__Run__WindowBoard".freeze
+        NA_WORKTOP_GROUP     = "Na__Run__Worktop".freeze
+        NA_SIZE_TOLERANCE_MM = 0.5                                               # <-- Two units further apart than this in height or depth are named
+        NA_CUTTER_REACH_MM   = 20.0                                              # <-- V2.7.5: a cut-out reaching the worktop's edge is carried this far past it, and past the top and underside
+        NA_CUTTER_PROBE_MM   = 1.0                                               # <-- How far outside a cut-out's side the worktop is looked for
         NA_EDGE_FRAME        = "MTE102__LineColour__SoftBlack__L20".freeze       # <-- The window tab's own frame edge colour
         NA_EDGE_BOARD        = "MTE103__LineColour__MediumDarkGrey__L50".freeze  # <-- The window tab's own board edge colour
         NA_SOFTEN_ANGLE_RAD  = 22.0 * Math::PI / 180.0                           # <-- As the window board: a curved nose reads smooth
@@ -264,6 +276,191 @@ module Na__AssemblyRunSystem
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
+# REGION | Public API - One Worktop Along the Base Units (V2.7.4)
+# -----------------------------------------------------------------------------
+
+        # FUNCTION | One Worktop Along Every Worktop Stretch
+        # ------------------------------------------------------------
+        # A plain rectangular section swept along the stretch, so it is one
+        # solid round every corner with its top and underside one face each.
+        # Units of different heights or depths under one stretch: it sits on
+        # the highest and overhangs the deepest, and the run says so.
+        # @param elements [Hash] Na__PanelTypes.na_ensure_elements! result
+        # @return [Array<Hash>] one row per worktop built (string keys, mm):
+        #     name, spans, underside_mm, top_mm, front_mm (to the front edge,
+        #     from the path), back_mm (behind the path), thickness_mm, solid
+        def self.na_build_worktops(entities, layout, elements)
+            v = layout[:settings]
+            return [] unless v[:worktop] && !Array(layout[:worktops]).empty?
+            holder  = nil
+            built   = []
+            cutouts = Array(layout[:worktop_cutouts])
+            used    = []
+            layout[:worktops].each do |stretch|
+                size = na_worktop_size(stretch, elements)
+                next unless size
+                front   = -(size[:front] + v[:worktop_overhang].to_f)
+                back    = v[:worktop_back].to_f
+                z0      = size[:top]
+                z1      = z0 + v[:worktop_thickness].to_f
+                profile = [[front, z0], [back, z0], [back, z1], [front, z1]]
+                name    = format("Na__RunWorktop__%02d", stretch[:index] + 1)
+                holder ||= na_holder(entities, NA_WORKTOP_GROUP)
+                solid   = na_sweep(holder.entities, name, stretch[:centreline], stretch[:closed], profile)
+                unless solid
+                    elements[:warnings] << "The worktop over #{stretch[:spans].first}...#{stretch[:spans].last} could not be drawn."
+                    next
+                end
+                material = na_worktop_material(v, size[:values], elements[:warnings])
+                na_finish(solid, material, nil)
+                band  = RunCills.na_band_outline(stretch[:centreline], front, back, stretch[:closed])
+                cuts  = na_cut_worktop!(holder.entities, solid, band, z0, z1, cutouts, elements[:warnings])
+                solid = cuts[:solid]
+                na_finish(solid, material, nil) unless cuts[:cut].empty?                # <-- The cut faces take the worktop's finish too
+                used.concat(cuts[:cut])
+                built << { "name" => name, "spans" => stretch[:spans], "underside_mm" => z0.round(1), "top_mm" => z1.round(1),
+                           "front_mm" => (-front).round(1), "back_mm" => back.round(1), "thickness_mm" => v[:worktop_thickness].to_f.round(1),
+                           "cutouts" => cuts[:cut].empty? ? nil : cuts[:cut], "solid" => solid.manifold? }.compact
+            end
+            (cutouts.map { |cutout| cutout[:label] } - used).each do |label|
+                elements[:warnings] << "Cut-out #{label} lies on no worktop of the run: nothing was cut for it."
+            end
+            holder.erase! if holder && holder.valid? && holder.entities.length.zero?
+            built
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Cut a Worktop's Holes and Notches (V2.7.5)
+        # ------------------------------------------------------------
+        # Each cut-out whose outline overlaps the worktop becomes a cutter:
+        # its outline from below the underside to above the top, carried
+        # NA_CUTTER_REACH_MM past any side that reaches the worktop's edge (a
+        # notch), so no face of the cutter lies on a face of the worktop.
+        # SketchUp Pro's cutter.subtract(worktop) gives a new group, the
+        # worktop less the cutter, and erases both. The worktop is copied
+        # first: a cut that fails or leaves no closed solid is put back, and
+        # the run says so.
+        # @param band [Hash] the worktop's plan outline (na_band_outline)
+        # @return [Hash] { :solid => the worktop now, :cut => [labels cut] }
+        def self.na_cut_worktop!(entities, solid, band, z0, z1, cutouts, warnings)
+            cut = []
+            hits = cutouts.select { |cutout| na_overlaps?(cutout[:outline], band[:outer]) }
+            return { :solid => solid, :cut => cut } if hits.empty?
+            unless Sketchup.is_pro?
+                warnings << "The worktop's cut-outs (#{hits.map { |cutout| cutout[:label] }.join(', ')}) were not made: cutting needs SketchUp Pro's solid tools."
+                return { :solid => solid, :cut => cut }
+            end
+
+            name = solid.name
+            hits.each do |cutout|
+                cutter = na_prism(entities, na_reach_edges(cutout[:outline], band), z0 - NA_CUTTER_REACH_MM, z1 + NA_CUTTER_REACH_MM)
+                unless cutter
+                    warnings << "Cut-out #{cutout[:label]} could not be drawn: the worktop was left whole there."
+                    next
+                end
+                spare  = solid.copy
+                result = cutter.subtract(solid)
+                if result && result.valid? && result.manifold?
+                    spare.erase! if spare.valid?
+                    result.name = name
+                    solid = result
+                    cut << cutout[:label]
+                else
+                    [result, cutter, solid].each { |left| left.erase! if left && left.valid? }
+                    spare.name = name
+                    solid = spare
+                    warnings << "Cut-out #{cutout[:label]} could not be cut cleanly from #{name}: the worktop was left whole there."
+                end
+            end
+            { :solid => solid, :cut => cut }
+        rescue StandardError => e
+            warnings << "The worktop's cut-outs stopped: #{e.message}"
+            { :solid => solid, :cut => cut }
+        end
+        private_class_method :na_cut_worktop!
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Carry a Cut-Out Past Any Side That Reaches the Worktop's Edge
+        # ------------------------------------------------------------
+        # A side whose outside, NA_CUTTER_PROBE_MM away, is not worktop moves
+        # out by NA_CUTTER_REACH_MM (both its ends). Exact for a rectangle.
+        # @return [Array<Array>] the cutter's outline, anticlockwise
+        def self.na_reach_edges(outline, band)
+            points = RunCills.na_area(outline) >= 0 ? outline.map(&:dup) : outline.reverse.map(&:dup)
+            moves  = Array.new(points.length) { [0.0, 0.0] }
+            points.each_index do |i|
+                a = points[i]
+                b = points[(i + 1) % points.length]
+                length = Math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
+                next if length < 1.0e-6
+                out   = [(b[1] - a[1]) / length, -(b[0] - a[0]) / length]       # <-- Anticlockwise: outward is the side turned right
+                probe = [(a[0] + b[0]) / 2.0 + out[0] * NA_CUTTER_PROBE_MM, (a[1] + b[1]) / 2.0 + out[1] * NA_CUTTER_PROBE_MM]
+                next if na_in_band?(probe, band)
+                [i, (i + 1) % points.length].each do |j|
+                    moves[j][0] += out[0] * NA_CUTTER_REACH_MM
+                    moves[j][1] += out[1] * NA_CUTTER_REACH_MM
+                end
+            end
+            points.each_with_index.map { |point, i| [point[0] + moves[i][0], point[1] + moves[i][1]] }
+        end
+        private_class_method :na_reach_edges
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | A Vertical Prism (a Cutter) From a Plan Outline, mm
+        # ------------------------------------------------------------
+        def self.na_prism(entities, outline, z_low, z_high)
+            group = entities.add_group
+            face  = group.entities.add_face(outline.map { |x, y| Geom::Point3d.new(x.mm, y.mm, z_low.mm) })
+            unless face && face.valid?
+                group.erase!
+                return nil
+            end
+            face.reverse! if face.normal.z < 0
+            face.pushpull((z_high - z_low).mm)
+            return group if group.manifold?
+            group.erase!
+            nil
+        end
+        private_class_method :na_prism
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Do a Cut-Out and a Worktop's Plan Bounds Overlap
+        # ------------------------------------------------------------
+        def self.na_overlaps?(outline, other)
+            xs, ys = outline.transpose
+            ox, oy = other.transpose
+            xs.min < ox.max && xs.max > ox.min && ys.min < oy.max && ys.max > oy.min
+        end
+        private_class_method :na_overlaps?
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Is a Plan Point On the Worktop (In Its Outer, Not Its Hole)
+        # ------------------------------------------------------------
+        def self.na_in_band?(point, band)
+            na_in_polygon?(point, band[:outer]) && !(band[:inner] && na_in_polygon?(point, band[:inner]))
+        end
+        private_class_method :na_in_band?
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Point in Polygon (Even-Odd Ray Cast)
+        # ------------------------------------------------------------
+        def self.na_in_polygon?(point, polygon)
+            x, y   = point
+            inside = false
+            polygon.each_index do |i|
+                a = polygon[i]
+                b = polygon[(i + 1) % polygon.length]
+                next unless (a[1] > y) != (b[1] > y)
+                inside = !inside if x < a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+            end
+            inside
+        end
+        private_class_method :na_in_polygon?
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 # REGION | The Sweep (a Section Run Along a Path, Mitred, Level Faces Whole)
 # -----------------------------------------------------------------------------
 
@@ -427,6 +624,60 @@ module Na__AssemblyRunSystem
             na_material(Na__AssemblyStudio::Na__WindowSystem::NA_DEFAULT_CILL_MATERIAL_ID)
         end
         private_class_method :na_cill_material
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | How High and How Deep the Units Under a Worktop Stand
+        # ------------------------------------------------------------
+        # Each unit type's own settings, read as the Cabinetry tab reads them
+        # (its resolver's na_effective): the top is the plinth plus the
+        # carcass; the front is the carcass depth plus the door, or the
+        # carcass alone when the unit is open-fronted.
+        # @return [Hash, nil] { :top, :front, :values (the first type's) }
+        def self.na_worktop_size(stretch, elements)
+            resolver = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__LayoutResolver
+            sizes = stretch[:types].filter_map do |code|
+                values = elements[:values][code]
+                next nil unless values
+                unit = resolver.na_effective(values)
+                { :code => code, :values => values, :top => unit[:z_base] + unit[:height],
+                  :front => unit[:depth] + (unit[:layout] == "Open" ? 0.0 : unit[:front_thickness]) }
+            end
+            return nil if sizes.empty?
+
+            label = "#{stretch[:spans].first}...#{stretch[:spans].last}"
+            { :top => "stand", :front => "have their fronts" }.each do |key, words|
+                found = sizes.map { |size| size[key] }
+                next unless found.max - found.min > NA_SIZE_TOLERANCE_MM
+                listed = sizes.map { |size| "#{size[:code]} #{size[key].round}" }.join(', ')
+                elements[:warnings] << "The units under the worktop over #{label} #{words} at different #{key == :top ? 'heights' : 'depths'} (#{listed}): " \
+                                       "it #{key == :top ? 'sits on the highest' : 'overhangs the deepest'}."
+            end
+            { :top => sizes.map { |size| size[:top] }.max, :front => sizes.map { |size| size[:front] }.max, :values => sizes.first[:values] }
+        end
+        private_class_method :na_worktop_size
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | The Worktop's Finish: Its Own, Else the Units' Carcass
+        # ------------------------------------------------------------
+        def self.na_worktop_material(v, values, warnings)
+            chosen = v[:worktop_material].to_s
+            unless chosen.empty?
+                return na_material(chosen) if na_known_material?(chosen)               # <-- nil for the library's own default: SketchUp's default
+                warnings << "Worktop material '#{chosen}' is not in the material library: the units' carcass finish is used."
+            end
+            na_material(values["Na__CabinetConfig__CarcassMaterialId"])
+        end
+        private_class_method :na_worktop_material
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Is a Material Id in the Library
+        # ------------------------------------------------------------
+        def self.na_known_material?(material_id)
+            Array(Na__AssemblyStudio::Na__AppData::Na__MaterialManager.na_get_all_material_ids).include?(material_id)
+        rescue StandardError
+            false
+        end
+        private_class_method :na_known_material?
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | A Library Material by Id (Nil = SketchUp's Default)

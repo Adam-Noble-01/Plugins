@@ -34,6 +34,9 @@
 #      Na__RunCills), what stands on the cill, and what each panel type
 #      gives up to the run: its cill and board (:cill_joined,
 #      :board_joined) and, fused, its whole frame (:frameless).
+#   8. Cabinets (V2.7.4): where one worktop runs over the base and drawer
+#      units (Na__RunCills.na_worktop_stretches). Its depth and height are
+#      the units' own, so the builder sizes it once the elements exist.
 #
 # THE LEG FRAME (millimetres, the run's own plan)
 #   s : along the leg from its first point. +y (left of the leg) is the side
@@ -162,7 +165,13 @@ module Na__AssemblyRunSystem
                 :unit_depth      => na_number(config, "UnitDepth_mm", errors),
                 :front_allowance => na_number(config, "FrontAllowance_mm", errors),
                 :corner_unit_leg => na_number(config, "CornerUnitLeg_mm", errors),
-                :filler_height   => na_number(config, "FillerHeight_mm", errors)
+                :filler_height   => na_number(config, "FillerHeight_mm", errors),
+                :worktop           => !frames && na_get(config, "Worktop") == true,   # <-- Cabinets only (V2.7.4)
+                :worktop_thickness => na_number(config, "WorktopThickness_mm", errors),
+                :worktop_overhang  => na_number(config, "WorktopOverhang_mm", errors),
+                :worktop_back      => na_number(config, "WorktopBackOverhang_mm", errors),
+                :worktop_end       => na_number(config, "WorktopEndOverhang_mm", errors),
+                :worktop_material  => na_get(config, "WorktopMaterialId").to_s.strip
             }
         end
         private_class_method :na_settings
@@ -492,7 +501,9 @@ module Na__AssemblyRunSystem
                         errors << "#{label}, item #{index + 1}: a #{kind.downcase} of #{na_trim(width)}mm is outside #{na_trim(low)} to #{na_trim(high)}."
                         next nil
                     end
-                    na_column(kind, width, index)
+                    column = na_column(kind, width, index)
+                    column[:worktop] = false if item["Worktop"] == false                 # <-- A cooker space: the worktop stops either side (V2.7.4)
+                    column
                 else
                     errors << "#{label}, item #{index + 1}: Kind must be Span or Column, not '#{item['Kind']}'."
                     nil
@@ -782,6 +793,8 @@ module Na__AssemblyRunSystem
 
             na_settle_types!(types, v, errors)
             cills, boards = na_run_cills!(legs, corners, types, closed, v, errors)
+            worktops      = na_run_worktops(legs, corners, types, closed, v)
+            cutouts       = na_worktop_cutouts(config, v, errors)
             {
                 :mode          => v[:mode],
                 :closed        => closed,
@@ -793,6 +806,8 @@ module Na__AssemblyRunSystem
                 :derived_types => derived,
                 :cills         => cills,
                 :boards        => boards,
+                :worktops      => worktops,
+                :worktop_cutouts => cutouts,
                 :warnings      => warnings.uniq,
                 :errors        => errors.uniq,
                 :total_length  => legs.sum { |leg| leg[:length] },
@@ -835,6 +850,59 @@ module Na__AssemblyRunSystem
             [found[:cills], found[:boards]]
         end
         private_class_method :na_run_cills!
+        # ---------------------------------------------------------------
+
+        # FUNCTION | One Worktop Along the Base and Drawer Units (V2.7.4)
+        # ------------------------------------------------------------
+        # Where it runs. How deep and how high it is are the units' own
+        # settings, known only once their elements are built: the builder
+        # sizes it (Na__FrameworkBuilder.na_build_worktops) and the dialog's
+        # preview from each product's starting values.
+        # @return [Array<Hash>] the worktop stretches (none when it is off)
+        def self.na_run_worktops(legs, corners, types, closed, v)
+            return [] unless v[:worktop] && !legs.empty?
+            stretches = RunCills.na_worktop_stretches(legs, corners, types, closed, v[:worktop_end])
+            stretches.each { |stretch| stretch.delete(:segments) }
+            stretches
+        end
+        private_class_method :na_run_worktops
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Worktop's Cut-Outs, Checked (V2.7.5)
+        # ------------------------------------------------------------
+        # Holes for a hob or a sink, notches for a sit-on sink: each an
+        # outline in the run's own plan (the agent seam turns a world
+        # rectangle into one), cut through every worktop it lies on by the
+        # builder. Cabinets only; a problem with one is named and refused.
+        # @return [Array<Hash>] { :index, :label, :outline => [[x, y] ...] }
+        def self.na_worktop_cutouts(config, v, errors)
+            rows = na_get(config, "WorktopCutouts")
+            return [] if v[:frames] || rows.nil?
+            unless rows.is_a?(Array)
+                errors << "WorktopCutouts must be a list of cut-outs."
+                return []
+            end
+            if rows.length > Defaults::NA_CUTOUT_MAX_COUNT
+                errors << "WorktopCutouts lists #{rows.length}; the most is #{Defaults::NA_CUTOUT_MAX_COUNT}."
+                return []
+            end
+            rows.each_with_index.filter_map do |row, index|
+                label   = row.is_a?(Hash) && !row["Label"].to_s.strip.empty? ? row["Label"].to_s.strip : "Cut-out #{index + 1}"
+                points  = row.is_a?(Hash) ? Array(row["Outline_mm"]) : []
+                outline = points.map { |point| point.is_a?(Array) && point.length >= 2 ? [na_to_float(point[0]), na_to_float(point[1])] : [nil, nil] }
+                if outline.length < 3 || outline.flatten.any?(&:nil?)
+                    errors << "WorktopCutouts #{label}: its outline needs three or more [x, y] points in mm."
+                    next nil
+                end
+                shortest = outline.each_index.map { |i| PathMath.na_distance(outline[i], outline[(i + 1) % outline.length]) }.min
+                if shortest < Defaults::NA_CUTOUT_MIN_SIDE_MM
+                    errors << "WorktopCutouts #{label}: a side is #{na_trim(shortest)}mm long; the least is #{na_trim(Defaults::NA_CUTOUT_MIN_SIDE_MM)}."
+                    next nil
+                end
+                { :index => index, :label => label, :outline => outline }
+            end
+        end
+        private_class_method :na_worktop_cutouts
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | The Width the Run's End Columns Take From a Leg

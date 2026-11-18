@@ -42,6 +42,13 @@
 //   so the strip proud of the framework face shows it wrapping the corners.
 //   In elevation it is a strip of the cill's height along each stretch.
 //
+// THE RUN'S ONE WORKTOP (V2.7.4, Cabinets)
+// - layout.worktops: each stretch one worktop runs along. Ruby sizes it for
+//   the preview from the first unit type's product start (outline,
+//   preview_front, preview_z0 / preview_z1); the build uses the units' own
+//   settings. In plan the outline is drawn under the units, so its front
+//   overhang and its run over gaps show; in elevation a strip at its height.
+//
 // WHICH WAY THE RUN FACES (V2.7.2)
 // - In plan each span carries a small arrowhead off its outer face, pointing
 //   to the side it is seen from. The preview panel says what they mean in the
@@ -82,6 +89,8 @@
     var NA_COLOUR_CORNER   = '#aab2bb';
     var NA_COLOUR_CILL     = '#e6d3b3';                                         // <-- The window tab's Sapele cill, lightened for a drawing
     var NA_COLOUR_CILL_INK = '#9c7d55';
+    var NA_COLOUR_WORKTOP  = '#dcd6cc';                                         // <-- A worktop, warm grey under the units (V2.7.4)
+    var NA_COLOUR_WORKTOP_INK = '#7a7062';
     var NA_COLOUR_LINE     = '#3a4450';
     var NA_COLOUR_PATH     = '#3a7fd5';
     var NA_COLOUR_MUTE     = '#687380';
@@ -403,6 +412,23 @@
             reach.right = Math.max(reach.right, settings.cill_projection || 0);
         });
 
+        // The run's one worktop, under the units (V2.7.4): its front overhang
+        // and its run over gaps show past them.
+        (layout.worktops || []).forEach(function (stretch) {
+            var outline = stretch.outline || {};
+            if (!outline.outer || outline.outer.length < 3) return;
+            var loops = [outline.outer].concat(outline.inner ? [outline.inner] : []);
+            var path  = loops.map(function (loop) {
+                return 'M' + loop.map(function (point) { return na_num(point[0]) + ',' + na_num(-point[1]); }).join(' L') + ' Z';
+            }).join(' ');
+            shapes.push('<path class="na-run-worktop" d="' + path + '" fill="' + NA_COLOUR_WORKTOP + '" fill-rule="evenodd" stroke="' + NA_COLOUR_WORKTOP_INK +
+                        '" stroke-width="1" vector-effect="non-scaling-stroke" style="pointer-events:none">' +
+                        na_title('One worktop, ' + (stretch.spans || []).length + ' units') + '</path>');
+            na_track(outline.outer);
+            reach.right = Math.max(reach.right, stretch.preview_front || 0);
+            reach.left  = Math.max(reach.left, settings.worktop_back || 0);
+        });
+
         (layout.corners || []).forEach(function (corner) {
             var leg_in = legs[corner.leg_in];
             if (corner.kind === 'CornerUnit' && leg_in) {
@@ -454,6 +480,16 @@
                     reach.right = Math.max(reach.right, NA_LIBRARY_PROUD);
                 }
             });
+        });
+
+        // The worktop's cut-outs (V2.7.5): drawn over the units, dashed, so a
+        // hob or a sink shows where the build cuts it.
+        (layout.worktop_cutouts || []).forEach(function (cutout) {
+            var outline = cutout.outline || [];
+            if (outline.length < 3) return;
+            shapes.push('<path class="na-run-cutout" d="M' + outline.map(function (point) { return na_num(point[0]) + ',' + na_num(-point[1]); }).join(' L') +
+                        ' Z" fill="#ffffff" fill-opacity="0.6" stroke="' + NA_COLOUR_WORKTOP_INK + '" stroke-width="1.2" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" style="pointer-events:none">' +
+                        na_title(String(cutout.label || 'Cut-out')) + '</path>');
         });
 
         (layout.points || []).forEach(function (point) { xs.push(point[0]); ys.push(-point[1]); });
@@ -676,6 +712,7 @@
                 else if (item.z1 !== undefined && item.z1 !== null) top = Math.max(top, item.z1);
             });
         });
+        (layout.worktops || []).forEach(function (stretch) { top = Math.max(top, Number(stretch.preview_z1) || 0); });   // <-- V2.7.4: a worktop stands above the units
         var height = top || NA_CABINET_HEIGHT;
 
         legs.forEach(function (leg) {
@@ -728,6 +765,21 @@
                 });
             });
         }
+
+        // The run's one worktop (V2.7.4): a strip at its height along each
+        // stretch, over the units' tops and across the gaps.
+        (layout.worktops || []).forEach(function (stretch) {
+            var z0 = Number(stretch.preview_z0);
+            var z1 = Number(stretch.preview_z1);
+            if (!(z1 > z0)) return;
+            (stretch.ranges || []).forEach(function (range) {
+                var entry = placed.filter(function (item) { return item.leg.index === range.leg; })[0];
+                if (!entry || !(range.s1 - range.s0 > 0.5)) return;
+                shapes.push(na_rect(entry.offset + range.s0, -z1, range.s1 - range.s0, z1 - z0,
+                    'class="na-run-worktop" fill="' + NA_COLOUR_WORKTOP + '" stroke="' + NA_COLOUR_WORKTOP_INK + '" stroke-width="1" vector-effect="non-scaling-stroke" style="pointer-events:none"',
+                    'One worktop, ' + na_fmt(z1 - z0) + 'mm'));
+            });
+        });
 
         var width = offset - gap;
         return { shapes: shapes, spans: spans, legs: placed, width: width, height: height,

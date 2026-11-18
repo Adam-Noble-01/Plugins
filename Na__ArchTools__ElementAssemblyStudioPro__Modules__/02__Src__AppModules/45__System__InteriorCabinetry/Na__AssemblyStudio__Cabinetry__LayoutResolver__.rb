@@ -156,13 +156,19 @@ module Na__InteriorCabinetrySystem
                                 na_choice(cfg, "TowerFrontLayout", ["Doors", "SplitDoors", "Open"]))
             shelves = is_wall ? na_number(cfg, "WallShelfCount", 0, 20) :
                       (is_base ? na_number(cfg, "BaseShelfCount", 0, 20) : na_number(cfg, "TowerShelfCount", 0, 20))
+            # V2.7.5: a floor unit with neither a plinth nor legs stands on the
+            # floor. Before, it stood on PlinthHeight_mm whatever the two
+            # switches said (SK02 R23, 18-Nov-2026: an open tall unit with both
+            # off built at z 150 to 2600, 150 into the slab above). On legs
+            # alone it keeps its height: the legs stand in that space.
+            raised  = na_flag(cfg, "PlinthEnabled") || na_flag(cfg, "LegsEnabled")
 
             {
                 :type             => type,
                 :width            => na_number(cfg, "Width_mm", 50, 3000),
                 :height           => height,
                 :depth            => depth,
-                :z_base           => is_wall ? na_number(cfg, "WallMountHeight_mm", 0, 4000) : na_number(cfg, "PlinthHeight_mm", 0, 400),
+                :z_base           => is_wall ? na_number(cfg, "WallMountHeight_mm", 0, 4000) : (raised ? na_number(cfg, "PlinthHeight_mm", 0, 400) : 0.0),
                 :board            => na_number(cfg, "BoardThickness_mm", 6, 50),
                 :back             => na_number(cfg, "BackPanelThickness_mm", 0, 40),
                 :back_inset       => [na_number(cfg, "BackPanelInset_mm", 0, 200), depth / 2.0].min,

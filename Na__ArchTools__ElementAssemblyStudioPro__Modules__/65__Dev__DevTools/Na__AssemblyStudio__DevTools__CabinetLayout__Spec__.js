@@ -171,6 +171,13 @@ na_suite('Tall larder and wardrobe');
     na_expect('Fixed shelf at the split', na_role(tall, 'fixedShelf').length, 1);
     na_expect('Handles meet at the split', tall.handles.map(h => h.anchor), ['bottom', 'top']);
 
+    // V2.7.5: with neither a plinth nor legs a floor unit stands on the floor (SK02 R23 stood 150 up)
+    const bare    = R.na_resolve(na_cfg('tall', { PlinthEnabled: false, LegsEnabled: false, TowerFrontLayout: 'Open', TowerDepth_mm: 200 }));
+    const onLegs  = R.na_resolve(na_cfg('tall', { PlinthEnabled: false, LegsEnabled: true }));
+    const plinthd = R.na_resolve(na_cfg('tall', { PlinthEnabled: true, LegsEnabled: false }));
+    na_expect('Plinth and legs off: on the floor, no plinth, no legs', [bare.values.zBase, !!bare.plinth, (bare.legs || []).length], [0, false, 0]);
+    na_expect('Legs only, or a plinth only: 150 up', [onLegs.values.zBase, plinthd.values.zBase], [150, 150]);
+
     const robe = R.na_resolve(na_cfg('wardrobe'));
     na_expect('Wardrobe 2150 x 600 on 150', [robe.values.height, robe.values.depth, robe.values.zBase], [2150, 600, 150]);
     na_expect('Hat shelf and hanging rail', [na_role(robe, 'hatShelf').length, !!robe.rail], [1, true]);

@@ -82,6 +82,10 @@ module Na__AssemblyRunSystem
         # What a joined cill takes over from an element (V2.7.3).
         NA_JOIN_KEYS = %w[has_cill window_board_enabled].freeze
 
+        # A cabinet element's lowest point further above its origin than
+        # this, when it should stand on the floor, is built again (V2.7.5).
+        NA_FLOOR_TOLERANCE_MM = 0.5
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -141,19 +145,29 @@ module Na__AssemblyRunSystem
         # A cabinet fill makes the narrower types it needs (the resolver's
         # :derived_types). They join the rows so their elements are kept; a
         # fill-made type no leg uses any more is dropped.
+        # A new one starts as its parent would (V2.7.4): the parent's element
+        # when it has one (na_seed_root), else the parent's seed, preset and
+        # values, copied here. An Equal fill gives EVERY span the derived
+        # width, so the parent itself is never built: before 2.7.4 the
+        # derived type then came out at the product's start, losing the
+        # parent's values (SK02 ARN012, 17-Nov-2026: a 430-deep, 300-high
+        # open base built 560 deep and 720 high).
         def self.na_adopt_derived!(config, layout)
             rows = na_rows(config)
             layout[:derived_types].each do |code|
                 next if na_row(config, code)
                 type   = layout[:types][code]
                 parent = na_row(config, type[:derived_from]) || {}
+                seeded = parent["SeedRoot"].is_a?(Hash)
                 rows << {
                     "Code"        => code,
                     "Product"     => type[:product],
                     "Width_mm"    => type[:width],
                     "Auto"        => true,
                     "DerivedFrom" => type[:derived_from],
-                    "SeedRoot"    => parent["SeedRoot"] ? na_deep_copy(parent["SeedRoot"]) : nil,
+                    "SeedRoot"    => seeded ? na_deep_copy(parent["SeedRoot"]) : nil,
+                    "PresetCode"  => seeded || parent["PresetCode"].to_s.strip.empty? ? nil : parent["PresetCode"],
+                    "Values"      => seeded || !parent["Values"].is_a?(Hash) ? nil : na_deep_copy(parent["Values"]),
                     "SeedFrom"    => type[:derived_from]
                 }.compact
             end
@@ -386,13 +400,16 @@ module Na__AssemblyRunSystem
         # SUB FUNCTION | Rebuild a Standing Element When Its Size Has Changed
         # ------------------------------------------------------------
         # Rebuilding one member rebuilds the definition, so every span of
-        # the type follows. Nothing is rebuilt when nothing changed.
+        # the type follows. Nothing is rebuilt when nothing changed, except
+        # a cabinet still standing where an older version put it (V2.7.5,
+        # na_cabinet_off_floor?).
         def self.na_resize_standing!(system, member, row, type, fuse, tail)
             element = na_seam.na_element_of(member)
             root    = element["root"]
             changed = na_apply_size!(system, root, row, type, fuse)
             na_check_buildable!(system, type, root) if changed
             if system == NA_SYSTEM_CABINETS
+                changed ||= na_cabinet_off_floor?(member, root)
                 na_cabinet_router.na_pipeline_update(member, root) if changed
                 current = na_cabinet_metadata(root)["Na__Cabinet__ComponentName"].to_s
                 na_cabinet_router.na_pipeline_rename(member, tail) unless current == tail
@@ -403,6 +420,26 @@ module Na__AssemblyRunSystem
             DebugTools.na_debug_geometry("Run panel type #{type[:code]}: #{changed ? 'rebuilt' : 'kept'} at #{type[:width].round(1)}mm")
         end
         private_class_method :na_resize_standing!
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Does a Cabinet Stand Off the Floor It Should Now Stand On (V2.7.5)
+        # ------------------------------------------------------------
+        # Before 2.7.5 a floor unit with neither a plinth nor legs still
+        # stood on PlinthHeight_mm (SK02 R23, 150 into the slab above). Its
+        # element keeps that geometry until it is built again, while the
+        # run's worktop and infill blocks follow the new rule (the unit's
+        # top from the floor). So the run builds such an element again; one
+        # already on the floor (PlinthHeight_mm 0, or built by 2.7.5) is kept.
+        def self.na_cabinet_off_floor?(member, root)
+            values = root[NA_CONFIG_BLOCKS[NA_SYSTEM_CABINETS]] || {}
+            unit   = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__LayoutResolver.na_effective(values)
+            return false if unit[:type] == "Wall" || unit[:z_base] > 0.0
+            member.definition.bounds.min.z.to_mm > NA_FLOOR_TOLERANCE_MM
+        rescue StandardError => e
+            DebugTools.na_debug_warn("Run cabinet floor check skipped: #{e.message}")
+            false
+        end
+        private_class_method :na_cabinet_off_floor?
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | The Payload a New Element Starts From

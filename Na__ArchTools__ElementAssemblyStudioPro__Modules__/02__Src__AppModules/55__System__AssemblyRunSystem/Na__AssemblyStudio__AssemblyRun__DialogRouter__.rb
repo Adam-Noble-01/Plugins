@@ -76,6 +76,7 @@ module Na__AssemblyRunSystem
         PathMeasureTool = Na__AssemblyStudio::Na__MeasurementTools::Na__RunPathMeasureTool
         Defaults        = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__Defaults
         PathMath        = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__PathMath
+        RunCills        = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__RunCills
         LayoutResolver  = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__LayoutResolver
         DataSerializer  = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__DataSerializer
         ColumnLibrary   = Na__AssemblyStudio::Na__AssemblyRunSystem::Na__ColumnLibrary
@@ -267,9 +268,52 @@ module Na__AssemblyRunSystem
                 next unless heights
                 type["preview_z0"], type["preview_z1"] = heights
             end
+            na_preview_worktops!(report, layout)
             report
         end
         private_class_method :na_preview_report
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Each Worktop's Plan Outline and Height for the Preview (V2.7.4)
+        # ------------------------------------------------------------
+        # The build sizes a worktop from the units' own settings. The preview
+        # takes them from the first unit type's product start, as it takes
+        # the units' heights: preview_z0 / preview_z1, preview_front (mm
+        # from the path to the front edge) and the outline in plan.
+        def self.na_preview_worktops!(report, layout)
+            v = layout[:settings]
+            Array(layout[:worktops]).each_with_index do |stretch, index|
+                row  = Array(report["worktops"])[index]
+                type = layout[:types][stretch[:types].first] || {}
+                unit = na_product_worktop_base(type[:product])
+                next unless row && unit
+                front   = unit[:front] + v[:worktop_overhang].to_f
+                outline = RunCills.na_band_outline(stretch[:centreline], -front, v[:worktop_back].to_f, stretch[:closed])
+                rounded = lambda { |loop_points| loop_points && loop_points.map { |point| point.map { |value| value.round(2) } } }
+                row["outline"]       = { "outer" => rounded.call(outline[:outer]), "inner" => rounded.call(outline[:inner]) }
+                row["preview_front"] = front.round(2)
+                row["preview_z0"]    = unit[:top].round(2)
+                row["preview_z1"]    = (unit[:top] + v[:worktop_thickness].to_f).round(2)
+            end
+        end
+        private_class_method :na_preview_worktops!
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | A Cabinet Product's Top and Front, From Its Start (V2.7.4)
+        # ------------------------------------------------------------
+        # @return [Hash, nil] { :top (plinth and carcass), :front (carcass and door) } mm
+        def self.na_product_worktop_base(product)
+            @na_product_worktop_base ||= {}
+            return @na_product_worktop_base[product] if @na_product_worktop_base.key?(product)
+            values = Na__AssemblyStudio::Na__McpOperations.na_fresh_root(product)["Na__CabinetConfiguration"] || {}
+            unit   = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__LayoutResolver.na_effective(values)
+            @na_product_worktop_base[product] = { :top   => unit[:z_base] + unit[:height],
+                                                  :front => unit[:depth] + (unit[:layout] == "Open" ? 0.0 : unit[:front_thickness]) }
+        rescue StandardError => e
+            DebugTools.na_debug_warn("Run preview worktop for '#{product}' unavailable: #{e.message}")
+            @na_product_worktop_base[product] = nil
+        end
+        private_class_method :na_product_worktop_base
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | Where a Cabinet Product Starts and Stops, Above the Floor

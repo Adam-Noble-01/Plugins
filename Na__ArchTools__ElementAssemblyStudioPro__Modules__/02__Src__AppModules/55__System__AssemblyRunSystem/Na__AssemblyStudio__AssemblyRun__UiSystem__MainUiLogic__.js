@@ -522,6 +522,7 @@
             ' Nothing moves along the path; leg 1 becomes the last leg.</span></div>';
         var fused  = frames && na_get('FuseFramework') === true;
         var joined = frames && (fused || na_get('JoinCills') !== false);                   // <-- Ruby's rule (Na__LayoutResolver): a fused run always joins its cills
+        var worktop = !frames && na_get('Worktop') !== false;                              // <-- Cabinets only (V2.7.4)
         if (frames) {
             body += na_field('Height', na_number('Height_mm'), 'Base to the top of the frames') +
                     '<div class="na-run-field na-run-field--full">' + na_toggle('FuseFramework', 'Fuse the framework') +
@@ -548,11 +549,23 @@
         } else {
             body += na_field('Unit depth', na_number('UnitDepth_mm'), 'Carcass depth: corners and infill blocks') +
                     na_field('Infill height', na_number('FillerHeight_mm'), 'When no unit stands beside the block');
+            // One worktop along the base and drawer units (V2.7.4), mitred round
+            // every corner, on the units' own tops; its depth is their fronts'.
+            body += '<div class="na-run-field na-run-field--full"><label class="na-run-toggle"><input type="checkbox" data-na-act="set-flag" data-na-key="Worktop"' +
+                    (worktop ? ' checked' : '') + '><span>One worktop along the run</span></label>' +
+                    '<span class="na-run-field__note">One worktop over each stretch of base and drawer units, mitred round every corner, on the units\' tops. ' +
+                    'Infill blocks and gaps carry it (untick a gap\'s worktop for a cooker space); a wall, tall or wardrobe unit breaks it.</span></div>';
+            if (worktop) {
+                body += na_field('Worktop thickness', na_number('WorktopThickness_mm')) +
+                        na_field('Front overhang', na_number('WorktopOverhang_mm'), 'Past the units\' fronts') +
+                        na_field('Back overhang', na_number('WorktopBackOverhang_mm'), 'Behind the wall line: an island\'s far side') +
+                        na_field('End overhang', na_number('WorktopEndOverhang_mm'), 'Past each free end of the run');
+            }
         }
         body += '</div>';
         var summary = frames ? (na_trim(na_get('Height_mm')) + ' high' + (fused ? ' · fused, ' + na_trim(na_get('MullionWidth_mm')) + ' mullions' : '') +
                                 (joined ? ' · one ' + na_trim(na_get('CillHeight_mm')) + ' cill' : ''))
-                             : (na_trim(na_get('UnitDepth_mm')) + ' deep');
+                             : (na_trim(na_get('UnitDepth_mm')) + ' deep' + (worktop ? ' · ' + na_trim(na_get('WorktopThickness_mm')) + ' worktop' : ''));
         return na_section('run', 'Run', summary, body);
     }
 
@@ -644,7 +657,12 @@
                 return '<span class="na-run-chip' + (span ? ' na-run-chip--span' : '') + '">' +
                        (span ? na_type_select('item-type', item.PanelType, ' data-na-leg="' + index + '" data-na-index="' + place + '" title="This span\'s panel type, or another kind of panel (at the foot of the list)"')
                              : na_escape(na_column_label(item.Column).split(' (')[0]) + (item.Column === 'Infill' || item.Column === 'Gap'
-                                 ? ' <input type="number" class="na-run-input na-run-input--mini" data-na-act="item-width" data-na-leg="' + index + '" data-na-index="' + place + '" value="' + na_escape(na_trim(item.Width_mm)) + '" step="5">' : '')) +
+                                 ? ' <input type="number" class="na-run-input na-run-input--mini" data-na-act="item-width" data-na-leg="' + index + '" data-na-index="' + place + '" value="' + na_escape(na_trim(item.Width_mm)) + '" step="5">' +
+                                   // V2.7.4: a Cabinets run's worktop over this block or gap; unticked, it stops either side (a cooker space)
+                                   (!na_is_frames() && na_get('Worktop') !== false
+                                       ? ' <label class="na-run-toggle" title="Untick for a cooker space: the worktop stops either side"><input type="checkbox" data-na-act="item-worktop" data-na-leg="' + index + '" data-na-index="' + place + '"' +
+                                         (item.Worktop === false ? '' : ' checked') + '><span>worktop</span></label>' : '')
+                                 : '')) +
                        '<button type="button" class="na-run-x" data-na-act="item-remove" data-na-leg="' + index + '" data-na-index="' + place + '" title="Remove">×</button></span>';
             }).join('') + '</div><div class="na-run-actions">' +
                 '<button type="button" class="na-run-btn" data-na-act="item-add-span" data-na-leg="' + index + '">+ Span</button>' +
@@ -1005,6 +1023,10 @@
             rows[leg].Items[index].PanelType = target.value;
             break;
         case 'item-width': rows[leg].Items[index].Width_mm = na_number_of(target); break;
+        case 'item-worktop':                                                                     // <-- V2.7.4: stored only when off, as Ruby reads it
+            if (target.checked) delete rows[leg].Items[index].Worktop;
+            else rows[leg].Items[index].Worktop = false;
+            break;
         case 'type-code':
             if (!na_recode(types[index].Code, target.value)) { target.value = types[index].Code; return; }
             break;

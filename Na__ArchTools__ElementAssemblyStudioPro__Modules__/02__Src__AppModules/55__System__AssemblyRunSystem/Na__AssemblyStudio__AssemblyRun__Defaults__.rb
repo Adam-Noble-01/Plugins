@@ -143,6 +143,11 @@ module Na__AssemblyRunSystem
         NA_WINDOW_PRODUCTS = %w[casement sash].freeze
         NA_SILL_PRODUCTS   = NA_WINDOW_PRODUCTS
 
+        # The cabinet products a run's worktop lies on (V2.7.4). A wall,
+        # tall or wardrobe span breaks it; infill blocks and gaps (appliance
+        # spaces) carry it unless a gap item says Worktop false (a cooker).
+        NA_WORKTOP_PRODUCTS = %w[base drawers].freeze
+
         NA_ITEM_SPAN                = "Span".freeze
         NA_ITEM_COLUMN              = "Column".freeze
 
@@ -260,8 +265,18 @@ module Na__AssemblyRunSystem
             "StandardWidth_mm"     => [150.0, 1500.0],
             "MinInfillWidth_mm"    => [50.0, 600.0],
             "CillHeight_mm"        => [0.0, 300.0],                              # <-- 0: one line of panels with no cill at all
-            "CillProjection_mm"    => [0.0, 300.0]
+            "CillProjection_mm"    => [0.0, 300.0],
+            "WorktopThickness_mm"  => [10.0, 200.0],
+            "WorktopOverhang_mm"   => [0.0, 1500.0],                             # <-- V2.7.5: 1500, a table end on a peninsula (600 was too few for SK02's island)
+            "WorktopBackOverhang_mm" => [0.0, 1500.0],                           # <-- SK02's island, KT01: 695 behind the hob run
+            "WorktopEndOverhang_mm"  => [0.0, 1500.0]
         }.freeze
+
+        # A worktop cut-out (V2.7.5): its outline is kept in the run's own
+        # plan, so it moves with the run. Fewer than three points, or a side
+        # shorter than this, is refused.
+        NA_CUTOUT_MIN_SIDE_MM       = 10.0
+        NA_CUTOUT_MAX_COUNT         = 40
 
         NA_MIN_LEG_MM               = 50.0
         NA_MAX_LEGS                 = 24
@@ -302,6 +317,13 @@ module Na__AssemblyRunSystem
             "Na__RunConfig__FrontAllowance_mm" => 25,                            # <-- Cabinets: fronts and handles in front of the carcass, for a blind corner
             "Na__RunConfig__CornerUnitLeg_mm"  => 900,                           # <-- Cabinets: each arm of an L-shaped corner unit, along its wall
             "Na__RunConfig__FillerHeight_mm"   => 870,                           # <-- Cabinets: infill blocks stand this tall
+            "Na__RunConfig__Worktop"           => true,                          # <-- Cabinets: ONE worktop per stretch of base and drawer units, mitred round every corner (V2.7.4)
+            "Na__RunConfig__WorktopThickness_mm"    => 40,
+            "Na__RunConfig__WorktopOverhang_mm"     => 25,                       # <-- Past the units' fronts
+            "Na__RunConfig__WorktopBackOverhang_mm" => 0,                        # <-- Behind the path (the wall line): an island's far side
+            "Na__RunConfig__WorktopEndOverhang_mm"  => 0,                        # <-- Past each free end of an open path
+            "Na__RunConfig__WorktopMaterialId"      => "",                       # <-- A library material id; empty: the carcass finish of the units under it
+            "Na__RunConfig__WorktopCutouts"         => [],                       # <-- V2.7.5: [{ "Label" => "Hob", "Outline_mm" => [[x, y] ...] }] in the run's own plan: holes, or notches where they reach an edge
             "Na__RunConfig__Legs"              => [],                            # <-- One entry per leg: { "Items" => [...] } or { "Fill" => {...} }
             "Na__RunConfig__Corners"           => [],                            # <-- Per-corner overrides: { "Column" => "Vale260" }
             "Na__RunConfig__PanelTypes"        => []                             # <-- { "Code", "Product", "Width_mm", "Height_mm", "SillHeight_mm", "ElementId", ... }
