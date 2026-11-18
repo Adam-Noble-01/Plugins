@@ -362,8 +362,8 @@ module Na__NobleDrawingTools
             )
             raise 'a chamfer plane could not be created in the batch' unless chamfer_face
 
-            session_bisector = solve[:bisector_local].transform(build_transform)
-            chamfer_face.reverse! if session_bisector.valid? && chamfer_face.normal.dot(session_bisector) > 0.0
+            # Facing the air, convex or internal (5.2.46).
+            Na__NobleDrawingTools.Na__DrawnChamfer__FaceTheAir(chamfer_face, solve, build_transform)
 
             source = quad_dress[index]
             chamfer_face.material      = source[:material]      if source[:material]

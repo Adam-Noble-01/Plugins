@@ -1,0 +1,362 @@
+# Na Noble Drawing Tools - Edge Tools Test Bed (live, in its own window only)
+# Builds each case twice: BEFORE (left uncut, for Adam to try by hand) and AFTER
+# (cut through the tool's own commit, na_drawn__commit_chamfer), measures the
+# AFTER piece, and labels the pair. Load it, then call NaEdgeTestBed.row(:a) etc.
+
+module NaEdgeTestBed
+
+    NA      = Na__NobleDrawingTools
+    SETBACK = 40.0
+    WEDGE   = 0.5 * SETBACK * SETBACK
+    ROUND   = (1.0 - Math::PI / 4.0) * SETBACK * SETBACK
+    OVERLAP = SETBACK**3 / 3.0
+
+    @results = []
+    class << self; attr_reader :results; end
+
+    def self.model; Sketchup.active_model; end
+    def self.pt(x, y, z); Geom::Point3d.new(x.mm, y.mm, z.mm); end
+
+    # ------------------------------------------------------------------
+    # Builders: every piece in its own group's LOCAL frame (mm).
+    # ------------------------------------------------------------------
+    def self.prism(ents, poly, z0, height)
+        face = ents.add_face(poly.map { |x, y| pt(x, y, z0) })
+        face.reverse! if face.normal.z < 0
+        face.pushpull(height.mm)
+    end
+
+    L_POLY = [[0, 0], [3000, 0], [3000, 200], [200, 200], [200, 3000], [0, 3000]]
+    NOTCH  = [[0, 0], [800, 0], [800, 300], [1400, 300], [1400, 0], [2200, 0], [2200, 1000], [0, 1000]]
+    BOX    = [[0, 0], [1000, 0], [1000, 600], [0, 600]]
+    MCKAY  = [[13435.0, 33350.0], [13435.0, 19475.0], [12069.0, 19475.0], [10395.0, 17882.2],
+              [10395.0, 15602.8], [12069.0, 14010.0], [20045.0, 14010.0], [20045.0, 9960.0],
+              [25040.0, 9960.0], [25040.0, 14010.0], [25300.0, 14010.0], [25300.0, 18885.0],
+              [26370.0, 18885.0], [26370.0, 26638.4], [25260.0, 26638.4], [25260.0, 33350.0]].map { |x, y| [x - 10395.0, y - 9960.0] }
+
+    def self.build_l(ents); prism(ents, L_POLY, 0, 100); end
+    def self.build_notch(ents); prism(ents, NOTCH, 0, 150); end
+    def self.build_box(ents); prism(ents, BOX, 0, 300); end
+    def self.build_mckay(ents); prism(ents, MCKAY, 0, 140); end
+
+    def self.build_ngon(ents, sides)
+        poly = (0...sides).map { |i| a = 2 * Math::PI * i / sides; [600 + 600 * Math.cos(a), 600 + 600 * Math.sin(a)] }
+        prism(ents, poly, 0, 200)
+    end
+
+    # The step: an L section in x-z, run 800 along y.
+    def self.build_step(ents)
+        face = ents.add_face([[0, 0], [1000, 0], [1000, 200], [500, 200], [500, 400], [0, 400]].map { |x, z| pt(x, 0, z) })
+        face.reverse! if face.normal.y > 0
+        face.pushpull(800.mm)                                                 # <-- Out along -y: y 0 to -800
+    end
+
+    # A block with a pocket: 1000 x 600 x 300, pocket 600 x 300, 150 deep.
+    def self.build_tray(ents)
+        prism(ents, BOX, 0, 300)
+        top    = ents.grep(Sketchup::Face).find { |f| f.normal.z > 0.99 && f.vertices.all? { |v| (v.position.z.to_mm - 300).abs < 0.01 } }
+        pocket = ents.add_face([[200, 150], [800, 150], [800, 450], [200, 450]].map { |x, y| pt(x, y, 300) })
+        raise 'the pocket did not split the top' unless pocket && top && pocket != top
+        pocket.reverse! if pocket.normal.z < 0
+        pocket.pushpull(-150.mm)
+    end
+
+    # 2000 square, 100 deep, a 600 square opening through it.
+    def self.build_holed(ents)
+        outer = ents.add_face([[0, 0], [2000, 0], [2000, 2000], [0, 2000]].map { |x, y| pt(x, y, 0) })
+        inner = ents.add_face([[700, 700], [1300, 700], [1300, 1300], [700, 1300]].map { |x, y| pt(x, y, 0) })
+        inner.erase!
+        outer.reverse! if outer.normal.z < 0
+        outer.pushpull(100.mm)
+    end
+
+    # One side leans in: the top's front edge is 100 back from the bottom's.
+    def self.build_battered(ents)
+        b = [pt(0, 0, 0), pt(1000, 0, 0), pt(1000, 600, 0), pt(0, 600, 0)]
+        t = [pt(0, 100, 300), pt(1000, 100, 300), pt(1000, 600, 300), pt(0, 600, 300)]
+        [[b.reverse, [0, 0, -1]], [t, [0, 0, 1]], [[b[0], b[1], t[1], t[0]], [0, -3, 1]], [[b[1], b[2], t[2], t[1]], [1, 0, 0]],
+         [[b[2], b[3], t[3], t[2]], [0, 1, 0]], [[b[3], b[0], t[0], t[3]], [-1, 0, 0]]].each do |pts, out|
+            face = ents.add_face(pts)
+            face.reverse! if face.normal.dot(Geom::Vector3d.new(*out)) < 0
+        end
+    end
+
+    def self.build_pyramid(ents)
+        base = [pt(0, 0, 0), pt(1000, 0, 0), pt(1000, 1000, 0), pt(0, 1000, 0)]
+        apex = pt(500, 500, 600)
+        face = ents.add_face(base)
+        face.reverse! if face.normal.z > 0
+        outs = [[0, -1, 1], [1, 0, 1], [0, 1, 1], [-1, 0, 1]]
+        4.times do |i|
+            tri = ents.add_face(base[i], base[(i + 1) % 4], apex)
+            tri.reverse! if tri.normal.dot(Geom::Vector3d.new(*outs[i])) < 0
+        end
+    end
+
+    # ------------------------------------------------------------------
+    # Reading back, local mm.
+    # ------------------------------------------------------------------
+    def self.ents_of(group); group.definition.entities; end
+    def self.lmm(v); [v.position.x.to_mm, v.position.y.to_mm, v.position.z.to_mm]; end
+
+    def self.edge_at(group, a, b)
+        ents_of(group).grep(Sketchup::Edge).find do |e|
+            ps = e.vertices.map { |v| lmm(v) }
+            [a, b].all? { |c| ps.any? { |p| (0..2).all? { |k| (p[k] - c[k]).abs < 0.01 } } }
+        end
+    end
+
+    def self.edges_at_z(group, z)
+        ents_of(group).grep(Sketchup::Edge).select { |e| e.vertices.all? { |v| (v.position.z.to_mm - z).abs < 0.01 } }
+    end
+
+    def self.volume(group)
+        ents_of(group).grep(Sketchup::Face).sum(0.0) do |f|
+            f.loops.sum(0.0) do |lp|
+                pts = lp.vertices.map { |v| lmm(v) }
+                nx = ny = nz = 0.0
+                pts.each_index do |i|
+                    a = pts[i]
+                    b = pts[(i + 1) % pts.length]
+                    nx += (a[1] - b[1]) * (a[2] + b[2])
+                    ny += (a[2] - b[2]) * (a[0] + b[0])
+                    nz += (a[0] - b[0]) * (a[1] + b[1])
+                end
+                (pts[0][0] * nx + pts[0][1] * ny + pts[0][2] * nz) / 6.0
+            end
+        end
+    end
+
+    def self.closed?(group); ents_of(group).grep(Sketchup::Edge).all? { |e| e.faces.length == 2 }; end
+
+    def self.consistent?(group)
+        ents_of(group).grep(Sketchup::Edge).all? do |e|
+            fs = e.faces
+            fs.length != 2 || e.reversed_in?(fs[0]) != e.reversed_in?(fs[1])
+        end
+    end
+
+    # ------------------------------------------------------------------
+    # Placing, cutting, labelling.
+    # ------------------------------------------------------------------
+    def self.make_group(parent_ents, name, builder, origin, extra = nil)
+        group = parent_ents.add_group
+        group.name = name
+        send(builder, group.entities, *[extra].compact)
+        group.transformation = Geom::Transformation.translation(Geom::Vector3d.new(origin[0].mm, origin[1].mm, origin[2].mm))
+        group
+    end
+
+    def self.label(text, origin, height = 120)
+        group = model.entities.add_group
+        group.name = "LABEL__#{text[/\A[A-Z]\d+/] || 'Note'}"
+        group.entities.add_3d_text(text, TextAlignLeft, 'Arial', false, false, height.mm, 0.0, 0.0, true, 0.0)
+        group.transformation = Geom::Transformation.translation(Geom::Vector3d.new(origin[0].mm, origin[1].mm, 0))
+        group
+    end
+
+    # The tool's own commit, as a drag ends: target, batch, setback.
+    def self.commit(klass, group_path, edges)
+        xform   = group_path.reduce(Geom::Transformation.new) { |acc, g| acc * g.transformation }
+        targets = edges.map { |e| NA.Na__DeepPick__BuildEdgeTarget(e, group_path, xform) }
+        tool    = klass.new
+        notes   = []
+        tool.define_singleton_method(:na_revise__notice) { |message| notes << message.to_s }
+        tool.instance_variable_set(:@na_ch_target, targets.first)
+        tool.instance_variable_set(:@na_ch_batch, targets)
+        tool.instance_variable_set(:@na_size_d, SETBACK.mm)
+        ok = tool.na_drawn__commit_chamfer(model.active_view)
+        [ok, notes]
+    end
+
+    # One case: BEFORE at origin, AFTER at origin + [0, after_dy], cut, measured, labelled.
+    #   pick: lambda(group) -> edges; expect: Numeric (exact dV), [lo, hi], :refused, or nil
+    def self.case!(id, title, builder, origin, after_dy, klass, pick, expect, extra = nil)
+        kind   = klass == NA::DrawnChamferTool ? 'Chamfer' : 'Fillet'
+        slug   = title.gsub(/[^A-Za-z0-9]+/, '_').sub(/_\z/, '')
+        model.start_operation("Test Bed: build #{id}", true)
+        before = make_group(model.entities, "TEST__#{id}__#{slug}__Before", builder, origin, extra)
+        after  = make_group(model.entities, "TEST__#{id}__#{slug}__After__#{kind}", builder, [origin[0], origin[1] + after_dy, origin[2]], extra)
+        model.commit_operation
+        v0     = volume(after)
+        f0     = ents_of(after).grep(Sketchup::Face).length
+        edges  = pick.call(after)
+        raise "#{id}: an edge to cut was not found" if edges.any?(&:nil?)
+
+        ok, notes = commit(klass, [after], edges)
+        row = verdict(id, title, kind, after, v0, f0, ok, notes, expect)
+        model.start_operation("Test Bed: label #{id}", true)
+        label("#{id}  #{title}  (#{kind}, #{edges.length} edge#{edges.length == 1 ? '' : 's'}): #{row[:verdict]}", [origin[0], origin[1] - 450])
+        model.commit_operation
+        @results << row
+        row
+    end
+
+    def self.verdict(id, title, kind, after, v0, f0, ok, notes, expect)
+        after  = model.entities.grep(Sketchup::Group).find { |g| g.name == after.name } || after
+        v      = volume(after)
+        closed = closed?(after)
+        cons   = consistent?(after)
+        dv     = v - v0
+        faces  = ents_of(after).grep(Sketchup::Face).length
+        good   =
+            if expect == :refused
+                !ok && faces == f0 && dv.abs < 1.0
+            else
+                ok && closed && cons && v > 0 &&
+                    (expect.nil? || (expect.is_a?(Numeric) ? (dv - expect).abs < 1.0 : (dv > expect.min && dv < expect.max)))
+            end
+        word = expect == :refused ? (good ? 'REFUSED, unchanged' : 'NOT REFUSED') : (good ? 'OK' : 'FAIL')
+        { :id => id, :title => title, :kind => kind, :ok => ok, :closed => closed, :consistent => cons, :dv => dv.round(1),
+          :expect => expect, :notes => notes, :verdict => word, :pass => good }
+    end
+
+    # ------------------------------------------------------------------
+    # The rows. y is each row's front; AFTER pieces sit 3500 behind.
+    # ------------------------------------------------------------------
+    CH = NA::DrawnChamferTool
+    FI = NA::DrawnFilletTool
+
+    def self.row(which)
+        send("row_#{which}")
+        @results.select { |r| r[:id].start_with?(which.to_s.upcase) }
+    end
+
+    def self.row_a
+        y = 0
+        case!('A1', 'L inner edge y200 alone, inside-corner end', :build_l, [0, y, 0], 3500, CH, ->(g) { [edge_at(g, [3000, 200, 100], [200, 200, 100])] }, -WEDGE * 2800)
+        case!('A2', 'L inner edge x200 alone, inside-corner end', :build_l, [4000, y, 0], 3500, CH, ->(g) { [edge_at(g, [200, 200, 100], [200, 3000, 100])] }, -WEDGE * 2800)
+        case!('A3', 'Notch left side alone', :build_notch, [8000, y, 0], 3500, CH, ->(g) { [edge_at(g, [800, 0, 150], [800, 300, 150])] }, -WEDGE * 300)
+        case!('A4', 'Notch right side alone', :build_notch, [11000, y, 0], 3500, CH, ->(g) { [edge_at(g, [1400, 300, 150], [1400, 0, 150])] }, -WEDGE * 300)
+        case!('A5', 'Notch back alone, inside corners both ends', :build_notch, [14000, y, 0], 3500, CH, ->(g) { [edge_at(g, [800, 300, 150], [1400, 300, 150])] }, -WEDGE * 600)
+        case!('A6', 'L inner edge y200 alone, inside-corner end', :build_l, [17000, y, 0], 3500, FI, ->(g) { [edge_at(g, [3000, 200, 100], [200, 200, 100])] }, [-WEDGE * 2800, -ROUND * 2800])
+        case!('A7', 'Notch back alone, inside corners both ends', :build_notch, [21000, y, 0], 3500, FI, ->(g) { [edge_at(g, [800, 300, 150], [1400, 300, 150])] }, [-WEDGE * 600, -ROUND * 600])
+    end
+
+    def self.row_b
+        y = 9000
+        case!('B1', 'L internal upright, fills', :build_l, [0, y, 0], 3500, CH, ->(g) { [edge_at(g, [200, 200, 0], [200, 200, 100])] }, WEDGE * 100)
+        case!('B2', 'Step, tread to riser, fills', :build_step, [4000, y + 800, 0], 3500, CH, ->(g) { [edge_at(g, [500, 0, 200], [500, -800, 200])] }, WEDGE * 800)
+        case!('B3', 'Pocket floor edge, fills', :build_tray, [6000, y, 0], 3500, CH, ->(g) { [edge_at(g, [200, 150, 150], [800, 150, 150])] }, WEDGE * 600)
+        case!('B4', 'L internal upright, fills', :build_l, [8000, y, 0], 3500, FI, ->(g) { [edge_at(g, [200, 200, 0], [200, 200, 100])] }, [ROUND * 100, WEDGE * 100])
+        case!('B5', 'Step, tread to riser, fills', :build_step, [12000, y + 800, 0], 3500, FI, ->(g) { [edge_at(g, [500, 0, 200], [500, -800, 200])] }, [ROUND * 800, WEDGE * 800])
+        case!('B6', 'Pocket floor edge, fills', :build_tray, [14000, y, 0], 3500, FI, ->(g) { [edge_at(g, [200, 150, 150], [800, 150, 150])] }, [ROUND * 600, WEDGE * 600])
+    end
+
+    FLOOR = [[[200, 150, 150], [800, 150, 150]], [[800, 150, 150], [800, 450, 150]], [[800, 450, 150], [200, 450, 150]], [[200, 450, 150], [200, 150, 150]]]
+    INNER = [[[200, 150, 150], [800, 150, 150]], [[200, 450, 150], [200, 150, 150]], [[200, 150, 150], [200, 150, 300]]]
+    RIM   = [[[200, 150, 300], [800, 150, 300]], [[800, 150, 300], [800, 450, 300]], [[800, 450, 300], [200, 450, 300]], [[200, 450, 300], [200, 150, 300]]]
+    HOLE  = [[[700, 700, 100], [1300, 700, 100]], [[1300, 700, 100], [1300, 1300, 100]], [[1300, 1300, 100], [700, 1300, 100]], [[700, 1300, 100], [700, 700, 100]]]
+
+    def self.row_c
+        y = 18000
+        case!('C1', 'Pocket, four floor edges, inside mitres', :build_tray, [0, y, 0], 2500, CH, ->(g) { FLOOR.map { |a, b| edge_at(g, a, b) } }, WEDGE * 1800 - 4 * OVERLAP)
+        case!('C2', 'Pocket, four floor edges, inside mitres', :build_tray, [2000, y, 0], 2500, FI, ->(g) { FLOOR.map { |a, b| edge_at(g, a, b) } }, [ROUND * 1800 * 0.9, WEDGE * 1800])
+        case!('C3', 'Pocket inner corner, two floor edges + upright', :build_tray, [4000, y, 0], 2500, CH, ->(g) { INNER.map { |a, b| edge_at(g, a, b) } }, WEDGE * 1050 - 3 * OVERLAP + SETBACK**3 / 4.0)
+        case!('C4', 'Pocket inner corner, two floor edges + upright', :build_tray, [6000, y, 0], 2500, FI, ->(g) { INNER.map { |a, b| edge_at(g, a, b) } }, :refused)
+    end
+
+    def self.row_d
+        y = 25000
+        two = [[[3000, 200, 100], [200, 200, 100]], [[200, 200, 100], [200, 3000, 100]]]
+        case!('D1', 'L, two top edges at the inside corner', :build_l, [0, y, 0], 3500, CH, ->(g) { two.map { |a, b| edge_at(g, a, b) } }, -(WEDGE * 5600 + OVERLAP))
+        case!('D2', 'L, two top edges at the inside corner', :build_l, [4000, y, 0], 3500, FI, ->(g) { two.map { |a, b| edge_at(g, a, b) } }, [-WEDGE * 5600 - 2 * OVERLAP, -ROUND * 5600])
+        case!('D3', 'L, whole top loop', :build_l, [8000, y, 0], 3500, CH, ->(g) { edges_at_z(g, 100) }, [-WEDGE * 12_000, 0.0])
+        case!('D4', 'L, whole top loop', :build_l, [12000, y, 0], 3500, FI, ->(g) { edges_at_z(g, 100) }, [-WEDGE * 12_000, 0.0])
+    end
+
+    def self.row_e
+        y = 34000
+        mixed = [[[3000, 200, 100], [200, 200, 100]], [[200, 200, 100], [200, 3000, 100]], [[200, 200, 0], [200, 200, 100]]]
+        case!('E1', 'L inside corner: two top edges + internal upright', :build_l, [0, y, 0], 3500, CH, ->(g) { mixed.map { |a, b| edge_at(g, a, b) } }, [-WEDGE * 5600 - 2 * OVERLAP, -WEDGE * 5600 + WEDGE * 100])
+        case!('E2', 'L inside corner: two top edges + internal upright', :build_l, [4000, y, 0], 3500, FI, ->(g) { mixed.map { |a, b| edge_at(g, a, b) } }, :refused)
+    end
+
+    def self.row_f
+        y = 43000
+        case!('F1', 'Opening, one rim edge', :build_holed, [0, y, 0], 2500, CH, ->(g) { [edge_at(g, *HOLE[0])] }, -WEDGE * 600)
+        case!('F2', 'Opening, all four rim edges', :build_holed, [2500, y, 0], 2500, CH, ->(g) { HOLE.map { |a, b| edge_at(g, a, b) } }, -(WEDGE * 2400 + 4 * OVERLAP))
+        case!('F3', 'Outer edge of a face with an opening', :build_holed, [5000, y, 0], 2500, CH, ->(g) { [edge_at(g, [0, 0, 100], [2000, 0, 100])] }, -WEDGE * 2000)
+        case!('F4', 'Pocket rim, four edges', :build_tray, [7500, y, 0], 2500, CH, ->(g) { RIM.map { |a, b| edge_at(g, a, b) } }, -(WEDGE * 1800 + 4 * OVERLAP))
+        case!('F5', 'Opening, all four rim edges', :build_holed, [9500, y, 0], 2500, FI, ->(g) { HOLE.map { |a, b| edge_at(g, a, b) } }, [-WEDGE * 2400 - 4 * OVERLAP, -ROUND * 2400])
+        case!('F6', 'Pocket rim, four edges', :build_tray, [12000, y, 0], 2500, FI, ->(g) { RIM.map { |a, b| edge_at(g, a, b) } }, [-WEDGE * 1800 - 4 * OVERLAP, -ROUND * 1800])
+    end
+
+    def self.row_g
+        y = 49000
+        corner = [[[0, 0, 300], [1000, 0, 300]], [[0, 0, 300], [0, 600, 300]], [[0, 0, 0], [0, 0, 300]]]
+        case!('G1', 'Box, top edge', :build_box, [0, y, 0], 1500, CH, ->(g) { [edge_at(g, [0, 0, 300], [1000, 0, 300])] }, -WEDGE * 1000)
+        case!('G2', 'Box corner, three edges', :build_box, [1500, y, 0], 1500, CH, ->(g) { corner.map { |a, b| edge_at(g, a, b) } }, [-WEDGE * 1900, 0.0])
+        case!('G3', 'Box, all 12 edges', :build_box, [3000, y, 0], 1500, CH, ->(g) { ents_of(g).grep(Sketchup::Edge).to_a }, [-WEDGE * 7600, 0.0])
+        case!('G4', 'Box, all 12 edges', :build_box, [4500, y, 0], 1500, FI, ->(g) { ents_of(g).grep(Sketchup::Edge).to_a }, [-WEDGE * 7600, 0.0])
+        case!('G5', 'Hexagon, top loop', :build_ngon, [6000, y, 0], 1800, CH, ->(g) { edges_at_z(g, 200) }, [-WEDGE * 7200, 0.0], 6)
+        case!('G6', '24-gon, top loop', :build_ngon, [7800, y, 0], 1800, FI, ->(g) { edges_at_z(g, 200) }, [-WEDGE * 7200, 0.0], 24)
+    end
+
+    def self.row_h
+        y = 54000
+        tops = [[0, 100, 300], [1000, 100, 300], [1000, 600, 300], [0, 600, 300]]
+        case!('H1', 'Battered block, top loop (corners not square)', :build_battered, [0, y, 0], 1500, CH, ->(g) { (0..3).map { |i| edge_at(g, tops[i], tops[(i + 1) % 4]) } }, :refused)
+        case!('H2', 'Battered block, the sloped edge alone', :build_battered, [1500, y, 0], 1500, CH, ->(g) { [edge_at(g, tops[0], tops[1])] }, [-WEDGE * 2000, 0.0])
+        case!('H3', 'L, convex top edge + internal upright at one corner', :build_l, [3000, y, 0], 3500, CH, ->(g) { [edge_at(g, [3000, 200, 100], [200, 200, 100]), edge_at(g, [200, 200, 0], [200, 200, 100])] }, :refused)
+        case!('H4', 'Pyramid, four hips at the apex', :build_pyramid, [7000, y, 0], 1500, CH, ->(g) { ents_of(g).grep(Sketchup::Edge).select { |e| e.vertices.any? { |v| (v.position.z.to_mm - 600).abs < 0.01 } } }, :refused)
+    end
+
+    def self.row_m
+        y = 62000
+        case!('M1', 'McKay slab, all 16 top edges (FailedChamfer)', :build_mckay, [0, y, 0], 25000, CH, ->(g) { edges_at_z(g, 140) }, nil)
+    end
+
+    # ------------------------------------------------------------------
+    # Placements: the cut inside closed groups moved, rotated, nested,
+    # scaled and mirrored (each a container group holding the piece).
+    # ------------------------------------------------------------------
+    def self.placed!(id, title, builder, origin, wrap, klass, pick, expect)
+        kind  = klass == CH ? 'Chamfer' : 'Fillet'
+        model.start_operation("Test Bed: build #{id}", true)
+        outer = model.entities.add_group
+        outer.name = "TEST__#{id}__#{title.gsub(/[^A-Za-z0-9]+/, '_').sub(/_\z/, '')}__After__#{kind}"
+        inner = outer.entities.add_group
+        inner.name = "TEST__#{id}__Piece"
+        send(builder, inner.entities)
+        inner.transformation = wrap[:inner]
+        outer.transformation = Geom::Transformation.translation(Geom::Vector3d.new(origin[0].mm, origin[1].mm, origin[2].mm)) * wrap[:outer]
+        model.commit_operation
+        v0    = volume(inner)
+        f0    = ents_of(inner).grep(Sketchup::Face).length
+        edges = pick.call(inner)
+        ok, notes = commit(klass, [outer, inner], edges)
+        inner = outer.entities.grep(Sketchup::Group).first
+        row = verdict(id, title, kind, inner, v0, f0, ok, notes, expect)
+        model.start_operation("Test Bed: label #{id}", true)
+        label("#{id}  #{title}  (#{kind}): #{row[:verdict]}", [origin[0], origin[1] - 1500])
+        model.commit_operation
+        @results << row
+        row
+    end
+
+    def self.row_p
+        y  = 115000
+        t  = Geom::Transformation
+        s  = 0.5 * (SETBACK / 1.4) * (SETBACK / 0.8)                          # the L's y200 edge in a 1.0 x 1.4 x 0.8 group: local setbacks
+        su = 0.5 * SETBACK * (SETBACK / 1.4)                                  # the L's upright: x and y setbacks
+        moved   = { :outer => t.rotation(ORIGIN, Z_AXIS, 37.degrees), :inner => t.translation(Geom::Vector3d.new(-500.mm, 900.mm, 250.mm)) * t.rotation(ORIGIN, Geom::Vector3d.new(1, 0.3, 0.2), 21.degrees) }
+        scaled  = { :outer => t.new, :inner => t.scaling(1.0, 1.4, 0.8) }
+        mirror  = { :outer => t.rotation(ORIGIN, Z_AXIS, 23.degrees), :inner => t.scaling(-1.0, 1.0, 1.0) }
+        y200    = ->(g) { [edge_at(g, [3000, 200, 100], [200, 200, 100])] }
+        upright = ->(g) { [edge_at(g, [200, 200, 0], [200, 200, 100])] }
+        placed!('P1', 'L y200 alone, two deep moved and rotated', :build_l, [0, y, 0], moved, CH, y200, -WEDGE * 2800)
+        placed!('P2', 'L y200 alone, scaled 1.0 x 1.4 x 0.8', :build_l, [6000, y, 0], scaled, CH, y200, -s * 2800)
+        placed!('P3', 'L y200 alone, mirrored', :build_l, [14000, y, 0], mirror, CH, y200, -WEDGE * 2800)
+        placed!('P4', 'L internal upright, mirrored', :build_l, [20000, y, 0], mirror, CH, upright, WEDGE * 100)
+        placed!('P5', 'L internal upright, scaled 1.0 x 1.4 x 0.8', :build_l, [24000, y, 0], scaled, CH, upright, su * 100)
+    end
+
+    def self.report
+        @results.map do |r|
+            format('%-3s %-55s %-7s %-20s closed=%-5s consistent=%-5s dV %+.1f %s', r[:id], r[:title], r[:kind], r[:verdict], r[:closed], r[:consistent], r[:dv],
+                   r[:notes].empty? ? '' : "[#{r[:notes].last}]")
+        end
+    end
+
+end

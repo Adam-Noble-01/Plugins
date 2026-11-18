@@ -450,9 +450,10 @@ module Na__NobleDrawingTools
     # The chamfer's planner with a profile where it has a pair: single_subs
     # replace one loop position with one point (the faces the profile runs
     # along), run_subs replace one loop position with the whole profile (the
-    # end faces, whose corner the profile clips). The run is laid in whichever
-    # direction starts nearer the previous loop position, which keeps the
-    # rebuilt winding sane — the same test the chamfer uses for its pair.
+    # end faces, whose corner the profile clips). The run starts with whichever
+    # end lies on the line the loop arrives along, which keeps the rebuilt
+    # winding sane at convex and re-entrant ends alike (5.2.46) — the same test
+    # the chamfer uses for its pair.
     #
     # stop_subs are [corner, partner, point]: at a STOPPED end the corner
     # stays where it is — it is the stop's apex — and the point where the
@@ -517,7 +518,8 @@ module Na__NobleDrawingTools
 
             profile  = run[1]
             previous = original[index - 1]                                    # <-- index 0 wraps to the last point, which is correct
-            ordered  = previous.distance(profile.first) <= previous.distance(profile.last) ? profile : profile.reverse
+            first_on = Na__NobleDrawingTools.Na__DrawnChamfer__ArrivesAlong?(previous, position, profile.first, profile.last)
+            ordered  = first_on ? profile : profile.reverse                   # <-- 5.2.46: by the line the loop arrives along, so re-entrant ends close
             points.concat(ordered)
         end
 

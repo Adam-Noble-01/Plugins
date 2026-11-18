@@ -3,6 +3,99 @@
 
 # =============================================================================
 
+## Version 5.2.46 - 18-Nov-2026 - Edge Tools: Single Cuts Into Inside Corners Close, Internal Chamfers Face Out; the Edge-Convergence Test Bed
+
+### Asked For
+After 5.2.45 left one question open (a single cut ending in an inside corner): *"Yes identify and test other cases and
+ensure methods exist for taking car of different chamfer and edge convergence and direction conbditional ssso buiuld a
+sketchup file using your 3D Modeling skills and test cases"*.
+
+### What Was Wrong (found by cutting every way edges meet: 32 cases offline, then live)
+- **A single cut ending in an inside (re-entrant) corner could leave the solid open: Deep Chamfer AND Fillet, Ogee and
+  Ovolo.** The end face takes the cut's two new points in place of its corner. `Na__DrawnChamfer__SubstituteLoop` (the
+  pair) and `Na__ProfileSweep__SubstituteLoop` (the whole profile) ordered them by which sat nearer the previous loop
+  point. At a convex end both lie between the corner and its neighbours, so the nearer is right. At an inside corner the
+  point on the long edge's line lies BEYOND the corner, and when the end face's loop reaches the corner along that long
+  edge the other point is nearer: the end face's top ran diagonally down to the cut's lower point and four edges were
+  left with one face. The way the end face's loop runs decided it: the L's inner y 200 edge failed while its mirror twin
+  x 200 worked, a notch's left side failed and its right side worked, and a notch's back (inside corners at both ends)
+  failed. The McKay x 20,045 side (5.2.45) happened to be reached from below.
+- **A chamfer on an internal (concave) edge was built inside out.** On an internal edge the chamfer FILLS the corner, so
+  its face must look along the bisector, into the air. Every chamfer face was turned against the bisector, which is
+  right only on a convex edge. Fillet, Ogee and Ovolo already turned by convexity (`:convex`); only Deep Chamfer was
+  wrong: the L's internal upright, a step's tread-to-riser edge, a pocket's floor edges, a pocket's inner corner, and the
+  internal edge in a mixed three-way corner.
+
+### What It Does Now
+- Single cuts close at inside corners, whichever way the end face's loop runs, for all four edge tools.
+- Deep Chamfer fills internal edges with its face turned out: alone, mitred round a pocket's floor (internal mitres), at
+  a pocket's inner corner (three internal edges), and with two convex top edges at an inside corner.
+- Everything else as it was: convex edges, mitres, three-way corners, openings, stops, slid ends, 5.2.45's directions.
+- Refused as before, changing nothing, the message saying what to do: two banked edges at a corner that is not square (a
+  battered side; a convex and an internal edge together), four or more banked edges at one point (a pyramid's apex), a
+  fillet's three-way corner with an internal edge.
+
+### How It Was Done
+- `31__System__DeepChamfer/..DrawnChamfer__Geometry__.rb`: **`Na__DrawnChamfer__ArrivesAlong?(previous, corner, first,
+  second)`** puts first the new point lying on the line the end face's loop arrives along (each new point lies on the
+  line of one of the end face's own edges at that corner: a on the edge shared with face A, b on face B's).
+  `Na__DrawnChamfer__OnLine?` measures it as a plain float distance (Length comparisons are tolerance-based). Neither on
+  the line (a corner of four or more faces): the nearer, as before. `Na__DrawnChamfer__SubstituteLoop` uses it.
+- `04__GeometryHelpers/..DrawnProfileSweep__.rb`: `Na__ProfileSweep__SubstituteLoop` lays the profile by the same test.
+- `Na__DrawnChamfer__Solve` returns `:convex` (the bisector behind face A), as the corner frame and EnsureProfile decide
+  it. **`Na__DrawnChamfer__FaceTheAir`** turns a chamfer face against the bisector on a convex edge and with it on an
+  internal one; `Na__DrawnChamfer__Build` and `..DrawnChamfer__Mitre__.rb` `Na__DrawnChamfer__BuildGroup` call it.
+
+### Checked
+- **Live, SketchUp 2027, in the new test bed** (`90__Dev__DevTools/TestModels/Na__NobleDrawingTools__EdgeTools__TestBed__.skp`,
+  in its own window, built by `..TestBed__Builder__.rb.test` beside it): 45 cases cut through the tool's own
+  `na_drawn__commit_chamfer` (40 built, 5 refused). Every built cut closed, every edge used opposite ways by its two
+  faces, faces outward, and where it can be worked by hand the volume exact: the McKay outline's 16 edges
+  37,972,952,547.4 mm3 (the oracle's figure), a pocket's four internal mitres +1,354,666.7, its inner corner +792,000.0,
+  an opening's four rim edges -2,005,333.3. Every refusal left its piece unchanged. Plus Adam's own steps on a McKay slab
+  (P6): an open, rotated group, its top face selected with its edges as a double-click does, the 16 edges taken up as
+  the preselected bank and cut: closed, outward, the oracle's volume, the group still open afterwards.
+- **Offline, new suite 311 of 311** (`edge_convergence__deep_chamfer.rb.test` in the skill's harness, with the add-on
+  `doubles__openings.rb`: SketchUp's `Edge#reversed_in?` and the opening cut, so faces with openings rebuild offline
+  too). The committed 5.2.45 code fails 84 of the 311; 6 of 6 deliberate faults caught (`mutate__edge_convergence.py`).
+- **Everything else as it was**: 5.2.45's concave-faces suite 252, ridge ends 142, ball corners 121, 2D edge tools 165,
+  shared components 41, Deep Vertex Move 61. Syntax 126 of 126, lint 0 errors, 0 warnings.
+
+### What Offline Cannot Prove
+- The tool under the mouse: the live checks call the commit a drag ends in, with the target, batch and setback a drag
+  sets; the hover, scrub, preview and retype were not driven.
+- How a three-way corner of two convex top edges and an internal upright should look (E1): it closes with every face
+  out, but the three planes meet in a small vee under the mitre. Whether that is the look wanted is Adam's call.
+
+### Known, Not Changed Here
+- Two banked edges at a corner that is not square, and four or more at one point, are refused (cut them separately or
+  in stages): a general mitre for those would be new geometry.
+- The test bed's first window crashed while a scene was activated for a capture. SketchUp's log: "DX12 Device Removed"
+  (0x887A0005, device hung) on the RTX 5080, straight after the scene transition. Not the plugin; the test bed was
+  rebuilt by script and saved before any scene work.
+
+### Files
+- `31__System__DeepChamfer/Na__NobleDrawingTools__DrawnChamfer__Geometry__.rb`, `..DrawnChamfer__Mitre__.rb`
+- `04__GeometryHelpers/Na__NobleDrawingTools__DrawnProfileSweep__.rb`
+- New: `90__Dev__DevTools/TestModels/Na__NobleDrawingTools__EdgeTools__TestBed__.skp`, `..TestBed__Builder__.rb.test`
+- `.cursor/rules/00-NobleDrawingTools-ProjectStructure-.mdc` (the dev folder)
+
+### To Test (Reload Plugin Data first)
+- [ ] Reload Plugin Data (the window open since 08:42 on 18-Nov holds 5.2.45).
+- [ ] Open the test bed: scene `TEST__00__Overview`, then each row's scene. In every pair the front piece is uncut:
+      select or SHIFT-bank the edges its label names, cut 40, and compare with the cut piece behind it.
+- [ ] Row A: a chamfer, then a fillet, on the L's inner edges and the notch's sides and back: no open edges (Hidden
+      Geometry on), no diagonal across the end face.
+- [ ] Rows B and C: chamfer the L's internal upright, the step's inner edge, the pocket's floor edges: white faces, no
+      blue-grey backs.
+- [ ] Row F: an opening's rim edges: the opening stays open.
+- [ ] Row E1: is the vee under the mitre the look you want?
+- [ ] Your own: double-click a concave slab's top face in an open, rotated group and chamfer it.
+
+**Status: IMPLEMENTED - THE COMMIT VERIFIED LIVE IN THE TEST BED; THE MOUSE-DRIVEN TOOL NOT YET VERIFIED IN SKETCHUP 2027**
+
+# =============================================================================
+
 ## Version 5.2.45 - 13-Nov-2026 - The Edge Tools Cut Into the Material on Every Face: Concave Faces and Openings
 
 ### Asked For

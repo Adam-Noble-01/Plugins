@@ -187,6 +187,7 @@ module Na__NobleDrawingTools
             :v0 => v0, :v1 => v1,
             :a0 => a0, :a1 => a1, :b0 => b0, :b1 => b1,
             :bisector_local => bisector,
+            :convex         => bisector.dot(face_a.normal).to_f < 0.0,        # <-- 5.2.46: false on an internal (concave) edge
             :world => {
                 :v0 => v0.transform(xform), :v1 => v1.transform(xform),
                 :a0 => a0.transform(xform), :a1 => a1.transform(xform),
@@ -211,8 +212,8 @@ module Na__NobleDrawingTools
     # FUNCTION | Capture a Face as an Ordered Rebuild Plan
     # single_subs replaces one loop position with one point (the two chamfer
     # faces); pair_subs replaces one loop position with TWO points (the end
-    # faces, whose corners get clipped). Pair order is settled by which offset
-    # point sits nearer the previous loop position, keeping the winding sane.
+    # faces, whose corners get clipped). Pair order is settled by the line the
+    # loop arrives along (ArrivesAlong?, 5.2.46), keeping the winding sane.
     # Raises before anything is touched when the face cannot be planned.
     #
     # OPENINGS: a face with holes (the top of a plinth a column stands on, a
@@ -242,6 +243,43 @@ module Na__NobleDrawingTools
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Does the Loop Arrive at a Clipped Corner Along the First Point's Line?
+    # A clipped corner's two new points each lie on the line of one of the end
+    # face's own edges at that corner: a on the edge it shares with face A, b
+    # on the one it shares with face B. The loop arrives from `previous` along
+    # one of those lines, so the point ON that line comes first. Right at a
+    # convex end, where both points lie between the corner and its neighbours,
+    # AND at a re-entrant one, where the new point lies beyond the corner:
+    # there the old nearest-point test picked the far point whenever the loop
+    # came along a long edge, and a single cut ending in an inside corner left
+    # the end face's top running diagonally and the solid open (5.2.46).
+    # Neither point on that line (a corner of four or more faces, an end not
+    # slid onto a raked face): the nearer, as before.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__ArrivesAlong?(previous, corner, first, second)
+        on_first  = Na__NobleDrawingTools.Na__DrawnChamfer__OnLine?(first, corner, previous)
+        on_second = Na__NobleDrawingTools.Na__DrawnChamfer__OnLine?(second, corner, previous)
+        return true  if on_first && !on_second
+        return false if on_second && !on_first
+
+        previous.distance(first).to_f <= previous.distance(second).to_f
+    end
+    # ---------------------------------------------------------------
+
+    # FUNCTION | Does a Point Lie on the Line Through Two Others?
+    # A plain float distance from the line: Length comparisons are
+    # tolerance-based and would call a far point near.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__OnLine?(point, from, through)
+        along = through - from
+        off   = point - from
+        span  = along.length.to_f
+        return false if span <= 0.0 || off.length.to_f <= 0.0
+
+        along.cross(off).length.to_f / span <= NA_CHAMFER_MITRE_TOL
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | One Loop's Positions With the Cut's Corners Substituted
     # ------------------------------------------------------------
     def self.Na__DrawnChamfer__SubstituteLoop(original, single_subs, pair_subs)
@@ -261,7 +299,7 @@ module Na__NobleDrawingTools
             end
 
             previous = original[index - 1]                                    # <-- index 0 wraps to the last point, which is correct
-            if previous.distance(pair[1]) <= previous.distance(pair[2])
+            if Na__NobleDrawingTools.Na__DrawnChamfer__ArrivesAlong?(previous, position, pair[1], pair[2])
                 points << pair[1] << pair[2]
             else
                 points << pair[2] << pair[1]
@@ -430,6 +468,23 @@ module Na__NobleDrawingTools
     end
     # ---------------------------------------------------------------
 
+    # FUNCTION | Turn a Chamfer Face to Face the Air
+    # Away from the material: opposite the bisector on a convex edge, where
+    # the bisector runs into the solid, and WITH it on an internal (concave)
+    # edge, where the chamfer fills the corner and the bisector runs into the
+    # air. Until 5.2.46 every chamfer face was turned against the bisector, so
+    # a chamfer on an internal edge faced into its own fill, inside out.
+    # ------------------------------------------------------------
+    def self.Na__DrawnChamfer__FaceTheAir(chamfer_face, solve, build_transform)
+        session_bisector = solve[:bisector_local].transform(build_transform)
+        return chamfer_face unless session_bisector.valid?
+
+        leaning = chamfer_face.normal.dot(session_bisector).to_f
+        chamfer_face.reverse! if solve[:convex] == false ? leaning < 0.0 : leaning > 0.0
+        chamfer_face
+    end
+    # ---------------------------------------------------------------
+
     # FUNCTION | Build the Chamfer Into an Entities Collection
     # Runs inside the operation ExecuteInContext opens, with the plans already
     # made. Erases are coordinate-free; every ADD goes through build_transform
@@ -464,10 +519,9 @@ module Na__NobleDrawingTools
         )
         raise 'the chamfer plane could not be created here' unless chamfer_face
 
-        # Outward means away from the material — opposite the bisector — and
-        # the new face dresses like the first chamfered face for continuity.
-        session_bisector = solve[:bisector_local].transform(build_transform)
-        chamfer_face.reverse! if session_bisector.valid? && chamfer_face.normal.dot(session_bisector) > 0.0
+        # Facing the air, convex or internal (FaceTheAir), and dressed like the
+        # first chamfered face for continuity.
+        Na__NobleDrawingTools.Na__DrawnChamfer__FaceTheAir(chamfer_face, solve, build_transform)
         chamfer_face.material      = plans[0][:material]      if plans[0][:material]
         chamfer_face.back_material = plans[0][:back_material] if plans[0][:back_material]
         chamfer_face.layer         = plans[0][:layer]         if plans[0][:layer]
