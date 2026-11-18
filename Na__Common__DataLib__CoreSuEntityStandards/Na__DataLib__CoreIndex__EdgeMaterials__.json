@@ -2,8 +2,8 @@
     "meta": {
         "fileName"               : "Na__DataLib__CoreIndex__EdgeMaterials__.json",
         "description"            : "Single source of truth for all Noble Architecture standard edge linework colours. Used by Na__EdgeUtil__PaintDeepNestedEdges to create SketchUp edge materials and populate the colour palette UI. Each MTE colour key becomes the SketchUp material name when applied to edges.",
-        "version"                : "2.3.0",
-        "lastUpdated"            : "29-Sep-2026",
+        "version"                : "2.4.0",
+        "lastUpdated"            : "18-Nov-2026",
         "sourceFiles"            : [
             "Na__EdgeUtil__PaintDeepNestedEdges__Modules__/Na__EdgeUtil__PaintDeepNestedEdges__EdgeConfigData__.json (v1.0.0 - superseded)"
         ],
@@ -221,6 +221,54 @@
                 "HsbValue"       : [208, 87, 90],
                 "Description"    : "Blue accent - Material Design Blue 600. Site plan blue line (other land owned by the applicant) and drainage.",
                 "SwatchName"     : "Blue"
+            },
+            "MTE208__LineColour__Orange": {
+                "SketchUpName"   : "MTE208__LineColour__Orange",
+                "HexValue"       : "#FB8C00",
+                "RgbValue"       : [251, 140, 0],
+                "HsbValue"       : [33, 100, 98],
+                "Description"    : "Orange accent - Material Design Orange 600. Vale CAD set-up: wings of the existing building (kitchen wing, extension, porch).",
+                "SwatchName"     : "Orange"
+            },
+            "MTE209__LineColour__Teal": {
+                "SketchUpName"   : "MTE209__LineColour__Teal",
+                "HexValue"       : "#00897B",
+                "RgbValue"       : [0, 137, 123],
+                "HsbValue"       : [174, 100, 54],
+                "Description"    : "Teal accent - Material Design Teal 600. Vale CAD set-up: the orangery planes set back from its main face (hipped bay, breakfront, return).",
+                "SwatchName"     : "Teal"
+            },
+            "MTE210__LineColour__Brown": {
+                "SketchUpName"   : "MTE210__LineColour__Brown",
+                "HexValue"       : "#6D4C41",
+                "RgbValue"       : [109, 76, 65],
+                "HsbValue"       : [15, 40, 43],
+                "Description"    : "Brown accent - Material Design Brown 600. Vale CAD set-up: chimney stacks.",
+                "SwatchName"     : "Brown"
+            },
+            "MTE211__LineColour__Pink": {
+                "SketchUpName"   : "MTE211__LineColour__Pink",
+                "HexValue"       : "#D81B60",
+                "RgbValue"       : [216, 27, 96],
+                "HsbValue"       : [338, 88, 85],
+                "Description"    : "Pink accent - Material Design Pink 600. Vale CAD set-up: ridges and other roof lines seen end-on.",
+                "SwatchName"     : "Pink"
+            },
+            "MTE212__LineColour__Cyan": {
+                "SketchUpName"   : "MTE212__LineColour__Cyan",
+                "HexValue"       : "#00ACC1",
+                "RgbValue"       : [0, 172, 193],
+                "HsbValue"       : [187, 100, 76],
+                "Description"    : "Cyan accent - Material Design Cyan 600. Vale CAD set-up: the orangery (Vale) roof plan.",
+                "SwatchName"     : "Cyan"
+            },
+            "MTE213__LineColour__Indigo": {
+                "SketchUpName"   : "MTE213__LineColour__Indigo",
+                "HexValue"       : "#3949AB",
+                "RgbValue"       : [57, 73, 171],
+                "HsbValue"       : [232, 67, 67],
+                "Description"    : "Indigo accent - Material Design Indigo 600. Vale CAD set-up: the existing building roof plan.",
+                "SwatchName"     : "Indigo"
             }
         }
 
