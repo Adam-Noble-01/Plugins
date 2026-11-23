@@ -8,6 +8,30 @@
 ## Version History
 
 # ---------------------------------------------------------
+### GLB Builder Utility - Version 2.16.2 - 23-Nov-2026
+#### The Archive Is a Standard Zip, Read Back Before Anything Is Removed
+Adam: "Apply 2.16.2" (23-Nov-2026), after SK02's first archived export (18-Nov-2026) wrote a zip that no standard tool could open.
+
+- The writer was ported from the ValeVision Cloud Sync archiver before that archiver's own 1.0.1 fix (07-Oct-2026), and carried the same two faults:
+  - each entry's local header was packed with 10 directives for 11 values, so the date went out as four bytes, the uncompressed size as two, and the extra field length not at all;
+  - each entry's data was zlib-wrapped, where ZIP method 8 is raw deflate.
+- The central directory was right, so SK02's 69 files were recoverable byte-exact, but Python's `zipfile` and Windows refused every entry.
+- Entries are now raw deflate (`Zlib::Deflate.new(level, -Zlib::MAX_WBITS)`) under a full 30-byte header (`VvvvvvVVVvv`).
+- Before any original is removed, the archive is read back: the end record, every central directory entry, every local header, and every entry inflated and checked against its size and CRC-32. A zip that fails is left in place and nothing is removed.
+- `ProjectPortalMapper`: `Na__PortalMapper__WriteZipArchive` (now returns its entries), `Na__PortalMapper__ZipLocalHeader`, the new `Na__PortalMapper__VerifyZipArchive`, and the check in `Na__PortalMapper__ArchiveFolderContents`.
+- Zips written by 2.16.1 and earlier stay as they are. SK02's `Scheme-01\00__Archive\SK02__TrueVision__ArchivedModels__Archived__18-Nov-2026.zip` is one; its 69 files are also in git (website 87305100).
+
+# ---------------------------------------------------------
+### GLB Builder Utility - Version 2.16.1 - 18-Nov-2026
+#### Archived Exports Fit the Windows Path Limit
+Adam chose "Apply fix, re-export" (18-Nov-2026), after SK02's Scheme-01 re-export failed on the night of 17-Nov-2026.
+
+- On an export with archive, the old files are zipped into `00__Archive`, with the stage name in the zip name. For SK02's Scheme-01 that path was 268 characters, over Windows' 260 limit. SketchUp's Ruby ignores LongPathsEnabled, so the zip was never written, the export stopped with `Errno::ENOENT`, and an empty `00__Archive` folder was left behind.
+- The zip name now drops the stage name when the full path would be longer than 250 characters, which leaves room for the `__NN` suffix: `{Code}__TrueVision__ArchivedModels__Archived__{date}.zip`. The archive sits inside the phase folder it archives, so that folder's name already says the stage.
+- If even the short name doesn't fit, the archive is refused with the length and nothing is removed. The archive folder is made only once the zip can be written.
+- `ProjectPortalMapper`: `Na__PortalMapper__ArchiveFolderContents`, and `Na__PortalMapper__BuildArchiveFileName` (`short:`). No other file changed.
+
+# ---------------------------------------------------------
 ### GLB Builder Utility - Version 2.16.0 - 17-Nov-2026
 #### Water Exports in Every Mode
 Adam: "Seek out TrueVision 3D, the downstream app, and the TrueVision 3D sync, which gets it into that app, and add handling for a water material." (17-Nov-2026, with the SK02 hot tub asset)

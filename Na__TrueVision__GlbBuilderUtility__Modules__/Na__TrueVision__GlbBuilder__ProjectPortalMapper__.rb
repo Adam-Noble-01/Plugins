@@ -26,6 +26,26 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 23-Nov-2026 - Version 2.16.2
+# - The archive zip is a standard zip. Each entry's local header lost a field
+#   (a 10-directive pack template for 11 values: the date went out as four
+#   bytes, the uncompressed size as two, no extra length), and its data was
+#   zlib-wrapped where ZIP method 8 is raw deflate. The central directory was
+#   right, so the files were recoverable, but standard unzip tools refused
+#   every entry (SK02 Scheme-01, 18-Nov-2026: 69 of 69). The writer was ported
+#   from the ValeVision Cloud Sync archiver before its own 1.0.1 fix of these
+#   same two faults (07-Oct-2026); this brings it level.
+# - The archive is read back before any original is removed: the end record,
+#   every central directory entry, every local header, and every entry
+#   inflated and checked against its size and CRC-32.
+#
+# 18-Nov-2026 - Version 2.16.1
+# - The archive zip name drops the stage name when the full path would pass
+#   the Windows path limit (SketchUp's Ruby ignores LongPathsEnabled): SK02's
+#   Scheme-01 archive path was 268 characters and every archived export into
+#   it failed with ENOENT. The archive folder is made only once the zip can
+#   be written, so a refusal no longer leaves an empty 00__Archive behind.
+#
 # 19-Oct-2026 - Version 2.12.0
 # - The Scene Sync store (SceneSyncFolderName, SceneSync__SketchUpSceneData by
 #   default) is never a design phase either, and shows as an aside with its
@@ -924,20 +944,39 @@ module TrueVision3D
 
             archive_name = self.Na__PortalMapper__Config.dig('TrueVisionContent', 'ArchiveFolderName') || '00__Archive'
             archive_dir  = File.join(folder_path.to_s, archive_name)
-            FileUtils.mkdir_p(archive_dir)
 
             zip_name = self.Na__PortalMapper__BuildArchiveFileName(
                 project_code: project_code,
                 stage_name:   stage_name.to_s.empty? ? File.basename(folder_path.to_s) : stage_name
             )
             zip_path = File.join(archive_dir, zip_name)
+
+            # The archive sits inside the scheme folder it archives, so the stage name in the zip
+            # name only repeats the folder's. Drop it when the full name would pass the Windows path
+            # limit: SketchUp's Ruby ignores LongPathsEnabled (SK02 Scheme-01, 268 characters, ENOENT).
+            if zip_path.length > NA__PORTALMAPPER__ARCHIVE_PATH_LIMIT
+                zip_name = self.Na__PortalMapper__BuildArchiveFileName(project_code: project_code, short: true)
+                zip_path = File.join(archive_dir, zip_name)
+            end
+            if zip_path.length > NA__PORTALMAPPER__ARCHIVE_PATH_LIMIT
+                return { success: false, archived: 0,
+                         message: "The archive path is #{zip_path.length} characters, over the Windows limit of " \
+                                  "#{NA__PORTALMAPPER__ARCHIVE_PATH_LIMIT}, so nothing was archived or removed. " \
+                                  'Move the portal to a shorter folder.' }
+            end
+
+            FileUtils.mkdir_p(archive_dir)                                        # <-- Only once the zip can be written, so a refusal leaves no empty folder
             zip_path = self.Na__PortalMapper__UniquePath(zip_path)
 
-            self.Na__PortalMapper__WriteZipArchive(zip_path, glb_files)
+            written = self.Na__PortalMapper__WriteZipArchive(zip_path, glb_files)
 
-            # Only clear the originals once the archive is safely on disk
+            # Only clear the originals once the archive is safely on disk AND reads back to the same bytes
             unless File.exist?(zip_path) && File.size(zip_path) > 0
                 return { success: false, archived: 0, message: 'The archive could not be written, so nothing was removed.' }
+            end
+            unless self.Na__PortalMapper__VerifyZipArchive(zip_path, written)
+                return { success: false, archived: 0,
+                         message: "The archive #{File.basename(zip_path)} did not read back to the same files, so nothing was removed." }
             end
 
             # Remove only what is about to be rewritten; anything toggled off stays
@@ -968,13 +1007,18 @@ module TrueVision3D
         # HELPER FUNCTION | Build The Dated Archive File Name
         # ---------------------------------------------------------------
         #   {ProjectCode}__TrueVision__ArchivedModels__{Stage}__Archived__19-Sep-2026.zip
+        #   {ProjectCode}__TrueVision__ArchivedModels__Archived__19-Sep-2026.zip   (short: true)
         # ---------------------------------------------------------------
-        def self.Na__PortalMapper__BuildArchiveFileName(project_code: '', stage_name: '')
+        NA__PORTALMAPPER__ARCHIVE_PATH_LIMIT = 250                                # <-- MAX_PATH 260, less room for UniquePath's "__NN" suffix
+
+        def self.Na__PortalMapper__BuildArchiveFileName(project_code: '', stage_name: '', short: false)
             code  = project_code.to_s.strip
             code  = 'Project' if code.empty?
             stage = stage_name.to_s.strip
             stage = 'Models' if stage.empty?
             date  = Time.now.strftime('%d-%b-%Y')
+
+            return "#{code}__TrueVision__ArchivedModels__Archived__#{date}.zip" if short
 
             "#{code}__TrueVision__ArchivedModels__#{stage}__Archived__#{date}.zip"
         end
@@ -1026,7 +1070,9 @@ module TrueVision3D
                     local_file_name = File.basename(file_path)
                     file_data       = File.binread(file_path)
                     crc32           = Zlib.crc32(file_data)
-                    compressed_data = Zlib::Deflate.deflate(file_data, Zlib::DEFAULT_COMPRESSION)
+                    deflater        = Zlib::Deflate.new(Zlib::DEFAULT_COMPRESSION, -Zlib::MAX_WBITS)   # <-- Raw deflate: ZIP method 8 has no zlib header or Adler-32 trailer
+                    compressed_data = deflater.deflate(file_data, Zlib::FINISH)
+                    deflater.close
 
                     local_header_offset = zip_io.tell
 
@@ -1058,6 +1104,63 @@ module TrueVision3D
                     )
                 )
             end
+
+            central_directory
+        end
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Read A Written Archive Back Before Anything Is Removed
+        # ---------------------------------------------------------------
+        # As the ValeVision Cloud Sync archiver has done since 1.0.1 (07-Oct-2026):
+        # the end record and every central directory entry must match what was
+        # written, and every entry's local header must hold its name and sizes, and
+        # its data inflate to the size and CRC-32 of the file it was made from.
+        # ---------------------------------------------------------------
+        def self.Na__PortalMapper__VerifyZipArchive(archive_path, entries)
+            return false if entries.nil? || entries.empty?
+
+            File.open(archive_path, 'rb') do |zip_io|
+                file_size = zip_io.size
+                return false if file_size < 22
+                zip_io.seek(file_size - 22)
+                end_signature, _disk, _cd_disk, _on_disk, count, cd_size, cd_offset, _comment = zip_io.read(22).unpack('VvvvvVVv')
+                return false unless end_signature == 0x06054b50 && count == entries.size && cd_offset + cd_size == file_size - 22
+
+                zip_io.seek(cd_offset)
+                central = zip_io.read(cd_size)
+                position = 0
+                entries.each do |entry|
+                    fields = central.byteslice(position, 46).to_s.unpack('VvvvvvvVVVvvvvvVV')
+                    return false unless fields[0] == 0x02014b50 && fields[7] == entry[:crc32] && fields[16] == entry[:offset]
+                    return false unless fields[8] == entry[:compressed_size] && fields[9] == entry[:uncompressed_size]
+                    name_end = position + 46 + fields[10]
+                    return false unless central.byteslice(position + 46, fields[10]) == entry[:name].encode('UTF-8').b
+                    position = name_end + fields[11] + fields[12]
+                end
+
+                entries.each do |entry|
+                    name_bytes = entry[:name].encode('UTF-8').b
+                    zip_io.seek(entry[:offset])
+                    header = zip_io.read(30)
+                    return false unless header && header.bytesize == 30
+
+                    signature, _version, _flags, method, _time, _date, crc, compressed_size, size, name_length, extra_length =
+                        header.unpack('VvvvvvVVVvv')
+                    return false unless signature == 0x04034b50 && method == 8 && crc == entry[:crc32]
+                    return false unless compressed_size == entry[:compressed_size] && size == entry[:uncompressed_size]
+                    return false unless name_length == name_bytes.bytesize && zip_io.read(name_length) == name_bytes
+
+                    zip_io.seek(extra_length, IO::SEEK_CUR)
+                    inflater = Zlib::Inflate.new(-Zlib::MAX_WBITS)
+                    data     = inflater.inflate(zip_io.read(compressed_size))
+                    inflater.close
+                    return false unless data.bytesize == size && Zlib.crc32(data) == crc
+                end
+            end
+            true
+        rescue => e
+            Na__Log__Warn "[PortalMapper] The archive did not read back: #{e.message}"
+            false
         end
         # ---------------------------------------------------------------
 
@@ -1079,7 +1182,7 @@ module TrueVision3D
                 uncompressed_size,   # Uncompressed size
                 name_bytes.bytesize, # File name length
                 0                    # Extra field length
-            ].pack('VvvvvVVVvv') + name_bytes
+            ].pack('VvvvvvVVVvv') + name_bytes                                    # <-- 11 fields: V signature, five v, three V sizes, two v lengths
         end
         # ---------------------------------------------------------------
 
