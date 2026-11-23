@@ -2,8 +2,8 @@
     "meta": {
         "fileName"          : "Na__DataLib__CoreIndex__Materials__.json",
         "description"       : "Single source of truth for all Noble Architecture standard indexed face materials and their PBR render settings. Used by SketchUp plugins (GLB exporter, Window Configurator) and the TrueVision3D WebApp renderer for dynamic material lookup and swapping.",
-        "version"           : "1.10.0",
-        "lastUpdated"       : "17-Nov-2026",
+        "version"           : "1.11.0",
+        "lastUpdated"       : "23-Nov-2026",
         "sourceFiles"       : [
             "WE10_--_Public-Repo_--_Live-Website/na-apps/30__TrueVision__CoreAppCode/02__Src__AppModules/02__AppData/Na__AppConfig__MaterialsLibrary.json (v2.1.0)",
             "Na__ArchTools__3dWindowConfigTool__Modules__/Na__AppConfig__MaterialsLibrary.json (v1.0.0)"
@@ -395,6 +395,14 @@
                 "BaseColor"       : "rgb(176, 181, 186)",
                 "PbrRoughness"    : 0.6,
                 "PbrMetallic"     : 0.85,
+                "EnvMapIntensity" : 0.5
+            },
+            "MAT620__Metal__Cladding__StandingSeamZinc": {
+                "SketchUpName"    : "MAT620__Metal__Cladding__StandingSeamZinc",
+                "Description"     : "Architectural dark standing seam zinc cladding - matte satin dark charcoal metal",
+                "BaseColor"       : "rgb(98, 102, 100)",
+                "PbrRoughness"    : 0.55,
+                "PbrMetallic"     : 0.75,
                 "EnvMapIntensity" : 0.5
             }
         },

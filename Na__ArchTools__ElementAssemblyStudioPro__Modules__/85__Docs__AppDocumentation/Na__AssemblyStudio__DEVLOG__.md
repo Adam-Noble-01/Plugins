@@ -3,6 +3,120 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.7.8 - 23-Nov-2026 - Handleless Doors: a Finger Groove in the Back, a Gap Under the Worktop, Downstands; a Gap Behind the Fronts; an Appliance Stack of Four With a Filler Below
+
+### Context
+Adam, 23-Nov-2026, on SK02's kitchen board: "Change the Shaker-style doors to the new more modern style. Add doors that have a finger groove like on EB03 ... a door type to handle these within Entity Studio Pro, so it can handle that kind of finger groove door and gap under a worktop." Then, approving the details draftsman's D1, D1b and D2 (Details v2): "Go for this detail, but add a slight fillet. It wouldn't have a square edge on this back of the door ... I've added downstand pieces. Have these. Otherwise, you'll be able to see straight into the unit in some instances, and there is nothing backing the door at the bottom, so add these." No metal rails: "rather than introducing elaborate additional metal sections".
+
+### New: `DoorStyle: "Handleless"` (Cabinetry, Every Unit)
+- A slab with a groove routed in its BACK along its grip edge: `HandleGrooveHeight_mm` 20 from the edge, `HandleGrooveDepth_mm` 10 into the front, a `HandleGrooveFillet_mm` 5 quarter round in the groove's inside corner (6 facets, run edges softened). It leaves at least 3 of front behind it and 20 of land below it, or the front is left plain with a warning. No handles.
+- The grip edge: the TOP of base doors, drawers and tall doors, `HandleGap_mm` 20 under the carcass top (so under a run's worktop) or under the front above (a gap above every drawer front: three drawers on a 720 carcass are 140 and two of 259.25); the FOOT of wall doors, which run `HandleWallOverhang_mm` 20 below the carcass base.
+- Wall units: `HandleWallDownstand` (on): the sides come down with the doors and a rail `HandleWallRailDepth_mm` 32 deep fills behind the doors' foot (`Downstand__Front`), so the unit cannot be seen into and the doors are backed.
+- Appliance housings: the door below stops `HandleBand_mm` 25 under the lowest appliance; `HandleBandDownstand` (on) hangs a board, the carcass board thick and `HandleBandDownstandHeight_mm` 50 deep, under that appliance's shelf on the carcass front (`Downstand__Band`): the band shows it and it backs the door's groove. The lower cupboard's shelves stay under it. The door above is gripped at its top, the grip gap under the carcass top.
+- Split tall units: both rows gripped at their top (the lower under the split, the upper under the carcass top).
+
+### New: `FrontStandoff_mm` (Every Style, 0 = As Before)
+- Every front's back stands this far off the carcass front (Details v2's 2 mm door-to-carcass gap). Library appliances in a housing move with it, so their fascias stay in the door plane. A Cabinets run's worktop front and top filler plane follow it; a corner unit's own doors stay on its door plane.
+
+### New: the Appliance Stack Takes Four, With a Door or a Filler Below (Tall Units, Appliances Fronts)
+- SK02's tall housing (the kitchen brief, 23-Nov-2026): a filler, the warming drawer, two ovens, a door above. `HousingThirdAppliance` / `HousingThirdAperture_mm` and `HousingFourthAppliance` / `HousingFourthAperture_mm` (None and 600 by default, so nothing built today changes) stack above slots 1 and 2, whose keys stay `HousingLowerAppliance` and `HousingUpperAppliance` (now labelled Appliance 1 (Bottom) and Appliance 2). A None slot takes no aperture; the rest stack bottom to top from `HousingApertureBase_mm`, each on its own fixed shelf (`ApplianceShelf__Third`, `ApplianceShelf__Fourth`), the library item named `Appliance__Third` / `Appliance__Fourth`.
+- `HousingBelowFront` (`Door` by default, or `Filler`): a filler is one fixed panel across the unit (`Filler__Lower`, kind `filler`) in the door finish, with no handle and no grip groove; on a Shaker unit it takes the shaker frame. Behind it is no cupboard: its share of the shelves is dropped and the cupboard above the stack keeps the shelves it has with a door below. A Handleless filler stops the band under the lowest appliance, and the band downstand still backs that gap.
+
+### Verified
+- **Offline:** the cabinet spec 116 (17 new: every Handleless rule to the millimetre from Details v2, the downstands, the band, the gap behind the fronts, Shaker unchanged; Handleless added to the no-overlap sweep, now 168 configurations); a Ruby against JS parity run of 104 configurations (every product, four styles, three widths, eight option cases): fronts, grooves, parts, appliances, handles, bounds and warnings identical; the run spec 184; every other JS spec; the parameter catalogue regenerated and current (cabinet controls 60 to 71); 37 Ruby files compile on SketchUp 2026's Ruby 3.2.2.
+- **In SketchUp** (pid 44384, the staged files loaded over the live code, every build through the MCP): ACB023 base, ACB024 900 hob drawers (three), ACB025 wall, ACB026 housing with a 2 gap: every front a closed solid (the base door 8,224,026 mm3), 7 softened fillet edges each, 0 unpainted edges; sections through each match D1, D1b and D2. ARN012, three Handleless base units under a 20 worktop 20 past the doors: worktop 840 to 860, front 602 from the wall line, one solid; one kickboard.
+- **The stack, offline:** the cabinet spec 126 (10 new: SK02's stack to the millimetre, the Shaker filler, slot gaps, defaults unchanged); the parity run 113 configurations (9 new stack cases; each front's kind, style and shaker frame and each appliance's code now compared too): identical; the parameter catalogue current (cabinet controls 71 to 76); 158 Ruby files compile.
+- **The stack, in SketchUp:** ACB028, SK02's housing (Handleless, 120 plinth, 2085 tall, stack from 560): filler 121.5 to 535, warming drawer 560 to 705, ovens 705 to 1305 and 1305 to 1905, door 1906.5 to 2185, band downstand 510 to 560, two shelves over the stack and none behind the filler; every part a closed solid. The real dialog, ACB028 selected: the five new controls shown with its stored values.
+
+### Files Changed
+- `45__System__InteriorCabinetry/`: `...Cabinetry__Defaults__.rb`, `...LayoutResolver__.rb`, `...Viewport__LayoutResolver__.js`, `...FrontBuilder__.rb`, `...UiSystem__Config__.js`, `...UiSystem__LayoutMap__.js`.
+- `55__System__AssemblyRunSystem/`: `...FrameworkBuilder__.rb` (worktop front, top filler plane), `...DialogRouter__.rb` (the preview's worktop), `...CornerUnitBuilder__.rb`.
+- `02__AppData/...ParameterCatalogue__.json` (regenerated), `...AppConfig__Main.json` (2.7.8), `65__Dev__DevTools/...CabinetLayout__Spec__.js`, `85__Docs__AppDocumentation/...Architecture__.md`.
+
+### Validation Checklist
+- [ ] Cabinetry tab, Door Style "Handleless": a base unit's door stops 20 under the top; a wall unit's door runs 20 below with the downstand; an Appliances tall unit leaves a 25 band under the warming drawer.
+- [ ] A Cabinets run of them with a 20 worktop: the 20 gap under the worktop runs the length of the run.
+- [ ] A tall unit, Appliances fronts: Appliance 3 set to an oven and Front Below set to Filler Panel: a third aperture over the second, a fixed panel below with no shelves behind it.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.7.7 - 23-Nov-2026 - Live Mode for Assembly Runs; Staged Run Changes Survive the Selection
+
+### Context
+Adam, 23-Nov-2026 (the SK02 kitchen board, "Entity Studio Pro side quest"): "Within Entity Studio mode there is no live mode switch for when you're working on cabinet runs so add this. It has the same functionality as, for example, windows so you can select a run and make live updates. Otherwise in the UI, as you make changes, they get lost before you press the update button for some reason." Built in a staging copy and proved through the real dialog in a scratch window; nothing in Adam's models was changed.
+
+### Fixed: Staged Changes Lost Before Update Run
+- Reproduced on 2.7.6 (ARN002, the real dialog): (1) Ruby sends a run to the tab on EVERY selection of it, and `Na_RunUI.na_receive_run` replaced the tab's description with what the run stores, so any click on the run (or the Outliner, or a re-select) threw the staged changes away; (2) a cleared selection (a click on empty space, Esc, another tool or agent) turned the run into a draft, so Update Run went grey, and selecting the run again to press it brought (1).
+- Now Ruby says why it sends a run (`reason`: `selected`, `built`, `renamed`). The tab keeps its staged changes on anything but `built`; a selection of the same unchanged run keeps the tab's Undo history too. Another run selected while one has changes staged: they are put aside under its id and come back when it is selected again, unless it was rebuilt meanwhile (its stored description changed), when they are dropped with a message. A cleared selection keeps a run with staged changes loaded: Update Run still builds them (Ruby finds the run by its id, selected or not).
+- A value still being typed in a field is committed before anything Ruby sends redraws the sections (a click in SketchUp does not take the field's focus, so its change event had not fired).
+- A run loaded before the tab's defaults arrived (the tab's first showing, opened by a selection) showed empty fields for settings it never stored; they now read as Ruby's defaults.
+
+### New: Live Mode for Runs
+- The dock's Live Mode switch now shows on the Assembly Run Studio tab (it was hidden: "A run is rebuilt on Update Run, never live"). Its state is per tab, as for windows, doors and cabinets.
+- With it on and a run loaded, every change made in the tab (a field, a menu, a dimension typed over the preview, a staged product change or flip, the tab's own Undo and Redo) rebuilds the run through the same pipeline as Update Run (`na_runLiveUpdate` -> `DialogRouter.na_live_update` -> `RunPipelines.na_pipeline_update`). A draft is never live: Create builds it.
+- Changes within 300 ms go together; one rebuild is in flight at a time and what changed meanwhile goes next. Ruby answers every request (`window.na_receiveRunLive`, built or refused) with the page's number for it (`Na__Run__LiveSeq`, taken off the root, never stored), so the page knows whether to take the built description or carry the new panel types' element ids onto its newer one. A refused description (out of range, a layout error) says why and stays staged.
+- Each live rebuild is its own undo step, "Live Update Assembly Run", never transparent as the window live mode is: in a shared window the step before may be another session's work.
+
+### Verified
+- **In SketchUp** (pid 44384, a copy of the 2.7.6 testbed, the staged files loaded over the live code, the real dialog driven from Ruby; results in the job's `05__AB__Checks\EASP277__M2__DialogTest__Results__.json` and `...DialogTest2__Results__.json`): ARN002 staged WorktopThickness 30 kept through a re-selection, a cleared selection, and a detour to ARN003 (put aside, then back); Update Run built it (the worktop slab 40 to 30). Live: 25 built in one rebuild (slab 25); 24 then 23 within 100 ms built once (slab 23); 5 refused ("must be between 10 and 200"), the slab left at 23 and nothing hung; 40 built (slab 40); no spurious message during a live rebuild; a repeat selection with nothing staged kept the tab's history (3 steps).
+- `node --check` on the three changed scripts; the changed Ruby compiles on SketchUp 2026's Ruby 3.2.2.
+
+### Files Changed
+- `01__AppCore/...AppCore__AppContext__.js` (the runs tab's Live state and switch).
+- `55__System__AssemblyRunSystem/`: `...UiSystem__MainUiLogic__.js` (the fix, the Live Mode region), `...UiSystem__Bridge__.js` (`na_receiveRunLive`), `...DialogRouter__.rb` (`reason`, `na_live_update`), `...Defaults__.rb` (`NA_KEY_LIVE_SEQ`, `NA_LIVE_OPERATION`).
+- `02__AppData/...AppConfig__Main.json` (2.7.7), `85__Docs__AppDocumentation/...Architecture__.md`.
+
+### Validation Checklist
+- [ ] Reload Scripts (or restart SketchUp); open the Assembly Run Studio tab: the dock shows Live Mode.
+- [ ] Select a run, change a value, click empty space in the model: the value stays and Update Run is still enabled.
+- [ ] Live Mode on: change a value; the run rebuilds by itself; Ctrl+Z in SketchUp takes back that one change.
+
+
+# =============================================================================
+## Element Assembly Studio Pro | V2.7.6 - 23-Nov-2026 - Appliance Housings With Library Ovens and Warming Drawers, One Kickboard Along a Run, a Top Filler to a Soffit
+
+### Context
+Adam, 23-Nov-2026, for SK02's oven bank (two 600 housings set into built-out stud work, a 1240 opening with a 20 board each side, a downstand over): "Update it so it can handle warming drawers and ovens from the library with doors above and below, like shown here, and joined kickboards along runs ... so you can update it using the MCP tools." Built in a staging copy and proved in a scratch window; nothing in Adam's models was changed.
+
+### New: Appliance Housings (Cabinetry, Tall Units, `TowerFrontLayout: "Housing"`, the dialog's "Appliances")
+- A tall unit's fourth front layout: a door (or pair) BELOW, the appliances' apertures, a door (or pair) ABOVE. Keys: `HousingApertureBase_mm` (870: floor to the lowest aperture, so the lower door matches a base unit), `HousingLowerAppliance` (`17_1002`, the warming drawer) and `HousingLowerAperture_mm` (145), `HousingUpperAppliance` (`17_1001`, the oven) and `HousingUpperAperture_mm` (600). `None` leaves a slot out.
+- The carcass gets a fixed shelf under each aperture and one over the stack (the appliance body stands on it; its fascia covers the edge); the two cupboards share `TowerShelfCount` as Split Doors does.
+- `Na__ApplianceBuilder` (new) places each appliance from Adam's component library into `Na__Cabinet__Appliances`, by CODE: a definition already in the model named `<code>__...` first, else `<code>__*.skp` under the Component Editor Tools' library path (and its fallbacks), outside blocked folders. The library items are modelled for a 600 slot (595 fascia at x 2.5, 560 body at x 20 to 580, origin on the carcass front at the aperture's bottom), so they drop in unrotated with fascias flush with 20 doors; a wider unit centres them. A code not found leaves its aperture empty with a warning.
+- Ruby resolver, JS twin, dialog controls (Fronts: "Appliances"; the five keys in Doors and Drawers) and the parameter catalogue changed together.
+
+### New: One Kickboard Along a Run (`JoinPlinths`, Cabinets, On for New Runs)
+- One kickboard swept along each stretch of floor units (base, drawers, tall, wardrobe, housings), in place of each unit's own plinth board. Infill blocks, gaps, wall units, corners and free ends break it. Its section is the units' own plinth (`PlinthHeight_mm`, `PlinthSetback_mm`, `PlinthThickness_mm`, the door finish, or the carcass finish when Plinth Matches Doors is off).
+- The units keep their raise and their legs: the run writes a hidden, run-owned cabinet key, `PlinthByRun`, which only drops the unit's own board (MemberSync owns it; the agent seam refuses it). A NEW run starts with it on. A run built before 2.7.6 has no stored value and reads it as off, so a rebuild for any other edit leaves its units' plinths as they are (MANAGER's ruling, 23-Nov-2026: a rebuild must never change geometry nobody asked to change); give it `JoinPlinths: true` to switch it on.
+
+### New: A Top Filler to a Soffit (`SoffitHeight_mm`, Cabinets, 0 = None)
+- A board in the door plane, the doors' thickness, over each stretch of tall units, from their top up to the soffit (a downstand's underside). Infill blocks beside tall units stand to the soffit too, so `EndColumn: Infill` with `EndWidth_mm: 20` and `UnitDepth_mm: 580` gives the linings of a recess.
+
+### Changed: Edges Painted (the Edge Gate)
+- Every cabinet board (carcass, fronts, drawer boxes, plinth), a Cabinets run's worktop, kickboard and top filler, and its infill blocks (fillers, linings) now paint their edges DarkGrey L40 (`MTE103__LineColour__DarkGrey__L40`), the colour SK02's cabinets were painted by hand after building (ACB005: 2,424 edges L40). Before, 2.7.5 painted no cabinet board at build, a run's worktop none, and a Cabinets infill block SoftBlack L20. Legs and handles keep their dark grey; Frames runs keep their colours; library appliances are left as the library made them.
+- Painting happens at build, so a cabinet or run is repainted only when it is next built or updated. It changes no geometry, so it is kept on every rebuild (MANAGER, 23-Nov-2026), unlike `JoinPlinths`, which only a stored true turns on.
+
+### Known Limits
+- The appliance dropdowns list the three kitchen items in the library today (17_1001, 17_1002, 17_1003) and None; another code is one line in the Config, or a Ruby-fed list later, as the legs and handles have.
+- The kickboard does not turn corners (a corner unit or blind corner has its own front line); each leg has its own.
+- The library oven (17_1001) and warming drawer (17_1002) are not closed solids and their edges are unpainted: the validator fails them until they are re-made in the library.
+- The run tab's preview does not draw the kickboard or the top filler yet.
+
+### Verified
+- **Offline:** the cabinet spec 99 (9 new: the housing's doors, apertures and shelves to the millimetre, a lower slot of None, a 700 unit centring the 600 slot, a stack above the top warning, `PlinthByRun`; housings added to the no-overlap sweep, 126 configurations); the run spec 183 (10 new: the oven bank's one kickboard and top filler between its linings, what carries and breaks the kickboard, off, an L kitchen, Frames, a negative soffit refused); the parameter catalogue current; 14 Ruby files compile on SketchUp 2026's Ruby 3.2.2.
+- **In SketchUp** (a copy of the 2.7.5 testbed in its own window, the staged files loaded over the live code, every call through the MCP): `assembly_run_edit build` of SK02's arrangement made ARN010: 20 lining, two 600 housings (one element, ACB019), 20 lining, 1240 overall; per housing a door 151.5 to 868.5, the warming drawer at 870, the oven at 1015, a door 1616.5 to 2118.5; no unit plinth; ONE kickboard 1200 x 20 x 150 (3,600,000 mm3, manifold) 40 behind the carcass front; linings 20 x 580 x 2250 (26,100,000 mm3 each, manifold); a top filler 1200 x 20 x 130 in the door plane under a 2250 soffit (3,120,000 mm3, manifold). Round trip: `entity_studio_edit update` HousingApertureBase_mm 870 to 900 rebuilt both housings (drawer 900, oven 1045, lower door to 898.5), `assembly_run_edit update` SoffitHeight_mm 2250 to 2300 rebuilt the run (filler 2120 to 2300, linings to 2300); the run (ARN010, its instance) and the element (ACB019) kept their ids. Edges: 0 unpainted of 4,800 in the run outside the appliances (first proved in L20; L40 re-proved on ARN012).
+
+### Files Changed
+- `45__System__InteriorCabinetry/`: `...Cabinetry__Defaults__.rb`, `...LayoutResolver__.rb`, `...Viewport__LayoutResolver__.js`, `...UiSystem__Config__.js`, `...UiSystem__LayoutMap__.js`, `...GeometryEngine__.rb`, new `...ApplianceBuilder__.rb`.
+- `55__System__AssemblyRunSystem/`: `...Defaults__.rb`, `...LayoutResolver__.rb`, `...RunCills__.rb`, `...FrameworkBuilder__.rb`, `...GeometryEngine__.rb`, `...PanelTypes__.rb`, `...MemberSync__.rb`, `...ColumnBuilder__.rb` (the Cabinets block colour), `...UiSystem__MainUiLogic__.js`.
+- `60__System__McpOperations/...McpOperations__Runs__.rb` (the two settings, the summary), `02__AppData/Na__AssemblyStudio__ParameterCatalogue__.json` (regenerated), `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (2.7.6), `65__Dev__DevTools/...CabinetLayout__Spec__.js`, `...AssemblyRunLayout__Spec__.rb.test`, `85__Docs__AppDocumentation/...Architecture__.md`.
+
+### Validation Checklist
+- [ ] Reload Scripts in a window holding runs, or restart SketchUp.
+- [ ] Cabinets tab, Tall Unit, Fronts "Appliances": a door below, the warming drawer, the oven, a door above.
+- [ ] A Cabinets run of two of them with "One kickboard along the run" ticked and a soffit height: one kickboard, a top filler up to the soffit.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.7.5 - 18-Nov-2026 - Worktop Cut-Outs and Notches, Longer Overhangs; a Unit With No Plinth or Legs Stands on the Floor
 
 ### Context

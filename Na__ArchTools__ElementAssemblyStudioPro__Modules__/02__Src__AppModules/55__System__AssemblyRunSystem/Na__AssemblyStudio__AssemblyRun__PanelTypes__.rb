@@ -514,6 +514,11 @@ module Na__AssemblyRunSystem
 
             if system == NA_SYSTEM_CABINETS
                 values["Na__CabinetConfig__Width_mm"] = na_tidy(type[:width])
+                if type[:plinth_joined] == true                                  # <-- V2.7.6: the run's one kickboard stands in for its own
+                    values["Na__CabinetConfig__PlinthByRun"] = true
+                else
+                    values.delete("Na__CabinetConfig__PlinthByRun")
+                end
             else
                 values["width_mm"] = na_tidy(type[:width])
                 frameless = fuse && type[:frameless] == true

@@ -96,6 +96,9 @@ module Na__AssemblyRunSystem
         NA_CILL_GROUP        = "Na__Run__Cill".freeze
         NA_BOARD_GROUP       = "Na__Run__WindowBoard".freeze
         NA_WORKTOP_GROUP     = "Na__Run__Worktop".freeze
+        NA_PLINTH_GROUP      = "Na__Run__Plinth".freeze                          # <-- V2.7.6 JoinPlinths: one kickboard per stretch of floor units
+        NA_EDGE_JOINERY      = "MTE103__LineColour__DarkGrey__L40".freeze        # <-- V2.7.6: a Cabinets run's worktop, kickboard and top filler, as the cabinets' boards
+        NA_TOP_FILLER_GROUP  = "Na__Run__TopFiller".freeze                       # <-- V2.7.6 SoffitHeight_mm: one filler per stretch of tall units
         NA_SIZE_TOLERANCE_MM = 0.5                                               # <-- Two units further apart than this in height or depth are named
         NA_CUTTER_REACH_MM   = 20.0                                              # <-- V2.7.5: a cut-out reaching the worktop's edge is carried this far past it, and past the top and underside
         NA_CUTTER_PROBE_MM   = 1.0                                               # <-- How far outside a cut-out's side the worktop is looked for
@@ -312,11 +315,11 @@ module Na__AssemblyRunSystem
                     next
                 end
                 material = na_worktop_material(v, size[:values], elements[:warnings])
-                na_finish(solid, material, nil)
+                na_finish(solid, material, NA_EDGE_JOINERY)                         # <-- V2.7.6: edges painted (the edge gate)
                 band  = RunCills.na_band_outline(stretch[:centreline], front, back, stretch[:closed])
                 cuts  = na_cut_worktop!(holder.entities, solid, band, z0, z1, cutouts, elements[:warnings])
                 solid = cuts[:solid]
-                na_finish(solid, material, nil) unless cuts[:cut].empty?                # <-- The cut faces take the worktop's finish too
+                na_finish(solid, material, NA_EDGE_JOINERY) unless cuts[:cut].empty?      # <-- The cut faces take the worktop's finish too
                 used.concat(cuts[:cut])
                 built << { "name" => name, "spans" => stretch[:spans], "underside_mm" => z0.round(1), "top_mm" => z1.round(1),
                            "front_mm" => (-front).round(1), "back_mm" => back.round(1), "thickness_mm" => v[:worktop_thickness].to_f.round(1),
@@ -324,6 +327,84 @@ module Na__AssemblyRunSystem
             end
             (cutouts.map { |cutout| cutout[:label] } - used).each do |label|
                 elements[:warnings] << "Cut-out #{label} lies on no worktop of the run: nothing was cut for it."
+            end
+            holder.erase! if holder && holder.valid? && holder.entities.length.zero?
+            built
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | ONE Kickboard Along Each Stretch of Floor Units (V2.7.6)
+        # ------------------------------------------------------------
+        # JoinPlinths: each floor unit of the run is built with its plinth
+        # left out (PlinthByRun, written by Na__PanelTypes.na_apply_size!);
+        # it keeps its raise and its legs. The run sweeps the units' own
+        # plinth section along the stretch: PlinthThickness_mm thick,
+        # PlinthSetback_mm behind the carcass front, from the floor to
+        # PlinthHeight_mm, in the door finish (or the carcass finish when
+        # PlinthMatchesDoors is off). Units with no plinth of their own
+        # (Include Plinth off, or no plinth height) take none.
+        # @return [Array<Hash>] one row per kickboard built (string keys, mm)
+        def self.na_build_plinths(entities, layout, elements)
+            v = layout[:settings]
+            return [] unless v[:join_plinths] && !Array(layout[:plinths]).empty?
+            holder = nil
+            built  = []
+            layout[:plinths].each do |stretch|
+                size = na_plinth_size(stretch, elements)
+                next unless size
+                lo      = -(size[:depth] - size[:setback])
+                hi      = lo + size[:thickness]
+                profile = [[lo, 0.0], [hi, 0.0], [hi, size[:height]], [lo, size[:height]]]
+                name    = format("Na__RunPlinth__%02d", stretch[:index] + 1)
+                holder ||= na_holder(entities, NA_PLINTH_GROUP)
+                solid   = na_sweep(holder.entities, name, stretch[:centreline], stretch[:closed], profile)
+                unless solid
+                    elements[:warnings] << "The kickboard under #{stretch[:spans].first}...#{stretch[:spans].last} could not be drawn."
+                    next
+                end
+                na_finish(solid, size[:material], NA_EDGE_JOINERY)                  # <-- V2.7.6: edges painted (the edge gate)
+                built << { "name" => name, "spans" => stretch[:spans], "height_mm" => size[:height].round(1),
+                           "setback_mm" => size[:setback].round(1), "thickness_mm" => size[:thickness].round(1),
+                           "front_mm" => (-lo).round(1), "solid" => solid.manifold? }
+            end
+            holder.erase! if holder && holder.valid? && holder.entities.length.zero?
+            built
+        end
+        # ---------------------------------------------------------------
+
+        # FUNCTION | A Top Filler Over Each Stretch of Tall Units, Up to the Soffit (V2.7.6)
+        # ------------------------------------------------------------
+        # SoffitHeight_mm (the underside of a downstand or ceiling): a board
+        # in the door plane, the doors' thickness, from the tallest unit's
+        # top up to the soffit, in the door finish. None where the units
+        # already reach it.
+        # @return [Array<Hash>] one row per filler built (string keys, mm)
+        def self.na_build_top_fillers(entities, layout, elements)
+            v      = layout[:settings]
+            soffit = v[:soffit_height].to_f
+            return [] unless soffit > 0.0 && !Array(layout[:top_fillers]).empty?
+            holder = nil
+            built  = []
+            layout[:top_fillers].each do |stretch|
+                size = na_top_filler_size(stretch, elements)
+                next unless size
+                if soffit - size[:top] < 1.0
+                    elements[:warnings] << "The units #{stretch[:spans].first}...#{stretch[:spans].last} reach the soffit (#{size[:top].round}mm): no top filler." if soffit < size[:top] - 1.0
+                    next
+                end
+                lo      = -(size[:depth] + size[:thickness])
+                hi      = -size[:depth]
+                profile = [[lo, size[:top]], [hi, size[:top]], [hi, soffit], [lo, soffit]]
+                name    = format("Na__RunTopFiller__%02d", stretch[:index] + 1)
+                holder ||= na_holder(entities, NA_TOP_FILLER_GROUP)
+                solid   = na_sweep(holder.entities, name, stretch[:centreline], stretch[:closed], profile)
+                unless solid
+                    elements[:warnings] << "The top filler over #{stretch[:spans].first}...#{stretch[:spans].last} could not be drawn."
+                    next
+                end
+                na_finish(solid, size[:material], NA_EDGE_JOINERY)                  # <-- V2.7.6: edges painted (the edge gate)
+                built << { "name" => name, "spans" => stretch[:spans], "bottom_mm" => size[:top].round(1), "top_mm" => soffit.round(1),
+                           "thickness_mm" => size[:thickness].round(1), "solid" => solid.manifold? }
             end
             holder.erase! if holder && holder.valid? && holder.entities.length.zero?
             built
@@ -640,7 +721,7 @@ module Na__AssemblyRunSystem
                 next nil unless values
                 unit = resolver.na_effective(values)
                 { :code => code, :values => values, :top => unit[:z_base] + unit[:height],
-                  :front => unit[:depth] + (unit[:layout] == "Open" ? 0.0 : unit[:front_thickness]) }
+                  :front => unit[:depth] + (unit[:layout] == "Open" ? 0.0 : unit[:front_standoff].to_f + unit[:front_thickness]) }   # <-- V2.7.8: a gap behind the fronts
             end
             return nil if sizes.empty?
 
@@ -655,6 +736,54 @@ module Na__AssemblyRunSystem
             { :top => sizes.map { |size| size[:top] }.max, :front => sizes.map { |size| size[:front] }.max, :values => sizes.first[:values] }
         end
         private_class_method :na_worktop_size
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | The Kickboard's Section From Its Units' Own Plinths (V2.7.6)
+        # ------------------------------------------------------------
+        # @return [Hash, nil] { :depth, :setback, :thickness, :height, :material }
+        def self.na_plinth_size(stretch, elements)
+            resolver = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__LayoutResolver
+            sizes = stretch[:types].filter_map do |code|
+                values = elements[:values][code]
+                next nil unless values
+                unit = resolver.na_effective(values)
+                next nil unless unit[:plinth_enabled] && unit[:z_base] >= 20.0
+                setback = [0.0, [unit[:plinth_setback], unit[:depth] / 2.0 - unit[:plinth_thickness]].min].max
+                { :code => code, :values => values, :depth => unit[:depth], :setback => setback,
+                  :thickness => unit[:plinth_thickness], :height => unit[:z_base] }
+            end
+            return nil if sizes.empty?
+            label = "#{stretch[:spans].first}...#{stretch[:spans].last}"
+            [:depth, :height].each do |key|
+                found = sizes.map { |size| size[key] }
+                next unless found.max - found.min > NA_SIZE_TOLERANCE_MM
+                elements[:warnings] << "The units along the kickboard under #{label} differ in #{key == :depth ? 'depth' : 'plinth height'} (#{sizes.map { |size| "#{size[:code]} #{size[key].round}" }.join(', ')}): it follows the #{key == :depth ? 'deepest' : 'highest'}."
+            end
+            first = sizes.first
+            door  = first[:values]["Na__CabinetConfig__PlinthMatchesDoors"] == false ? "CarcassMaterialId" : "DoorMaterialId"
+            { :depth => sizes.map { |size| size[:depth] }.max, :setback => first[:setback], :thickness => first[:thickness],
+              :height => sizes.map { |size| size[:height] }.max, :material => na_material(first[:values]["Na__CabinetConfig__#{door}"]) }
+        end
+        private_class_method :na_plinth_size
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | The Top Filler's Bottom, Depth and Board From Its Units (V2.7.6)
+        # ------------------------------------------------------------
+        # @return [Hash, nil] { :top, :depth, :thickness, :material }
+        def self.na_top_filler_size(stretch, elements)
+            resolver = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__LayoutResolver
+            sizes = stretch[:types].filter_map do |code|
+                values = elements[:values][code]
+                next nil unless values
+                unit = resolver.na_effective(values)
+                { :values => values, :top => unit[:z_base] + unit[:height], :depth => unit[:depth] + unit[:front_standoff].to_f,   # <-- V2.7.8: the door plane stands the gap off the carcass
+                  :thickness => unit[:front_thickness] }
+            end
+            return nil if sizes.empty?
+            { :top => sizes.map { |size| size[:top] }.max, :depth => sizes.map { |size| size[:depth] }.max,
+              :thickness => sizes.first[:thickness], :material => na_material(sizes.first[:values]["Na__CabinetConfig__DoorMaterialId"]) }
+        end
+        private_class_method :na_top_filler_size
         # ---------------------------------------------------------------
 
         # HELPER FUNCTION | The Worktop's Finish: Its Own, Else the Units' Carcass

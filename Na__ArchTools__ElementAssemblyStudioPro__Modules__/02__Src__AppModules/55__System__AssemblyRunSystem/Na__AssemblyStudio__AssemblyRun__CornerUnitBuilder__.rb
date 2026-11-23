@@ -192,7 +192,8 @@ module Na__AssemblyRunSystem
             door_values = values.merge(
                 "Na__CabinetConfig__Width_mm"  => door[:width],
                 "Na__CabinetConfig__DoorCount" => "1",
-                "Na__CabinetConfig__HingeSide" => door[:hinge]
+                "Na__CabinetConfig__HingeSide" => door[:hinge],
+                "Na__CabinetConfig__FrontStandoff_mm" => 0                       # <-- V2.7.8: the corner unit's doors stay on its own door plane (its post is drawn there)
             )
             layout = cabinetry::Na__LayoutResolver.na_resolve(door_values)
             holder = cabinetry::Na__GeometryHelpers.na_add_group(entities, format(NA_FRONTS_GROUP, door[:arm]))

@@ -3,6 +3,19 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.39 - 23-Nov-2026 - Assembly Runs: One Kickboard, a Top Filler to a Soffit; Appliance Housings Through values
+
+- **What Adam asked for** (of Element Assembly Studio Pro 2.7.6, for SK02's oven bank): ovens and warming drawers from the library in tall housings with doors above and below, and joined kickboards along runs, all driven through these tools.
+- **What agents get.** Two run settings pass through `settings`: `JoinPlinths` (Cabinets; one kickboard per stretch of floor units: on for a new run, off for a run built before 2.7.6 until given true) and `SoffitHeight_mm` (Cabinets; a top filler over tall units up to a soffit, and infill blocks beside them to it; 0 none). A housing is a tall panel type with `values`: `TowerFrontLayout: "Housing"`, `HousingUpperAppliance` / `HousingLowerAppliance` (library codes, `17_1001` the oven and `17_1002` the warming drawer by default, or `None`), `HousingApertureBase_mm`, `HousingUpperAperture_mm`, `HousingLowerAperture_mm`; `entity_studio parameters` lists them from the plugin's catalogue. A build's `counts` gain `plinths` and `top_fillers`, its summary names them.
+- **Where.** The registry only: both run tools' `settings` description names the two settings. The rules are the plugin's (`Na__RunCills.na_product_stretches`, `Na__FrameworkBuilder.na_build_plinths` / `na_build_top_fillers`, `Na__ApplianceBuilder`).
+- **The held cooker-gap draft.** The `worktop` flag on leg items that was drafted as "1.0.39" on 18-Nov-2026 was never applied (its patch is gone with that session's scratchpad); it would now be 1.0.40.
+- **Versions.** `bridge_version` and `server.version` are `1.0.39`. 79 tools. No new parameters, so no `property_since` entry: a window on bridge 1.0.38 takes the calls as they are.
+- **Verified live** (a copy of the EASP testbed in its own window, through this server's own tools while it still ran 1.0.38: settings and values pass straight through): the SK02 oven bank built, a door height changed and the run rebuilt, ids kept (EASP 2.7.6's DEVLOG has the numbers).
+
+### Validation Checklist
+- [ ] Reload Plugin Data: the MCP status dialog shows bridge 1.0.39.
+- [ ] Restart the MCP client: `assembly_run parameters` lists JoinPlinths and SoffitHeight_mm.
+
 ## Na SketchUp MCP | Version 1.0.38 - 17-Nov-2026 - Assembly Runs: One Cill Round the Run, a Fused Framework in One Piece
 
 - **What Adam asked for** (of Element Assembly Studio Pro 2.7.3, on the SK02 bay windows): the cills joined up, wrapping round every side with no join lines, and Fuse the framework working as it should.

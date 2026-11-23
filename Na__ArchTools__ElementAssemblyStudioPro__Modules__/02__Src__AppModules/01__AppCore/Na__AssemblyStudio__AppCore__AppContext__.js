@@ -35,7 +35,7 @@
 
     var NA_PRESETS_MODE_CLS        = 'na-presets-mode';
 
-    var na_live_state = { windows: false, doors: false, cabinets: false };
+    var na_live_state = { windows: false, doors: false, cabinets: false, runs: false };   // <-- runs: V2.7.7
 
     // The dock's step 1 button says what it measures on each tab.
     var NA_MEASURE_LABELS = { cabinets: 'Measure Run', runs: 'Measure Path' };
@@ -240,11 +240,28 @@
         }
     }
 
+    // Assembly runs (V2.7.7; Adam, 23-Nov-2026: "there is no live mode switch
+    // for when you're working on cabinet runs so add this"). Na_RunUI sends
+    // every change to the loaded run; turned on with changes staged, they
+    // are built at once.
+    function na_dispatch_live_toggle_runs() {
+        var nextOn = !na_live_state.runs;
+        na_live_state.runs = nextOn;
+        window.na_runLiveModeActive = nextOn;
+        na_paint_live_button(nextOn);
+        if (typeof window.na_showStatus === 'function') {
+            window.na_showStatus(nextOn ? 'success' : 'info',
+                nextOn ? 'Live Mode enabled - select a run: every change rebuilds it' : 'Live Mode disabled');
+        }
+        if (typeof Na_RunUI !== 'undefined' && typeof Na_RunUI.na_live_toggled === 'function') Na_RunUI.na_live_toggled(nextOn);
+    }
+
     Na_AppContext.na_dispatch_live_toggle = function () {
         var tab = na_resolve_active_tab();
         if      (tab === NA_TAB_WINDOWS)  na_dispatch_live_toggle_windows();
         else if (tab === NA_TAB_DOORS)    na_dispatch_live_toggle_doors();
         else if (tab === NA_TAB_CABINETS) na_dispatch_live_toggle_cabinets();
+        else if (tab === NA_TAB_RUNS)     na_dispatch_live_toggle_runs();
         else                              console.warn('[Na_AppContext] Live toggle ignored on tab:', tab);
     };
 
@@ -266,7 +283,7 @@
     Na_AppContext.na_apply_visibility = function () {
         var tab      = na_resolve_active_tab();
         var hideBoth = (tab === NA_TAB_SETTINGS) || na_is_presets_tab(tab);
-        na_set_button_hidden(NA_BTN_LIVE_ID,    hideBoth || tab === NA_TAB_RUNS);    // A run is rebuilt on Update Run, never live
+        na_set_button_hidden(NA_BTN_LIVE_ID,    hideBoth);                       // <-- V2.7.7: runs have Live Mode too
         na_set_button_hidden(NA_BTN_MEASURE_ID, hideBoth);
     };
 

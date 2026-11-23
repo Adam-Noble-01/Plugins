@@ -598,5 +598,39 @@ check 'Frames runs keep no cut-outs', R.na_resolve(bay.merge(D.na_key('WorktopCu
 
 # endregion -------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# REGION | One Kickboard and a Top Filler (V2.7.6)
+# -----------------------------------------------------------------------------
+
+puts "\nOne kickboard and a top filler (V2.7.6)"
+infill = lambda { |width| { 'Kind' => 'Column', 'Column' => 'Infill', 'Width_mm' => width } }
+kicks  = lambda { |layout| layout[:plinths].map { |p| p[:spans] } }
+tops   = lambda { |layout| layout[:top_fillers].map { |p| p[:spans] } }
+
+# SK02's oven bank: 20 lining, two tall housings, 20 lining, under a 2250 soffit
+l = line.call(1240, [infill.call(20), span.call('T'), span.call('T'), infill.call(20)], SoffitHeight_mm: 2250)
+check 'oven bank: one kickboard and one top filler between the linings', [l[:errors], kicks.call(l), tops.call(l), l[:plinths][0][:centreline], l[:top_fillers][0][:centreline]],
+      [[], [%w[L1S1 L1S2]], [%w[L1S1 L1S2]], [[20.0, 0.0], [1220.0, 0.0]], [[20.0, 0.0], [1220.0, 0.0]]]
+check 'the run builds its floor units\' plinths, not its wall units\'', l[:types].values.select { |t| t[:count].to_i > 0 }.map { |t| [t[:code], t[:plinth_joined]] }, [['T', true]]
+l = line.call(3600, [span.call('A'), span.call('D'), span.call('T'), gap.call(600), span.call('A'), span.call('W')])
+check 'base, drawers and tall carry it; a gap and a wall unit break it', kicks.call(l), [%w[L1S1 L1S2 L1S3], %w[L1S4]]
+check 'no soffit, no top filler', tops.call(l), []
+l = line.call(1800, [span.call('A'), infill.call(100), span.call('A')])
+check 'an infill block breaks the kickboard', kicks.call(l), [%w[L1S1], %w[L1S2]]
+check 'switched off, none', line.call(1200, [span.call('A'), span.call('A')], JoinPlinths: false)[:plinths], []
+check 'switched off, the units build their own', line.call(1200, [span.call('A'), span.call('A')], JoinPlinths: false)[:types]['A'][:plinth_joined], false
+old = cfg(mode: 'Cabinets', PathPoints: [[0, 0], [1200, 0]], PanelTypes: kitchen_types, Legs: [{ 'Items' => [span.call('A'), span.call('A')] }])
+old.delete(D.na_key('JoinPlinths'))
+l = R.na_resolve(old)
+check 'a run from before 2.7.6 (no stored value) keeps its units\' plinths', [l[:plinths], l[:types]['A'][:plinth_joined]], [[], false]
+l = R.na_resolve(cfg(mode: 'Cabinets', PathPoints: [[0, 0], [3300, 0], [3300, -2700]], PanelTypes: [{ 'Code' => 'A', 'Product' => 'base', 'Width_mm' => 600 }],
+                     Legs: [{ 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }, { 'Fill' => { 'PanelType' => 'A', 'Infill' => 'End' } }]))
+check 'an L kitchen: the corner breaks it, one per leg', [l[:errors], l[:plinths].length, l[:plinths].map { |p| p[:ranges].map { |r| r[:leg] }.uniq }], [[], 2, [[0], [1]]]
+check 'Frames runs never have one', [R.na_resolve(bay)[:plinths], R.na_resolve(bay)[:top_fillers]], [[], []]
+l = line.call(1240, [span.call('T'), span.call('T')], SoffitHeight_mm: -5)
+check 'a negative soffit is refused', l[:errors].any? { |e| e.include?('SoffitHeight_mm') }, true
+
+# endregion -------------------------------------------------------------------
+
 puts "\n#{$pass} passed, #{$fail} failed"
 exit($fail.zero? ? 0 : 1)

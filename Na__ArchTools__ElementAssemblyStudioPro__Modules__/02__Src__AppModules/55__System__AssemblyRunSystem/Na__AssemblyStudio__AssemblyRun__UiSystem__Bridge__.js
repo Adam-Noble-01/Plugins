@@ -13,8 +13,11 @@
 // RUBY -> JS (Na__AssemblyRunSystem::Na__DialogRouter)
 //   window.na_receiveRunBootstrap(json)   defaults, option lists, limits, presets
 //   window.na_receiveRunLayout(json)      { layout, ok } for the previews
-//   window.na_setInitialRunConfig(json)   a run selected or just built
+//   window.na_setInitialRunConfig(json)   a run selected, just built or renamed
+//                                         ({ reason, runId, name, copies, root, layout }; V2.7.7 reason)
 //   window.na_clearCurrentRun()           the selection moved off the run
+//   window.na_receiveRunLive(json)        { ok, liveSeq, runId, name, copies, root, layout }:
+//                                         the answer to a Live Mode rebuild (V2.7.7)
 //   window.na_receiveRunPath(json)        a path measured in the model
 //   window.na_runMeasureCancelled()
 //   window.na_setRunPathEdit(json)        { active, runId }: the red path line
@@ -55,6 +58,7 @@
     window.na_receiveRunPath      = function (json) { na_receive('na_receiveRunPath',      json, Na_RunUI.na_receive_path); };
     window.na_setRunPathEdit      = function (json) { na_receive('na_setRunPathEdit',      json, Na_RunUI.na_set_path_edit); };
     window.na_receiveRunStaged    = function (json) { na_receive('na_receiveRunStaged',    json, Na_RunUI.na_receive_staged); };
+    window.na_receiveRunLive      = function (json) { na_receive('na_receiveRunLive',      json, Na_RunUI.na_receive_live); };   // <-- V2.7.7
 
     window.na_clearCurrentRun = function () {
         if (typeof Na_RunUI !== 'undefined') Na_RunUI.na_clear_run();

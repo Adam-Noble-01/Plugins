@@ -36,6 +36,8 @@
 #   na_runSetSpanProduct(json)      na_runSetTypeProduct(json)
 #                                   (V2.7.2: another product, built at once;
 #                                    the member banner's commands)
+#   na_runLiveUpdate(json)          (V2.7.7: Live Mode, the page's description
+#                                    rebuilt at once; always answered)
 #
 # RUBY -> JS
 #   window.na_receiveRunBootstrap(json)   window.na_receiveRunLayout(json)
@@ -43,6 +45,13 @@
 #   window.na_receiveRunPath(json)        window.na_runMeasureCancelled()
 #   window.na_setRunMember(json)          window.na_clearRunMember()
 #   window.na_setRunPathEdit(json)        window.na_receiveRunStaged(json)
+#   window.na_receiveRunLive(json)        (V2.7.7)
+#
+# WHY A RUN IS SENT (V2.7.7): na_setInitialRunConfig carries a reason,
+# "selected", "built" or "renamed". The page keeps its staged changes on
+# anything but "built" (Adam, 23-Nov-2026: "as you make changes, they get
+# lost before you press the update button": every selection of the run
+# replaced them with what it stored).
 #
 # NAMING CONVENTION:
 # - All custom identifiers use Na__ or na_ prefix.
@@ -133,6 +142,7 @@ module Na__AssemblyRunSystem
                 "na_runClearMeasuredPath" => proc { na_clear_measured_path },
                 "na_runCreate"            => proc { |json| na_create(json) },
                 "na_runUpdate"            => proc { |json| na_update(json) },
+                "na_runLiveUpdate"        => proc { |json| na_live_update(json) },        # <-- V2.7.7 Live Mode
                 "na_runRename"            => proc { |json| na_rename(json) },
                 "na_runMakeUnique"        => proc { |json| na_panel_edit(json, :unique) },
                 "na_runRecode"            => proc { |json| na_panel_edit(json, :recode) },
@@ -199,7 +209,8 @@ module Na__AssemblyRunSystem
                 "productWidths"  => na_product_widths,
                 "keys"           => { "metadata" => Defaults::NA_KEY_METADATA, "components" => Defaults::NA_KEY_COMPONENTS,
                                       "configuration" => Defaults::NA_KEY_CONFIGURATION, "prefix" => Defaults::NA_CONFIG_KEY_PREFIX,
-                                      "draftPath" => Defaults::NA_KEY_DRAFT_PATH, "draftPathPage" => Defaults::NA_DRAFT_PATH_PAGE },
+                                      "draftPath" => Defaults::NA_KEY_DRAFT_PATH, "draftPathPage" => Defaults::NA_DRAFT_PATH_PAGE,
+                                      "liveSeq" => Defaults::NA_KEY_LIVE_SEQ },
                 "sillProducts"   => Defaults::NA_SILL_PRODUCTS,
                 "pathEdit"       => PathEditor.na_editing_run_id
             }
@@ -308,7 +319,7 @@ module Na__AssemblyRunSystem
             values = Na__AssemblyStudio::Na__McpOperations.na_fresh_root(product)["Na__CabinetConfiguration"] || {}
             unit   = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__LayoutResolver.na_effective(values)
             @na_product_worktop_base[product] = { :top   => unit[:z_base] + unit[:height],
-                                                  :front => unit[:depth] + (unit[:layout] == "Open" ? 0.0 : unit[:front_thickness]) }
+                                                  :front => unit[:depth] + (unit[:layout] == "Open" ? 0.0 : unit[:front_standoff].to_f + unit[:front_thickness]) }
         rescue StandardError => e
             DebugTools.na_debug_warn("Run preview worktop for '#{product}' unavailable: #{e.message}")
             @na_product_worktop_base[product] = nil
@@ -538,6 +549,42 @@ module Na__AssemblyRunSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | Live Mode: Rebuild the Run the Page Is Showing (V2.7.7)
+        # ------------------------------------------------------------
+        # The page sends its description after each change while the dock's
+        # Live switch is on. The same pipeline as Update Run, as its own undo
+        # step (Defaults::NA_LIVE_OPERATION), never transparent: in a shared
+        # window the step before may be another session's. Every request is
+        # answered with window.na_receiveRunLive, built or not, carrying the
+        # page's number for it, so the page sends what it changed meanwhile.
+        def self.na_live_update(config_json)
+            answer = { "ok" => false, "liveSeq" => nil }
+            root   = na_parse(config_json)
+            return unless root
+            answer["liveSeq"] = root.delete(Defaults::NA_KEY_LIVE_SEQ)
+            root.delete(Defaults::NA_KEY_DRAFT_PATH)
+            instance = na_target_run(RunPipelines.na_metadata(root)["Na__Run__UniqueId"])
+            unless instance
+                na_status("warning", "Live Mode: that run is no longer in the model.")
+                return
+            end
+            requested = RunPipelines.na_metadata(root)["Na__Run__ComponentName"]
+            report    = RunPipelines.na_pipeline_update(instance, root, name: requested.nil? ? RunPipelines::NameSuffix::NA_KEEP : requested.to_s,
+                                                        operation_name: Defaults::NA_LIVE_OPERATION)
+            na_after_build(report, nil, send: false)
+            na_status("warning", "Live Mode: #{report[:warnings].join(' ')}") unless report[:warnings].empty?
+            payload = na_run_payload(report[:instance])
+            answer  = payload.merge("ok" => true, "liveSeq" => answer["liveSeq"]) if payload
+        rescue Na__RunLayoutError => e
+            na_refused(root, e)
+        rescue StandardError => e
+            DebugTools.na_debug_error("Run live update failed", e)
+            na_status("error", "Live Mode could not rebuild the run: #{e.message}")
+        ensure
+            UiBridge.na_execute_json_function(na_dialog, "window.na_receiveRunLive", answer) if answer
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | Rename the Run (the Name Tail Only)
         # ------------------------------------------------------------
         def self.na_rename(payload_json)
@@ -545,7 +592,7 @@ module Na__AssemblyRunSystem
             instance = na_target_run(payload["runId"])
             return unless instance
             na_status("success", "Renamed #{RunPipelines.na_pipeline_rename(instance, payload['name'].to_s)}.")
-            na_send_run(instance)
+            na_send_run(instance, "renamed")
         rescue StandardError => e
             DebugTools.na_debug_error("Run rename failed", e)
             na_status("error", "The run could not be renamed: #{e.message}")
@@ -644,7 +691,7 @@ module Na__AssemblyRunSystem
         # ------------------------------------------------------------
         def self.na_load_into_dialog(instance, _run_id)
             @na_current_instance = instance
-            na_send_run(instance)
+            na_send_run(instance, "selected")                                    # <-- V2.7.7: the page keeps staged changes to it
         end
         # ---------------------------------------------------------------
 
@@ -738,9 +785,11 @@ module Na__AssemblyRunSystem
 
         # HELPER FUNCTION | Push One Run's Stored Data and Layout to the Tab
         # ------------------------------------------------------------
-        def self.na_send_run(instance)
+        # @param reason [String] V2.7.7: "selected", "built" or "renamed"; the
+        #   page keeps its staged changes to the run on anything but "built"
+        def self.na_send_run(instance, reason = "built")
             payload = na_run_payload(instance)
-            UiBridge.na_execute_json_function(na_dialog, "window.na_setInitialRunConfig", payload) if payload
+            UiBridge.na_execute_json_function(na_dialog, "window.na_setInitialRunConfig", payload.merge("reason" => reason)) if payload
         end
         private_class_method :na_send_run
         # ---------------------------------------------------------------
@@ -765,7 +814,10 @@ module Na__AssemblyRunSystem
         # ------------------------------------------------------------
         # @param reselect   [Array, nil] [leg, span] of the span to select again
         # @param was_member [Boolean] the user was inside the run on a span
-        def self.na_after_build(report, message, reselect: nil, was_member: false)
+        # @param send       [Boolean] V2.7.7: false for Live Mode, whose answer
+        #   carries the run (a "built" payload here would overwrite what the
+        #   page changed while it was building)
+        def self.na_after_build(report, message, reselect: nil, was_member: false, send: true)
             instance = report[:instance]
             @na_current_instance = instance
             model = Sketchup.active_model
@@ -775,7 +827,7 @@ module Na__AssemblyRunSystem
                 model.selection.clear
                 model.selection.add(instance)
             end
-            na_send_run(instance)
+            na_send_run(instance, "built") if send
             return unless message
             warned = report[:warnings].empty? ? "" : " Note: #{report[:warnings].join(' ')}"
             na_status(report[:warnings].empty? ? "success" : "warning", "#{message}#{warned}")

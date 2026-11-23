@@ -171,7 +171,13 @@ module Na__AssemblyRunSystem
                 :worktop_overhang  => na_number(config, "WorktopOverhang_mm", errors),
                 :worktop_back      => na_number(config, "WorktopBackOverhang_mm", errors),
                 :worktop_end       => na_number(config, "WorktopEndOverhang_mm", errors),
-                :worktop_material  => na_get(config, "WorktopMaterialId").to_s.strip
+                :worktop_material  => na_get(config, "WorktopMaterialId").to_s.strip,
+                # V2.7.6: only a value the run has STORED turns it on. A new run
+                # stores true (its start, Na__Defaults.na_default_config); a run
+                # built before 2.7.6 has none, so an unrelated rebuild never
+                # swaps its units' plinths for a kickboard (MANAGER, 23-Nov-2026).
+                :join_plinths      => !frames && config[Defaults.na_key("JoinPlinths")] == true,
+                :soffit_height     => frames ? 0.0 : na_number(config, "SoffitHeight_mm", errors)
             }
         end
         private_class_method :na_settings
@@ -795,6 +801,11 @@ module Na__AssemblyRunSystem
             cills, boards = na_run_cills!(legs, corners, types, closed, v, errors)
             worktops      = na_run_worktops(legs, corners, types, closed, v)
             cutouts       = na_worktop_cutouts(config, v, errors)
+            plinths       = na_run_flagged(legs, corners, types, closed, v[:join_plinths], Defaults::NA_PLINTH_PRODUCTS)
+            top_fillers   = na_run_flagged(legs, corners, types, closed, v[:soffit_height].to_f > 0.0, Defaults::NA_TOP_FILLER_PRODUCTS)
+            types.each_value do |type|                                           # <-- V2.7.6: the run builds this type's plinth (PlinthByRun)
+                type[:plinth_joined] = v[:join_plinths] && Defaults::NA_PLINTH_PRODUCTS.include?(type[:product].to_s)
+            end
             {
                 :mode          => v[:mode],
                 :closed        => closed,
@@ -808,6 +819,8 @@ module Na__AssemblyRunSystem
                 :boards        => boards,
                 :worktops      => worktops,
                 :worktop_cutouts => cutouts,
+                :plinths       => plinths,                                       # <-- V2.7.6: the kickboard stretches
+                :top_fillers   => top_fillers,                                   # <-- V2.7.6: the top filler stretches
                 :warnings      => warnings.uniq,
                 :errors        => errors.uniq,
                 :total_length  => legs.sum { |leg| leg[:length] },
@@ -866,6 +879,22 @@ module Na__AssemblyRunSystem
             stretches
         end
         private_class_method :na_run_worktops
+        # ---------------------------------------------------------------
+
+        # FUNCTION | Stretches of Spans of Given Products (V2.7.6)
+        # ------------------------------------------------------------
+        # The kickboard (floor units) and the top filler (tall units): where
+        # they run, as the worktop's stretches give it. Their sizes are the
+        # units' own, known once the elements are built
+        # (Na__FrameworkBuilder.na_build_plinths / na_build_top_fillers).
+        # @return [Array<Hash>] the stretches (none when it is off)
+        def self.na_run_flagged(legs, corners, types, closed, wanted, products)
+            return [] unless wanted && !legs.empty?
+            stretches = RunCills.na_product_stretches(legs, corners, types, closed, products)
+            stretches.each { |stretch| stretch.delete(:segments) }
+            stretches
+        end
+        private_class_method :na_run_flagged
         # ---------------------------------------------------------------
 
         # FUNCTION | The Worktop's Cut-Outs, Checked (V2.7.5)

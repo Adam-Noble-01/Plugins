@@ -18,6 +18,7 @@
 #     Na__Cabinet__Plinth             full-width plinth board
 #     Na__Cabinet__Legs               leg asset instances, stretched to the plinth
 #     Na__Cabinet__Handles            handle asset instances
+#     Na__Cabinet__Appliances         V2.7.6 housings: library appliance instances (17_1001 oven ...)
 #
 # COORDINATES
 # - Everything inside the definition is built in its own frame (the unit
@@ -37,6 +38,7 @@
 require 'sketchup.rb'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__DebugTools__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 require_relative 'Na__AssemblyStudio__Cabinetry__Defaults__'
 require_relative 'Na__AssemblyStudio__Cabinetry__LayoutResolver__'
 require_relative 'Na__AssemblyStudio__Cabinetry__CarcassBuilder__'
@@ -44,6 +46,7 @@ require_relative 'Na__AssemblyStudio__Cabinetry__FrontBuilder__'
 require_relative 'Na__AssemblyStudio__Cabinetry__DrawerBoxBuilder__'
 require_relative 'Na__AssemblyStudio__Cabinetry__PlinthLegsBuilder__'
 require_relative 'Na__AssemblyStudio__Cabinetry__HandleBuilder__'
+require_relative 'Na__AssemblyStudio__Cabinetry__ApplianceBuilder__'
 require_relative 'Na__AssemblyStudio__Cabinetry__DataSerializer__'
 
 module Na__AssemblyStudio
@@ -63,7 +66,16 @@ module Na__InteriorCabinetrySystem
         DrawerBoxBuilder  = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__DrawerBoxBuilder
         PlinthLegsBuilder = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__PlinthLegsBuilder
         HandleBuilder     = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__HandleBuilder
+        ApplianceBuilder  = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__ApplianceBuilder
         DataSerializer    = Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__DataSerializer
+
+        # V2.7.6: every board's edges are painted (the edge gate: no unpainted
+        # edges) in Adam's cabinet edge colour, DarkGrey L40: SK02's cabinets
+        # were painted L40 by hand after building (ACB005, 23-Nov-2026). Legs
+        # and handles keep their own dark grey; library appliances are left
+        # as the library made them.
+        NA_BOARD_GROUPS      = %w[Na__Cabinet__Carcass Na__Cabinet__Fronts Na__Cabinet__DrawerBoxes Na__Cabinet__Plinth].freeze
+        NA_BOARD_EDGE_COLOUR = "MTE103__LineColour__DarkGrey__L40".freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -146,12 +158,26 @@ module Na__InteriorCabinetrySystem
             PlinthLegsBuilder.na_build_plinth(layout, entities, materials)
             PlinthLegsBuilder.na_build_legs(layout, entities, layout[:values][:leg_key], materials)
             HandleBuilder.na_build(layout, entities, layout[:values][:handle_key], materials)
+            ApplianceBuilder.na_build(layout, entities)                          # <-- V2.7.6: a housing's library appliances
+            na_paint_board_edges(entities)                                       # <-- V2.7.6: the edge gate
 
             layout[:warnings].each { |warning| DebugTools.na_debug_warn("Cabinet layout: #{warning}") }
             layout
         end
         private_class_method :na_build_into
         # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Paint the Boards' Edges (V2.7.6)
+        # ------------------------------------------------------------
+        def self.na_paint_board_edges(entities)
+            entities.grep(Sketchup::Group).each do |group|
+                next unless NA_BOARD_GROUPS.include?(group.name)
+                Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager.na_apply_edge_colour_to_group(group, NA_BOARD_EDGE_COLOUR)
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_warn("Cabinet edge colour skipped: #{e.message}")
+        end
+        private_class_method :na_paint_board_edges
 
         # HELPER FUNCTION | Look Up Each Part's Material Through MaterialManager
         # ------------------------------------------------------------

@@ -35,6 +35,10 @@
 // - Undo and Redo (V2.7.2) step through the description as it was after
 //   each change made here: Ctrl+Z, Ctrl+Y, and the two buttons in the
 //   preview's head. See the Undo and redo region.
+// - Staged changes survive the selection (V2.7.7): selecting the run again,
+//   or clearing the selection, never throws them away. See na_receive_run.
+// - Live Mode (V2.7.7): with the dock's Live switch on, every change made
+//   here rebuilds the loaded run at once. See the Live Mode region.
 //
 // THE ONE PIECE OF GEOMETRY HERE
 // - Leg lengths and turns typed into the Path section become points with
@@ -64,6 +68,8 @@
     var NA_TAB_ID           = 'runs';                                           // <-- body[data-na-active-tab] while this tab shows
     var NA_NEW_PRODUCT      = 'new:';                                           // <-- Head of a panel type option that asks for another product
     var NA_HISTORY_LIMIT    = 100;                                              // <-- Steps of Undo kept
+    var NA_LIVE_DELAY_MS    = 300;                                              // <-- V2.7.7: a run rebuilds slower than a window; changes this close go together
+    var NA_LIVE_SEQ_KEY     = 'Na__Run__LiveSeq';                               // <-- V2.7.7: Ruby's name for it comes with the bootstrap (keys.liveSeq)
     var NA_CHEVRON          = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4l4 4 4-4"/></svg>';
 
     var NA_MODE_NOTES = {
@@ -90,10 +96,14 @@
         measured  : null,      // <-- A path measured in the model, waiting for Create
         measuredInDraft: false,// <-- The draft's path IS that measured path, as changed here since (Create then builds the draft's)
         pathEdit  : null,      // <-- Run id whose path is open as a red line
+        editSeq   : 0,         // <-- V2.7.7: counts the changes made here (Live Mode builds the latest)
+        storedSig : null,      // <-- V2.7.7: the loaded run's stored configuration as Ruby last sent it
         open      : { run: true, columns: false, path: false, legs: true, types: true }
     };
     var na_resolve_timer = null;
     var na_history       = { steps: [], at: -1 };                               // <-- See the Undo and redo region
+    var na_live          = { timer: null, inFlight: false, sentSeq: -1 };       // <-- See the Live Mode region
+    var na_parked        = {};                                                  // <-- V2.7.7: run id -> staged changes of a run the selection moved off
 
     // -----------------------------------------------------------------------
     // REGION | Small helpers
@@ -250,10 +260,12 @@
     function na_changed(skip_render) {
         na_state.dirty      = true;
         na_state.legsByHand = true;
+        na_state.editSeq   += 1;
         na_history_record();
         if (!skip_render) na_render_sections();
         na_sync_dock();
         na_request_layout();
+        na_schedule_live();
     }
 
     function na_request_layout() {
@@ -339,11 +351,16 @@
         na_state.legsByHand = held.legsByHand;
         na_state.measuredInDraft = held.measuredInDraft === true;
         na_state.selection  = null;
+        na_state.editSeq   += 1;
+        // Live Mode has built every step since: the run in the model is the
+        // latest step's, so a step back is a change to build (V2.7.7).
+        if (na_live_active() && na_state.runId) na_state.dirty = true;
         na_refresh();
         if (na_resolve_timer) { clearTimeout(na_resolve_timer); na_resolve_timer = null; }
         na_send('na_runResolve', na_state.root);                                // <-- At once: the sections and both drawings wait on this layout
         na_sync_history();
         na_status('info', delta < 0 ? 'Undone.' : 'Redone.');
+        na_schedule_live();
         return true;
     }
 
@@ -386,6 +403,108 @@
         na_render_sections();                                                   // <-- The dropdown or switch goes back to what the description says
         na_status('error', 'This SketchUp window is running an older copy of the plugin. Use Reload Scripts, or restart SketchUp, then try again.');
         return false;
+    }
+
+    // -----------------------------------------------------------------------
+    // REGION | Live Mode (V2.7.7)
+    // -----------------------------------------------------------------------
+    // WHY (Adam, 23-Nov-2026): "Within Entity Studio mode there is no live
+    // mode switch for when you're working on cabinet runs so add this. It has
+    // the same functionality as, for example, windows so you can select a run
+    // and make live updates."
+    //
+    // HOW IT WORKS
+    // - The dock's Live switch on this tab (Na_AppContext) sets
+    //   window.na_runLiveModeActive. With it on and a run loaded, every change
+    //   made here (a field, a menu, a typed dimension, a staged product change
+    //   or flip, this tab's Undo and Redo) rebuilds the run through the same
+    //   pipeline Update Run uses (na_runLiveUpdate). A draft is never live:
+    //   Create builds it.
+    // - Changes within NA_LIVE_DELAY_MS go together. One rebuild is in flight
+    //   at a time; Ruby answers every request (na_receive_live), built or
+    //   refused, and what was changed meanwhile goes next.
+    // - The answer carries the run as built. Nothing changed since: it is
+    //   taken as the description. Something did: the element ids Ruby gave new
+    //   panel types are carried onto the newer description, which goes next,
+    //   so a new type is never built twice.
+    // - Each rebuild is its own undo step in SketchUp ("Live Update Assembly
+    //   Run"), never merged into the step before, which in a shared window may
+    //   be another session's.
+
+    function na_live_active() { return window.na_runLiveModeActive === true; }
+
+    function na_live_seq_key() { return na_keys().liveSeq || NA_LIVE_SEQ_KEY; }
+
+    // FUNCTION | A Change Was Made: Build It Soon, If Live
+    // ---------------------------------------------------------------
+    function na_schedule_live() {
+        if (!na_live_active() || !na_state.runId || !na_state.dirty) return;
+        if (na_live.timer) clearTimeout(na_live.timer);
+        na_live.timer = setTimeout(function () {
+            na_live.timer = null;
+            na_live_send();
+        }, NA_LIVE_DELAY_MS);
+    }
+
+    // FUNCTION | Send the Description as It Stands to Be Built
+    // ---------------------------------------------------------------
+    function na_live_send() {
+        if (!na_live_active() || !na_state.runId || !na_state.dirty || !na_state.root) return;
+        if (na_live.inFlight) return;                                           // <-- Its answer sends what changed meanwhile
+        var payload = na_clone(na_state.root);
+        var meta    = (payload[na_keys().metadata] || [])[0];
+        if (meta) meta['Na__Run__UniqueId'] = na_state.runId;
+        payload[na_live_seq_key()] = na_state.editSeq;
+        if (!na_send('na_runLiveUpdate', payload)) {
+            na_status('error', 'This SketchUp window is running an older copy of the plugin, without Live Mode for runs. Use Reload Scripts, or restart SketchUp.');
+            return;
+        }
+        na_live.inFlight = true;
+        na_live.sentSeq  = na_state.editSeq;
+    }
+
+    // FUNCTION | Give New Panel Types the Element Ids Ruby Built Them With
+    // ---------------------------------------------------------------
+    // @param built [Object] the root Ruby stored after the rebuild
+    function na_carry_element_ids(built) {
+        var keys  = na_keys();
+        var rows  = (((built || {})[keys.configuration] || {})[keys.prefix + 'PanelTypes']) || [];
+        var by    = {};
+        rows.forEach(function (row) { if (row && row.Code) by[String(row.Code).toUpperCase()] = row; });
+        na_types().forEach(function (row) {
+            var done = by[String(row.Code || '').toUpperCase()];
+            if (!done || done.Product !== row.Product) return;                  // <-- A row changed to another product since: built afresh next time
+            ['ElementId', 'FrameBeforeFuse', 'CillBeforeJoin'].forEach(function (name) {
+                if (row[name] === undefined && done[name] !== undefined) row[name] = na_clone(done[name]);
+            });
+        });
+    }
+
+    // FUNCTION | Commit a Value Still Being Typed
+    // ---------------------------------------------------------------
+    // A field's value is applied on its change event, which fires when it
+    // loses focus inside the page. A click in SketchUp does not take that
+    // focus, so a redraw that Ruby caused next would drop the typing. Called
+    // before anything Ruby sends redraws the sections.
+    function na_commit_typing() {
+        var host   = document.getElementById(NA_SECTIONS_ID);
+        var active = document.activeElement;
+        if (!host || !active || !host.contains(active)) return;
+        var tag = active.tagName ? active.tagName.toLowerCase() : '';
+        if (tag !== 'input' || /^(checkbox|radio|button|range)$/.test(active.type || 'text')) return;
+        if (active.value === active.defaultValue) return;
+        active.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // The configuration a run stores, as one string to compare (V2.7.7).
+    function na_signature(root) {
+        return JSON.stringify(((root || {})[na_keys().configuration]) || {});
+    }
+
+    // FUNCTION | Keep a Run's Staged Changes Aside While Another Run Is Shown
+    // ---------------------------------------------------------------
+    function na_park() {
+        na_parked[na_state.runId] = { root: na_clone(na_state.root), storedSig: na_state.storedSig, name: na_state.runName };
     }
 
     // -----------------------------------------------------------------------
@@ -561,6 +680,13 @@
                         na_field('Back overhang', na_number('WorktopBackOverhang_mm'), 'Behind the wall line: an island\'s far side') +
                         na_field('End overhang', na_number('WorktopEndOverhang_mm'), 'Past each free end of the run');
             }
+            // One kickboard along the floor units and a top filler to a soffit
+            // (V2.7.6; Adam, 23-Nov-2026: "joined kickboards along runs").
+            body += '<div class="na-run-field na-run-field--full"><label class="na-run-toggle"><input type="checkbox" data-na-act="set-flag" data-na-key="JoinPlinths"' +
+                    (na_get('JoinPlinths') === true ? ' checked' : '') + '><span>One kickboard along the run</span></label>' +   // <-- Ruby's rule: only a stored true (a run from before 2.7.6 has none)
+                    '<span class="na-run-field__note">One kickboard under each stretch of floor units (base, drawers, tall, wardrobe, appliance housings) in place of each unit\'s own plinth; the units keep their legs. ' +
+                    'Infill blocks, gaps, wall units and corners break it.</span></div>' +
+                    na_field('Soffit height', na_number('SoffitHeight_mm'), '0 for none: a top filler over tall units up to it; infill blocks beside them stand to it');
         }
         body += '</div>';
         var summary = frames ? (na_trim(na_get('Height_mm')) + ' high' + (fused ? ' · fused, ' + na_trim(na_get('MullionWidth_mm')) + ' mullions' : '') +
@@ -1296,6 +1422,12 @@
         if (!na_state.root) {
             na_new_draft('Frames');
             na_history_reset();
+        } else if (na_state.runId) {
+            // V2.7.7: a run loaded before the defaults arrived (the tab's first
+            // showing, opened by a selection) showed empty fields for settings
+            // it never stored. They read as Ruby's defaults, as the resolver
+            // reads them.
+            na_fill_missing_settings(na_state.root);
         }
         na_refresh();
         na_request_layout();
@@ -1323,10 +1455,12 @@
         na_state.layout     = payload.layout;
         na_state.dirty      = true;
         na_state.legsByHand = true;
+        na_state.editSeq   += 1;
         if (payload.edit === 'flip') na_state.selection = null;                 // <-- Its legs are numbered from the other end now
         na_history_record();
         na_refresh();
-        na_status('success', payload.message + (na_state.runId ? ' Update Run builds it.' : ''));
+        na_status('success', payload.message + (na_state.runId ? (na_live_active() ? ' Live Mode builds it.' : ' Update Run builds it.') : ''));
+        na_schedule_live();
     };
 
     // A setting a run stored before it existed reads as Ruby's default
@@ -1344,8 +1478,50 @@
         });
     }
 
-    // A run selected in the model (or just built): show what it stores.
+    // FUNCTION | A Run Selected in the Model, Just Built or Renamed: Show It
+    // ---------------------------------------------------------------
+    // payload.reason (V2.7.7): 'selected', 'built' or 'renamed'. A Ruby older
+    // than 2.7.7 sends none, which reads as 'built' (the old behaviour).
+    //
+    // WHY (Adam, 23-Nov-2026: "as you make changes, they get lost before you
+    // press the update button"). Ruby sends the run on EVERY selection of it,
+    // and this replaced the description with what the run stores, so staged
+    // changes went whenever the run was clicked again. Now:
+    // - 'built': the description is what was built: always taken.
+    // - The run already shown, with changes staged: they are kept (its name
+    //   and copies refresh).
+    // - The run already shown, nothing staged, and it stores what it stored
+    //   when it was shown: nothing to do (this tab's Undo history stays).
+    // - Another run, with changes staged here: they are put aside under this
+    //   run's id and come back when it is selected again, unless it was
+    //   rebuilt meanwhile (its stored description changed), when they go.
     Na_RunUI.na_receive_run = function (payload) {
+        var reason = payload.reason || 'built';
+        var stored = na_signature(payload.root);
+        var same   = !!na_state.runId && payload.runId === na_state.runId;
+        na_commit_typing();
+
+        if (reason !== 'built' && same && (na_state.dirty || stored === na_state.storedSig)) {
+            na_state.runName = payload.name || payload.runId;
+            na_state.copies  = payload.copies || 1;
+            if (reason === 'renamed') {
+                var named = ((payload.root[na_keys().metadata] || [])[0] || {})['Na__Run__ComponentName'];
+                if (named !== undefined) na_metadata()['Na__Run__ComponentName'] = named;
+            }
+            na_sync_dock();
+            if (na_state.dirty && !na_live.inFlight) {                          // <-- In flight: the live rebuild re-selecting its own run
+                na_status('info', na_state.runName + ': your changes are kept and not built yet. ' +
+                                  (na_live_active() ? 'Live Mode builds them.' : 'Update Run builds them.'));
+                na_schedule_live();
+            }
+            return;
+        }
+        if (reason === 'selected' && na_state.runId && !same && na_state.dirty) na_park();
+
+        var parked = reason === 'selected' ? na_parked[payload.runId] : null;
+        if (parked) delete na_parked[payload.runId];
+        if (reason === 'built') delete na_parked[payload.runId];                // <-- What was put aside is older than what was just built
+
         na_fill_missing_settings(payload.root);
         na_state.root      = payload.root;
         na_state.layout    = payload.layout;
@@ -1353,24 +1529,103 @@
         na_state.runName   = payload.name || payload.runId;
         na_state.copies    = payload.copies || 1;
         na_state.dirty     = false;
+        na_state.storedSig = stored;
         na_state.legsByHand = true;                                             // <-- A built run's legs are never reseeded
         na_state.selection = null;
         na_state.measuredInDraft = false;                                       // <-- This description is the run's, not the measured path's
+        if (parked && parked.storedSig === stored) {
+            na_state.root  = parked.root;
+            na_state.dirty = true;
+            na_state.editSeq += 1;
+        }
         na_history_reset();                                                     // <-- What is built is SketchUp's own Undo from here
         na_refresh();
+        if (parked && na_state.dirty) {
+            na_request_layout();
+            na_status('info', na_state.runName + ': the changes you made before are back, not built yet. ' +
+                              (na_live_active() ? 'Live Mode builds them.' : 'Update Run builds them.'));
+            na_schedule_live();
+        } else if (parked) {
+            na_status('warning', na_state.runName + ' was rebuilt since you changed it here, so those changes were dropped.');
+        }
     };
 
-    // The selection moved off the run: keep its description as a draft to
-    // build another like it, no longer tied to the one in the model.
+    // FUNCTION | The Selection Moved Off the Run
+    // ---------------------------------------------------------------
+    // Nothing staged: its description stays as a draft, to build another
+    // like it, no longer tied to the run. Changes staged (V2.7.7): the run
+    // stays loaded, so Update Run (or Live Mode) still builds them: Ruby
+    // finds the run by its id, selected or not. Before, Update Run went grey
+    // here and selecting the run again brought its stored values back.
     Na_RunUI.na_clear_run = function () {
         if (!na_state.runId) return;
+        if (na_live.inFlight) return;                                           // <-- The live rebuild re-selecting its run: nothing to say
+        na_commit_typing();
+        if (na_state.dirty) {
+            na_sync_dock();
+            na_status('info', na_state.runName + ' is not selected now; your changes to it are kept. ' +
+                              (na_live_active() ? 'Live Mode builds them.' : 'Update Run builds them; New Run drops them.'));
+            return;
+        }
         na_state.runId = null;
         na_state.runName = '';
         na_state.dirty = false;
+        na_state.storedSig = null;
         na_history_reset();                                                     // <-- A draft from here: no step back to the run it was
         na_render_modes();
         na_render_sections();
         na_sync_dock();
+    };
+
+    // FUNCTION | Ruby's Answer to a Live Rebuild (V2.7.7)
+    // ---------------------------------------------------------------
+    // @param payload { ok, liveSeq, runId, name, copies, root, layout } (ok
+    //                  false: refused or failed; Ruby has said why)
+    Na_RunUI.na_receive_live = function (payload) {
+        na_live.inFlight = false;
+        if (!payload || !payload.ok) return;                                   // <-- The changes stay staged; the next change tries again
+        if (payload.runId !== na_state.runId) return;                          // <-- Another run is shown now
+        na_state.runName = payload.name || payload.runId;
+        na_state.copies  = payload.copies || 1;
+        na_state.storedSig = na_signature(payload.root);
+        if (payload.liveSeq === na_state.editSeq) {
+            // Nothing changed here while it built. A field still being typed
+            // in keeps its typing through the redraw, uncommitted: it goes
+            // when the user leaves the field.
+            na_fill_missing_settings(payload.root);
+            na_state.root   = payload.root;
+            na_state.layout = payload.layout;
+            na_state.dirty  = false;
+            na_render_sections_keeping_focus();
+            na_draw();
+            na_sync_dock();
+            return;
+        }
+        na_carry_element_ids(payload.root);
+        na_live_send();                                                         // <-- What changed while it was building
+    };
+
+    // FUNCTION | The Dock's Live Switch Changed on This Tab (V2.7.7)
+    // ---------------------------------------------------------------
+    Na_RunUI.na_live_toggled = function (on) {
+        if (!on) {
+            if (na_live.timer) { clearTimeout(na_live.timer); na_live.timer = null; }
+            na_sync_dock();
+            return;
+        }
+        if (!na_state.runId) {
+            na_status('info', 'Live Mode is on: select a run in the model (a draft is built with Create Run).');
+            return;
+        }
+        na_commit_typing();
+        if (na_state.dirty) na_live_send();                                     // <-- What was staged before the switch goes now
+        na_sync_dock();
+    };
+
+    // For the tests that drive the page (V2.7.7).
+    Na_RunUI.na_get_state = function () {
+        return { runId: na_state.runId, dirty: na_state.dirty, editSeq: na_state.editSeq, live: na_live_active(),
+                 liveInFlight: na_live.inFlight, liveSentSeq: na_live.sentSeq, parked: Object.keys(na_parked) };
     };
 
     Na_RunUI.na_receive_path = function (payload) {

@@ -83,7 +83,9 @@ module Na__McpOperations
         'UnitDepth_mm'      => 'Cabinets: carcass depth, for corners and infill blocks.',
         'FrontAllowance_mm' => 'Cabinets: fronts and handles in front of the carcass, cleared by the second leg at a Blind corner.',
         'CornerUnitLeg_mm'  => 'Cabinets: the length of each arm of an L-shaped corner unit, along its wall.',
-        'FillerHeight_mm'   => 'Cabinets: how tall an infill block stands.',
+        'FillerHeight_mm'   => 'Cabinets: how tall an infill block stands (beside a unit, as tall as it; beside a tall unit with SoffitHeight_mm set, to the soffit).',
+        'JoinPlinths'       => 'Cabinets (2.7.6): true (a new run\'s start; a run built before 2.7.6 has no value and keeps its units\' own plinths until given true) builds ONE kickboard along each stretch of floor units (base, drawers, tall, wardrobe, appliance housings) in place of each unit\'s own plinth board; the units keep their legs and height. Its section is the units\' own plinth (PlinthHeight_mm, PlinthSetback_mm, PlinthThickness_mm, the door finish). Infill blocks, gaps, wall units, corners and free ends break it.',
+        'SoffitHeight_mm'   => 'Cabinets (2.7.6): mm above the run\'s base of a soffit (a downstand or ceiling) over tall units: a top filler board in the door plane fills from their top up to it, and infill blocks beside them (EndColumn Infill: linings) stand to it. 0 (the start): none.',
         'Worktop'           => 'Cabinets: true (the start) builds ONE worktop over each stretch of base and drawer units, mitred round every corner, with no join lines. Infill blocks, gaps (appliance spaces) and corners carry it; a wall, tall or wardrobe unit breaks it, and so does a gap item given worktop: false (a cooker space). It sits on the units\' tops (plinth and carcass, from their own settings).',
         'WorktopThickness_mm'    => 'Cabinets, the worktop: its thickness.',
         'WorktopOverhang_mm'     => 'Cabinets, the worktop: how far it stands past the units\' fronts (their doors; the carcass when open-fronted).',
@@ -971,10 +973,14 @@ module Na__McpOperations
             }.join(', ')
         end
         worktops = Array(layout[:worktops]).map { |stretch| "#{stretch[:spans].first} to #{stretch[:spans].last}" }
+        plinths  = Array(layout[:plinths]).map { |stretch| "#{stretch[:spans].first} to #{stretch[:spans].last}" }
+        fillers  = Array(layout[:top_fillers]).map { |stretch| "#{stretch[:spans].first} to #{stretch[:spans].last}" }
         cutouts  = Array(layout[:worktop_cutouts]).map { |cutout| cutout[:label] }
         "#{layout[:mode]}, #{layout[:span_count]} span#{layout[:span_count] == 1 ? '' : 's'}; " +
             types.map { |type| "#{type[:code]} = #{type[:product]} #{type[:width].round(1)}mm x#{type[:count]}" }.join(', ') + '; ' + legs.join('; ') + '.' +
             (worktops.empty? ? '' : " Worktop#{worktops.length == 1 ? '' : 's'}: #{worktops.join('; ')}.") +
+            (plinths.empty? ? '' : " Kickboard#{plinths.length == 1 ? '' : 's'}: #{plinths.join('; ')}.") +
+            (fillers.empty? ? '' : " Top filler#{fillers.length == 1 ? '' : 's'} to #{layout[:settings][:soffit_height].to_f.round}: #{fillers.join('; ')}.") +
             (cutouts.empty? ? '' : " Cut-outs: #{cutouts.join(', ')}.") +
             (layout[:warnings].empty? ? '' : " Note: #{layout[:warnings].join(' ')}")
     end

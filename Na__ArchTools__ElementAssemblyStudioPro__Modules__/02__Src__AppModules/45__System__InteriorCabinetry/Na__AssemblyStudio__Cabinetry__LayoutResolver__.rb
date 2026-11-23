@@ -75,6 +75,8 @@ module Na__InteriorCabinetrySystem
         NA_MIDDLE_LEGS_OVER_MM        = 900.0   # <-- 1000 units get a middle pair of legs
         NA_PLINTH_MIN_HEIGHT_MM       = 20.0
         NA_RAIL_DIAMETER_MM           = 25.0
+        NA_APPLIANCE_SLOT_MM          = 600.0   # <-- V2.7.6: library appliances are modelled for a 600 slot (595 fascia, 560 body)
+        NA_NO_APPLIANCE               = "None".freeze
 
 # endregion -------------------------------------------------------------------
 
@@ -153,7 +155,7 @@ module Na__InteriorCabinetrySystem
                      (is_base ? na_number(cfg, "BaseDepth_mm", 100, 1200) : na_number(cfg, "TowerDepth_mm", 100, 1200))
             layout = is_wall ? na_choice(cfg, "WallFrontLayout", ["Doors", "Open"]) :
                      (is_base ? na_choice(cfg, "BaseFrontLayout", ["Doors", "DrawerDoors", "Drawers", "Open"]) :
-                                na_choice(cfg, "TowerFrontLayout", ["Doors", "SplitDoors", "Open"]))
+                                na_choice(cfg, "TowerFrontLayout", ["Doors", "SplitDoors", "Housing", "Open"]))
             shelves = is_wall ? na_number(cfg, "WallShelfCount", 0, 20) :
                       (is_base ? na_number(cfg, "BaseShelfCount", 0, 20) : na_number(cfg, "TowerShelfCount", 0, 20))
             # V2.7.5: a floor unit with neither a plinth nor legs stands on the
@@ -175,7 +177,7 @@ module Na__InteriorCabinetrySystem
                 :top_construction => is_base ? na_choice(cfg, "BaseTopConstruction", ["Rails", "TopPanel"]) : "TopPanel",
                 :rail_depth       => na_number(cfg, "TopRailDepth_mm", 20, 400),
                 :layout           => layout,
-                :style            => na_choice(cfg, "DoorStyle", ["Flat", "Shaker", "Recessed"]),
+                :style            => na_choice(cfg, "DoorStyle", ["Flat", "Shaker", "Recessed", "Handleless"]),
                 :door_count       => na_choice(cfg, "DoorCount", ["Auto", "1", "2"]),
                 :hinge            => na_choice(cfg, "HingeSide", ["Left", "Right"]),
                 :drawer_count     => na_number(cfg, "DrawerCount", 1, 8).round,
@@ -195,6 +197,17 @@ module Na__InteriorCabinetrySystem
                 :rail_drop        => na_number(cfg, "RailDropBelowShelf_mm", 0, 500),
                 :shelf_setback    => na_number(cfg, "ShelfSetback_mm", 0, 300),
                 :plinth_enabled   => na_flag(cfg, "PlinthEnabled"),
+                :plinth_by_run    => [true, "true"].include?(cfg["#{Defaults::NA_CONFIG_KEY_PREFIX}PlinthByRun"]),   # <-- V2.7.6: a run's one kickboard stands in for this unit's own board (only true turns it on)
+                :housing_base     => na_number(cfg, "HousingApertureBase_mm", 0, 3000),
+                :housing_lower    => na_text(cfg, "HousingLowerAppliance"),
+                :housing_lower_ap => na_number(cfg, "HousingLowerAperture_mm", 50, 1500),
+                :housing_upper    => na_text(cfg, "HousingUpperAppliance"),
+                :housing_upper_ap => na_number(cfg, "HousingUpperAperture_mm", 50, 1500),
+                :housing_third    => na_text(cfg, "HousingThirdAppliance"),             # <-- V2.7.8: slots 3 and 4 up the stack
+                :housing_third_ap => na_number(cfg, "HousingThirdAperture_mm", 50, 1500),
+                :housing_fourth   => na_text(cfg, "HousingFourthAppliance"),
+                :housing_fourth_ap=> na_number(cfg, "HousingFourthAperture_mm", 50, 1500),
+                :housing_below    => na_choice(cfg, "HousingBelowFront", ["Door", "Filler"]),
                 :plinth_setback   => na_number(cfg, "PlinthSetback_mm", 0, 400),
                 :plinth_thickness => na_number(cfg, "PlinthThickness_mm", 3, 60),
                 :legs_enabled     => na_flag(cfg, "LegsEnabled"),
@@ -205,9 +218,28 @@ module Na__InteriorCabinetrySystem
                 :handle_direction => na_choice(cfg, "HandleOrientation", ["Auto", "Vertical", "Horizontal"]),
                 :handle_edge_inset=> na_number(cfg, "HandleEdgeInset_mm", 0, 500),
                 :handle_end_inset => na_number(cfg, "HandleEndInset_mm", 0, 1000),
-                :drawer_boxes     => na_flag(cfg, "DrawerBoxesEnabled")
+                :drawer_boxes     => na_flag(cfg, "DrawerBoxesEnabled"),
+                # V2.7.8: fronts off the carcass front, and the Handleless style
+                :front_standoff   => na_number(cfg, "FrontStandoff_mm", 0, 10),
+                :handle_gap       => na_number(cfg, "HandleGap_mm", 5, 80),
+                :hl_groove_h      => na_number(cfg, "HandleGrooveHeight_mm", 0, 80),
+                :hl_groove_d      => na_number(cfg, "HandleGrooveDepth_mm", 0, 40),
+                :hl_groove_r      => na_number(cfg, "HandleGrooveFillet_mm", 0, 20),
+                :wall_overhang    => na_number(cfg, "HandleWallOverhang_mm", 0, 80),
+                :wall_downstand   => na_flag(cfg, "HandleWallDownstand"),
+                :wall_rail_depth  => na_number(cfg, "HandleWallRailDepth_mm", 10, 200),
+                :band             => na_number(cfg, "HandleBand_mm", 5, 80),
+                :band_downstand   => na_flag(cfg, "HandleBandDownstand"),
+                :band_downstand_h => na_number(cfg, "HandleBandDownstandHeight_mm", 10, 300)
             }
         end
+
+        # FUNCTION | Is the Door Style Handleless (V2.7.8)
+        # ------------------------------------------------------------
+        def self.na_handleless?(v)
+            v[:style] == "Handleless"
+        end
+        # ---------------------------------------------------------------
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -280,9 +312,18 @@ module Na__InteriorCabinetrySystem
             ybp = layout[:y_back_panel_front]
             parts = layout[:parts]
 
-            parts << na_box("SidePanel__Left",  "side", 0.0,   t, -d, 0.0, z0, z1)
-            parts << na_box("SidePanel__Right", "side", w - t, w, -d, 0.0, z0, z1)
+            # V2.7.8: a Handleless wall unit's doors run below its base; its sides
+            # come down with them and a rail fills behind the doors' foot, so the
+            # unit cannot be seen into and the doors are backed (Adam's
+            # approved D1b, SK02, 23-Nov-2026: "there is nothing backing the
+            # door at the bottom, so add these").
+            drop = na_wall_downstand(v)
+            parts << na_box("SidePanel__Left",  "side", 0.0,   t, -d, 0.0, z0 - drop, z1)
+            parts << na_box("SidePanel__Right", "side", w - t, w, -d, 0.0, z0 - drop, z1)
             parts << na_box("BasePanel",        "base", t, w - t, -d, ybp, z0, z0 + t)
+            if drop > 0
+                parts << na_box("Downstand__Front", "downstand", t, w - t, -d, -d + [v[:wall_rail_depth], ybp + d].min, z0 - drop, z0)
+            end
 
             rails_fit = (ybp + d) >= (2 * v[:rail_depth] + 10)
             if v[:top_construction] == "Rails" && rails_fit
@@ -298,6 +339,17 @@ module Na__InteriorCabinetrySystem
             end
         end
         private_class_method :na_build_carcass
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | How Far a Wall Unit's Sides Come Down Below Its Base (V2.7.8)
+        # ------------------------------------------------------------
+        # The doors' overhang, on a Handleless wall unit with doors and its
+        # downstand on; else 0.
+        def self.na_wall_downstand(v)
+            return 0.0 unless v[:type] == "Wall" && na_handleless?(v) && v[:layout] != "Open" && v[:wall_downstand]
+            v[:wall_overhang]
+        end
+        private_class_method :na_wall_downstand
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
@@ -323,7 +375,9 @@ module Na__InteriorCabinetrySystem
         # ------------------------------------------------------------
         def self.na_drawer_heights(v, layout)
             n     = v[:drawer_count]
-            total = v[:height] - n * v[:gap]
+            # V2.7.8 Handleless: the grip gap above every front and a half gap
+            # under the lowest; otherwise half a gap top and bottom, a gap between.
+            total = na_handleless?(v) ? v[:height] - n * v[:handle_gap] - v[:gap] / 2.0 : v[:height] - n * v[:gap]
             return [total] if n == 1
             if v[:drawer_layout] == "Graduated"
                 top  = [v[:top_drawer], total - (n - 1) * NA_MIN_FRONT_HEIGHT_MM].min
@@ -374,6 +428,33 @@ module Na__InteriorCabinetrySystem
         private_class_method :na_groove
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Which Edge a Handleless Front Is Gripped By (V2.7.8)
+        # ------------------------------------------------------------
+        # The bottom of a wall unit's doors (they hang below its base); the
+        # top of everything else: base doors and drawers under the worktop,
+        # a tall unit's doors from the gap above each.
+        def self.na_handleless_edge(v)
+            v[:type] == "Wall" ? "bottom" : "top"
+        end
+        private_class_method :na_handleless_edge
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | The Groove in a Handleless Front's Back (Nil When None Fits) (V2.7.8)
+        # ------------------------------------------------------------
+        # Routed in the BACK of the front along its grip edge: `height` from
+        # that edge, `depth` into the front, a `fillet` in its inside corner
+        # (Adam's approved D1, SK02, 23-Nov-2026: a 20 x 10 groove with "a
+        # slight fillet"). It leaves at least NA_GROOVE_MIN_BACK_MM of front
+        # and NA_GROOVE_MIN_LAND_MM below it.
+        def self.na_back_groove(v, edge, h)
+            depth  = [v[:hl_groove_d], v[:front_thickness] - NA_GROOVE_MIN_BACK_MM].min
+            height = [v[:hl_groove_h], h - NA_GROOVE_MIN_LAND_MM].min
+            return nil if depth < 1.0 || height < 1.0
+            { :edge => edge, :height => height, :depth => depth, :fillet => [v[:hl_groove_r], depth, height].min }
+        end
+        private_class_method :na_back_groove
+        # ---------------------------------------------------------------
+
         # SUB FUNCTION | Describe One Front and Its Handle
         # ------------------------------------------------------------
         def self.na_add_front(v, layout, name, kind, row, hinge, x0, x1, z0, z1)
@@ -382,24 +463,30 @@ module Na__InteriorCabinetrySystem
             return if w < 1 || h < 1
             layout[:warnings] << "#{name.gsub('__', ' ')} is only #{h.round}mm tall." if h < NA_MIN_FRONT_HEIGHT_MM
 
+            back  = v[:depth] + v[:front_standoff]                               # <-- V2.7.8: a hinge gap behind every front (0 before)
             front = {
                 :name   => name,
                 :kind   => kind,
                 :row    => row,
                 :hinge  => hinge,
                 :x0     => x0, :x1 => x1,
-                :y0     => -(v[:depth] + v[:front_thickness]), :y1 => -v[:depth],
+                :y0     => -(back + v[:front_thickness]), :y1 => -back,
                 :z0     => z0, :z1 => z1,
                 :style  => v[:style],
                 :shaker => nil,
-                :groove => nil
+                :groove => nil,
+                :back_groove => nil
             }
             front[:shaker] = na_shaker_frame(v, w, h) if v[:style] == "Shaker"
             front[:groove] = na_groove(v, na_groove_edge(v, kind, row, hinge), w, h) if v[:style] == "Recessed"
             layout[:warnings] << "#{name.gsub('__', ' ')} is too small for a handle groove." if v[:style] == "Recessed" && front[:groove].nil?
+            if na_handleless?(v) && v[:hl_groove_h] > 0 && v[:hl_groove_d] > 0
+                front[:back_groove] = na_back_groove(v, na_handleless_edge(v), h)
+                layout[:warnings] << "#{name.gsub('__', ' ')} is too small for its finger groove." if front[:back_groove].nil?
+            end
             layout[:fronts] << front
 
-            na_add_handle(v, layout, front) unless v[:style] == "Recessed"
+            na_add_handle(v, layout, front) unless v[:style] == "Recessed" || na_handleless?(v)
         end
         private_class_method :na_add_front
         # ---------------------------------------------------------------
@@ -483,6 +570,127 @@ module Na__InteriorCabinetrySystem
         private_class_method :na_add_door_row
         # ---------------------------------------------------------------
 
+        # HELPER FUNCTION | Is a Library Appliance Code Chosen (Not None or Blank)
+        # ------------------------------------------------------------
+        def self.na_appliance?(code)
+            text = code.to_s.strip
+            !text.empty? && text.casecmp(NA_NO_APPLIANCE) != 0
+        end
+        private_class_method :na_appliance?
+        # ---------------------------------------------------------------
+
+        # SUB FUNCTION | An Appliance Housing's Stack of Apertures (V2.7.6)
+        # ------------------------------------------------------------
+        # A tall unit with Housing fronts: a door below, the appliances'
+        # apertures (the lower one first, from HousingApertureBase_mm above
+        # the floor), a door above. Each aperture holds one library appliance
+        # placed in the unit frame at (x offset, carcass front, aperture
+        # bottom): the library items are modelled for a 600 slot, so a wider
+        # unit centres them. A slot whose code is None takes no aperture.
+        # @return [Hash] { :base, :top, :apertures => [{ :slot, :code, :z0, :z1 }] }
+        def self.na_housing_stack(v, layout)
+            z_low  = v[:z_base]
+            z_top  = v[:z_base] + v[:height]
+            base   = v[:housing_base]
+            slots  = [["Lower", v[:housing_lower], v[:housing_lower_ap]], ["Upper", v[:housing_upper], v[:housing_upper_ap]],
+                      ["Third", v[:housing_third], v[:housing_third_ap]], ["Fourth", v[:housing_fourth], v[:housing_fourth_ap]]]   # <-- V2.7.8: four slots, bottom to top
+            chosen = slots.select { |slot| na_appliance?(slot[1]) }
+
+            if base < z_low
+                layout[:warnings] << "The appliances start #{(z_low - base).round}mm below the carcass, so they start on its base."
+                base = z_low
+            end
+            cursor    = base
+            apertures = chosen.map do |slot, code, height|
+                aperture = { :slot => slot, :code => code.to_s.strip, :z0 => cursor, :z1 => cursor + height }
+                cursor  += height
+                aperture
+            end
+            if cursor > z_top + 0.01
+                layout[:warnings] << "The appliances reach #{cursor.round}mm, #{(cursor - z_top).round}mm above the unit's top: raise the unit or lower the aperture base."
+            end
+            if v[:width] < NA_APPLIANCE_SLOT_MM - 0.01 && !apertures.empty?
+                layout[:warnings] << "The unit is #{v[:width].round}mm wide: the library appliances need a 600 slot."
+            end
+            { :base => base, :top => cursor, :apertures => apertures }
+        end
+        private_class_method :na_housing_stack
+        # ---------------------------------------------------------------
+
+        # SUB FUNCTION | A Fixed Filler Panel in the Door Plane (V2.7.8)
+        # ------------------------------------------------------------
+        # A housing's front under its appliances when they start high (SK02,
+        # Adam 23-Nov-2026: a filler, the warming drawer, two ovens, a door):
+        # one panel across the unit in the door finish, with no handle and no
+        # grip groove. On a Shaker unit it has the shaker frame, so the fronts
+        # read alike.
+        def self.na_add_filler(v, layout, name, x0, x1, z0, z1)
+            w = x1 - x0
+            h = z1 - z0
+            return if w < 1 || h < 1
+            back   = v[:depth] + v[:front_standoff]
+            shaker = v[:style] == "Shaker"
+            layout[:fronts] << { :name => name, :kind => "filler", :row => "lower", :hinge => nil,
+                                 :x0 => x0, :x1 => x1, :y0 => -(back + v[:front_thickness]), :y1 => -back,
+                                 :z0 => z0, :z1 => z1, :style => shaker ? "Shaker" : "Flat",
+                                 :shaker => shaker ? na_shaker_frame(v, w, h) : nil, :groove => nil, :back_groove => nil }
+        end
+        private_class_method :na_add_filler
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | How Far a Housing's Band Downstand Hangs Below the Lowest Aperture (V2.7.8)
+        # ------------------------------------------------------------
+        # Handleless, the downstand on, an appliance in the stack and room for
+        # it above the carcass base; else 0.
+        def self.na_band_downstand(v, stack)
+            return 0.0 unless na_handleless?(v) && v[:band_downstand] && !stack[:apertures].empty?
+            return 0.0 unless stack[:base] - v[:band_downstand_h] > v[:z_base] + v[:board]
+            v[:band_downstand_h]
+        end
+        private_class_method :na_band_downstand
+        # ---------------------------------------------------------------
+
+        # SUB FUNCTION | Fronts and Appliances of an Appliance Housing (V2.7.6)
+        # ------------------------------------------------------------
+        def self.na_build_housing_fronts(v, layout)
+            g     = v[:gap]
+            z_low = v[:z_base]
+            z_top = v[:z_base] + v[:height]
+            stack = na_housing_stack(v, layout)
+            count = na_doors_across(v, layout)
+            x_off = (v[:width] - NA_APPLIANCE_SLOT_MM) / 2.0
+            hl    = na_handleless?(v)
+
+            # V2.7.8 Handleless (Adam's approved D2, SK02, 23-Nov-2026): the door
+            # below stops the band under the lowest appliance, gripped at its top;
+            # the door above is gripped at its top, the grip gap under the
+            # carcass top. A downstand hung under the appliance's shelf backs
+            # the door below and fills the band.
+            lower_top = hl && !stack[:apertures].empty? ? stack[:base] - v[:band] : stack[:base] - g / 2.0
+            upper_top = hl ? z_top - v[:handle_gap] : z_top - g / 2.0
+            if lower_top - (z_low + g / 2.0) >= NA_MIN_FRONT_HEIGHT_MM
+                if v[:housing_below] == "Filler"                                 # <-- V2.7.8: a fixed panel, not a door (SK02's stack from 560)
+                    na_add_filler(v, layout, "Filler__Lower", g / 2.0, v[:width] - g / 2.0, z_low + g / 2.0, lower_top)
+                else
+                    na_add_door_row(v, layout, "lower", count, z_low + g / 2.0, lower_top)
+                end
+            end
+            if upper_top - (stack[:top] + g / 2.0) >= NA_MIN_FRONT_HEIGHT_MM
+                na_add_door_row(v, layout, "upper", count, stack[:top] + g / 2.0, upper_top)
+            end
+            drop = na_band_downstand(v, stack)
+            if drop > 0
+                t = v[:board]
+                layout[:parts] << na_box("Downstand__Band", "downstand", t, v[:width] - t, -v[:depth], -v[:depth] + t, stack[:base] - drop, stack[:base])
+            end
+            layout[:housing]    = stack
+            layout[:appliances] = stack[:apertures].map do |aperture|
+                aperture.merge(:name => "Appliance__#{aperture[:slot]}", :x0 => x_off, :y => -(v[:depth] + v[:front_standoff]))
+            end
+        end
+        private_class_method :na_build_housing_fronts
+        # ---------------------------------------------------------------
+
         # SUB FUNCTION | Every Front for the Chosen Layout
         # ------------------------------------------------------------
         def self.na_build_fronts(v, layout)
@@ -490,26 +698,35 @@ module Na__InteriorCabinetrySystem
             z_low = v[:z_base]
             z_top = v[:z_base] + v[:height]
             w     = v[:width]
+            hl    = na_handleless?(v)
+            # V2.7.8 Handleless: a front's grip edge stands the grip gap clear of
+            # the carcass edge (or the front above); a wall unit's doors run the
+            # overhang below its base. Every other edge keeps the half gap.
+            top_edge = hl && v[:type] != "Wall" ? z_top - v[:handle_gap] : z_top - g / 2.0
+            low_edge = hl && v[:type] == "Wall" ? z_low - v[:wall_overhang] : z_low + g / 2.0
+            between  = hl ? v[:handle_gap] : g                                  # <-- From one front's bottom to the next front's top
 
             case v[:layout]
             when "Open"
                 nil
+            when "Housing"
+                na_build_housing_fronts(v, layout)
             when "Doors"
-                na_add_door_row(v, layout, "full", na_doors_across(v, layout), z_low + g / 2.0, z_top - g / 2.0)
+                na_add_door_row(v, layout, "full", na_doors_across(v, layout), low_edge, top_edge)
             when "SplitDoors"
                 split = [v[:split_upper], v[:height] - 100].min
                 count = na_doors_across(v, layout)
-                na_add_door_row(v, layout, "upper", count, z_top - split + g / 2.0, z_top - g / 2.0)
-                na_add_door_row(v, layout, "lower", count, z_low + g / 2.0, z_top - split - g / 2.0)
+                na_add_door_row(v, layout, "upper", count, z_top - split + g / 2.0, top_edge)
+                na_add_door_row(v, layout, "lower", count, z_low + g / 2.0, hl ? z_top - split - v[:handle_gap] : z_top - split - g / 2.0)
             when "DrawerDoors"
                 drawer = [v[:top_drawer], v[:height] - 2 * g - 100].min
-                na_add_front(v, layout, "DrawerFront__01", "drawer", "top", nil, g / 2.0, w - g / 2.0, z_top - g / 2.0 - drawer, z_top - g / 2.0)
-                na_add_door_row(v, layout, "lower", na_doors_across(v, layout), z_low + g / 2.0, z_top - 1.5 * g - drawer)
+                na_add_front(v, layout, "DrawerFront__01", "drawer", "top", nil, g / 2.0, w - g / 2.0, top_edge - drawer, top_edge)
+                na_add_door_row(v, layout, "lower", na_doors_across(v, layout), z_low + g / 2.0, top_edge - drawer - between)
             else
-                cursor = z_top - g / 2.0
+                cursor = top_edge
                 na_drawer_heights(v, layout).each_with_index do |height, index|
                     na_add_front(v, layout, "DrawerFront__#{na_pad(index + 1)}", "drawer", "drawer", nil, g / 2.0, w - g / 2.0, cursor - height, cursor)
-                    cursor -= height + g
+                    cursor -= height + between
                 end
             end
         end
@@ -543,7 +760,8 @@ module Na__InteriorCabinetrySystem
 
             return if v[:layout] == "Drawers"
 
-            zones = [[z_in0, z_in1]]
+            zones        = [[z_in0, z_in1]]
+            filler_below = false                                                 # <-- V2.7.8: a housing's filler drops the lower cupboard's share
             if v[:layout] == "DrawerDoors"
                 drawer = layout[:fronts].find { |front| front[:kind] == "drawer" }
                 zones  = [[z_in0, drawer ? drawer[:z0] - v[:gap] / 2.0 - t : z_in1]]
@@ -552,6 +770,25 @@ module Na__InteriorCabinetrySystem
                 split = v[:z_base] + v[:height] - [v[:split_upper], v[:height] - 100].min
                 shelf.call("FixedShelf", "fixedShelf", split - t / 2.0, -d)
                 zones = [[z_in0, split - t / 2.0], [split + t / 2.0, z_in1]]
+            end
+            # V2.7.6: an appliance housing has a fixed shelf under each
+            # aperture (the appliance's body stands on it, its fascia covers
+            # the edge) and one over the stack; the two cupboards share the
+            # shelves as Split Doors does.
+            if v[:type] == "Tower" && v[:layout] == "Housing" && layout[:housing]
+                stack = layout[:housing]
+                if stack[:apertures].empty?
+                    zones = [[z_in0, stack[:base] - t / 2.0], [stack[:base] + t / 2.0, z_in1]]
+                    shelf.call("FixedShelf", "fixedShelf", stack[:base] - t / 2.0, -d) if stack[:base] - t / 2.0 > z_in0 && stack[:base] + t / 2.0 < z_in1
+                else
+                    stack[:apertures].each do |aperture|
+                        next unless aperture[:z0] > z_in0 - 0.01 && aperture[:z0] + t < z_in1 + 0.01
+                        shelf.call("ApplianceShelf__#{aperture[:slot]}", "fixedShelf", aperture[:z0], -d)
+                    end
+                    shelf.call("ApplianceShelf__Top", "fixedShelf", stack[:top] - t, -d) if stack[:top] - t > z_in0 && stack[:top] < z_in1 + 0.01
+                    zones = [[z_in0, stack[:base] - na_band_downstand(v, stack)], [stack[:top], z_in1]]   # <-- V2.7.8: shelves stay under the band downstand
+                    filler_below = v[:housing_below] == "Filler"                         # <-- V2.7.8: behind a filler is no cupboard
+                end
             end
 
             if v[:type] == "Tower" && v[:tower_interior] == "Hanging"
@@ -576,7 +813,7 @@ module Na__InteriorCabinetrySystem
             lower = zones[0][1] - zones[0][0]
             upper = zones[1][1] - zones[1][0]
             n_up  = (v[:shelves] * upper / [1.0, lower + upper].max).round
-            done  = spread.call(zones[0][0], zones[0][1], v[:shelves] - n_up, 1)
+            done  = filler_below ? 0 : spread.call(zones[0][0], zones[0][1], v[:shelves] - n_up, 1)   # <-- V2.7.8: the top cupboard keeps its usual share
             spread.call(zones[1][0], zones[1][1], n_up, 1 + done)
         end
         private_class_method :na_build_shelves
@@ -633,6 +870,11 @@ module Na__InteriorCabinetrySystem
 
             setback    = [0.0, [v[:plinth_setback], d / 2.0 - v[:plinth_thickness]].min].max
             has_plinth = v[:plinth_enabled] && v[:z_base] >= NA_PLINTH_MIN_HEIGHT_MM
+            # V2.7.6: in a run with JoinPlinths the run builds ONE kickboard
+            # along the units; the unit keeps its raise and its legs, and the
+            # legs stand behind where its own board would have been.
+            plinth_line = has_plinth
+            has_plinth  = false if v[:plinth_by_run]
             if has_plinth
                 layout[:plinth] = na_box("Plinth", "plinth", 0.0, w, -d + setback, -d + setback + v[:plinth_thickness], 0.0, v[:z_base])
             end
@@ -646,7 +888,7 @@ module Na__InteriorCabinetrySystem
             xs = (w < 2 * v[:leg_side_inset] + NA_LEG_MIN_ROW_GAP_MM) ? [w / 2.0] : [v[:leg_side_inset], w - v[:leg_side_inset]]
             xs = [xs[0], w / 2.0, xs[1]] if xs.length == 2 && w > NA_MIDDLE_LEGS_OVER_MM
 
-            y_front = has_plinth ? (-d + setback + v[:plinth_thickness] + NA_LEG_BEHIND_PLINTH_MM) : (-d + v[:leg_back_inset])
+            y_front = plinth_line ? (-d + setback + v[:plinth_thickness] + NA_LEG_BEHIND_PLINTH_MM) : (-d + v[:leg_back_inset])
             y_back  = -[v[:leg_back_inset], v[:back_inset] + v[:back] + NA_LEG_BEHIND_BACK_MM].max
             ys      = (y_back - y_front >= NA_LEG_MIN_ROW_GAP_MM) ? [y_front, y_back] : [(y_front + y_back) / 2.0]
 
@@ -666,7 +908,11 @@ module Na__InteriorCabinetrySystem
         # ------------------------------------------------------------
         # @param cfg [Hash] Na__CabinetConfiguration block (string keys)
         # @return [Hash] { :values, :parts, :fronts, :handles, :drawer_boxes,
-        #                  :rail, :plinth, :legs, :leg_height, :bounds, :warnings }
+        #                  :rail, :plinth, :legs, :leg_height, :bounds, :warnings,
+        #                  :appliances, :housing }
+        #   V2.7.6: :appliances lists a housing's library appliances
+        #   ({ :name, :slot, :code, :x0, :y, :z0, :z1 }: the item's origin is
+        #   (x0, y, z0) in the unit frame); :housing is its stack or nil.
         def self.na_resolve(cfg)
             v = na_effective(cfg)
             layout = {
@@ -676,6 +922,8 @@ module Na__InteriorCabinetrySystem
                 :fronts             => [],
                 :handles            => [],
                 :drawer_boxes       => [],
+                :appliances         => [],
+                :housing            => nil,
                 :rail               => nil,
                 :plinth             => nil,
                 :legs               => [],
@@ -690,12 +938,13 @@ module Na__InteriorCabinetrySystem
             na_build_plinth_and_legs(v, layout)
             layout[:parts] = layout[:parts].select { |box| na_box_ok?(box) }
 
+            low = ([v[:z_base]] + layout[:fronts].map { |front| front[:z0] } + layout[:parts].map { |part| part[:z0] }).min   # <-- V2.7.8: a wall unit's doors and downstand run below its base
             layout[:bounds] = {
                 :x0 => 0.0,
                 :x1 => v[:width],
-                :y0 => -(v[:depth] + (layout[:fronts].empty? ? 0.0 : v[:front_thickness])),
+                :y0 => -(v[:depth] + (layout[:fronts].empty? ? 0.0 : v[:front_standoff] + v[:front_thickness])),
                 :y1 => 0.0,
-                :z0 => (v[:type] == "Wall") ? v[:z_base] : 0.0,
+                :z0 => (v[:type] == "Wall") ? low : 0.0,
                 :z1 => v[:z_base] + v[:height]
             }
             layout

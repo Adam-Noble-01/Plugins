@@ -160,9 +160,10 @@ window.NA_CABINET_FRONTS_CONFIG = [
         type        : 'multiway_toggle',
         default     : 'Shaker',
         options     : [
-            { value: 'Flat',     label: 'Flat'            },
-            { value: 'Shaker',   label: 'Shaker'          },
-            { value: 'Recessed', label: 'Recessed Handle' }
+            { value: 'Flat',       label: 'Flat'            },
+            { value: 'Shaker',     label: 'Shaker'          },
+            { value: 'Recessed',   label: 'Recessed Handle' },
+            { value: 'Handleless', label: 'Handleless'      }                 // <-- V2.7.8: a finger groove in the door's back, a gap under the worktop (SK02)
         ]
     },
     {
@@ -195,6 +196,7 @@ window.NA_CABINET_FRONTS_CONFIG = [
         options     : [
             { value: 'Doors',      label: 'Full Height' },
             { value: 'SplitDoors', label: 'Split Doors' },
+            { value: 'Housing',    label: 'Appliances'  },                    // <-- V2.7.6: door below, library oven / warming drawer, door above
             { value: 'Open',       label: 'Open'        }
         ]
     },
@@ -257,6 +259,114 @@ window.NA_CABINET_FRONTS_CONFIG = [
         max         : 1500,
         step        : 5,
         default     : 720,                                                    // <-- Upper door matches a 720 wall unit door
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingApertureBase_mm',                // <-- V2.7.6 Appliances fronts
+        label       : 'Appliances Start Above Floor',
+        type        : 'slider',
+        min         : 0,
+        max         : 3000,
+        step        : 5,
+        default     : 870,                                                    // <-- 150 plinth + a 720 door: the lower door matches a base unit
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingBelowFront',                     // <-- V2.7.8: what fills the front under the appliances
+        label       : 'Front Below the Appliances',
+        type        : 'select',
+        default     : 'Door',
+        options     : [
+            { value: 'Door',   label: 'Door (a cupboard)' },
+            { value: 'Filler', label: 'Filler Panel (fixed)' }
+        ]
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingLowerAppliance',
+        label       : 'Appliance 1 (Bottom)',                                     // <-- V2.7.8: was Lower Appliance; the key is unchanged
+        type        : 'select',
+        default     : '17_1002',
+        options     : [                                                       // <-- Library codes (Na__CoreLib__3dAssets, 17_1000__Kitchen)
+            { value: '17_1002', label: 'Warming Drawer (17_1002, 595 x 140)' },
+            { value: '17_1001', label: 'Standard Oven (17_1001, 595 x 595)' },
+            { value: '17_1003', label: 'Oven With Warming Drawer (17_1003, 740)' },
+            { value: 'None',    label: 'None' }
+        ]
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingLowerAperture_mm',
+        label       : 'Aperture 1 Height',
+        type        : 'slider',
+        min         : 50,
+        max         : 1500,
+        step        : 1,
+        default     : 145,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingUpperAppliance',
+        label       : 'Appliance 2',                                              // <-- V2.7.8: was Upper Appliance; the key is unchanged
+        type        : 'select',
+        default     : '17_1001',
+        options     : [
+            { value: '17_1001', label: 'Standard Oven (17_1001, 595 x 595)' },
+            { value: '17_1002', label: 'Warming Drawer (17_1002, 595 x 140)' },
+            { value: '17_1003', label: 'Oven With Warming Drawer (17_1003, 740)' },
+            { value: 'None',    label: 'None' }
+        ]
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingUpperAperture_mm',
+        label       : 'Aperture 2 Height',
+        type        : 'slider',
+        min         : 50,
+        max         : 1500,
+        step        : 1,
+        default     : 600,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingThirdAppliance',                 // <-- V2.7.8: slots 3 and 4 up the stack
+        label       : 'Appliance 3',
+        type        : 'select',
+        default     : 'None',
+        options     : [
+            { value: 'None',    label: 'None' },
+            { value: '17_1001', label: 'Standard Oven (17_1001, 595 x 595)' },
+            { value: '17_1002', label: 'Warming Drawer (17_1002, 595 x 140)' },
+            { value: '17_1003', label: 'Oven With Warming Drawer (17_1003, 740)' }
+        ]
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingThirdAperture_mm',
+        label       : 'Aperture 3 Height',
+        type        : 'slider',
+        min         : 50,
+        max         : 1500,
+        step        : 1,
+        default     : 600,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingFourthAppliance',
+        label       : 'Appliance 4 (Top)',
+        type        : 'select',
+        default     : 'None',
+        options     : [
+            { value: 'None',    label: 'None' },
+            { value: '17_1001', label: 'Standard Oven (17_1001, 595 x 595)' },
+            { value: '17_1002', label: 'Warming Drawer (17_1002, 595 x 140)' },
+            { value: '17_1003', label: 'Oven With Warming Drawer (17_1003, 740)' }
+        ]
+    },
+    {
+        id          : 'Na__CabinetConfig__HousingFourthAperture_mm',
+        label       : 'Aperture 4 Height',
+        type        : 'slider',
+        min         : 50,
+        max         : 1500,
+        step        : 1,
+        default     : 600,
         unit        : 'mm'
     },
     {
@@ -327,6 +437,112 @@ window.NA_CABINET_FRONTS_CONFIG = [
         max         : 25,
         step        : 0.5,
         default     : 12,
+        unit        : 'mm'
+    },
+    // V2.7.8 Handleless (Adam's approved detail, SK02, 23-Nov-2026): a groove
+    // routed in the door's back along its grip edge, with a fillet; the grip
+    // edge a gap clear of the worktop; a wall unit's doors run below its base
+    // over a downstand; a housing's door below an appliance stops a band under it.
+    {
+        id          : 'Na__CabinetConfig__HandleGap_mm',
+        label       : 'Finger Gap Above Each Front',
+        type        : 'slider',
+        min         : 5,
+        max         : 60,
+        step        : 1,
+        default     : 20,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleGrooveHeight_mm',
+        label       : 'Finger Groove Height',
+        type        : 'slider',
+        min         : 0,
+        max         : 60,
+        step        : 1,
+        default     : 20,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleGrooveDepth_mm',
+        label       : 'Finger Groove Depth',
+        type        : 'slider',
+        min         : 0,
+        max         : 25,
+        step        : 0.5,
+        default     : 10,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleGrooveFillet_mm',
+        label       : 'Finger Groove Fillet',
+        type        : 'slider',
+        min         : 0,
+        max         : 15,
+        step        : 0.5,
+        default     : 5,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleWallOverhang_mm',
+        label       : 'Wall Doors Below the Carcass',
+        type        : 'slider',
+        min         : 0,
+        max         : 60,
+        step        : 1,
+        default     : 20,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleWallDownstand',
+        label       : 'Downstand Behind the Doors',
+        type        : 'toggle',
+        default     : true
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleWallRailDepth_mm',
+        label       : 'Downstand Rail Depth',
+        type        : 'slider',
+        min         : 10,
+        max         : 200,
+        step        : 1,
+        default     : 32,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleBand_mm',
+        label       : 'Finger Band Under the Appliance',
+        type        : 'slider',
+        min         : 5,
+        max         : 80,
+        step        : 1,
+        default     : 25,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleBandDownstand',
+        label       : 'Downstand Behind the Band',
+        type        : 'toggle',
+        default     : true
+    },
+    {
+        id          : 'Na__CabinetConfig__HandleBandDownstandHeight_mm',
+        label       : 'Band Downstand Height',
+        type        : 'slider',
+        min         : 10,
+        max         : 300,
+        step        : 5,
+        default     : 50,
+        unit        : 'mm'
+    },
+    {
+        id          : 'Na__CabinetConfig__FrontStandoff_mm',                       // <-- V2.7.8: every style; 0 = the fronts on the carcass front, as before
+        label       : 'Gap Behind the Fronts',
+        type        : 'slider',
+        min         : 0,
+        max         : 10,
+        step        : 0.5,
+        default     : 0,
         unit        : 'mm'
     }
 ];

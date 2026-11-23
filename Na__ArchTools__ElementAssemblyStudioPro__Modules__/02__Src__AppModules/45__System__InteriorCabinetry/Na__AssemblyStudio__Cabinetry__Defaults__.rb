@@ -89,6 +89,13 @@ module Na__InteriorCabinetrySystem
         NA_DEFAULT_HANDLE_ASSET_KEY    = "Na__Cabinetry__Handle__Type-01__BarHandle__cc128mm".freeze
         NA_NO_HANDLE_KEY               = "None".freeze
 
+        # V2.7.6: an appliance housing's library appliances, by code in
+        # Adam's component library (Na__CoreLib__3dAssets, 17_1000__Kitchen).
+        # "None" leaves a slot out of the stack.
+        NA_DEFAULT_HOUSING_UPPER_APPLIANCE = "17_1001".freeze                    # <-- StandardOven, 595 x 595 fascia, 560 body
+        NA_DEFAULT_HOUSING_LOWER_APPLIANCE = "17_1002".freeze                    # <-- StandardOven WarmingDrawer, 595 x 140 fascia
+        NA_NO_APPLIANCE_KEY                = "None".freeze
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -151,6 +158,28 @@ module Na__InteriorCabinetrySystem
             "Na__CabinetConfig__DoorMaterialId"         => NA_DEFAULT_DOOR_MATERIAL_ID,
             "Na__CabinetConfig__CarcassMaterialId"      => NA_DEFAULT_CARCASS_MATERIAL_ID,
             "Na__CabinetConfig__DrawerBoxesEnabled"     => true,
+            "Na__CabinetConfig__HousingApertureBase_mm"  => 870,                 # <-- V2.7.6 Housing fronts: floor to the lowest aperture (150 plinth + a 720 door)
+            "Na__CabinetConfig__HousingLowerAppliance"   => NA_DEFAULT_HOUSING_LOWER_APPLIANCE,
+            "Na__CabinetConfig__HousingLowerAperture_mm" => 145,
+            "Na__CabinetConfig__HousingUpperAppliance"   => NA_DEFAULT_HOUSING_UPPER_APPLIANCE,
+            "Na__CabinetConfig__HousingUpperAperture_mm" => 600,
+            "Na__CabinetConfig__HousingThirdAppliance"   => "None",               # <-- V2.7.8: a third and a fourth slot up the stack (SK02: a warming drawer and two ovens)
+            "Na__CabinetConfig__HousingThirdAperture_mm" => 600,
+            "Na__CabinetConfig__HousingFourthAppliance"  => "None",
+            "Na__CabinetConfig__HousingFourthAperture_mm"=> 600,
+            "Na__CabinetConfig__HousingBelowFront"       => "Door",               # <-- V2.7.8: Door, or a fixed Filler panel under the stack
+            "Na__CabinetConfig__FrontStandoff_mm"            => 0,                 # <-- V2.7.8: every front's back off the carcass front (a hinge gap); 0, as every unit built before
+            "Na__CabinetConfig__HandleGap_mm"                => 20,                # <-- V2.7.8 Handleless (Adam's approved detail, SK02, 23-Nov-2026): the gap above each grip edge
+            "Na__CabinetConfig__HandleGrooveHeight_mm"       => 20,                # <-- The groove routed in the door's back at its grip edge (0: none)
+            "Na__CabinetConfig__HandleGrooveDepth_mm"        => 10,
+            "Na__CabinetConfig__HandleGrooveFillet_mm"       => 5,                 # <-- Adam: "add a slight fillet. It wouldn't have a square edge on this back of the door"
+            "Na__CabinetConfig__HandleWallOverhang_mm"       => 20,                # <-- A wall unit's doors run this far below the carcass base
+            "Na__CabinetConfig__HandleWallDownstand"         => true,              # <-- Its sides carried down by the overhang, with a rail behind the doors' foot
+            "Na__CabinetConfig__HandleWallRailDepth_mm"      => 32,
+            "Na__CabinetConfig__HandleBand_mm"               => 25,                # <-- A housing's door below an appliance stops this far under it
+            "Na__CabinetConfig__HandleBandDownstand"         => true,              # <-- A board hung under that appliance's shelf, behind the door below
+            "Na__CabinetConfig__HandleBandDownstandHeight_mm"=> 50,
+            "Na__CabinetConfig__PlinthByRun"            => false,                # <-- V2.7.6: set by a run with JoinPlinths (its one kickboard); not shown in the dialog
             "Na__CabinetConfig__LegMaterialId"          => NA_DEFAULT_LEG_MATERIAL_ID   # <-- Not shown in the dialog
         }.freeze
 

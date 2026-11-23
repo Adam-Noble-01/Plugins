@@ -185,6 +185,123 @@ na_suite('Tall larder and wardrobe');
     na_expect('One full height door, handle at 1050', [robe.fronts.length, robe.handles[0].z], [1, 1050]);
 }
 
+na_suite('Appliance housing (V2.7.6: door, warming drawer, oven, door)');
+{
+    const H = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', DoorStyle: 'Flat', HandleAssetKey: 'None' }));
+    const r = n => Math.round(n * 10) / 10;
+    na_expect('Doors below and above the stack', H.fronts.map(f => [f.name, r(f.z0), r(f.z1)]), [['Door__Lower', 151.5, 868.5], ['Door__Upper', 1616.5, 2118.5]]);
+    na_expect('Warming drawer 870-1015 under the oven 1015-1615', H.appliances.map(a => [a.name, a.code, a.z0, a.z1, a.x0, a.y]),
+              [['Appliance__Lower', '17_1002', 870, 1015, 0, -560], ['Appliance__Upper', '17_1001', 1015, 1615, 0, -560]]);
+    na_expect('A shelf under each aperture and one over the stack', na_role(H, 'fixedShelf').map(p => [p.name, p.z0, p.z1]),
+              [['ApplianceShelf__Lower', 870, 890], ['ApplianceShelf__Upper', 1015, 1035], ['ApplianceShelf__Top', 1595, 1615]]);
+    na_expect('No handles on handleless doors', H.handles.length, 0);
+    na_expect('No warnings', H.warnings, []);
+    const ovenOnly = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', HousingLowerAppliance: 'None', HousingApertureBase_mm: 900 }));
+    na_expect('Lower slot None: the oven alone from 900', ovenOnly.appliances.map(a => [a.slot, a.z0, a.z1]), [['Upper', 900, 1500]]);
+    const wide = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', Width_mm: 700 }));
+    na_expect('A 700 unit centres the 600 slot', wide.appliances.map(a => a.x0), [50, 50]);
+    const tooTall = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', HousingApertureBase_mm: 1700 }));
+    na_expect('A stack above the top warns and drops the upper door', [tooTall.warnings.length, tooTall.fronts.map(f => f.name)], [1, ['Door__Lower']]);
+    const byRun = R.na_resolve(na_cfg('tall', { PlinthByRun: true }));
+    const own   = R.na_resolve(na_cfg('tall'));
+    na_expect('PlinthByRun: no board of its own, still 150 up, legs where they were',
+              [byRun.plinth, byRun.values.zBase, JSON.stringify(byRun.legs) === JSON.stringify(own.legs)], [null, 150, true]);
+}
+
+na_suite('Handleless (V2.7.8: Adam\'s approved detail, SK02, 23-Nov-2026)');
+{
+    const r  = n => Math.round(n * 10) / 10;
+    const G  = { edge: 'top', height: 20, depth: 10, fillet: 5 };
+    const base = R.na_resolve(na_cfg('base', { DoorStyle: 'Handleless' }));
+    const door = na_front(base, 'Door');
+    na_expect('Base: the door top 20 under the carcass top (870), its foot half a gap up', [r(door.z0), r(door.z1)], [151.5, 850]);
+    na_expect('Base: a 20 x 10 groove in the back of its top, R5 fillet', door.backGroove, G);
+    na_expect('Base: no handles, no warnings', [base.handles.length, base.warnings], [0, []]);
+
+    const drawers = R.na_resolve(na_cfg('drawers', { DoorStyle: 'Handleless' }));
+    na_expect('Drawers: a 20 gap above every front, 140 top drawer, two pans share the rest',
+              drawers.fronts.map(f => [r(f.z0), r(f.z1)]), [[710, 850], [430.8, 690], [151.5, 410.8]]);
+    na_expect('Drawers: every front grooved at its top', drawers.fronts.map(f => f.backGroove && f.backGroove.edge), ['top', 'top', 'top']);
+
+    const drawerDoor = R.na_resolve(na_cfg('base', { DoorStyle: 'Handleless', BaseFrontLayout: 'DrawerDoors' }));
+    na_expect('Drawer + door: the door 20 under the drawer', drawerDoor.fronts.map(f => [f.name, r(f.z0), r(f.z1)]),
+              [['DrawerFront__01', 710, 850], ['Door__Lower', 151.5, 690]]);
+
+    const wall = R.na_resolve(na_cfg('wall', { DoorStyle: 'Handleless' }));
+    const wd   = na_front(wall, 'Door');
+    na_expect('Wall: the door runs 20 below the base (1400), half a gap under the top', [r(wd.z0), r(wd.z1)], [1380, 2118.5]);
+    na_expect('Wall: grooved at its foot', wd.backGroove, Object.assign({}, G, { edge: 'bottom' }));
+    na_expect('Wall: sides carried down to the door\'s foot', na_role(wall, 'side').map(p => p.z0), [1380, 1380]);
+    const rail = na_part(wall, 'Downstand__Front');
+    na_expect('Wall: a rail 32 deep x 20 high behind the door\'s foot', rail && [rail.x0, rail.x1, rail.y0, rail.y1, rail.z0, rail.z1], [20, 580, -300, -268, 1380, 1400]);
+    na_expect('Wall: the bounds reach the door\'s foot', wall.bounds.z0, 1380);
+    const bare = R.na_resolve(na_cfg('wall', { DoorStyle: 'Handleless', HandleWallDownstand: false }));
+    na_expect('Wall, downstand off: sides at the base, no rail, the door still 20 below', [na_role(bare, 'side').map(p => p.z0), na_role(bare, 'downstand').length, r(na_front(bare, 'Door').z0)], [[1400, 1400], 0, 1380]);
+
+    const H = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', DoorStyle: 'Handleless' }));
+    na_expect('Housing: the door below stops 25 under the warming drawer (870); the door above 20 under the top (2120)',
+              H.fronts.map(f => [f.name, r(f.z0), r(f.z1)]), [['Door__Lower', 151.5, 845], ['Door__Upper', 1616.5, 2100]]);
+    const band = na_part(H, 'Downstand__Band');
+    na_expect('Housing: a 20 board hung 50 under the appliance\'s shelf, on the carcass front', band && [band.x0, band.x1, band.y0, band.y1, band.z0, band.z1], [20, 580, -560, -540, 820, 870]);
+    const lowerShelves = na_role(H, 'shelf').filter(p => p.z0 < 870);
+    na_expect('Housing: the lower cupboard keeps a shelf, under the downstand', [lowerShelves.length > 0, lowerShelves.every(p => p.z1 <= 820 + 1e-6)], [true, true]);
+
+    const gap = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', DoorStyle: 'Handleless', FrontStandoff_mm: 2 }));
+    na_expect('A 2 gap behind the fronts: doors 562 to 582 off the wall line, the appliances with them',
+              [na_front(gap, 'Door__Lower').y1, na_front(gap, 'Door__Lower').y0, gap.appliances.map(a => a.y), gap.bounds.y0], [-562, -582, [-562, -562], -582]);
+    const old = R.na_resolve(na_cfg('base'));
+    na_expect('Shaker as before: no groove, no gap behind, the door to 868.5', [na_front(old, 'Door').backGroove, na_front(old, 'Door').y1, r(na_front(old, 'Door').z1)], [null, -560, 868.5]);
+}
+
+na_suite('Appliance stack (V2.7.8: four slots, a filler below; SK02\'s tall housing, 23-Nov-2026)');
+{
+    const r   = n => Math.round(n * 10) / 10;
+    const SK  = { TowerFrontLayout: 'Housing', DoorStyle: 'Handleless', PlinthHeight_mm: 120, TowerHeight_mm: 2085,
+                  HousingApertureBase_mm: 560, HousingBelowFront: 'Filler',
+                  HousingLowerAppliance: '17_1002', HousingLowerAperture_mm: 145,
+                  HousingUpperAppliance: '17_1001', HousingUpperAperture_mm: 600,
+                  HousingThirdAppliance: '17_1001', HousingThirdAperture_mm: 600 };
+    const S = R.na_resolve(na_cfg('tall', SK));
+    na_expect('SK02: warming drawer 560-705, oven 705-1305, oven 1305-1905', S.appliances.map(a => [a.name, a.code, a.z0, a.z1]),
+              [['Appliance__Lower', '17_1002', 560, 705], ['Appliance__Upper', '17_1001', 705, 1305], ['Appliance__Third', '17_1001', 1305, 1905]]);
+    na_expect('SK02: a filler from the plinth to the band under the warming drawer, a door above to 20 under the top (2205)',
+              S.fronts.map(f => [f.name, f.kind, r(f.x0), r(f.x1), r(f.z0), r(f.z1)]),
+              [['Filler__Lower', 'filler', 1.5, 598.5, 121.5, 535], ['Door__Upper', 'door', 1.5, 598.5, 1906.5, 2185]]);
+    const filler = na_front(S, 'Filler__Lower');
+    na_expect('SK02: the filler is flat, with no groove and no handle', [filler.style, filler.shaker, filler.backGroove, filler.groove, S.handles.length], ['Flat', null, null, null, 0]);
+    na_expect('SK02: a shelf under each aperture and one over the stack', na_role(S, 'fixedShelf').map(p => [p.name, p.z0, p.z1]),
+              [['ApplianceShelf__Lower', 560, 580], ['ApplianceShelf__Upper', 705, 725], ['ApplianceShelf__Third', 1305, 1325], ['ApplianceShelf__Top', 1885, 1905]]);
+    const band = na_part(S, 'Downstand__Band');
+    na_expect('SK02: the band downstand still backs the gap under the warming drawer', band && [band.z0, band.z1], [510, 560]);
+    const withDoor = R.na_resolve(na_cfg('tall', Object.assign({}, SK, { HousingBelowFront: 'Door' })));
+    na_expect('SK02: no cupboard shelves behind the filler; the top cupboard keeps the shelves it has with a door below',
+              [na_role(S, 'shelf').every(p => p.z0 >= 1905), na_role(S, 'shelf').map(p => p.z0), na_role(S, 'shelf').length > 0],
+              [true, na_role(withDoor, 'shelf').filter(p => p.z0 >= 1905).map(p => p.z0), true]);
+    na_expect('SK02: no warnings', S.warnings, []);
+
+    const shaker = R.na_resolve(na_cfg('tall', Object.assign({}, SK, { DoorStyle: 'Shaker' })));
+    const sf = na_front(shaker, 'Filler__Lower');
+    na_expect('Shaker: the filler takes the shaker frame, to half a gap under the stack; only the door has a handle',
+              [!!sf.shaker, sf.style, r(sf.z1), shaker.handles.map(h => h.front)], [true, 'Shaker', 558.5, ['Door__Upper']]);
+
+    const gaps = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing', HousingLowerAppliance: 'None', HousingThirdAppliance: 'None',
+                                               HousingFourthAppliance: '17_1002', HousingFourthAperture_mm: 145, HousingApertureBase_mm: 900 }));
+    na_expect('A None slot takes no aperture: oven (2) then warming drawer (4) from 900', gaps.appliances.map(a => [a.slot, a.z0, a.z1]),
+              [['Upper', 900, 1500], ['Fourth', 1500, 1645]]);
+    const door = R.na_resolve(na_cfg('tall', { TowerFrontLayout: 'Housing' }));
+    na_expect('Defaults as before: a door below, two appliances', [door.fronts.map(f => f.name), door.appliances.length], [['Door__Lower', 'Door__Upper'], 2]);
+
+    // SetOut v4's oven tower in the 715 niche (MANAGER, 21:58, 23-Nov-2026): kick 120, filler to 315,
+    // band 25 with its downstand, warming drawer 340-485, ovens 485-1085 and 1085-1685, a door above.
+    const V4 = R.na_resolve(na_cfg('tall', Object.assign({}, SK, { HousingApertureBase_mm: 340 })));
+    na_expect('SetOut v4: warming drawer 340-485, ovens 485-1085 and 1085-1685', V4.appliances.map(a => [a.code, a.z0, a.z1]),
+              [['17_1002', 340, 485], ['17_1001', 485, 1085], ['17_1001', 1085, 1685]]);
+    na_expect('SetOut v4: filler 121.5-315, door 1686.5-2185 (the 20 grip gap under the 2205 top)', V4.fronts.map(f => [f.name, r(f.z0), r(f.z1)]),
+              [['Filler__Lower', 121.5, 315], ['Door__Upper', 1686.5, 2185]]);
+    const v4band = na_part(V4, 'Downstand__Band');
+    na_expect('SetOut v4: the band downstand 290-340, no warnings', [v4band && [v4band.z0, v4band.z1], V4.warnings], [[290, 340], []]);
+}
+
 na_suite('Widths');
 {
     const w400  = R.na_resolve(na_cfg('base', { Width_mm: 400 }));
@@ -245,10 +362,11 @@ na_suite('Invariants');
 {
     const problems = [];
     let cases = 0;
-    ['base', 'drawers', 'wall', 'tall', 'wardrobe'].forEach(product => {
-        ['Flat', 'Shaker', 'Recessed'].forEach(style => {
+    ['base', 'drawers', 'wall', 'tall', 'wardrobe', 'housing'].forEach(product => {
+        ['Flat', 'Shaker', 'Recessed', 'Handleless'].forEach(style => {
             [150, 300, 450, 600, 800, 1000, 1200].forEach(width => {
-                const L = R.na_resolve(na_cfg(product, { DoorStyle: style, Width_mm: width }));
+                const extra = (product === 'housing') ? { TowerFrontLayout: 'Housing' } : {};
+                const L = R.na_resolve(na_cfg(product === 'housing' ? 'tall' : product, Object.assign({ DoorStyle: style, Width_mm: width }, extra)));
                 const tag = product + '/' + style + '/' + width;
                 cases += 1;
                 for (let i = 0; i < L.parts.length; i++) {
@@ -266,6 +384,9 @@ na_suite('Invariants');
                     else if (handle.x < front.x0 || handle.x > front.x1 || handle.z < front.z0 || handle.z > front.z1) problems.push(tag + ': handle anchor outside ' + front.name);
                 });
                 if (style === 'Recessed' && L.handles.length) problems.push(tag + ': handles on recessed fronts');
+                if (style === 'Handleless' && L.handles.length) problems.push(tag + ': handles on handleless fronts');
+                if (style === 'Handleless' && L.fronts.some(front => front.z1 > L.values.zBase + L.values.height - L.values.handleGap + 1e-6 && L.values.type !== 'Wall'))
+                    problems.push(tag + ': a handleless front inside its grip gap');
                 L.drawerBoxes.forEach(box => box.parts.forEach(part => L.parts.forEach(board => {
                     if (na_overlap(part, board)) problems.push(tag + ': ' + part.name + ' hits ' + board.name);
                 })));
@@ -302,7 +423,7 @@ na_suite('Defaults parity (UiSystem Config vs Defaults.rb)');
     const mismatched = Object.keys(js).filter(key => JSON.stringify(js[key]) !== JSON.stringify(rubyDefaults[key]));
     const rubyOnly   = Object.keys(rubyDefaults).filter(key => !(key in js));
     na_expect('Every dialog default equals the Ruby default', mismatched.map(key => key + ' js=' + js[key] + ' rb=' + rubyDefaults[key]), []);
-    na_expect('Ruby-only keys are the hidden ones', rubyOnly, [K + 'LegMaterialId']);
+    na_expect('Ruby-only keys are the hidden ones', rubyOnly, [K + 'PlinthByRun', K + 'LegMaterialId']);
 }
 
 // endregion -------------------------------------------------------------------

@@ -127,7 +127,8 @@ module Na__AssemblyRunSystem
                         next if item[:role] == Defaults::NA_COLUMN_GAP
                         counts[:columns] += 1
                         next if framework && item[:role] == Defaults::NA_COLUMN_INFILL
-                        na_build_column(holder.call(NA_COLUMNS_GROUP).entities, leg, item, height, model)
+                        na_build_column(holder.call(NA_COLUMNS_GROUP).entities, leg, item, height, model,
+                                        layout[:settings][:frames] ? NA_EDGE_MASS : NA_EDGE_FRAME_MEMBER)   # <-- V2.7.6: Cabinets fillers and linings in the cabinets' L40
                     end
                 end
             end
@@ -177,9 +178,11 @@ module Na__AssemblyRunSystem
 
         # SUB FUNCTION | An Infill Block, or a Library Column on Its Backing
         # ------------------------------------------------------------
-        def self.na_build_column(entities, leg, item, height_mm, model)
+        # @param block_colour [String] V2.7.6: an infill block's edge colour
+        #     (a Cabinets run's fillers and linings take the cabinets' L40)
+        def self.na_build_column(entities, leg, item, height_mm, model, block_colour = NA_EDGE_MASS)
             unless Defaults::NA_LIBRARY_COLUMNS.key?(item[:role])
-                na_build_leg_box(entities, na_item_name("Na__RunColumn", item), leg, item, NA_EDGE_MASS)
+                na_build_leg_box(entities, na_item_name("Na__RunColumn", item), leg, item, block_colour)
                 return
             end
             na_build_leg_box(entities, na_item_name("Na__RunColumn", item, "Backing"), leg, item, NA_EDGE_MASS)

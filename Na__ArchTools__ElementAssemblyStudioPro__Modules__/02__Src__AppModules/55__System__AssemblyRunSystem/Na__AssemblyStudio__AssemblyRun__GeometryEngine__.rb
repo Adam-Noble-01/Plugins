@@ -24,6 +24,8 @@
 #     Na__Run__Cill                        V2.7.3: one cill per stretch, round every corner
 #     Na__Run__WindowBoard                 V2.7.3: one internal window board per stretch
 #     Na__Run__Worktop                     V2.7.4, Cabinets: one worktop per stretch of base units
+#     Na__Run__Plinth                      V2.7.6, Cabinets: one kickboard per stretch of floor units (JoinPlinths)
+#     Na__Run__TopFiller                   V2.7.6, Cabinets: one top filler per stretch of tall units (SoffitHeight_mm)
 #
 # ORDER MATTERS ON A REBUILD
 #   1. Elements first, while the old spans still stand: the id allocators
@@ -104,13 +106,18 @@ module Na__AssemblyRunSystem
             counts[:boards]       = FrameworkBuilder.na_build_boards(definition.entities, layout, elements, config)
             worktops              = FrameworkBuilder.na_build_worktops(definition.entities, layout, elements)
             counts[:worktops]     = worktops.length
+            plinths               = FrameworkBuilder.na_build_plinths(definition.entities, layout, elements)        # <-- V2.7.6
+            counts[:plinths]      = plinths.length
+            top_fillers           = FrameworkBuilder.na_build_top_fillers(definition.entities, layout, elements)    # <-- V2.7.6
+            counts[:top_fillers]  = top_fillers.length
             counts[:spans]        = components.length
 
             elements[:temporary].each { |instance| instance.erase! if instance.valid? }
             DebugTools.na_debug_geometry("Run #{run_id}: #{counts[:spans]} spans, #{counts[:posts]} posts, #{counts[:columns]} columns, " \
                                          "#{counts[:corners]} corner blocks, #{counts[:corner_units]} corner units, framework #{counts[:framework]} members, " \
                                          "#{counts[:cills]} cills, #{counts[:boards]} window boards, #{counts[:worktops]} worktops")
-            { :components => components, :warnings => elements[:warnings], :counts => counts, :worktops => worktops }
+            { :components => components, :warnings => elements[:warnings], :counts => counts, :worktops => worktops,
+              :plinths => plinths, :top_fillers => top_fillers }
         end
         # ---------------------------------------------------------------
 
@@ -177,12 +184,18 @@ module Na__AssemblyRunSystem
                 effective = resolver.na_effective(values)
                 effective[:z_base] + effective[:height]
             end
+            towers   = type_values.transform_values { |values| resolver.na_effective(values)[:type] == "Tower" }
+            soffit   = layout[:settings][:soffit_height].to_f
             layout[:legs].each do |leg|
                 items = Array(leg[:items])
                 items.each_with_index do |item, index|
                     next unless item[:kind] == Defaults::NA_ITEM_COLUMN && item[:role] == Defaults::NA_COLUMN_INFILL
                     beside = (items[0...index].reverse + items[(index + 1)..]).find { |other| other[:kind] == Defaults::NA_ITEM_SPAN }
                     item[:z1] = tops[beside[:type]] if beside && tops[beside[:type]]
+                    # V2.7.6: beside a tall unit with a soffit set, the block
+                    # stands to the soffit (the lining of a recess)
+                    next unless beside && soffit > 0.0 && towers[beside[:type]]
+                    item[:z1] = [soffit, item[:z1].to_f].max
                 end
             end
         end

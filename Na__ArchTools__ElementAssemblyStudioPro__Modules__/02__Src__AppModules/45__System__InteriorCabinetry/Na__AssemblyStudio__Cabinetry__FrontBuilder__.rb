@@ -21,6 +21,11 @@
 #              bottom of wall doors, up the opening edge of a full height
 #              tall door). Built as the grooved side profile run the width of
 #              the front, so the groove is real geometry, not a texture.
+# - Handleless (V2.7.8): a slab with a groove routed in its BACK along its
+#              grip edge (the top of base and tall fronts, the foot of wall
+#              doors), a fillet in the groove's inside corner. The fingers
+#              come through the gap the resolver leaves at that edge and hook
+#              behind the lip. Adam's approved detail, SK02, 23-Nov-2026.
 #
 # DESCRIPTION:
 # - Each front is its own solid group, named Na__Front__<part>, inside
@@ -50,6 +55,7 @@ module Na__InteriorCabinetrySystem
         NA_GROUP_NAME      = "Na__Cabinet__Fronts".freeze
         NA_PART_PREFIX     = "Na__Front__".freeze
         NA_GROOVE_SEGMENTS = 12                                                # <-- Facets round the groove's half-round bottom
+        NA_FILLET_SEGMENTS = 6                                                 # <-- V2.7.8: a quarter fillet under 10mm (Adam's arc budget: 6 edges)
 
 # endregion -------------------------------------------------------------------
 
@@ -86,6 +92,10 @@ module Na__InteriorCabinetrySystem
             elsif front[:groove]
                 group = GeometryHelpers.na_add_group(entities, name)
                 na_build_grooved(front, group.entities, material)
+                group
+            elsif front[:back_groove]
+                group = GeometryHelpers.na_add_group(entities, name)
+                na_build_back_grooved(front, group.entities, material)
                 group
             else
                 GeometryHelpers.na_add_box_part(entities, front, NA_PART_PREFIX, material)
@@ -197,6 +207,65 @@ module Na__InteriorCabinetrySystem
             end
             points << [yf, centre - radius]
             [points, soft]
+        end
+        # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Handleless (Finger Groove in the Back) (V2.7.8)
+# -----------------------------------------------------------------------------
+
+        # SUB FUNCTION | The Back-Grooved Side Profile, Run Across the Front
+        # ------------------------------------------------------------
+        def self.na_build_back_grooved(front, entities, material)
+            profile, soft = na_back_groove_profile(front[:y0], front[:y1], front[:z0], front[:z1], front[:back_groove])
+            GeometryHelpers.na_add_prism(entities, profile, [front[:x0], 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 0],
+                                         front[:x1] - front[:x0], material, soft)
+        end
+        private_class_method :na_build_back_grooved
+        # ---------------------------------------------------------------
+
+        # FUNCTION | The Closed Side Profile of a Back-Grooved Front (Pure, mm)
+        # ------------------------------------------------------------
+        # (a, b) = (Y, Z): the front face at a = yf, the back at a = yb. The
+        # groove is cut from the back, `depth` into the front and `height`
+        # from the grip edge (the top, or the bottom when groove[:edge] is
+        # "bottom"), leaving a lip at the front; its inside corner (where the
+        # groove's floor meets the lip) is rounded by `fillet`, a quarter arc
+        # whose run edges are softened. Built for a top groove, then mirrored
+        # for a bottom one. No point repeats, so the indices stay true.
+        # @return [Array] [points, indices of the run edges to soften]
+        def self.na_back_groove_profile(yf, yb, z0, z1, groove)
+            h, d, r = groove[:height].to_f, groove[:depth].to_f, groove[:fillet].to_f
+            pts  = []
+            soft = []
+            add  = lambda do |point, smooth|
+                same = pts.last && (pts.last[0] - point[0]).abs < 1e-6 && (pts.last[1] - point[1]).abs < 1e-6
+                next if same                                                     # <-- A fillet as deep as the groove starts on the back face: a corner, not softened
+                soft << pts.length if smooth
+                pts << point
+            end
+
+            add.call([yf, z0], false)
+            add.call([yb, z0], false)
+            add.call([yb, z1 - h], false)
+            lip = yb - d
+            if r > 1e-6
+                cy, cz = lip + r, z1 - h + r                                     # <-- The fillet's centre, in the cut
+                add.call([cy, z1 - h], true)                                     # <-- Tangent to the groove's floor
+                (1...NA_FILLET_SEGMENTS).each do |index|
+                    angle = -Math::PI / 2.0 - (Math::PI / 2.0) * index / NA_FILLET_SEGMENTS
+                    add.call([cy + r * Math.cos(angle), cz + r * Math.sin(angle)], true)
+                end
+                add.call([lip, cz], cz < z1 - 1e-6)                              # <-- Tangent to the lip's back, unless the fillet fills the groove's height
+            else
+                add.call([lip, z1 - h], false)
+            end
+            add.call([lip, z1], false)
+            add.call([yf, z1], false)
+            pts = pts.map { |a, b| [a, z0 + z1 - b] } if groove[:edge] == "bottom"
+            [pts, soft]
         end
         # ---------------------------------------------------------------
 

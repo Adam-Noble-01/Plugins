@@ -77,6 +77,13 @@ module Na__AssemblyRunSystem
         NA_KEY_DRAFT_PATH           = "Na__AssemblyRunDraftPath".freeze
         NA_DRAFT_PATH_PAGE          = "page".freeze
 
+        # V2.7.7: Live Mode. The page numbers each live rebuild it asks for
+        # under this key at the root of the description it sends; Ruby takes
+        # it off (never stored) and answers with the same number, so the page
+        # knows whether it changed anything while the run was rebuilding.
+        NA_KEY_LIVE_SEQ             = "Na__Run__LiveSeq".freeze
+        NA_LIVE_OPERATION           = "Live Update Assembly Run".freeze
+
         # On every span's element instance inside a run: which run, which
         # panel type, which place. Read by the selection banner ("editing
         # panel type A") and by Make Panel Unique.
@@ -147,6 +154,13 @@ module Na__AssemblyRunSystem
         # tall or wardrobe span breaks it; infill blocks and gaps (appliance
         # spaces) carry it unless a gap item says Worktop false (a cooker).
         NA_WORKTOP_PRODUCTS = %w[base drawers].freeze
+
+        # V2.7.6: the floor units a run's ONE kickboard runs along
+        # (JoinPlinths), and the tall units its top filler runs over
+        # (SoffitHeight_mm). A wall unit, an infill block, a gap, a corner
+        # and a free end break them.
+        NA_PLINTH_PRODUCTS     = %w[base drawers tall wardrobe].freeze
+        NA_TOP_FILLER_PRODUCTS = %w[tall wardrobe].freeze
 
         NA_ITEM_SPAN                = "Span".freeze
         NA_ITEM_COLUMN              = "Column".freeze
@@ -269,7 +283,8 @@ module Na__AssemblyRunSystem
             "WorktopThickness_mm"  => [10.0, 200.0],
             "WorktopOverhang_mm"   => [0.0, 1500.0],                             # <-- V2.7.5: 1500, a table end on a peninsula (600 was too few for SK02's island)
             "WorktopBackOverhang_mm" => [0.0, 1500.0],                           # <-- SK02's island, KT01: 695 behind the hob run
-            "WorktopEndOverhang_mm"  => [0.0, 1500.0]
+            "WorktopEndOverhang_mm"  => [0.0, 1500.0],
+            "SoffitHeight_mm"        => [0.0, 6000.0]                            # <-- V2.7.6: 0, no top filler
         }.freeze
 
         # A worktop cut-out (V2.7.5): its outline is kept in the run's own
@@ -324,6 +339,8 @@ module Na__AssemblyRunSystem
             "Na__RunConfig__WorktopEndOverhang_mm"  => 0,                        # <-- Past each free end of an open path
             "Na__RunConfig__WorktopMaterialId"      => "",                       # <-- A library material id; empty: the carcass finish of the units under it
             "Na__RunConfig__WorktopCutouts"         => [],                       # <-- V2.7.5: [{ "Label" => "Hob", "Outline_mm" => [[x, y] ...] }] in the run's own plan: holes, or notches where they reach an edge
+            "Na__RunConfig__JoinPlinths"            => true,                     # <-- V2.7.6, Cabinets: ONE kickboard per stretch of floor units in place of each unit's own plinth board. A NEW run starts with it on; a run with no stored value (built before 2.7.6) reads it as off
+            "Na__RunConfig__SoffitHeight_mm"        => 0,                        # <-- V2.7.6, Cabinets: a top filler in the door plane over tall units up to this soffit; 0 none. Infill blocks beside tall units stand to it
             "Na__RunConfig__Legs"              => [],                            # <-- One entry per leg: { "Items" => [...] } or { "Fill" => {...} }
             "Na__RunConfig__Corners"           => [],                            # <-- Per-corner overrides: { "Column" => "Vale260" }
             "Na__RunConfig__PanelTypes"        => []                             # <-- { "Code", "Product", "Width_mm", "Height_mm", "SillHeight_mm", "ElementId", ... }

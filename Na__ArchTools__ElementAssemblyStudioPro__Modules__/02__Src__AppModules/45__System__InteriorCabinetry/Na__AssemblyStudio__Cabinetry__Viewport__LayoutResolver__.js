@@ -74,6 +74,8 @@
     const NA_MIDDLE_LEGS_OVER_MM        = 900;   // <-- 1000 units get a middle pair of legs
     const NA_PLINTH_MIN_HEIGHT_MM       = 20;
     const NA_RAIL_DIAMETER_MM           = 25;
+    const NA_APPLIANCE_SLOT_MM          = 600;   // <-- V2.7.6: library appliances are modelled for a 600 slot
+    const NA_NO_APPLIANCE               = 'None';
 
 // endregion -------------------------------------------------------------------
 
@@ -165,7 +167,7 @@
         const board  = na_number(cfg, 'BoardThickness_mm', 6, 50);
         const layout = isWall ? na_choice(cfg, 'WallFrontLayout', ['Doors', 'Open'])
                      : (isBase ? na_choice(cfg, 'BaseFrontLayout', ['Doors', 'DrawerDoors', 'Drawers', 'Open'])
-                               : na_choice(cfg, 'TowerFrontLayout', ['Doors', 'SplitDoors', 'Open']));
+                               : na_choice(cfg, 'TowerFrontLayout', ['Doors', 'SplitDoors', 'Housing', 'Open']));
         // V2.7.5 (as the Ruby twin): a floor unit with neither a plinth nor legs
         // stands on the floor; on legs alone it keeps its height.
         const raised = na_flag(cfg, 'PlinthEnabled') || na_flag(cfg, 'LegsEnabled');
@@ -182,7 +184,7 @@
             topConstruction : isBase ? na_choice(cfg, 'BaseTopConstruction', ['Rails', 'TopPanel']) : 'TopPanel',
             railDepth       : na_number(cfg, 'TopRailDepth_mm', 20, 400),
             layout          : layout,
-            style           : na_choice(cfg, 'DoorStyle', ['Flat', 'Shaker', 'Recessed']),
+            style           : na_choice(cfg, 'DoorStyle', ['Flat', 'Shaker', 'Recessed', 'Handleless']),
             doorCount       : na_choice(cfg, 'DoorCount', ['Auto', '1', '2']),
             hinge           : na_choice(cfg, 'HingeSide', ['Left', 'Right']),
             drawerCount     : Math.round(na_number(cfg, 'DrawerCount', 1, 8)),
@@ -203,6 +205,17 @@
             railDrop        : na_number(cfg, 'RailDropBelowShelf_mm', 0, 500),
             shelfSetback    : na_number(cfg, 'ShelfSetback_mm', 0, 300),
             plinthEnabled   : na_flag(cfg, 'PlinthEnabled'),
+            plinthByRun     : cfg[NA_KEY_PREFIX + 'PlinthByRun'] === true || cfg[NA_KEY_PREFIX + 'PlinthByRun'] === 'true',   // <-- V2.7.6 (as the Ruby twin)
+            housingBase     : na_number(cfg, 'HousingApertureBase_mm', 0, 3000),
+            housingLower    : na_text(cfg, 'HousingLowerAppliance'),
+            housingLowerAp  : na_number(cfg, 'HousingLowerAperture_mm', 50, 1500),
+            housingUpper    : na_text(cfg, 'HousingUpperAppliance'),
+            housingUpperAp  : na_number(cfg, 'HousingUpperAperture_mm', 50, 1500),
+            housingThird    : na_text(cfg, 'HousingThirdAppliance'),             // <-- V2.7.8: slots 3 and 4 up the stack (as the Ruby twin)
+            housingThirdAp  : na_number(cfg, 'HousingThirdAperture_mm', 50, 1500),
+            housingFourth   : na_text(cfg, 'HousingFourthAppliance'),
+            housingFourthAp : na_number(cfg, 'HousingFourthAperture_mm', 50, 1500),
+            housingBelow    : na_choice(cfg, 'HousingBelowFront', ['Door', 'Filler']),
             plinthSetback   : na_number(cfg, 'PlinthSetback_mm', 0, 400),
             plinthThickness : na_number(cfg, 'PlinthThickness_mm', 3, 60),
             legsEnabled     : na_flag(cfg, 'LegsEnabled'),
@@ -213,9 +226,26 @@
             handleDirection : na_choice(cfg, 'HandleOrientation', ['Auto', 'Vertical', 'Horizontal']),
             handleEdgeInset : na_number(cfg, 'HandleEdgeInset_mm', 0, 500),
             handleEndInset  : na_number(cfg, 'HandleEndInset_mm', 0, 1000),
-            drawerBoxes     : na_flag(cfg, 'DrawerBoxesEnabled')
+            drawerBoxes     : na_flag(cfg, 'DrawerBoxesEnabled'),
+            // V2.7.8 (as the Ruby twin): fronts off the carcass front, and the Handleless style
+            frontStandoff   : na_number(cfg, 'FrontStandoff_mm', 0, 10),
+            handleGap       : na_number(cfg, 'HandleGap_mm', 5, 80),
+            hlGrooveH       : na_number(cfg, 'HandleGrooveHeight_mm', 0, 80),
+            hlGrooveD       : na_number(cfg, 'HandleGrooveDepth_mm', 0, 40),
+            hlGrooveR       : na_number(cfg, 'HandleGrooveFillet_mm', 0, 20),
+            wallOverhang    : na_number(cfg, 'HandleWallOverhang_mm', 0, 80),
+            wallDownstand   : na_flag(cfg, 'HandleWallDownstand'),
+            wallRailDepth   : na_number(cfg, 'HandleWallRailDepth_mm', 10, 200),
+            band            : na_number(cfg, 'HandleBand_mm', 5, 80),
+            bandDownstand   : na_flag(cfg, 'HandleBandDownstand'),
+            bandDownstandH  : na_number(cfg, 'HandleBandDownstandHeight_mm', 10, 300)
         };
     }
+    // ---------------------------------------------------------------
+
+    // FUNCTION | Is the Door Style Handleless (V2.7.8)
+    // ------------------------------------------------------------
+    function na_is_handleless(v) { return v.style === 'Handleless'; }
     // ---------------------------------------------------------------
 
 // endregion -------------------------------------------------------------------
@@ -289,9 +319,15 @@
         const z1   = v.zBase + v.height;
         const yBp  = L.yBackPanelFront;
 
-        L.parts.push(na_box('SidePanel__Left',  'side', 0,     t, -D, 0, z0, z1));
-        L.parts.push(na_box('SidePanel__Right', 'side', W - t, W, -D, 0, z0, z1));
+        // V2.7.8 (as the Ruby twin): a Handleless wall unit's sides come down
+        // with its doors and a rail fills behind their foot.
+        const drop = na_wall_downstand(v);
+        L.parts.push(na_box('SidePanel__Left',  'side', 0,     t, -D, 0, z0 - drop, z1));
+        L.parts.push(na_box('SidePanel__Right', 'side', W - t, W, -D, 0, z0 - drop, z1));
         L.parts.push(na_box('BasePanel',        'base', t, W - t, -D, yBp, z0, z0 + t));
+        if (drop > 0) {
+            L.parts.push(na_box('Downstand__Front', 'downstand', t, W - t, -D, -D + Math.min(v.wallRailDepth, yBp + D), z0 - drop, z0));
+        }
 
         const railsFit = (yBp + D) >= (2 * v.railDepth + 10);
         if (v.topConstruction === 'Rails' && railsFit) {
@@ -305,6 +341,14 @@
         if (v.back > 0) {
             L.parts.push(na_box('BackPanel', 'back', t, W - t, -(v.backInset + v.back), -v.backInset, z0, z1));
         }
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | How Far a Wall Unit's Sides Come Down Below Its Base (V2.7.8)
+    // ------------------------------------------------------------
+    function na_wall_downstand(v) {
+        if (!(v.type === 'Wall' && na_is_handleless(v) && v.layout !== 'Open' && v.wallDownstand)) return 0;
+        return v.wallOverhang;
     }
     // ---------------------------------------------------------------
 
@@ -335,7 +379,9 @@
     // fronts shallower than the top one, all are made equal.
     function na_drawer_heights(v, L) {
         const n     = v.drawerCount;
-        const total = v.height - n * v.gap;
+        // V2.7.8 Handleless (as the Ruby twin): the grip gap above every front
+        // and a half gap under the lowest.
+        const total = na_is_handleless(v) ? v.height - n * v.handleGap - v.gap / 2 : v.height - n * v.gap;
         if (n === 1) return [total];
         if (v.drawerLayout === 'Graduated') {
             const top  = Math.min(v.topDrawer, total - (n - 1) * NA_MIN_FRONT_HEIGHT_MM);
@@ -391,6 +437,21 @@
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Which Edge a Handleless Front Is Gripped By (V2.7.8, as the Ruby twin)
+    // ------------------------------------------------------------
+    function na_handleless_edge(v) { return v.type === 'Wall' ? 'bottom' : 'top'; }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | The Groove in a Handleless Front's Back (Null When None Fits) (V2.7.8)
+    // ------------------------------------------------------------
+    function na_back_groove(v, edge, h) {
+        const depth  = Math.min(v.hlGrooveD, v.frontThickness - NA_GROOVE_MIN_BACK_MM);
+        const height = Math.min(v.hlGrooveH, h - NA_GROOVE_MIN_LAND_MM);
+        if (depth < 1 || height < 1) return null;
+        return { edge: edge, height: height, depth: depth, fillet: Math.min(v.hlGrooveR, depth, height) };
+    }
+    // ---------------------------------------------------------------
+
     // SUB FUNCTION | Describe One Front and Its Handle
     // ------------------------------------------------------------
     function na_add_front(v, L, name, kind, row, hinge, x0, x1, z0, z1) {
@@ -399,24 +460,30 @@
         if (w < 1 || h < 1) return;
         if (h < NA_MIN_FRONT_HEIGHT_MM) L.warnings.push(name.replace(/__/g, ' ') + ' is only ' + Math.round(h) + 'mm tall.');
 
+        const back  = v.depth + v.frontStandoff;                              // <-- V2.7.8: a hinge gap behind every front (0 before)
         const front = {
             name  : name,
             kind  : kind,
             row   : row,
             hinge : hinge,
             x0    : x0, x1: x1,
-            y0    : -(v.depth + v.frontThickness), y1: -v.depth,
+            y0    : -(back + v.frontThickness), y1: -back,
             z0    : z0, z1: z1,
             style : v.style,
             shaker: null,
-            groove: null
+            groove: null,
+            backGroove: null
         };
         if (v.style === 'Shaker')   front.shaker = na_shaker_frame(v, w, h);
         if (v.style === 'Recessed') front.groove = na_groove(v, na_groove_edge(v, kind, row, hinge), w, h);
         if (v.style === 'Recessed' && !front.groove) L.warnings.push(name.replace(/__/g, ' ') + ' is too small for a handle groove.');
+        if (na_is_handleless(v) && v.hlGrooveH > 0 && v.hlGrooveD > 0) {
+            front.backGroove = na_back_groove(v, na_handleless_edge(v), h);
+            if (!front.backGroove) L.warnings.push(name.replace(/__/g, ' ') + ' is too small for its finger groove.');
+        }
         L.fronts.push(front);
 
-        if (v.style !== 'Recessed') na_add_handle(v, L, front);
+        if (v.style !== 'Recessed' && !na_is_handleless(v)) na_add_handle(v, L, front);
     }
     // ---------------------------------------------------------------
 
@@ -494,6 +561,107 @@
     }
     // ---------------------------------------------------------------
 
+    // HELPER FUNCTION | Is a Library Appliance Code Chosen (Not None or Blank)
+    // ------------------------------------------------------------
+    function na_is_appliance(code) {
+        const text = String(code === undefined || code === null ? '' : code).trim();
+        return text !== '' && text.toLowerCase() !== NA_NO_APPLIANCE.toLowerCase();
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | An Appliance Housing's Stack of Apertures (V2.7.6, as the Ruby twin)
+    // ------------------------------------------------------------
+    // @return {Object} { base, top, apertures: [{ slot, code, z0, z1 }] }
+    function na_housing_stack(v, L) {
+        const zLow  = v.zBase;
+        const zTop  = v.zBase + v.height;
+        let   base  = v.housingBase;
+        const slots = [['Lower', v.housingLower, v.housingLowerAp], ['Upper', v.housingUpper, v.housingUpperAp],
+                       ['Third', v.housingThird, v.housingThirdAp], ['Fourth', v.housingFourth, v.housingFourthAp]];   // <-- V2.7.8: four slots, bottom to top
+        if (base < zLow) {
+            L.warnings.push('The appliances start ' + Math.round(zLow - base) + 'mm below the carcass, so they start on its base.');
+            base = zLow;
+        }
+        let cursor = base;
+        const apertures = slots.filter(slot => na_is_appliance(slot[1])).map(slot => {
+            const aperture = { slot: slot[0], code: String(slot[1]).trim(), z0: cursor, z1: cursor + slot[2] };
+            cursor += slot[2];
+            return aperture;
+        });
+        if (cursor > zTop + 0.01) {
+            L.warnings.push('The appliances reach ' + Math.round(cursor) + 'mm, ' + Math.round(cursor - zTop) + "mm above the unit's top: raise the unit or lower the aperture base.");
+        }
+        if (v.width < NA_APPLIANCE_SLOT_MM - 0.01 && apertures.length) {
+            L.warnings.push('The unit is ' + Math.round(v.width) + 'mm wide: the library appliances need a 600 slot.');
+        }
+        return { base: base, top: cursor, apertures: apertures };
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | A Fixed Filler Panel in the Door Plane (V2.7.8, as the Ruby twin)
+    // ------------------------------------------------------------
+    // One panel across the unit under a housing's appliances, in the door
+    // finish, with no handle and no grip groove; shaker framed on a Shaker
+    // unit.
+    function na_add_filler(v, L, name, x0, x1, z0, z1) {
+        const w = x1 - x0;
+        const h = z1 - z0;
+        if (w < 1 || h < 1) return;
+        const back   = v.depth + v.frontStandoff;
+        const shaker = v.style === 'Shaker';
+        L.fronts.push({
+            name: name, kind: 'filler', row: 'lower', hinge: null,
+            x0: x0, x1: x1, y0: -(back + v.frontThickness), y1: -back, z0: z0, z1: z1,
+            style: shaker ? 'Shaker' : 'Flat', shaker: shaker ? na_shaker_frame(v, w, h) : null, groove: null, backGroove: null
+        });
+    }
+    // ---------------------------------------------------------------
+
+    // HELPER FUNCTION | How Far a Housing's Band Downstand Hangs Below the Lowest Aperture (V2.7.8)
+    // ------------------------------------------------------------
+    function na_band_downstand(v, stack) {
+        if (!(na_is_handleless(v) && v.bandDownstand && stack.apertures.length)) return 0;
+        if (!(stack.base - v.bandDownstandH > v.zBase + v.board)) return 0;
+        return v.bandDownstandH;
+    }
+    // ---------------------------------------------------------------
+
+    // SUB FUNCTION | Fronts and Appliances of an Appliance Housing (V2.7.6)
+    // ------------------------------------------------------------
+    function na_build_housing_fronts(v, L) {
+        const g     = v.gap;
+        const zLow  = v.zBase;
+        const zTop  = v.zBase + v.height;
+        const stack = na_housing_stack(v, L);
+        const count = na_doors_across(v, L);
+        const xOff  = (v.width - NA_APPLIANCE_SLOT_MM) / 2;
+        const hl    = na_is_handleless(v);
+
+        // V2.7.8 Handleless (as the Ruby twin): the door below stops the band
+        // under the lowest appliance; the door above leaves the grip gap under
+        // the carcass top; a downstand under the appliance's shelf backs the
+        // door below.
+        const lowerTop = (hl && stack.apertures.length) ? stack.base - v.band : stack.base - g / 2;
+        const upperTop = hl ? zTop - v.handleGap : zTop - g / 2;
+        if (lowerTop - (zLow + g / 2) >= NA_MIN_FRONT_HEIGHT_MM) {
+            if (v.housingBelow === 'Filler') na_add_filler(v, L, 'Filler__Lower', g / 2, v.width - g / 2, zLow + g / 2, lowerTop);   // <-- V2.7.8
+            else na_add_door_row(v, L, 'lower', count, zLow + g / 2, lowerTop);
+        }
+        if (upperTop - (stack.top + g / 2) >= NA_MIN_FRONT_HEIGHT_MM) {
+            na_add_door_row(v, L, 'upper', count, stack.top + g / 2, upperTop);
+        }
+        const drop = na_band_downstand(v, stack);
+        if (drop > 0) {
+            const t = v.board;
+            L.parts.push(na_box('Downstand__Band', 'downstand', t, v.width - t, -v.depth, -v.depth + t, stack.base - drop, stack.base));
+        }
+        L.housing    = stack;
+        L.appliances = stack.apertures.map(aperture => Object.assign({}, aperture, {
+            name: 'Appliance__' + aperture.slot, x0: xOff, y: -(v.depth + v.frontStandoff)
+        }));
+    }
+    // ---------------------------------------------------------------
+
     // SUB FUNCTION | Every Front for the Chosen Layout
     // ------------------------------------------------------------
     function na_build_fronts(v, L) {
@@ -501,33 +669,45 @@
         const zLow = v.zBase;
         const zTop = v.zBase + v.height;
         const W    = v.width;
+        const hl   = na_is_handleless(v);
+        // V2.7.8 Handleless (as the Ruby twin): a front's grip edge stands the
+        // grip gap clear of the carcass edge (or the front above); a wall
+        // unit's doors run the overhang below its base.
+        const topEdge = (hl && v.type !== 'Wall') ? zTop - v.handleGap : zTop - g / 2;
+        const lowEdge = (hl && v.type === 'Wall') ? zLow - v.wallOverhang : zLow + g / 2;
+        const between = hl ? v.handleGap : g;
 
         if (v.layout === 'Open') return;
 
+        if (v.layout === 'Housing') {
+            na_build_housing_fronts(v, L);
+            return;
+        }
+
         if (v.layout === 'Doors') {
-            na_add_door_row(v, L, 'full', na_doors_across(v, L), zLow + g / 2, zTop - g / 2);
+            na_add_door_row(v, L, 'full', na_doors_across(v, L), lowEdge, topEdge);
             return;
         }
 
         if (v.layout === 'SplitDoors') {
             const split = Math.min(v.splitUpper, v.height - 100);
             const count = na_doors_across(v, L);
-            na_add_door_row(v, L, 'upper', count, zTop - split + g / 2, zTop - g / 2);
-            na_add_door_row(v, L, 'lower', count, zLow + g / 2, zTop - split - g / 2);
+            na_add_door_row(v, L, 'upper', count, zTop - split + g / 2, topEdge);
+            na_add_door_row(v, L, 'lower', count, zLow + g / 2, hl ? zTop - split - v.handleGap : zTop - split - g / 2);
             return;
         }
 
         if (v.layout === 'DrawerDoors') {
             const drawer = Math.min(v.topDrawer, v.height - 2 * g - 100);
-            na_add_front(v, L, 'DrawerFront__01', 'drawer', 'top', null, g / 2, W - g / 2, zTop - g / 2 - drawer, zTop - g / 2);
-            na_add_door_row(v, L, 'lower', na_doors_across(v, L), zLow + g / 2, zTop - 1.5 * g - drawer);
+            na_add_front(v, L, 'DrawerFront__01', 'drawer', 'top', null, g / 2, W - g / 2, topEdge - drawer, topEdge);
+            na_add_door_row(v, L, 'lower', na_doors_across(v, L), zLow + g / 2, topEdge - drawer - between);
             return;
         }
 
-        let cursor = zTop - g / 2;
+        let cursor = topEdge;
         na_drawer_heights(v, L).forEach((height, index) => {
             na_add_front(v, L, 'DrawerFront__' + na_pad(index + 1), 'drawer', 'drawer', null, g / 2, W - g / 2, cursor - height, cursor);
-            cursor -= height + g;
+            cursor -= height + between;
         });
     }
     // ---------------------------------------------------------------
@@ -560,6 +740,7 @@
         if (v.layout === 'Drawers') return;
 
         let zones = [[zIn0, zIn1]];
+        let fillerBelow = false;                                               // <-- V2.7.8: a housing's filler drops the lower cupboard's share
         if (v.layout === 'DrawerDoors') {
             const drawer = L.fronts.filter(front => front.kind === 'drawer')[0];
             zones = [[zIn0, drawer ? drawer.z0 - v.gap / 2 - t : zIn1]];
@@ -568,6 +749,23 @@
             const split = v.zBase + v.height - Math.min(v.splitUpper, v.height - 100);
             shelf('FixedShelf', 'fixedShelf', split - t / 2, -D);
             zones = [[zIn0, split - t / 2], [split + t / 2, zIn1]];
+        }
+        // V2.7.6 (as the Ruby twin): a fixed shelf under each aperture and one
+        // over the stack; the two cupboards share the shelves.
+        if (v.type === 'Tower' && v.layout === 'Housing' && L.housing) {
+            const stack = L.housing;
+            if (!stack.apertures.length) {
+                zones = [[zIn0, stack.base - t / 2], [stack.base + t / 2, zIn1]];
+                if (stack.base - t / 2 > zIn0 && stack.base + t / 2 < zIn1) shelf('FixedShelf', 'fixedShelf', stack.base - t / 2, -D);
+            } else {
+                stack.apertures.forEach(aperture => {
+                    if (!(aperture.z0 > zIn0 - 0.01 && aperture.z0 + t < zIn1 + 0.01)) return;
+                    shelf('ApplianceShelf__' + aperture.slot, 'fixedShelf', aperture.z0, -D);
+                });
+                if (stack.top - t > zIn0 && stack.top < zIn1 + 0.01) shelf('ApplianceShelf__Top', 'fixedShelf', stack.top - t, -D);
+                zones = [[zIn0, stack.base - na_band_downstand(v, stack)], [stack.top, zIn1]];   // <-- V2.7.8: shelves stay under the band downstand
+                fillerBelow = v.housingBelow === 'Filler';                                         // <-- V2.7.8: behind a filler is no cupboard
+            }
         }
 
         if (v.type === 'Tower' && v.towerInterior === 'Hanging') {
@@ -591,7 +789,7 @@
         const lower = zones[0][1] - zones[0][0];
         const upper = zones[1][1] - zones[1][0];
         const nUp   = Math.round(v.shelves * upper / Math.max(1, lower + upper));
-        const done  = spread(zones[0][0], zones[0][1], v.shelves - nUp, 1);
+        const done  = fillerBelow ? 0 : spread(zones[0][0], zones[0][1], v.shelves - nUp, 1);   // <-- V2.7.8: the top cupboard keeps its usual share
         spread(zones[1][0], zones[1][1], nUp, 1 + done);
     }
     // ---------------------------------------------------------------
@@ -651,7 +849,8 @@
         const D = v.depth;
 
         const setback  = Math.max(0, Math.min(v.plinthSetback, D / 2 - v.plinthThickness));
-        const hasPlinth = v.plinthEnabled && v.zBase >= NA_PLINTH_MIN_HEIGHT_MM;
+        const plinthLine = v.plinthEnabled && v.zBase >= NA_PLINTH_MIN_HEIGHT_MM;
+        const hasPlinth  = plinthLine && !v.plinthByRun;                      // <-- V2.7.6: the run's one kickboard stands in for it
         if (hasPlinth) {
             L.plinth = na_box('Plinth', 'plinth', 0, W, -D + setback, -D + setback + v.plinthThickness, 0, v.zBase);
         }
@@ -665,7 +864,7 @@
         let xs = (W < 2 * v.legSideInset + NA_LEG_MIN_ROW_GAP_MM) ? [W / 2] : [v.legSideInset, W - v.legSideInset];
         if (xs.length === 2 && W > NA_MIDDLE_LEGS_OVER_MM) xs = [xs[0], W / 2, xs[1]];
 
-        const yFront = hasPlinth ? (-D + setback + v.plinthThickness + NA_LEG_BEHIND_PLINTH_MM) : (-D + v.legBackInset);
+        const yFront = plinthLine ? (-D + setback + v.plinthThickness + NA_LEG_BEHIND_PLINTH_MM) : (-D + v.legBackInset);
         const yBack  = -Math.max(v.legBackInset, v.backInset + v.back + NA_LEG_BEHIND_BACK_MM);
         const ys     = (yBack - yFront >= NA_LEG_MIN_ROW_GAP_MM) ? [yFront, yBack] : [(yFront + yBack) / 2];
 
@@ -695,6 +894,8 @@
             fronts         : [],
             handles        : [],
             drawerBoxes    : [],
+            appliances     : [],                                               // <-- V2.7.6: a housing's library appliances
+            housing        : null,
             rail           : null,
             plinth         : null,
             legs           : [],
@@ -709,12 +910,14 @@
         na_build_plinth_and_legs(v, L);
         L.parts = L.parts.filter(na_box_ok);
 
+        // V2.7.8 (as the Ruby twin): a wall unit's doors and downstand run below its base.
+        const low = Math.min.apply(null, [v.zBase].concat(L.fronts.map(front => front.z0), L.parts.map(part => part.z0)));
         L.bounds = {
             x0: 0,
             x1: v.width,
-            y0: -(v.depth + (L.fronts.length ? v.frontThickness : 0)),
+            y0: -(v.depth + (L.fronts.length ? v.frontStandoff + v.frontThickness : 0)),
             y1: 0,
-            z0: (v.type === 'Wall') ? v.zBase : 0,
+            z0: (v.type === 'Wall') ? low : 0,
             z1: v.zBase + v.height
         };
         return L;

@@ -6306,6 +6306,16 @@
     "Na__CabinetConfig__DrawerLayout": "Graduated",
     "Na__CabinetConfig__TopDrawerHeight_mm": 140,
     "Na__CabinetConfig__SplitUpperHeight_mm": 720,
+    "Na__CabinetConfig__HousingApertureBase_mm": 870,
+    "Na__CabinetConfig__HousingBelowFront": "Door",
+    "Na__CabinetConfig__HousingLowerAppliance": "17_1002",
+    "Na__CabinetConfig__HousingLowerAperture_mm": 145,
+    "Na__CabinetConfig__HousingUpperAppliance": "17_1001",
+    "Na__CabinetConfig__HousingUpperAperture_mm": 600,
+    "Na__CabinetConfig__HousingThirdAppliance": "None",
+    "Na__CabinetConfig__HousingThirdAperture_mm": 600,
+    "Na__CabinetConfig__HousingFourthAppliance": "None",
+    "Na__CabinetConfig__HousingFourthAperture_mm": 600,
     "Na__CabinetConfig__ShakerFrameWidth_mm": 70,
     "Na__CabinetConfig__GrooveOffset_mm": 22,
     "Na__CabinetConfig__DoorThickness_mm": 20,
@@ -6313,6 +6323,17 @@
     "Na__CabinetConfig__ShakerPanelRecess_mm": 6,
     "Na__CabinetConfig__GrooveWidth_mm": 18,
     "Na__CabinetConfig__GrooveDepth_mm": 12,
+    "Na__CabinetConfig__HandleGap_mm": 20,
+    "Na__CabinetConfig__HandleGrooveHeight_mm": 20,
+    "Na__CabinetConfig__HandleGrooveDepth_mm": 10,
+    "Na__CabinetConfig__HandleGrooveFillet_mm": 5,
+    "Na__CabinetConfig__HandleWallOverhang_mm": 20,
+    "Na__CabinetConfig__HandleWallDownstand": true,
+    "Na__CabinetConfig__HandleWallRailDepth_mm": 32,
+    "Na__CabinetConfig__HandleBand_mm": 25,
+    "Na__CabinetConfig__HandleBandDownstand": true,
+    "Na__CabinetConfig__HandleBandDownstandHeight_mm": 50,
+    "Na__CabinetConfig__FrontStandoff_mm": 0,
     "Na__CabinetConfig__BaseShelfCount": 1,
     "Na__CabinetConfig__WallShelfCount": 2,
     "Na__CabinetConfig__TowerInterior": "Shelves",
@@ -6376,13 +6397,34 @@
       "Na__CabinetConfig__DrawerLayout",
       "Na__CabinetConfig__TopDrawerHeight_mm",
       "Na__CabinetConfig__SplitUpperHeight_mm",
+      "Na__CabinetConfig__HousingApertureBase_mm",
+      "Na__CabinetConfig__HousingBelowFront",
+      "Na__CabinetConfig__HousingLowerAppliance",
+      "Na__CabinetConfig__HousingUpperAppliance",
+      "Na__CabinetConfig__HousingThirdAppliance",
+      "Na__CabinetConfig__HousingFourthAppliance",
+      "Na__CabinetConfig__HousingLowerAperture_mm",
+      "Na__CabinetConfig__HousingUpperAperture_mm",
+      "Na__CabinetConfig__HousingThirdAperture_mm",
+      "Na__CabinetConfig__HousingFourthAperture_mm",
       "Na__CabinetConfig__ShakerFrameWidth_mm",
       "Na__CabinetConfig__GrooveOffset_mm",
       "Na__CabinetConfig__DoorThickness_mm",
       "Na__CabinetConfig__DoorGap_mm",
       "Na__CabinetConfig__ShakerPanelRecess_mm",
       "Na__CabinetConfig__GrooveWidth_mm",
-      "Na__CabinetConfig__GrooveDepth_mm"
+      "Na__CabinetConfig__GrooveDepth_mm",
+      "Na__CabinetConfig__HandleGap_mm",
+      "Na__CabinetConfig__HandleGrooveHeight_mm",
+      "Na__CabinetConfig__HandleGrooveDepth_mm",
+      "Na__CabinetConfig__HandleGrooveFillet_mm",
+      "Na__CabinetConfig__HandleWallOverhang_mm",
+      "Na__CabinetConfig__HandleWallDownstand",
+      "Na__CabinetConfig__HandleWallRailDepth_mm",
+      "Na__CabinetConfig__HandleBand_mm",
+      "Na__CabinetConfig__HandleBandDownstand",
+      "Na__CabinetConfig__HandleBandDownstandHeight_mm",
+      "Na__CabinetConfig__FrontStandoff_mm"
      ]
     },
     {
@@ -6452,7 +6494,7 @@
     }
    ],
    "patterns": [],
-   "control_count": 55,
+   "control_count": 76,
    "controls": {
     "Na__CabinetConfig__BackPanelInset_mm": {
      "group": "NA_CABINET_CARCASS_CONFIG",
@@ -6678,6 +6720,10 @@
       {
        "value": "Recessed",
        "label": "Recessed Handle"
+      },
+      {
+       "value": "Handleless",
+       "label": "Handleless"
       }
      ],
      "section": "fronts",
@@ -6755,6 +6801,20 @@
      "keywords": "drawer heights graduated equal",
      "needs": "Fronts: Drawers"
     },
+    "Na__CabinetConfig__FrontStandoff_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Gap Behind the Fronts",
+     "unit": "mm",
+     "type": "slider",
+     "min": 0,
+     "max": 10,
+     "step": 0.5,
+     "default": 0,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 3,
+     "keywords": "gap behind fronts hinge clearance door carcass standoff"
+    },
     "Na__CabinetConfig__GrooveDepth_mm": {
      "group": "NA_CABINET_FRONTS_CONFIG",
      "label": "Handle Groove Depth",
@@ -6827,6 +6887,57 @@
      "section_title": "Handles",
      "keywords": "handle knob bar d pull hardware ironmongery"
     },
+    "Na__CabinetConfig__HandleBandDownstand": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Downstand Behind the Band",
+     "type": "toggle",
+     "default": true,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "handleless band downstand appliance shelf backing",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleBandDownstandHeight_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Band Downstand Height",
+     "unit": "mm",
+     "type": "slider",
+     "min": 10,
+     "max": 300,
+     "step": 5,
+     "default": 50,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "handleless band downstand height",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleBand_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Finger Band Under the Appliance",
+     "unit": "mm",
+     "type": "slider",
+     "min": 5,
+     "max": 80,
+     "step": 1,
+     "default": 25,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "handleless finger band under appliance warming drawer oven housing",
+     "needs": "Door Style: Handleless"
+    },
     "Na__CabinetConfig__HandleEdgeInset_mm": {
      "group": "NA_CABINET_HARDWARE_CONFIG",
      "label": "Handle In From Door Edge",
@@ -6854,6 +6965,65 @@
      "section_title": "Handles",
      "tier": 2,
      "keywords": "handle position from top bottom"
+    },
+    "Na__CabinetConfig__HandleGap_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Finger Gap Above Each Front",
+     "unit": "mm",
+     "type": "slider",
+     "min": 5,
+     "max": 60,
+     "step": 1,
+     "default": 20,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "keywords": "handleless finger gap shadow gap under worktop channel grip",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleGrooveDepth_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Finger Groove Depth",
+     "unit": "mm",
+     "type": "slider",
+     "min": 0,
+     "max": 25,
+     "step": 0.5,
+     "default": 10,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "keywords": "handleless finger groove depth back rebate",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleGrooveFillet_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Finger Groove Fillet",
+     "unit": "mm",
+     "type": "slider",
+     "min": 0,
+     "max": 15,
+     "step": 0.5,
+     "default": 5,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "keywords": "handleless finger groove fillet radius round corner",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleGrooveHeight_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Finger Groove Height",
+     "unit": "mm",
+     "type": "slider",
+     "min": 0,
+     "max": 60,
+     "step": 1,
+     "default": 20,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "keywords": "handleless finger groove height back rebate j pull",
+     "needs": "Door Style: Handleless"
     },
     "Na__CabinetConfig__HandleMaterialId": {
      "group": "NA_CABINET_HARDWARE_CONFIG",
@@ -6889,6 +7059,54 @@
      "section_title": "Handles",
      "tier": 2,
      "keywords": "handle direction vertical horizontal"
+    },
+    "Na__CabinetConfig__HandleWallDownstand": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Downstand Behind the Doors",
+     "type": "toggle",
+     "default": true,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "wall"
+     ],
+     "keywords": "handleless wall unit downstand rail sides carried down backing",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleWallOverhang_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Wall Doors Below the Carcass",
+     "unit": "mm",
+     "type": "slider",
+     "min": 0,
+     "max": 60,
+     "step": 1,
+     "default": 20,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "wall"
+     ],
+     "keywords": "handleless wall unit door overhang below carcass finger pull",
+     "needs": "Door Style: Handleless"
+    },
+    "Na__CabinetConfig__HandleWallRailDepth_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Downstand Rail Depth",
+     "unit": "mm",
+     "type": "slider",
+     "min": 10,
+     "max": 200,
+     "step": 1,
+     "default": 32,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "wall"
+     ],
+     "keywords": "handleless wall unit downstand rail depth",
+     "needs": "Door Style: Handleless"
     },
     "Na__CabinetConfig__HatShelfDrop_mm": {
      "group": "NA_CABINET_INTERIOR_CONFIG",
@@ -6927,6 +7145,243 @@
      "section": "fronts",
      "section_title": "Doors & Drawers",
      "keywords": "hinge hinged side hand handing left right"
+    },
+    "Na__CabinetConfig__HousingApertureBase_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Appliances Start Above Floor",
+     "unit": "mm",
+     "type": "slider",
+     "min": 0,
+     "max": 3000,
+     "step": 5,
+     "default": 870,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "appliance oven height above floor aperture base eye level"
+    },
+    "Na__CabinetConfig__HousingBelowFront": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Front Below the Appliances",
+     "type": "select",
+     "default": "Door",
+     "options": [
+      {
+       "value": "Door",
+       "label": "Door (a cupboard)"
+      },
+      {
+       "value": "Filler",
+       "label": "Filler Panel (fixed)"
+      }
+     ],
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "appliance housing below door filler panel fixed under oven"
+    },
+    "Na__CabinetConfig__HousingFourthAperture_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Aperture 4 Height",
+     "unit": "mm",
+     "type": "slider",
+     "min": 50,
+     "max": 1500,
+     "step": 1,
+     "default": 600,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "aperture 4 niche height fourth top"
+    },
+    "Na__CabinetConfig__HousingFourthAppliance": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Appliance 4 (Top)",
+     "type": "select",
+     "default": "None",
+     "options": [
+      {
+       "value": "None",
+       "label": "None"
+      },
+      {
+       "value": "17_1001",
+       "label": "Standard Oven (17_1001, 595 x 595)"
+      },
+      {
+       "value": "17_1002",
+       "label": "Warming Drawer (17_1002, 595 x 140)"
+      },
+      {
+       "value": "17_1003",
+       "label": "Oven With Warming Drawer (17_1003, 740)"
+      }
+     ],
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "appliance 4 fourth top stack housing library"
+    },
+    "Na__CabinetConfig__HousingLowerAperture_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Aperture 1 Height",
+     "unit": "mm",
+     "type": "slider",
+     "min": 50,
+     "max": 1500,
+     "step": 1,
+     "default": 145,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "aperture 1 warming drawer niche height lower"
+    },
+    "Na__CabinetConfig__HousingLowerAppliance": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Appliance 1 (Bottom)",
+     "type": "select",
+     "default": "17_1002",
+     "options": [
+      {
+       "value": "17_1002",
+       "label": "Warming Drawer (17_1002, 595 x 140)"
+      },
+      {
+       "value": "17_1001",
+       "label": "Standard Oven (17_1001, 595 x 595)"
+      },
+      {
+       "value": "17_1003",
+       "label": "Oven With Warming Drawer (17_1003, 740)"
+      },
+      {
+       "value": "None",
+       "label": "None"
+      }
+     ],
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "appliance 1 bottom warming drawer housing built in lower library"
+    },
+    "Na__CabinetConfig__HousingThirdAperture_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Aperture 3 Height",
+     "unit": "mm",
+     "type": "slider",
+     "min": 50,
+     "max": 1500,
+     "step": 1,
+     "default": 600,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "aperture 3 oven niche height third"
+    },
+    "Na__CabinetConfig__HousingThirdAppliance": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Appliance 3",
+     "type": "select",
+     "default": "None",
+     "options": [
+      {
+       "value": "None",
+       "label": "None"
+      },
+      {
+       "value": "17_1001",
+       "label": "Standard Oven (17_1001, 595 x 595)"
+      },
+      {
+       "value": "17_1002",
+       "label": "Warming Drawer (17_1002, 595 x 140)"
+      },
+      {
+       "value": "17_1003",
+       "label": "Oven With Warming Drawer (17_1003, 740)"
+      }
+     ],
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "appliance 3 third oven double stack housing library"
+    },
+    "Na__CabinetConfig__HousingUpperAperture_mm": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Aperture 2 Height",
+     "unit": "mm",
+     "type": "slider",
+     "min": 50,
+     "max": 1500,
+     "step": 1,
+     "default": 600,
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "tier": 2,
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "aperture 2 oven niche height upper"
+    },
+    "Na__CabinetConfig__HousingUpperAppliance": {
+     "group": "NA_CABINET_FRONTS_CONFIG",
+     "label": "Appliance 2",
+     "type": "select",
+     "default": "17_1001",
+     "options": [
+      {
+       "value": "17_1001",
+       "label": "Standard Oven (17_1001, 595 x 595)"
+      },
+      {
+       "value": "17_1002",
+       "label": "Warming Drawer (17_1002, 595 x 140)"
+      },
+      {
+       "value": "17_1003",
+       "label": "Oven With Warming Drawer (17_1003, 740)"
+      },
+      {
+       "value": "None",
+       "label": "None"
+      }
+     ],
+     "section": "fronts",
+     "section_title": "Doors & Drawers",
+     "products": [
+      "tall",
+      "wardrobe"
+     ],
+     "keywords": "appliance 2 oven housing built in upper library"
     },
     "Na__CabinetConfig__LegAssetKey": {
      "group": "NA_CABINET_PLINTH_CONFIG",
@@ -7249,6 +7704,10 @@
       {
        "value": "SplitDoors",
        "label": "Split Doors"
+      },
+      {
+       "value": "Housing",
+       "label": "Appliances"
       },
       {
        "value": "Open",

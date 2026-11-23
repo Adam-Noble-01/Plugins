@@ -141,6 +141,38 @@ module Na__AssemblyRunSystem
         end
         # ---------------------------------------------------------------
 
+        # FUNCTION | The Stretches Spans of Some Products Make Along a Run (V2.7.6)
+        # ------------------------------------------------------------
+        # One kickboard runs along floor units, one top filler over tall
+        # units: spans of the products given carry it; anything else (a
+        # column, a gap, a corner, an empty length, a span of another
+        # product) breaks it. Corners break it: a corner unit or a blind
+        # corner has its own front line.
+        # @return [Array<Hash>] stretches as na_stretches gives them
+        def self.na_product_stretches(legs, corners, types, closed, products)
+            walk = legs.each_with_index.flat_map do |leg, index|
+                items    = Array(leg[:items])
+                segments = items.map do |item|
+                    unit = item[:kind] == Defaults::NA_ITEM_SPAN && products.include?((types[item[:type]] || {})[:product].to_s)
+                    { :kind => :item, :leg => leg[:index], :s0 => item[:s0].to_f, :s1 => item[:s1].to_f, :item => item,
+                      :carry => unit, :span => unit }
+                end
+                last_end = items.empty? ? leg[:setback_start].to_f : items.last[:s1].to_f
+                stop     = leg[:length].to_f - leg[:setback_end].to_f
+                if stop - last_end > NA_TOLERANCE_MM
+                    segments << { :kind => :empty, :leg => index, :s0 => last_end, :s1 => stop, :carry => false, :span => false }
+                end
+                segments
+            end
+            corners.each do |corner|                                             # <-- A corner breaks it: put a breaking entry after its arriving leg
+                at = walk.rindex { |segment| segment[:leg] == corner[:leg_in] }
+                walk.insert(at + 1, { :kind => :empty, :leg => corner[:leg_in], :s0 => 0.0, :s1 => 0.0, :carry => false, :span => false }) if at
+            end
+            groups = na_group(walk, closed && corners.empty?, :carry).select { |group| group[:segments].any? { |segment| segment[:span] } }
+            groups.each_with_index.map { |group, index| na_describe(group, legs, index) }
+        end
+        # ---------------------------------------------------------------
+
         # FUNCTION | The Stretches a Cabinets Run's One Worktop Runs Along (V2.7.4)
         # ------------------------------------------------------------
         # @param end_overhang [Float] mm the worktop runs on past a free end

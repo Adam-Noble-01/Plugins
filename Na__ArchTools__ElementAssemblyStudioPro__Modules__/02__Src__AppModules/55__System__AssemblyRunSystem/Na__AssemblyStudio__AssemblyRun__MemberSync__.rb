@@ -64,7 +64,7 @@ module Na__AssemblyRunSystem
         # Framework on, the side frames are the run's too.
         NA_OWNED_KEYS = {
             PanelTypes::NA_SYSTEM_WINDOWS  => %w[width_mm height_mm].freeze,
-            PanelTypes::NA_SYSTEM_CABINETS => %w[Na__CabinetConfig__Width_mm].freeze
+            PanelTypes::NA_SYSTEM_CABINETS => %w[Na__CabinetConfig__Width_mm Na__CabinetConfig__PlinthByRun].freeze   # <-- V2.7.6: the kickboard is the run's
         }.freeze
         NA_OWNED_KEYS_FUSED     = %w[advanced_frame_controls frame_left_thickness_mm frame_right_thickness_mm].freeze
         NA_OWNED_KEYS_FRAMELESS = %w[frame_top_thickness_mm frame_bottom_thickness_mm].freeze    # <-- V2.7.3: a fused window's head and bottom are the run's

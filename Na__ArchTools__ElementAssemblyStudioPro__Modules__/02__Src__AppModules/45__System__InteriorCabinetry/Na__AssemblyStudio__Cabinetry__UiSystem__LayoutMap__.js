@@ -120,12 +120,16 @@
     }
     // ---------------------------------------------------------------
 
-    function na_has_doors(cfg)      { return ['Doors', 'DrawerDoors', 'SplitDoors'].indexOf(na_layout(cfg)) !== -1; }
+    function na_has_doors(cfg)      { return ['Doors', 'DrawerDoors', 'SplitDoors', 'Housing'].indexOf(na_layout(cfg)) !== -1; }
+    function na_is_housing(cfg)     { return String(cfg[K + 'UnitType']) === 'Tower' && na_layout(cfg) === 'Housing'; }   // <-- V2.7.6
     function na_is_drawers(cfg)     { return String(cfg[K + 'UnitType'] || 'Base') === 'Base' && na_layout(cfg) === 'Drawers'; }
     function na_has_drawers(cfg)    { return na_is_drawers(cfg) || (String(cfg[K + 'UnitType'] || 'Base') === 'Base' && na_layout(cfg) === 'DrawerDoors'); }
     function na_is_hanging(cfg)     { return String(cfg[K + 'UnitType']) === 'Tower' && cfg[K + 'TowerInterior'] === 'Hanging'; }
     function na_style(cfg)          { return cfg[K + 'DoorStyle'] || 'Shaker'; }
-    function na_has_handles(cfg)    { return na_style(cfg) !== 'Recessed' && String(cfg[K + 'HandleAssetKey'] || '') !== 'None'; }
+    function na_has_handles(cfg)    { return na_style(cfg) !== 'Recessed' && na_style(cfg) !== 'Handleless' && String(cfg[K + 'HandleAssetKey'] || '') !== 'None'; }
+    function na_is_handleless(cfg)  { return na_style(cfg) === 'Handleless'; }                                    // <-- V2.7.8
+    function na_handleless_wall(cfg){ return na_is_handleless(cfg) && String(cfg[K + 'UnitType']) === 'Wall'; }
+    function na_handleless_band(cfg){ return na_is_handleless(cfg) && na_is_housing(cfg); }
 
     // HELPER FUNCTION | Does the Layout Resolve to a Single Door Somewhere
     // ------------------------------------------------------------
@@ -231,6 +235,7 @@
 
     var NA_NEED_SHAKER   = { text: 'Door Style: Shaker',          fix: [[K + 'DoorStyle', 'Shaker']] };
     var NA_NEED_RECESSED = { text: 'Door Style: Recessed Handle', fix: [[K + 'DoorStyle', 'Recessed']] };
+    var NA_NEED_HANDLELESS = { text: 'Door Style: Handleless',    fix: [[K + 'DoorStyle', 'Handleless']] };      // <-- V2.7.8
     var NA_NEED_DRAWERS  = { text: 'Fronts: Drawers',             fix: [[K + 'UnitType', 'Base'], [K + 'BaseFrontLayout', 'Drawers']] };
     var NA_NEED_PLINTH   = { text: 'Include Plinth on',           fix: [[K + 'PlinthEnabled', true]] };
     var NA_NEED_LEGS     = { text: 'Include Legs on',             fix: [[K + 'LegsEnabled', true]] };
@@ -276,6 +281,27 @@
                   showIf: function (cfg) { return na_layout(cfg) === 'DrawerDoors' || (na_is_drawers(cfg) && cfg[K + 'DrawerLayout'] !== 'Equal'); } },
                 { id: K + 'SplitUpperHeight_mm', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'upper door split height larder',
                   showIf: function (cfg) { return na_layout(cfg) === 'SplitDoors'; } },
+                // V2.7.8: the stack reads from the bottom: where it starts, what is below it, appliances 1 to 4
+                { id: K + 'HousingApertureBase_mm', products: NA_TOWER_PRODUCTS, kw: 'appliance oven height above floor aperture base eye level',
+                  showIf: na_is_housing },
+                { id: K + 'HousingBelowFront', products: NA_TOWER_PRODUCTS, kw: 'appliance housing below door filler panel fixed under oven',
+                  showIf: na_is_housing },
+                { id: K + 'HousingLowerAppliance', products: NA_TOWER_PRODUCTS, kw: 'appliance 1 bottom warming drawer housing built in lower library',
+                  showIf: na_is_housing },
+                { id: K + 'HousingUpperAppliance', products: NA_TOWER_PRODUCTS, kw: 'appliance 2 oven housing built in upper library',
+                  showIf: na_is_housing },
+                { id: K + 'HousingThirdAppliance', products: NA_TOWER_PRODUCTS, kw: 'appliance 3 third oven double stack housing library',
+                  showIf: na_is_housing },
+                { id: K + 'HousingFourthAppliance', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'appliance 4 fourth top stack housing library',
+                  showIf: na_is_housing },
+                { id: K + 'HousingLowerAperture_mm', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'aperture 1 warming drawer niche height lower',
+                  showIf: na_is_housing },
+                { id: K + 'HousingUpperAperture_mm', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'aperture 2 oven niche height upper',
+                  showIf: na_is_housing },
+                { id: K + 'HousingThirdAperture_mm', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'aperture 3 oven niche height third',
+                  showIf: na_is_housing },
+                { id: K + 'HousingFourthAperture_mm', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'aperture 4 niche height fourth top',
+                  showIf: na_is_housing },
                 { id: K + 'ShakerFrameWidth_mm', tier: 2, kw: 'shaker frame stile rail width',
                   showIf: function (cfg) { return na_style(cfg) === 'Shaker'; }, need: NA_NEED_SHAKER },
                 { id: K + 'GrooveOffset_mm',    tier: 2, kw: 'handle groove recess finger pull position edge',
@@ -287,7 +313,29 @@
                 { id: K + 'GrooveWidth_mm',     tier: 3, kw: 'handle groove width',
                   showIf: function (cfg) { return na_style(cfg) === 'Recessed'; }, need: NA_NEED_RECESSED },
                 { id: K + 'GrooveDepth_mm',     tier: 3, kw: 'handle groove depth',
-                  showIf: function (cfg) { return na_style(cfg) === 'Recessed'; }, need: NA_NEED_RECESSED }
+                  showIf: function (cfg) { return na_style(cfg) === 'Recessed'; }, need: NA_NEED_RECESSED },
+                // V2.7.8 Handleless
+                { id: K + 'HandleGap_mm',            kw: 'handleless finger gap shadow gap under worktop channel grip',
+                  showIf: na_is_handleless, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleGrooveHeight_mm',   tier: 2, kw: 'handleless finger groove height back rebate j pull',
+                  showIf: na_is_handleless, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleGrooveDepth_mm',    tier: 2, kw: 'handleless finger groove depth back rebate',
+                  showIf: na_is_handleless, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleGrooveFillet_mm',   tier: 2, kw: 'handleless finger groove fillet radius round corner',
+                  showIf: na_is_handleless, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleWallOverhang_mm',   products: ['wall'], kw: 'handleless wall unit door overhang below carcass finger pull',
+                  showIf: na_handleless_wall, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleWallDownstand',     products: ['wall'], kw: 'handleless wall unit downstand rail sides carried down backing',
+                  showIf: na_handleless_wall, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleWallRailDepth_mm',  tier: 2, products: ['wall'], kw: 'handleless wall unit downstand rail depth',
+                  showIf: function (cfg) { return na_handleless_wall(cfg) && cfg[K + 'HandleWallDownstand'] !== false; }, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleBand_mm',           products: NA_TOWER_PRODUCTS, kw: 'handleless finger band under appliance warming drawer oven housing',
+                  showIf: na_handleless_band, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleBandDownstand',     products: NA_TOWER_PRODUCTS, kw: 'handleless band downstand appliance shelf backing',
+                  showIf: na_handleless_band, need: NA_NEED_HANDLELESS },
+                { id: K + 'HandleBandDownstandHeight_mm', tier: 2, products: NA_TOWER_PRODUCTS, kw: 'handleless band downstand height',
+                  showIf: function (cfg) { return na_handleless_band(cfg) && cfg[K + 'HandleBandDownstand'] !== false; }, need: NA_NEED_HANDLELESS },
+                { id: K + 'FrontStandoff_mm',        tier: 3, kw: 'gap behind fronts hinge clearance door carcass standoff' }
             ]
         },
         {
