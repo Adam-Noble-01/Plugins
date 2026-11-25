@@ -3,6 +3,109 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.41 - 25-Nov-2026 - solid_boolean keep_id, view_capture hide_tags and the Match Photo Warning, geometry_faces
+
+- **Why** (Cooper 62712, rebuilding the right rear gablet). Three gaps cost time on every whitecard job, and Adam asked which MCP tools would have made the job easier:
+  - every capture after Adam switched to his PM02 Match Photo scene came out under the photo, and switching his scene is not allowed (scene changes are not undone);
+  - hiding the drawing planes for a clean capture needed a `batch_execute rollback` with `tag_manage`;
+  - keeping the walls' and roof's ids through Booleans meant copying a transplant helper that now exists in three kits (existing_dormers, existing_roofs, bargeboards_gablets).
+- **`solid_boolean keep_id: true`** (union and subtract, a closed group target).
+  - The boolean runs on a COPY of the target; the result's faces then go back into the original group, so its persistent id, name, tag, material, attributes and axes survive (L692). `result_name` renames it.
+  - The new helper `Na__Transplant` (`06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Transplant__.rb`) is the kits' proven route: clear the target, add every result face again through result to target, cut its holes, turn its normal to the result's, keep its materials, tag and hidden flag.
+  - It falls back to place-and-explode (L1465) when a face will not add again (a sliver), when the re-added faces do not close into the result's solid, or when a face is textured (re-adding loses the texture positioning).
+  - Either way the target must come out a solid of the result's volume, or the call is refused and the model is left as it was. A result the engine left open is refused too.
+  - Edge colours follow L1152: an edge lying on an old edge between the same face planes keeps the old colour (Adam's hand repaints); other edges keep the result's own colour (the tools'), or take the target's commonest edge colour. The lookup is a grid of cells, pure Ruby on plain arrays, checked offline.
+  - The result reports `kept_id` and `transplant` (method, any fallback, colour counts, faces, edges).
+  - Refused: intersect, trim, split and outer_shell; a component instance (other copies may share its definition); a target open for editing.
+  - `Na__Coordinates__SiblingToSibling`: from's definition coordinates into to's, for two instances in one parent (both transformations are reported in that parent's space, so the open-context correction cancels).
+- **`view_capture hide_tags: [names]`** (a `*` or `?` matches any characters): those tags are hidden for the capture and shown again. A tag's visibility is an undo step of its own (tested), so the hiding runs inside an operation that is always aborted (`Na__CommandRouter__WithAbortedOperation`, new), and the tags are shown again in an ensure; inside a batch the batch's own operation holds it. A tag already hidden stays hidden and is reported as `already_hidden`. Unknown names, a pattern that matches nothing, and Untagged are refused before anything changes.
+- **Match Photo scenes.** The brief asked for a `match_photo_overlay: false` that suppresses the photo without changing the active scene. **The Ruby API cannot do it** (tested 25-Nov-2026 in a test model with a `PM01__` scene from `Pages#add_matchphoto_page`):
+  - `View#camera=` with the view's own camera or a new `Sketchup::Camera` keeps the photo;
+  - `View#zoom_extents` keeps it;
+  - a temporary plain scene added inside an aborted operation keeps it (the new scene inherits the photo);
+  - a transparent background drops the photo behind the model but still shows it through the faces;
+  - RenderingOptions has no key for it (the API index lists `ROPSetPhotomatch...` change codes, but no key reads back);
+  - only another scene (Adam's call) or an orbit by hand ends it. Even a newly added plain scene leaves the photo drawn.
+  So `view_capture` now says so: `match_photo` in the result (scene, `detected_by` name / record / camera, `photo_drawn`, `camera_passed`), a warning when a camera was passed, and the summary says "under the Match Photo scene's photo". `match_photo_overlay` defaults to false with a camera and true without one; true silences the warning. The detection: the scene's name (`PMnn__`), `match_photo_edit`'s record on it, or a 2D camera kept at a photo's aspect ratio.
+- **`geometry_faces`** (new, read only; 83 tools). For named solids (`ids` or `names` with `*` patterns) it returns every face's outer loop and holes in world points, world normal, `plane_offset` (normal . point), world area, material, tag and the part it sits in. It filters by a world `box` (`overlap` or `inside`) and by `facing` (a direction, default 5 degrees). It reads through each face's own path, so moved, rotated, scaled and nested groups come back where they really are, and it skips hidden faces, groups and tags unless `include_hidden`. `max_faces` defaults to 500 (up to 5000), and `matched` says how many there were. Agents wrote this in `ruby_eval` on every job.
+- **Where.**
+  - `Handlers__Booleans` (`keep_id`, `na_check_keep_id`, `na_keep_id_finish`).
+  - The new `BridgeHelpers__Transplant` (and its `require_relative` in CoreAppLoaders).
+  - `BridgeHelpers__Coordinates` (`SiblingToSibling`).
+  - `Handlers__View` (`hide_tags`, Match Photo detection and warning).
+  - `Handlers__Measure` (region geometry_faces).
+  - `CommandRouter` (the `geometry_faces` route, `Na__CommandRouter__WithAbortedOperation`).
+  - The registry: `solid_boolean` (description 1678 characters), `view_capture` (1243), `geometry_faces` (996). `property_since`: `view_capture.hide_tags`, `view_capture.match_photo_overlay` and `solid_boolean.keep_id` at 1.0.41.
+  - BridgeCore (9 new checks: the edge lookup), the Python server test (83 tools), AGENTS.md (83 tools and a new section), the agent guide (ids, tool map, a keep_id and geometry_faces recipe, captures, pitfalls), the server instructions (2046 of 2048 characters).
+- **Versions.** `bridge_version` and `server.version` are `1.0.41`. 83 tools. The held cooker-gap draft (1.0.39's note) would now be 1.0.42.
+- **Not part of this entry.** Before this work, the working tree already held another session's uncommitted, undescribed changes (14:52 to 14:54): `tag_manage mirror_visibility` (Handlers__Tags and its registry entry) and `entity_studio_edit place_copies` with `stations` (Handlers__EntityStudio). They were left exactly as found; they ship in these files but are not described or tested here.
+- **Found, not fixed.** `view_capture scene:` switching to a DIFFERENT scene leaves an undo step: one `model_undo` straight after a capture that switched from a plain scene to `PM01__Test` did not reach the step made before it. A capture that hides tags, or names the scene already active, leaves none. This was already so before 1.0.41.
+- **Verified offline.**
+  - ValidateApiUsage passed (83 tools, 314 dependencies; 57 bridge files).
+  - RunRubyChecks: 58 of 58 files compile; BridgeCore 207 of 207 (9 new).
+  - PythonServer 68 OK.
+  - `--check`: 83 tools on 1.0.41; `node --check` passed.
+- **Verified live.** A copy of SketchUp's AEC template in its own window, Reload Plugin Data there only, calls sent with `su_bridge.py` (this session's MCP client still ran 1.0.40), every model-changing check a rolled-back trial. The window was closed afterwards and nothing was saved.
+  - `keep_id` subtract at the root: id, name, tag and attribute kept; 2.7 m3 as hand-calculated; the hand-red edge kept; 12 edge colours kept, 4 the cutter's, 8 the commonest.
+  - Three deep in groups that are moved and rotated (30 degrees about z, 15 about x, 45 about z): 1.25 m3 as hand-calculated, and its 10 faces in world coordinates identical to SketchUp's own new-group result. With the walls' own group open: the same bounds and volume.
+  - A non-uniformly scaled target (1.5, 1.0, 0.8): 1.2 m3, faces identical to SketchUp's own result.
+  - Union with a pier: 4.5 m3, faces identical.
+  - A textured face: placed and exploded, the texture coordinate at a test point 1.5, 0.3333 before and after.
+  - A face forced to fail on adding: the explode fallback, the same volume, name, tag, attribute and colours.
+  - Refusals: intersect, split, a component instance, the target open. A plain subtract still gives a new id with the target's properties.
+  - `geometry_faces`: the three-deep rotated wall's and the scaled wall's corners within 0.0007 mm of a hand calculation (the output rounding), at the root and with a group open; normals within 5.3e-7; plane offsets within 0.0012 mm. Name patterns, `facing`, both box modes and the refusals behaved.
+  - `hide_tags`: the walls on the tag left the image and came back; outside a batch one `model_undo` after the capture removed the step made before it, so no undo step was left; inside a rollback batch the tag was visible after the capture step. Patterns, an already hidden tag (stayed hidden, reported) and the refusals behaved.
+  - Match Photo: the warning with a camera, none with `match_photo_overlay: true` or without a camera, a warning with false and no camera, nothing for a plain scene, and the warning with `hide_tags` together.
+- **Not yet verified:** the three changes through an MCP client's own tool list (the client must restart to read the registry); a real Adam scene named `PM02__...`; `keep_id` on a whitecard-sized roof with hundreds of hand-coloured edges.
+
+### Validation Checklist
+- [ ] Reload Plugin Data in each SketchUp window: the status dialog shows bridge 1.0.41.
+- [ ] Restart the MCP client (or Claude Code): `sketchup_status` shows server 1.0.41 and 83 tools, and `geometry_faces` is listed.
+- [ ] In a test model, ask an agent to cut a window out of a wall "keeping its id": one `solid_boolean` with `keep_id: true`; the Outliner shows the same wall (same name), and your hand-painted edges keep their colours.
+- [ ] Ask for a capture "with the drawing planes hidden": `view_capture hide_tags: ["06__Drawings"]`; the tag is on again afterwards, and Ctrl+Z does not show a tag step.
+- [ ] With a PM scene active, ask for a capture from another angle: the agent should tell you the photo is drawn over it and ask you to click a plain scene, not switch it itself.
+
+## Na SketchUp MCP | Version 1.0.40 - 25-Nov-2026 - Match Photo by Numbers: match_photo_solve, match_photo, match_photo_edit
+
+- **What Adam asked for** (Cooper 62712): "See if there is a way to use SketchUp Match Photo feature atomously". His method: two red and two green axis lines, as far apart and as long as he can see, the origin on a known corner, then the photo scaled to the mass he has. Then "build robust tooling in MCP", with a step before the photo is embedded: "edge sharpening, edge feature contrast enhancement, noisy element dampening and even pre alignment of accurately fitted transparent dotted helper lines ... it also helps Adam monitor the agent".
+- **The API facts (SketchUp 2027, tested 25-Nov-2026).**
+  - The Ruby API has no Match Photo calibration: no axis bars, grips, origin or scale.
+  - `Pages#add_matchphoto_page(photo, camera, name)` makes a real Match Photo scene and keeps the camera given; the camera's aspect ratio becomes the photo's.
+  - A new scene's camera takes the VIEW's `fov_is_height?`: true in a fresh view, false once a Match Photo scene has been shown. So the focal is held, never the fov number.
+  - SketchUp shows the new scene once the call returns, even when the scene is then rolled back.
+- **`match_photo_solve`** (server). Adam's method by numbers, in a vision worker run as a child process (`35__VisionWorker__Python`, numpy, SciPy and OpenCV; the server stays standard library only):
+  - the photo upright (EXIF), and enhanced: non-local means, guided-filter texture damping, CLAHE; the unsharp mask for display only;
+  - every rough line snapped sub-pixel, with curve-aware outliers and weak samples dropped, and checked against OpenCV's LSD;
+  - the vanishing points, focal, rotation and the eye from origin and scale, then a robust refine on every line (world-known CAD lines, direction-only lines, free coordinates with ranges);
+  - the lens (division model) and, with `principal_point: "solve"`, a cropped photo's centre of view, fitted with the camera and kept only at three sigma (backward elimination);
+  - checks, measures and derived readings with plus or minus from refits (whole-line jitter), and the ACCURACY STOP at 25 mm;
+  - extra lines suggested from LSD;
+  - the scene photo: undistorted, enhanced, padded when the centre of view is off the middle, with the agent's fitted lines on it dotted (solid where measured), the origin, the scale point, the horizon and a legend.
+
+  It writes to `<job>/01__ReferenceFiles/12__Photos__MatchPhoto` by default, never over a file.
+- **`match_photo`** (bridge, read): `list`, `camera` (as a pinhole and as pe_camera_fit's cam.json, so a hand-aligned Match Photo becomes measurable), `project`, `measure` (a raytest onto the model, or a plane, with what a pixel spans there).
+- **`match_photo_edit`** (bridge, one undo step).
+  - `create`: proved through `View#screen_coords` at the given tests and nine spread points, and refused and rolled back over 0.05 px. It refuses an existing name and an EXIF-rotated photo. `activate` defaults to true, as SketchUp does; false puts the user back on their scene and camera. A refused create never leaves the view moved.
+  - `update` and `delete`: only scenes this tool made.
+  - The record is kept on the page (`Na__SketchUpMcp__MatchPhoto`).
+- **Versions.** `bridge_version` and `server.version` are `1.0.40`. 82 tools. New tools only, so no `property_since`. AppConfig gains `defaults.vision_python` (empty: the server's own Python) and `vision_timeout_s` (170). The held cooker-gap draft (1.0.39's note) is still not applied; it would now be 1.0.41.
+- **Verified offline.**
+  - ValidateApiUsage passed.
+  - BridgeCore 198 of 198 (8 new: projection and rays, the cam.json rotation vector, the names).
+  - PythonServer 68 OK (3 new: the schemas, a refusal with no SketchUp, the worker's own self-test).
+  - `--check` shows 82 tools.
+  - The worker's `--selftest`: a synthetic house through a known camera and lens gives the focal within 0.2 %, the eye within 0.16 % and the lens at -0.0606 for -0.060; a cropped copy finds the centre of view within 5 px, focal within 0.16 %.
+- **Verified live** (a copy of Cooper 62712 in its own window, through su_bridge while this server still ran 1.0.39).
+  - The solve on Property image 1 (1156 x 728, no EXIF): 19 lines at 0.46 px rms; the lens and the centre of view tested and dropped; the ACCURACY STOP raised (the apex 87 mm off the CAD, the Right face good only to +-164 mm).
+  - `create` agreed to 0.0019 px at 12 points; `list`, `camera` (matches the solve), `project` and `measure` (plane and model) all answered.
+  - `update`, `delete` and every refusal behaved; the horizontal-fov case agreed to 0.0019 px; `activate: false` kept the view through SketchUp's own switch.
+
+### Validation Checklist
+- [ ] Reload Plugin Data in each SketchUp window: the status dialog shows bridge 1.0.40.
+- [ ] Restart the MCP client (or Claude Code): `sketchup_status` shows server 1.0.40 and 82 tools, and `match_photo_solve` answers (the server answers it, so it needs the restart).
+- [ ] `python 35__VisionWorker__Python/Na__SketchUpMcp__VisionWorker__MatchPhoto__.py --deps` names numpy, SciPy and OpenCV, and `--selftest` ends `==> OK`.
+- [ ] In a test model, open a `PM01__` scene this tool made and try Camera > Edit Matched Photo: does SketchUp show usable axis bars?
+
 ## Na SketchUp MCP | Version 1.0.39 - 23-Nov-2026 - Assembly Runs: One Kickboard, a Top Filler to a Soffit; Appliance Housings Through values
 
 - **What Adam asked for** (of Element Assembly Studio Pro 2.7.6, for SK02's oven bank): ovens and warming drawers from the library in tall housings with doors above and below, and joined kickboards along runs, all driven through these tools.

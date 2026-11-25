@@ -6027,7 +6027,7 @@
      "unit": "mm",
      "type": "slider",
      "min": 600,
-     "max": 1500,
+     "max": 3000,
      "step": 5,
      "default": 850,
      "section": "opening",

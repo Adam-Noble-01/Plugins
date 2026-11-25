@@ -1,0 +1,464 @@
+{
+  "meta"  :  {
+    "fileName"  :  "PRF90502__Vale__Cupola__Abbasi__Cill__h44_x_p20mm.json",
+    "description"  :  "Profile saved through the Na SketchUp MCP (Na__ProfileTools__ProfilePathTracer).",
+    "version"  :  "1.0.0",
+    "lastUpdated"  :  "24-Nov-2026",
+    "namingConvention"  :  "All custom keys use Na__ prefixed three-stage naming.",
+    "fieldPrefixes"  :  {
+      "Na__Asset__"  :  "Top-level asset metadata and content blocks",
+      "Na__Geometry__"  :  "Geometry fields and coordinate metadata",
+      "Na__PanelPlacement__"  :  "Reserved placement metadata"
+    },
+    "Meta_ProfileTimestamp"  :  "24-Nov-2026__12:30",
+    "Meta_ProfileShortName"  :  "Vg Cupola Cill Abbasi",
+    "Meta_ProfileKeywords"  :  [
+      "Vale",
+      "Orangery",
+      "Cupola",
+      "Cill",
+      "Sill",
+      "Abbasi",
+      "Bespoke"
+    ]
+  },
+  "Na__Asset__Metadata"  :  {
+    "Na__Asset__Name"  :  "Vale__Cupola__Abbasi__Cill__h44_x_p20mm",
+    "Na__Asset__ShortName"  :  "Vg Cupola Cill Abbasi",
+    "Na__Asset__Code"  :  "PRF90502__Vale__Cupola__Abbasi__Cill__h44_x_p20mm",
+    "Na__Asset__Type"  :  "Profile2D",
+    "Na__Asset__Description"  :  "Bespoke Vale cupola cill under the cupola's glazed framework: 20 proud, a 37.81 front with an R5 round to a weathered top falling to the wall face at 44.14. Edges Soft Black L20 (Adam's cill standard). Traced from the Vale CAD for 64589 Abbasi (24-Nov-2026): the Front (both cupola ends) and Left elevations agree to 0.05 mm; the built test sweep matched within 0.1 mm every 1 mm. Datum 0,0 = the cupola wall face at the underside (CAD 4405.13: place at 4405), outward -y. Saved on the MANAGER's ruling for Adam's review.",
+    "Na__Asset__Notes"  :  "Saved through the Na SketchUp MCP from a trace or a reshaped profile.",
+    "Na__Asset__Has2dPlan"  :  false,
+    "Na__Asset__Has2dElevation"  :  false,
+    "Na__Asset__Has2dProfile"  :  true,
+    "Na__Asset__Has3d"  :  true,
+    "Na__Asset__Supplier"  :  "",
+    "Na__Asset__SupplierProductCode"  :  "",
+    "Na__Asset__SupplierPrice_GBP"  :  "",
+    "Na__PanelPlacement__DefaultHeight_mm"  :  null,
+    "Na__PanelPlacement__RightHand"  :  {
+      "Na__PanelPlacement__OffsetX_mm"  :  null,
+      "Na__PanelPlacement__OffsetY_mm"  :  null,
+      "Na__PanelPlacement__ScaleX"  :  null
+    },
+    "Na__PanelPlacement__LeftHand"  :  {
+      "Na__PanelPlacement__OffsetX_mm"  :  null,
+      "Na__PanelPlacement__OffsetY_mm"  :  null,
+      "Na__PanelPlacement__ScaleX"  :  null
+    },
+    "Na__Asset__AvailableFinishes"  :  []
+  },
+  "Na__Asset__Profile2D"  :  {
+    "Na__Geometry__OriginNote"  :  "Local 0,0 = the datum set in the Draw Profile editor.",
+    "Na__Geometry__CoordSystem"  :  "Y=profile horizontal axis, Z=profile vertical axis | Units=mm",
+    "Na__Geometry__Vertices"  :  [
+      {
+        "VertexId"  :  "V001",
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  0.0
+      },
+      {
+        "VertexId"  :  "V002",
+        "PosY_mm"  :  -20.0,
+        "PosZ_mm"  :  0.0
+      },
+      {
+        "VertexId"  :  "V003",
+        "PosY_mm"  :  -20.0,
+        "PosZ_mm"  :  37.81
+      },
+      {
+        "VertexId"  :  "V004",
+        "PosY_mm"  :  -19.85,
+        "PosZ_mm"  :  39.03
+      },
+      {
+        "VertexId"  :  "V005",
+        "PosY_mm"  :  -19.4,
+        "PosZ_mm"  :  40.19
+      },
+      {
+        "VertexId"  :  "V006",
+        "PosY_mm"  :  -18.68,
+        "PosZ_mm"  :  41.19
+      },
+      {
+        "VertexId"  :  "V007",
+        "PosY_mm"  :  -17.74,
+        "PosZ_mm"  :  41.99
+      },
+      {
+        "VertexId"  :  "V008",
+        "PosY_mm"  :  -16.64,
+        "PosZ_mm"  :  42.53
+      },
+      {
+        "VertexId"  :  "V009",
+        "PosY_mm"  :  -15.43,
+        "PosZ_mm"  :  42.79
+      },
+      {
+        "VertexId"  :  "V010",
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  44.14
+      }
+    ],
+    "Na__Geometry__Edges"  :  [
+      {
+        "EdgeId"  :  "E001",
+        "StartVertex"  :  "V001",
+        "EndVertex"  :  "V002"
+      },
+      {
+        "EdgeId"  :  "E002",
+        "StartVertex"  :  "V002",
+        "EndVertex"  :  "V003"
+      },
+      {
+        "EdgeId"  :  "E003",
+        "StartVertex"  :  "V003",
+        "EndVertex"  :  "V004"
+      },
+      {
+        "EdgeId"  :  "E004",
+        "StartVertex"  :  "V004",
+        "EndVertex"  :  "V005"
+      },
+      {
+        "EdgeId"  :  "E005",
+        "StartVertex"  :  "V005",
+        "EndVertex"  :  "V006"
+      },
+      {
+        "EdgeId"  :  "E006",
+        "StartVertex"  :  "V006",
+        "EndVertex"  :  "V007"
+      },
+      {
+        "EdgeId"  :  "E007",
+        "StartVertex"  :  "V007",
+        "EndVertex"  :  "V008"
+      },
+      {
+        "EdgeId"  :  "E008",
+        "StartVertex"  :  "V008",
+        "EndVertex"  :  "V009"
+      },
+      {
+        "EdgeId"  :  "E009",
+        "StartVertex"  :  "V009",
+        "EndVertex"  :  "V010"
+      },
+      {
+        "EdgeId"  :  "E010",
+        "StartVertex"  :  "V010",
+        "EndVertex"  :  "V001"
+      }
+    ],
+    "Na__Geometry__Faces"  :  [
+      {
+        "FaceId"  :  "F001",
+        "OuterLoopVertices"  :  [
+          "V001",
+          "V002",
+          "V003",
+          "V004",
+          "V005",
+          "V006",
+          "V007",
+          "V008",
+          "V009",
+          "V010"
+        ]
+      }
+    ],
+    "Na__Geometry__Curves"  :  [
+      {
+        "CurveId"  :  "C001",
+        "CurveType"  :  "Arc",
+        "Segments"  :  6,
+        "VertexIds"  :  [
+          "V003",
+          "V004",
+          "V005",
+          "V006",
+          "V007",
+          "V008",
+          "V009"
+        ],
+        "Radius_mm"  :  5.0
+      }
+    ]
+  },
+  "Na__Asset__Mesh3D"  :  {
+    "Na__Geometry__OriginNote"  :  "Local 0,0,0 = clicked 00__OriginPoint helper location.",
+    "Na__Geometry__CoordSystem"  :  "Right-handed | X=profile-width surrogate, Y=profile-height surrogate, Z=0 | Units=mm",
+    "Na__Geometry__BoundingBox"  :  {
+      "Na__Geometry__MinX_mm"  :  -20.0,
+      "Na__Geometry__MaxX_mm"  :  0.0,
+      "Na__Geometry__MinY_mm"  :  0.0,
+      "Na__Geometry__MaxY_mm"  :  44.14,
+      "Na__Geometry__MinZ_mm"  :  0.0,
+      "Na__Geometry__MaxZ_mm"  :  0.0
+    },
+    "Na__Geometry__Counts"  :  {
+      "Na__Geometry__VertexCount"  :  10,
+      "Na__Geometry__FaceCount"  :  1,
+      "Na__Geometry__EdgeCount"  :  10,
+      "Na__Geometry__HardEdgeCount"  :  10,
+      "Na__Geometry__SoftEdgeCount"  :  0,
+      "Na__Geometry__SmoothEdgeCount"  :  0
+    },
+    "Na__Geometry__Vertices"  :  [
+      {
+        "VertexId"  :  "V001",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V001",
+        "PosX_mm"  :  0.0,
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V002",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V002",
+        "PosX_mm"  :  -20.0,
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V003",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V003",
+        "PosX_mm"  :  -20.0,
+        "PosY_mm"  :  37.81,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V004",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V004",
+        "PosX_mm"  :  -19.85,
+        "PosY_mm"  :  39.03,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V005",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V005",
+        "PosX_mm"  :  -19.4,
+        "PosY_mm"  :  40.19,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V006",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V006",
+        "PosX_mm"  :  -18.68,
+        "PosY_mm"  :  41.19,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V007",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V007",
+        "PosX_mm"  :  -17.74,
+        "PosY_mm"  :  41.99,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V008",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V008",
+        "PosX_mm"  :  -16.64,
+        "PosY_mm"  :  42.53,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V009",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V009",
+        "PosX_mm"  :  -15.43,
+        "PosY_mm"  :  42.79,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V010",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V010",
+        "PosX_mm"  :  0.0,
+        "PosY_mm"  :  44.14,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      }
+    ],
+    "Na__Geometry__Faces"  :  [
+      {
+        "FaceId"  :  "F001",
+        "FaceName"  :  "Na__ProfileMesh__Face__F001",
+        "OuterLoop_VertexIds"  :  [
+          "V001",
+          "V002",
+          "V003",
+          "V004",
+          "V005",
+          "V006",
+          "V007",
+          "V008",
+          "V009",
+          "V010"
+        ],
+        "InnerLoops"  :  [],
+        "Normal"  :  [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "Area_mm2"  :  null,
+        "MaterialName"  :  ""
+      }
+    ],
+    "Na__Geometry__Edges"  :  [
+      {
+        "EdgeId"  :  "E001",
+        "StartVertex"  :  "V001",
+        "EndVertex"  :  "V002",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E002",
+        "StartVertex"  :  "V002",
+        "EndVertex"  :  "V003",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E003",
+        "StartVertex"  :  "V003",
+        "EndVertex"  :  "V004",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E004",
+        "StartVertex"  :  "V004",
+        "EndVertex"  :  "V005",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E005",
+        "StartVertex"  :  "V005",
+        "EndVertex"  :  "V006",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E006",
+        "StartVertex"  :  "V006",
+        "EndVertex"  :  "V007",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E007",
+        "StartVertex"  :  "V007",
+        "EndVertex"  :  "V008",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E008",
+        "StartVertex"  :  "V008",
+        "EndVertex"  :  "V009",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E009",
+        "StartVertex"  :  "V009",
+        "EndVertex"  :  "V010",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      },
+      {
+        "EdgeId"  :  "E010",
+        "StartVertex"  :  "V010",
+        "EndVertex"  :  "V001",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourId"  :  "MTE102__LineColour__SoftBlack__L20",
+        "EdgeColourHex"  :  "#333333"
+      }
+    ]
+  }
+}

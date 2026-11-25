@@ -151,6 +151,7 @@ module Na__ValeVisionCloudSync
             na_setup_aura_signin_callbacks(dialog)
             na_setup_vegetation_callbacks(dialog)
             na_setup_entourage_callbacks(dialog)
+            na_setup_furnishings_callbacks(dialog)
             na_setup_dialog_ready_callback(dialog)
         end
 
@@ -192,6 +193,15 @@ module Na__ValeVisionCloudSync
         def self.na_setup_entourage_callbacks(dialog)
             dialog.add_action_callback('na_vvcs_ent_place') do |_ctx, asset_id|
                 result = defined?(Na__EntourageSync) ? Na__EntourageSync.Na__EntSync__Place(asset_id.to_s) : { success: false, message: 'The entourage sync did not load. Reload the plugin.' }
+                na_update_status_element(dialog, result[:message], result[:success] ? 'info' : 'error')
+            end
+        end
+
+        # HELPER FUNCTION | na_vvcs_furn_place: start placing a furnishings proxy (0.7.2)
+        # ---------------------------------------------------------------
+        def self.na_setup_furnishings_callbacks(dialog)
+            dialog.add_action_callback('na_vvcs_furn_place') do |_ctx, asset_id|
+                result = defined?(Na__FurnishingsSync) ? Na__FurnishingsSync.Na__FurnSync__Place(asset_id.to_s) : { success: false, message: 'The furnishings sync did not load. Reload the plugin.' }
                 na_update_status_element(dialog, result[:message], result[:success] ? 'info' : 'error')
             end
         end
@@ -276,7 +286,7 @@ module Na__ValeVisionCloudSync
 
             # FIRST SYNC STATE | Record success so the Update cards unlock + stay unlocked
             if result.fetch(:success, false) &&
-               !action_id.start_with?('aura_', 'veg_', 'ent_') &&                # <-- The Sync Aura, Sync Vegetation and Sync Entourage tabs' own; never ValeVision 3D's first sync
+               !action_id.start_with?('aura_', 'veg_', 'ent_', 'furn_') &&       # <-- The Sync Aura, Vegetation, Entourage and Furnishings tabs' own; never ValeVision 3D's first sync
                defined?(Na__ProjectPathMapper) &&
                Na__ProjectPathMapper.respond_to?(:Na__ValeVisionCloudSync__MarkFirstSyncComplete)
                 Na__ProjectPathMapper.Na__ValeVisionCloudSync__MarkFirstSyncComplete(Sketchup.active_model)
@@ -452,7 +462,8 @@ module Na__ValeVisionCloudSync
                 library:             na_build_library_display_data(model),
                 aura:                defined?(Na__AuraSync) ? Na__AuraSync.Na__AuraSync__Status(model) : nil,
                 vegetation:          defined?(Na__VegetationSync) ? Na__VegetationSync.Na__VegSync__Status(model) : nil,
-                entourage:           defined?(Na__EntourageSync) ? Na__EntourageSync.Na__EntSync__Status(model) : nil
+                entourage:           defined?(Na__EntourageSync) ? Na__EntourageSync.Na__EntSync__Status(model) : nil,
+                furnishings:         defined?(Na__FurnishingsSync) ? Na__FurnishingsSync.Na__FurnSync__Status(model) : nil
             }
         end
 

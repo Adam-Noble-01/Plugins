@@ -31,7 +31,7 @@ How to drive a live SketchUp 2026 model through this server. It is written for a
 ### Ids
 - Ids are SketchUp **persistent ids**: integers that survive save and reopen. Get them from `entity_query`, `outliner_tree`, `selection_get` or `collection_list`. Every create call returns the new `id`.
 - Some operations make **new** entities, which have new ids. Use the ids they return:
-  - `solid_boolean` results;
+  - `solid_boolean` results, unless `keep_id: true` (union and subtract on a group keep the target's id, 1.0.41);
   - `explode` (it returns the released ids);
   - `make_unique`, which gives an instance a new definition;
   - copies from `entity_transform`.
@@ -76,7 +76,7 @@ The server has 79 tools. Clients with tool limits can start it with `--toolset c
 |---|---|---|
 | Status | `sketchup_status`★, `model_info`★ | Connection, versions, licence, edit context, model statistics, units, tags, scenes |
 | Model | `model_settings`, `model_file`, `model_purge`, `sketchup_open_window`, `sketchup_close_window` | Units and precision, description and location; save, save_as, save_copy, open, new, export, import; purging unused items; another model in its own window (or a copy of it), and closing that window again |
-| Inspect | `entity_query`★, `entity_get`★, `outliner_tree`★, `collection_list`, `geometry_measure` | Finding ids; full detail (placement, geometry, attributes); the hierarchy; listing materials, tags, scenes, definitions, styles and environments; bounds, area, volume, length, counts and ray tests |
+| Inspect | `entity_query`★, `entity_get`★, `outliner_tree`★, `collection_list`, `geometry_measure`, `geometry_faces` | Finding ids; full detail (placement, geometry, attributes); the hierarchy; listing materials, tags, scenes, definitions, styles and environments; bounds, area, volume, length, counts and ray tests; every face of named solids as world loops, normals and planes, filtered by a box or a direction (1.0.41) |
 | Selection | `selection_get`★, `selection_set`★, `context_set`★ | Reading and changing the user's selection; opening and closing groups for editing |
 | Create | `geometry_draw`★, `geometry_create_solid`★, `geometry_create_mesh`, `geometry_extrude`★ | Lines, rectangles, circles, arcs, polygons and faces with holes; nine manifold primitives; meshes of any size; push/pull and Follow Me |
 | Edit | `geometry_edit`, `solid_boolean`, `entity_transform`★, `entity_delete`★, `entity_set_properties`, `entity_reparent` | Soften, harden, hide, reverse, intersect and merge faces; solid tools; move, rotate, scale, mirror and arrays; deleting; name, tag, hidden, locked, shadows; moving groups and components into another group or a new one, in place |
@@ -92,6 +92,7 @@ The server has 79 tools. Clients with tool limits can start it with `--toolset c
 | Windows, doors and cabinets | `entity_studio`, `entity_studio_edit` | Adam's Element Assembly Studio Pro (Entity Studio Pro): casement and sash windows, single, double, bifold and sliding doors, interior doors, and base, drawer, wall, tall and wardrobe cabinets. Find a wall's `openings`, build into one (sized as Measure Opening would), update any setting (`parameters` lists them with ranges; out-of-range values are refused), rename, list and inspect `elements`, export DXF, and the presets library (save, update, archive, restore). Each build or rebuild is one undo step with the plugin's own name |
 | Runs of windows, doors and cabinets (1.0.36 to 1.0.38) | `assembly_run`, `assembly_run_edit` | Adam's Assembly Run Studio (Element Assembly Studio Pro 2.7.0): a conservatory's framework, a row of doorsets, a kitchen or a wall of wardrobes as ONE master component set out along a path. Along each leg of the path stand spans (panels of a type A, B, C: every span of one type is the same element) and columns (an infill block, a gap, a Vale 260 or 290 column); corners take a post, a library corner column or a corner unit. `layout` resolves a description without building; `build`, `update`, `set_path`, `flip_side`, `make_unique`, `recode`, `set_span_type` and `rename` are one undo step each; `edit_path` opens the path as a red line for the user. A panel's own settings are changed with `entity_studio_edit update` on one of its spans; what the panel IS (double doors, sliding doors, a sash window) with `set_span_type` and `product` (1.0.37); a run built facing the wrong way is turned inside out with `flip_side` (1.0.37). One cill and one window board run round the whole run (`JoinCills`, on by default), and `FuseFramework` makes the frame one solid (1.0.38) |
 | Sketch and site (1.0.30) | `sketch_read`, `input_pick`, `proposal_preview`, `geometry_offset_band`, `model_snapshot`, `model_diff`, `image_rectify`, `image_flatten` | Getting intent fast and building it simply: read the rough lines and notes the user drew (lines and fitted arcs, the numbers in his notes); let him click points with SketchUp's inference; draw a red 2D proposal, show it from above, ask in his Agent Outliner and wait for his answer; build bands at parallel offsets from a path (planters, beds, ring walls, kerbs, paths, lawn lines) in one call; record objects and measure two versions against each other (plan overlap, outline distance, volume, edge colours), live or from a saved snapshot; lay a site photo flat on the ground by a homography, for context only; flatten a photo of something flat and rectangular (a window, a door) onto a rectangle of known width, square-on, to draw over like a CAD sheet (1.0.33) |
+| Match Photo (1.0.40) | `match_photo_solve`, `match_photo`, `match_photo_edit` | SketchUp's Match Photo done by numbers, as Adam does it by hand: two or more red and green axis lines (the longest, farthest apart), blue verticals, the origin on a known corner and a known size. The server solves the camera on an enhanced copy of the photo (lens and a cropped photo's centre of view fitted too) and refines it on every known line; each reading comes with its plus or minus, and over 25 mm is an ACCURACY STOP. It writes the photo for the scene with the agent's fitted lines dotted on it. Then a native Match Photo scene (`PM01__<View>__`), proved through SketchUp's own projection; any Match Photo scene's camera read back (one Adam aligned by hand included); world points projected; pixels measured onto the model or a plane |
 | Standard profiles | `profile_tracer`, `profile_tracer_edit`, `profile_tracer_library` | Adam's Na Profile Path Tracer: ALWAYS the way to make wall cappings, cornices, entablatures, covings, skirtings, window boards and any other standard profile swept along a path, never by hand (it paints and smooths the edges itself, and Adam refines the path and the profile later). Read the library (`profiles`, `near` for the closest size), build (`create`: a library profile, a trace's own, an outline or a face; `profile_edit` reshapes it as the trace's local profile; `wrapper` makes his SUB__ group with the reference path), change a trace (`set_path`, `set_placement`, `swap_profile`, `set_local_profile`, `revert_local`, `regenerate`, `recreate` for reverse), and, only when Adam asks, the library files (`profile_tracer_library`) |
 
 ## 6. Recipes
@@ -146,6 +147,13 @@ Tag first, then move: the tag travels with each object, and moved objects get ne
 ]}}
 ```
 `subtract` keeps `target_id` and cuts the tools out of it. The result is a new group with a new id (`$2.id`), and it keeps the wall's name, tag and material. The tools must overlap the target.
+
+**Cut a wall or roof others know by its id (1.0.41)**
+```json
+{"tool": "solid_boolean", "arguments": {"operation": "subtract", "target_id": 60412, "tool_ids": [60533, 60540], "keep_id": true}}
+{"tool": "geometry_faces", "arguments": {"ids": [60412], "box": {"min": [9000, 4000, 2400], "max": [11000, 6500, 5200]}, "facing": [0, -1, 0], "facing_tolerance": 60}}
+```
+`keep_id` booleans a copy and puts the result back into the target group, so its id, name, tag, attributes and axes survive (scenes, the Agent Outliner's notes and other sessions hold it by id). Edge colours are kept where an edge lies on an old one between the same faces; new edges take the tools' colour or the target's commonest edge colour. `result.transplant` says how (`faces`, or `explode` for a sliver or textured face). `geometry_faces` then reads the cut faces back in world mm, each with its normal and `plane_offset` (the face lies on `normal . point = plane_offset`), instead of a `ruby_eval`.
 
 **Draw a footprint and extrude it**
 ```json
@@ -257,6 +265,8 @@ Take the closest library profile and reshape it with `profile_edit`: it becomes 
 {"tool": "view_capture", "arguments": {"scene": "01 Street View", "width": 1600, "height": 1000}}
 ```
 `view_capture` changes the camera for the shot and then restores the user's view. Activating a `scene` leaves that scene active. Pass `save_path` to also write the image to disk.
+- `hide_tags: ["06__Drawings"]` hides those tags for this shot only and shows them again, with no undo step (a `*` matches any characters). Use it for drawing planes and reference images, never a rollback batch with `tag_manage`.
+- In a Match Photo scene (`PM01__...`) SketchUp draws the photo over every capture, whatever camera you pass, and the API has no way to hide it (tested 25-Nov-2026). The result's `match_photo` says so, with a warning when you passed a camera. Never switch Adam's scene to get round it: ask him to click a plain scene, or pass `match_photo_overlay: true` when you want the photo.
 
 ### Set out a run of doors, windows or cabinets (Assembly Run Studio)
 
@@ -340,6 +350,37 @@ Something flat and rectangular whose width you know (a window or door opening fr
   "margin": 150, "name": "Front__DoorUnderOriel", "tag": "06__Drawings"}}
 ```
 
+### Match Photo by numbers, then a native scene (1.0.40)
+A photo shows a face the model knows (a CAD elevation) beside one it doesn't. Give each face's lines as two rough clicks
+(snapped to the edge for you), with the world line where the CAD gives it (`through`) and direction only where it
+doesn't; a fascia's depth is solved within a range. LOOK at the image that comes back: every dotted line on its edge.
+```json
+{"tool": "match_photo_solve", "arguments": {"photo": "C:/Jobs/62712/01__ReferenceFiles/01__SitePhotos/Property image 1 - Client.jpg",
+  "lines": [{"id": "R1", "axis": "x", "source": "cad", "rough": [[440, 260], [520, 248]], "sign": 1, "through": [10000, 14900, 5829], "free": "y", "range": {"y": [14455, 15055]}},
+            {"id": "R2", "axis": "x", "source": "cad", "segments": [[[424.5, 309.5], [437.5, 310.3]], [[472.5, 313.3], [494, 314.6]]], "sign": -1, "through": [10000, 15025, 3910]},
+            {"id": "G1", "axis": "y", "rough": [[700, 257.5], [798, 259.5]], "sign": 1},
+            {"id": "G2", "axis": "y", "rough": [[630, 376], [667, 376.5]], "sign": 1},
+            {"id": "B1", "axis": "z", "source": "cad", "rough": [[529.5, 256], [530.5, 286]], "sign": 1, "through": [17015.3, 15055, 0]},
+            {"id": "B2", "axis": "z", "source": "cad", "rough": [[412.5, 263], [412.5, 305]], "sign": -1, "through": [4966.3, 15055, 0]},
+            {"id": "B4", "axis": "z", "rough": [[802.5, 262], [803, 330]], "sign": -1}],
+  "origin": {"world": [17015.3, 14900, 5829], "lines": ["R1", "B1"]}, "scale": {"world": [4966.3, 14900, 5829], "lines": ["R1", "B2"]},
+  "checks": [{"id": "K1", "note": "gable apex", "px": [617, 137], "plane": {"axis": "x", "value": 17179.2}, "expect": {"z": 9087.3}}],
+  "measures": [{"id": "far_corner", "lines": ["B4", "G1"], "plane": {"axis": "x", "value": 17015.3}}],
+  "principal_point": "solve", "name": "PM01__FrontRight__"}}
+```
+Then the scene, from the result's `scene_arguments` (refused over 0.05 px; `activate: false` keeps the user's view):
+```json
+{"tool": "match_photo_edit", "arguments": {"action": "create", "name": "PM01__FrontRight__", "photo": "<files.scene_photo>",
+  "camera": "<scene_arguments.camera>", "tests": "<scene_arguments.tests>", "record": "<scene_arguments.record>"}}
+```
+Tip: run a fast preview pass with `uncertainty: {refits: 0}` first to inspect the dotted lines on `files.preview`
+before the 60-refit uncertainty pass. `lens: "auto"` automatically drops unphysical distortion on rectilinear phone
+PNGs, and any rough line whose snapped angle drifts more than 25 deg is refused immediately (`allow_drift: true` to
+bypass).
+
+A Match Photo Adam aligned by hand: `match_photo {action: "camera", scene, photo}` gives its camera, and `measure` reads
+pixels onto the model or a plane through it.
+
 ## 7. Results and Errors
 
 - Results are compact JSON.
@@ -377,7 +418,7 @@ Something flat and rectangular whose width you know (a window or door opening fr
 - **Shared components.** Editing inside a definition changes every copy; `make_unique` first.
 - **Face direction.** A face's normal follows the right-hand rule of its points. If extrusions go the wrong way, give the points in the other order or pass `normal`. `geometry_edit reverse_faces` flips existing faces.
 - **Loose geometry merges.** Geometry drawn unwrapped (`wrap_in: "none"`) merges with touching geometry. Keep the default group wrapper unless you mean to split faces.
-- **Solid tools** need SketchUp Pro and manifold groups or components in the same parent. The result replaces the target under a new id.
+- **Solid tools** need SketchUp Pro and manifold groups or components in the same parent. The result replaces the target under a new id, unless `keep_id: true` (union and subtract on a group).
   - Pass all the tools in one call (`tool_ids`), not one call per tool.
   - Let cutters pass 1 mm beyond the faces they cut. Faces lying exactly on each other make SketchUp's engine fail.
   - Dense curved meshes (thousands of faces) can take 30 s or more and may fail or leave holes. Keep segment counts modest, and cut simple blanks before adding detail.

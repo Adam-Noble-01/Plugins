@@ -74,6 +74,7 @@ module Na__ValeLantern
             NA_DATA_FILE_KEY      = :edge_materials
             NA_LIBRARY_ROOT_KEY   = 'Na__DataLib__CoreIndex__ConstructionLinework'.freeze
             NA_SERIES_KEY         = 'MTE300__ConstructionLineSeries__'.freeze
+            NA_PALETTE_ROOT_KEY   = 'Na__DataLib__CoreIndex__EdgeMaterials'.freeze
 
             NA_MATERIALS_FILE_KEY = :materials
             NA_MATERIALS_ROOT_KEY = 'Na__DataLib__CoreIndex__Materials'.freeze
@@ -81,6 +82,10 @@ module Na__ValeLantern
             @na_by_style_key      = nil                                                             # <-- SourceStyleKey => standard entry
             @na_load_attempted    = false
             @na_materials_by_key  = {}                                                              # <-- SourceStyleKey => Sketchup::Material
+
+            @na_palette_entries   = nil                                                             # <-- MTE material name => palette entry
+            @na_palette_loaded    = false
+            @na_palette_by_name   = {}                                                              # <-- MTE material name => Sketchup::Material
 
             @na_ssot_materials    = nil                                                             # <-- Material id => materials index entry
             @na_materials_loaded  = false
@@ -160,6 +165,9 @@ module Na__ValeLantern
                 @na_by_style_key     = nil
                 @na_load_attempted   = false
                 @na_materials_by_key = {}
+                @na_palette_entries  = nil
+                @na_palette_loaded   = false
+                @na_palette_by_name  = {}
                 @na_ssot_materials   = nil
                 @na_materials_loaded = false
             end
@@ -298,6 +306,81 @@ module Na__ValeLantern
 
                 material = model.materials[material_name] || na_create_material(model, material_name, entry)
                 @na_materials_by_key[key] = material
+                material
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Load the MTE edge colour palette entries by SketchUpName
+            # ------------------------------------------------------------
+            # Reads Na__DataLib__CoreIndex__EdgeMaterials (MTE100 greyscale and
+            # MTE200 accent series) so prism hard edges resolve to the exact
+            # same MTE materials used by Na__EdgeUtil__PaintDeepNestedEdges and
+            # Element Assembly Studio Pro.
+            def self.na_load_palette_entries
+                return @na_palette_entries if @na_palette_loaded
+                @na_palette_loaded  = true
+                @na_palette_entries = {}
+
+                return @na_palette_entries unless defined?(Na__DataLib__CacheData)
+
+                data = na_fetch_edge_materials
+                root = data.is_a?(Hash) ? data[NA_PALETTE_ROOT_KEY] : nil
+                return @na_palette_entries unless root.is_a?(Hash)
+
+                root.each_value do |series|
+                    next unless series.is_a?(Hash)
+
+                    series.each do |entry_key, entry|
+                        next unless entry.is_a?(Hash)
+                        next if entry['IsReserved'] == true
+
+                        su_name = entry['SketchUpName'].to_s
+                        @na_palette_entries[entry_key.to_s] = entry
+                        @na_palette_entries[su_name]        = entry unless su_name.empty?
+                    end
+                end
+
+                @na_palette_entries
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Fetch or create an MTE edge material by its SSOT name
+            # ------------------------------------------------------------
+            # Reuses any existing model material of the same name first, then
+            # resolves RGB from DataLib, with safe L20/L40 fallbacks if DataLib
+            # is unavailable.
+            #
+            # @param model [Sketchup::Model]
+            # @param material_name [String] e.g. 'MTE102__LineColour__SoftBlack__L20'
+            # @return [Sketchup::Material, nil]
+            def self.na_palette_edge_material(model, material_name)
+                return nil unless model
+                name = material_name.to_s
+                return nil if name.empty? || name == 'Default'
+
+                cached = @na_palette_by_name[name]
+                return cached if cached && cached.valid? && model.materials[name] == cached
+
+                existing = model.materials[name]
+                if existing
+                    @na_palette_by_name[name] = existing
+                    return existing
+                end
+
+                entries = na_load_palette_entries
+                entry   = entries[name]
+                unless entry
+                    fallback_rgb = case name
+                                   when 'MTE102__LineColour__SoftBlack__L20' then [51, 51, 51]
+                                   when 'MTE103__LineColour__DarkGrey__L40'  then [102, 102, 102]
+                                   else nil
+                                   end
+                    entry = { 'RgbValue' => fallback_rgb } if fallback_rgb
+                end
+                return nil unless entry
+
+                material = na_create_material(model, name, entry)
+                @na_palette_by_name[name] = material if material
                 material
             end
             # ---------------------------------------------------------------

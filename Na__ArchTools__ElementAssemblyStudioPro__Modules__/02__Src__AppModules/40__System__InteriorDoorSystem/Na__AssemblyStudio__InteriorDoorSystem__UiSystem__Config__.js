@@ -33,7 +33,7 @@ window.NA_DOOR_OPENING_CONFIG = [
         label       : 'Structural Opening Width',
         type        : 'slider',
         min         : 600,
-        max         : 1500,
+        max         : 3000,
         step        : 5,
         default     : 850,
         unit        : 'mm'

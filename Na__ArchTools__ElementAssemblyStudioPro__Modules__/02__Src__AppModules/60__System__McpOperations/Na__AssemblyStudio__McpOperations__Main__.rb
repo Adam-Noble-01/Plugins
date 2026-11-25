@@ -95,7 +95,7 @@ module Na__McpOperations
     NA_ASSET_LIBRARY = File.join(NA_MODULES_ROOT, '04__Data__AssetLibrary')
 
     NA_READ_ACTIONS = %w[status parameters elements inspect openings list_presets get_preset assets list_handles].freeze
-    NA_EDIT_ACTIONS = %w[build update rename export_dxf save_preset update_preset archive_preset restore_preset
+    NA_EDIT_ACTIONS = %w[build update rename place_copies export_dxf save_preset update_preset archive_preset restore_preset
                          refresh_preview open_dialog reload].freeze
 
     NA_HANDLE_FOLDERS = {
@@ -150,6 +150,7 @@ module Na__McpOperations
         when 'build'           then na_build(params)
         when 'update'          then na_update(params)
         when 'rename'          then na_rename(params)
+        when 'place_copies'    then na_place_copies(params)
         when 'export_dxf'      then na_export_dxf(params)
         when 'save_preset'     then na_save_preset(params)
         when 'update_preset'   then na_update_preset(params)

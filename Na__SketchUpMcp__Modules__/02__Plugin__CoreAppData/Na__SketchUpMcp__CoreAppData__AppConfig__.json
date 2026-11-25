@@ -6,7 +6,7 @@
     },
     "metadata": {
         "plugin_name": "Na SketchUp MCP",
-        "bridge_version": "1.0.39",
+        "bridge_version": "1.0.41",
         "author": "Noble Architecture",
         "menu_name": "Na SketchUp MCP"
     },
@@ -38,7 +38,9 @@
         "capture_height": 800,
         "capture_max_pixels": 16000,
         "curve_segments": 24,
-        "soften_angle_degrees": 20.0
+        "soften_angle_degrees": 20.0,
+        "vision_python": "",
+        "vision_timeout_s": 170
     },
     "dialog": {
         "title": "Na SketchUp MCP",

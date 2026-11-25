@@ -101,6 +101,15 @@ module Na__ValeVisionCloudSync
                 return report
             end
 
+            # SYNC FURNISHINGS TAB | Its own checks and its own Python, as above (0.7.2)
+            if defined?(Na__FurnishingsSync) && Na__FurnishingsSync::SCOPES.include?(scope_id)
+                dialog_manager.na_push_status('running', "Starting: #{na_scope_label(scope_id)}...")
+                report = Na__FurnishingsSync.Na__FurnSync__Run(scope_id, dialog_manager)
+                dialog_manager.na_push_status(report[:success] ? 'success' : 'error', report[:message])
+                dialog_manager.na_push_report(report)
+                return report
+            end
+
             model        = Sketchup.active_model
             paths        = Na__ProjectPathMapper.Na__ValeVisionCloudSync__GetProjectPaths
             project_name = na_derive_project_name(model)
@@ -716,7 +725,8 @@ module Na__ValeVisionCloudSync
                 'aura_sync'        => 'Sync Model And Assets With AURA',
                 'aura_assets'      => 'Sync NPR Assets With AURA',
                 'veg_sync'         => 'Sync Planting With ValeVision 3D',
-                'ent_sync'         => 'Sync People With ValeVision 3D'
+                'ent_sync'         => 'Sync People With ValeVision 3D',
+                'furn_sync'        => 'Sync Furnishings With ValeVision 3D'
             }
             labels[scope_id] || scope_id
         end

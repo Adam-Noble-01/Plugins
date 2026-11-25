@@ -5,7 +5,7 @@ These are instructions for AI coding agents working **on** this plugin: Codex / 
 
 ## What This Is
 
-A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 79 tools, and every SketchUp API call it makes is checked against the official API index.
+A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 83 tools, and every SketchUp API call it makes is checked against the official API index.
 
 ```
 MCP client --stdio--> Python server (30__McpServer__Python, stdlib only)
@@ -28,6 +28,7 @@ Each SketchUp window is its own process with its own bridge. It writes `91__User
 | `06__Plugin__BridgeHelpers/` | Params, Units, LinearMath, **Coordinates**, EntityResolver, Traversal, Serializer, Creation |
 | `10__BridgeHandlers/` | One file per tool family. Each public method is `Na__Handlers__X__Y(params, ctx)` and returns a Hash |
 | `30__McpServer__Python/` | The MCP server: protocol, registry, schema validation, tool runner, bridge client, API index and lint, resources and prompts |
+| `35__VisionWorker__Python/` | The match photo vision worker (1.0.40): numpy, SciPy and OpenCV, run by the server as a child process so the server itself stays standard library only |
 | `40__Tests__Validation/` | Validators and test suites (below) |
 | `80__DevTools__ApiIndexBuilder/` | Rebuilds the API index from SketchUp's `ruby-api-stubs`, and the Ruby core names from SketchUp's own Ruby |
 | `85__Docs__AgentReference/` | Server instructions, agent guide, client setup, the modelling skill, third-party notices |
@@ -43,6 +44,13 @@ python 40__Tests__Validation/Na__SketchUpMcp__Tests__RunRubyChecks__.py
 python -B 40__Tests__Validation/Na__SketchUpMcp__Tests__PythonServer__.py
 python 30__McpServer__Python/Na__SketchUpMcp__Server__Main__.py --check
 node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
+```
+
+The vision worker has its own end-to-end test (a synthetic house through a known camera, lens and crop); PythonServer
+runs it too when the Python has numpy, SciPy and OpenCV:
+
+```bash
+python 35__VisionWorker__Python/Na__SketchUpMcp__VisionWorker__MatchPhoto__.py --selftest
 ```
 
 - **`ValidateApiUsage`: "no invented API".** It checks that:
@@ -215,6 +223,47 @@ node --check 05__Plugin__UserInterface/Na__SketchUpMcp__UiBridge__.js
 - **image_rectify.** The photo becomes a material; `Face#position_material` with four pins gives SketchUp's projective mapping, checked live against the fit through a `UVHelper` (`mapping_check_px` 0.0 on the Corrett drone photo, 12 pairs). The face covers the image's footprint, kept clear of the horizon and cut to `region`. `path` is the image here, so it is kept away from `Na__Creation__Prepare` (which reads `path` as an instance path).
 - **image_flatten (1.0.33).** Adam: "flatten out images, so you know the width of the window opening so you can draw a rough theoretical rectangle, warp the window to suit and create a image mapped to a rectangle to draw over, similar to sketchups texture markers". The pins (`corners`) and any known `points` fix a homography from the rectangle's plane to the photo (`Na__PlanGeometry`: an unknown height solved by least squares, else estimated from perspective); the photo's pixels are warped into a new PNG in pure Ruby on `Sketchup::ImageRep` bytes (top row first, BGR(A) on Windows; about 1.4 s a megapixel, 4 MP by default), saved never over a file (job folder's `01__ReferenceFiles/11__Photos__Flattened` by default) and mapped plainly onto one face, `REF__PhotoPlane__<name>`, with the rectangle's outline in its own group. `ImageRep` refuses WebP and ignores a JPEG's EXIF orientation, so the handler reads the orientation and turns upright pins back to raw pixels. Live tests ran in a copy of Kann 64562 opened with `copy_to` (zero-trace), including the nested, rotated and scaled coordinate matrix.
 - **Test windows.** Live tests ran in copies opened with `sketchup_open_window copy_to` (a Corrett copy and a blank template) and closed afterwards. A question posted from a proposal copies its picture into the Agent Outliner's `ChatFromAgents`: test the `ask` route in a blank model and delete the test picture.
+
+## The Match Photo Tools (1.0.40: match_photo_solve, match_photo, match_photo_edit)
+
+- **Why.** Adam, Cooper 62712, 25-Nov-2026: SketchUp's Match Photo done by an agent, his way (two red and two green
+  axis lines, the longest and farthest apart, the origin on a known corner, the photo scaled to the mass he has), with
+  the photo enhanced before it is embedded and the agent's fitted lines drawn on it, dotted, "so Adam can monitor the
+  agent and see if its picked stupid perspective lines".
+- **The API facts (SketchUp 2027, tested).**
+  - No calibration in the Ruby API.
+  - `Pages#add_matchphoto_page` keeps the camera given and sets its aspect ratio to the photo's.
+  - A new scene's camera takes the view's `fov_is_height?` (false once a Match Photo scene has been shown), so
+    `na_hold_focal` sets whichever fov gives the solved focal.
+  - SketchUp shows the new scene once the call returns, even when the router rolls it back: `na_create` puts the
+    user's scene and camera back on any refusal, and with `activate: false`.
+- **Where the rules live.**
+  - `match_photo_solve` (server): `30__McpServer__Python/Na__SketchUpMcp__Server__MatchPhoto__.py` (stdlib: the job,
+    the out folder, the child process, the result shape) and the worker
+    `35__VisionWorker__Python/Na__SketchUpMcp__VisionWorker__MatchPhoto__.py` (everything else: EXIF, enhancement,
+    snapping, lens, centre of view, vanishing points, refine, readings, plus or minus, overlay, LSD suggestions).
+  - The worker's Python is the server's own unless `defaults.vision_python` names another. Missing modules are refused
+    `unsupported` with the pip line.
+  - `match_photo` and `match_photo_edit` (bridge): `10__BridgeHandlers/Na__SketchUpMcp__Handlers__MatchPhoto__.rb`.
+    Pinhole maths on plain arrays (`Na__LinearMath`), the record in the page's `Na__SketchUpMcp__MatchPhoto`
+    dictionary, and the proof through `View#screen_coords` mapped through the photo's letterbox.
+- **The proof.** `create` and `update` read SketchUp's own projection back at the given tests and nine points spread
+  over the photo, and raise over `max_miss_px` (0.05), so the router rolls the scene back.
+- **Coordinates.** Photo pixels are the upright photo's (0..W, a pixel's centre at +0.5). The worker's results and
+  the scene are in the UNDISTORTED, possibly padded, scene photo's pixels. World lengths are mm in the worker; the
+  bridge tools follow `units`.
+- **Validation.**
+  - BridgeCore loads the handler and checks its maths: projection against rays, the cam.json rotation vector near a
+    half turn, the lexicon names.
+  - PythonServer checks the schemas and a refusal with no SketchUp, and runs the worker's `--selftest` when it can.
+- **Undo.** `match_photo_edit` is one router step; camera changes are not undone, so it restores the view itself.
+
+## Keep-Id Booleans, Hidden-Tag Captures and Face Loops (1.0.41)
+- **Why.** Cooper 62712 (25-Nov-2026): captures came out under a Match Photo scene's photo, hiding drawing planes for a capture needed a rollback batch, and keeping a wall's and roof's ids through Booleans meant a transplant helper copied into three kits.
+- **`solid_boolean keep_id`** (union and subtract, a closed group target): the boolean runs on `na_copy(target)`, then `06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Transplant__.rb` (`Na__Transplant`) clears the target and adds the result's faces again through `Na__Coordinates__SiblingToSibling` (both instances are in one parent, so the open-context correction cancels), or places and explodes the result's definition when a face will not add again or is textured (L1465). It refuses unless the target comes out a solid of the result's volume, so the router's abort leaves the model as it was. Edge colours follow L1152 through a grid lookup that BridgeCore checks offline.
+- **`view_capture hide_tags`.** A tag's visibility is an undo step of its own, so the tags are hidden inside `Na__CommandRouter__WithAbortedOperation` (an operation that is always aborted) and shown again in an ensure. Inside a batch the batch's own operation holds it.
+- **Match Photo scenes.** The API cannot hide a Match Photo scene's photo: `View#camera=` (the view's camera or a new one), `zoom_extents`, a temporary scene (it inherits the photo) and a transparent background all keep it, and RenderingOptions has no key for it (tested 25-Nov-2026). `view_capture` reports `match_photo` and warns when a camera was passed; `match_photo_overlay: true` silences the warning. Never switch the user's scene to get round it.
+- **`geometry_faces`** (read only, `Handlers__Measure`): world face loops through `Na__Serializer__ToWorld`, world normals, `plane_offset`, area, filtered by a world box or a direction; what SketchUp shows (`Na__Handlers__PointCloud.na_shown?`) unless `include_hidden`.
 
 ## Live Testing Without Leaving a Trace
 - The user's SketchUp is live and may hold paid work. Only read, or use **zero-trace batches**. Never save, open or close their models.

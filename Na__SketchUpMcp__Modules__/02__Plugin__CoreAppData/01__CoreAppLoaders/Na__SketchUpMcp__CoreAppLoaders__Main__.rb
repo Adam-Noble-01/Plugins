@@ -42,6 +42,7 @@ require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Serializer__'
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Creation__'
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__SolidHealth__'
+require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Transplant__'
 require_relative '../../06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__PlanGeometry__'
 
 # Bridge core services
@@ -84,6 +85,7 @@ require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__SketchInta
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__OffsetBand__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__ModelDiff__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__PhotoReference__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__MatchPhoto__'
 
 # User interface and maintenance
 require_relative '../../03__Plugin__CoreAppLogic/Na__SketchUpMcp__CoreAppLogic__DialogManager__'

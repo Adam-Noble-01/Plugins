@@ -127,6 +127,7 @@ NA_ROOT = $NA_MODULES_ROOT
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__EntityResolver__.rb
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Serializer__.rb
     06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__PlanGeometry__.rb
+    06__Plugin__BridgeHelpers/Na__SketchUpMcp__BridgeHelpers__Transplant__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ConnectionFile__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__ApiSelfTest__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb
@@ -139,6 +140,7 @@ NA_ROOT = $NA_MODULES_ROOT
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__TrueVisionExport__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__AgentOutliner__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__ProfileTracer__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__MatchPhoto__.rb
 ].each { |relative| load File.join(NA_ROOT, relative) }
 
 # Keep test connection files and settings out of the real 91__UserConfig__LocalOnly.
@@ -1428,6 +1430,137 @@ silent.close
 server.Na__SocketServer__Stop(silent: true)
 na_check('server: stop removes the connection file') { !File.exist?(connection_path) }
 FileUtils.rm_rf(NA_TEST_DIR)
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Match Photo maths (1.0.40, match_photo / match_photo_edit)
+# -----------------------------------------------------------------------------
+
+MP = Na__SketchUpMcp::Na__Handlers__MatchPhoto
+LM = Na__SketchUpMcp::Na__LinearMath
+mp_eye = [100.0, -200.0, 60.0]
+mp_forward = LM.Na__LinearMath__Normalize(LM.Na__LinearMath__Subtract([0.0, 0.0, 40.0], mp_eye))
+mp_up = LM.Na__LinearMath__Normalize(LM.Na__LinearMath__Subtract([0.0, 0.0, 1.0], LM.Na__LinearMath__Scale(mp_forward, mp_forward[2])))
+mp_frame = { eye: mp_eye, forward: mp_forward, up: mp_up, right: LM.Na__LinearMath__Cross(mp_forward, mp_up), f: 700.0, w: 1156, h: 728 }
+
+na_check('match photo: the look-at point lands on the photo\'s middle') do
+    uv = MP.na_project(mp_frame, [0.0, 0.0, 40.0])
+    (uv[0] - 578.0).abs < 1.0e-9 && (uv[1] - 364.0).abs < 1.0e-9
+end
+na_check('match photo: a pixel\'s ray projects back onto that pixel') do
+    [[0.0, 0.0], [100.0, 650.0], [1156.0, 728.0], [777.7, 12.3]].all? do |u, v|
+        point = LM.Na__LinearMath__Add(mp_eye, LM.Na__LinearMath__Scale(MP.na_ray(mp_frame, u, v), 321.0))
+        uv = MP.na_project(mp_frame, point)
+        (uv[0] - u).abs < 1.0e-8 && (uv[1] - v).abs < 1.0e-8
+    end
+end
+na_check('match photo: up the world goes up the photo') do
+    MP.na_project(mp_frame, [0.0, 0.0, 80.0])[1] < MP.na_project(mp_frame, [0.0, 0.0, 40.0])[1]
+end
+na_check('match photo: a point behind the camera is not projected') { MP.na_project(mp_frame, [200.0, -400.0, 80.0]).nil? }
+
+mp_rod = lambda do |r|
+    th = Math.sqrt(r.sum { |value| value * value })
+    return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] if th < 1.0e-12
+
+    k = r.map { |value| value / th }
+    kk = [[0.0, -k[2], k[1]], [k[2], 0.0, -k[0]], [-k[1], k[0], 0.0]]
+    k2 = (0..2).map { |i| (0..2).map { |j| (0..2).sum { |m| kk[i][m] * kk[m][j] } } }
+    (0..2).map { |i| (0..2).map { |j| (i == j ? 1.0 : 0.0) + (Math.sin(th) * kk[i][j]) + ((1.0 - Math.cos(th)) * k2[i][j]) } }
+end
+na_check('match photo: the cam.json rotation vector rebuilds the camera\'s rows') do
+    rows = [mp_frame[:right], mp_up.map { |value| -value }, mp_forward]
+    back = mp_rod.call(MP.na_rotvec(rows))
+    (0..2).all? { |i| (0..2).all? { |j| (back[i][j] - rows[i][j]).abs < 1.0e-9 } }
+end
+na_check('match photo: the rotation vector holds near a half turn') do
+    rows = [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]
+    back = mp_rod.call(MP.na_rotvec(rows))
+    (0..2).all? { |i| (0..2).all? { |j| (back[i][j] - rows[i][j]).abs < 1.0e-9 } }
+end
+na_check('match photo: cam.json p projects as the handler does (the kit\'s formula)') do
+    rows = [mp_frame[:right], mp_up.map { |value| -value }, mp_forward]
+    r = mp_rod.call(MP.na_rotvec(rows))
+    point = [-35.0, 12.0, 70.0]
+    d = LM.Na__LinearMath__Subtract(point, mp_eye)
+    xc = r.map { |row| LM.Na__LinearMath__Dot(row, d) }
+    u = (700.0 * xc[0] / xc[2]) + 578.0
+    v = (700.0 * xc[1] / xc[2]) + 364.0
+    uv = MP.na_project(mp_frame, point)
+    (uv[0] - u).abs < 1.0e-8 && (uv[1] - v).abs < 1.0e-8
+end
+na_check('match photo: the scene names follow the lexicon') do
+    %w[PM01__FrontRight__ PM12__DroneShot__ PM01__Rear-Left__].all? { |name| name =~ MP::NA_MP_NAME } &&
+        %w[PM1__Front__ PM01__Front Scene_3 PM01____].none? { |name| name =~ MP::NA_MP_NAME }
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Transplant edge lookup (1.0.41, solid_boolean keep_id)
+# -----------------------------------------------------------------------------
+
+TP = Na__SketchUpMcp::Na__Transplant
+tp_up = [0.0, 0.0, 1.0]
+tp_front = [0.0, -1.0, 0.0]
+tp_old = [
+    { a: [0.0, 0.0, 0.0], b: [100.0, 0.0, 0.0], normals: [tp_up, tp_front], material: :soft_black },
+    { a: [0.0, 0.0, 0.0], b: [0.0, 50.0, 0.0], normals: [tp_up, [-1.0, 0.0, 0.0]], material: :hand_red },
+    { a: [10.0, 10.0, 0.0], b: [90.0, 40.0, 30.0], normals: [tp_up], material: :diagonal },
+    { a: [500.0, 500.0, 500.0], b: [500.0, 500.0, 500.0], normals: [], material: :point }
+]
+tp_index = TP.Na__Transplant__BuildIndex(tp_old, TP.Na__Transplant__CellSize(120.0))
+
+na_check('transplant: a point on an edge, off it, past its end') do
+    TP.Na__Transplant__OnSegment([40.0, 0.001, 0.0], [0.0, 0.0, 0.0], [100.0, 0.0, 0.0]) &&
+        !TP.Na__Transplant__OnSegment([40.0, 0.01, 0.0], [0.0, 0.0, 0.0], [100.0, 0.0, 0.0]) &&
+        !TP.Na__Transplant__OnSegment([100.01, 0.0, 0.0], [0.0, 0.0, 0.0], [100.0, 0.0, 0.0]) &&
+        TP.Na__Transplant__OnSegment([100.001, 0.0, 0.0], [0.0, 0.0, 0.0], [100.0, 0.0, 0.0])
+end
+na_check('transplant: a piece of an old edge between the same faces keeps its colour') do
+    found = TP.Na__Transplant__Find(tp_index, [30.0, 0.0, 0.0], [70.0, 0.0, 0.0], [tp_front, tp_up])
+    found && found[:material] == :soft_black
+end
+na_check('transplant: the same line between other faces is a new edge') do
+    TP.Na__Transplant__Find(tp_index, [30.0, 0.0, 0.0], [70.0, 0.0, 0.0], [tp_up, [0.0, 1.0, 0.0]]).nil? &&
+        TP.Na__Transplant__Find(tp_index, [30.0, 0.0, 0.0], [70.0, 0.0, 0.0], [tp_up]).nil?
+end
+na_check('transplant: an edge running past the old one, or beside it, is new') do
+    TP.Na__Transplant__Find(tp_index, [30.0, 0.0, 0.0], [130.0, 0.0, 0.0], [tp_up, tp_front]).nil? &&
+        TP.Na__Transplant__Find(tp_index, [30.0, 0.5, 0.0], [70.0, 0.5, 0.0], [tp_up, tp_front]).nil?
+end
+na_check('transplant: a long diagonal edge is found from any piece of it') do
+    pieces = [[0.1, 0.2], [0.45, 0.55], [0.8, 0.95]]
+    pieces.all? do |from, to|
+        a = [10.0 + (80.0 * from), 10.0 + (30.0 * from), 30.0 * from]
+        b = [10.0 + (80.0 * to), 10.0 + (30.0 * to), 30.0 * to]
+        found = TP.Na__Transplant__Find(tp_index, a, b, [tp_up])
+        found && found[:material] == :diagonal
+    end
+end
+na_check('transplant: without normals (the result\'s own edges) only the line counts') do
+    found = TP.Na__Transplant__Find(tp_index, [0.0, 10.0, 0.0], [0.0, 20.0, 0.0], nil)
+    found && found[:material] == :hand_red
+end
+na_check('transplant: a zero-length old edge holds only its own point') do
+    TP.Na__Transplant__Find(tp_index, [500.0, 500.0, 500.0], [500.0, 500.0, 500.0], []) &&
+        TP.Na__Transplant__Find(tp_index, [500.0, 500.0, 500.0], [501.0, 500.0, 500.0], []).nil?
+end
+na_check('transplant: the commonest colour, nil counted, and the cell floor') do
+    TP.Na__Transplant__MostCommon([:a, nil, :b, :a]) == :a && TP.Na__Transplant__MostCommon([nil, nil, :a]).nil? &&
+        TP.Na__Transplant__MostCommon([]).nil? && TP.Na__Transplant__CellSize(0.0) == TP::NA_MIN_CELL &&
+        (TP.Na__Transplant__CellSize(6400.0) - 100.0).abs < 1.0e-9
+end
+na_check('transplant: an index of many edges finds each one, and only it') do
+    many = (0...400).map { |i| { a: [i * 7.0, (i % 13) * 11.0, 0.0], b: [(i * 7.0) + 5.0, (i % 13) * 11.0, 3.0], normals: [tp_up], material: i } }
+    index = TP.Na__Transplant__BuildIndex(many, TP.Na__Transplant__CellSize(3000.0))
+    many.all? do |record|
+        middle = [0, 1, 2].map { |axis| (record[:a][axis] + record[:b][axis]) / 2.0 }
+        found = TP.Na__Transplant__Find(index, record[:a], middle, [tp_up])
+        found && found[:material] == record[:material]
+    end
+end
 
 # endregion -------------------------------------------------------------------
 

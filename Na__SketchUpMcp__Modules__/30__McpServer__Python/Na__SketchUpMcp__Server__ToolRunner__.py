@@ -43,6 +43,7 @@ import sys
 import time
 
 import Na__SketchUpMcp__Server__BridgeClient__ as Na__BridgeClientModule
+import Na__SketchUpMcp__Server__MatchPhoto__ as Na__MatchPhotoModule
 import Na__SketchUpMcp__Server__SchemaValidator__ as Na__SchemaValidator
 import Na__SketchUpMcp__Server__WindowLauncher__ as Na__WindowLauncher
 
@@ -111,6 +112,11 @@ class Na__ToolRunner:
                 return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Open(self.na_bridge, arguments))
             if name == 'sketchup_close_window':
                 return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Close(self.na_bridge, arguments))
+            if name == 'match_photo_solve':                          # 1.0.40: the vision worker, no SketchUp needed
+                try:
+                    return na_success_result(Na__MatchPhotoModule.Na__MatchPhoto__Solve(arguments, tool.get('timeout_s', 200) - 10))
+                except Na__MatchPhotoModule.Na__MatchPhotoError as error:
+                    return na_error_result(error.na_code, error.na_message, error.na_hint)
             if name == 'batch_execute':
                 return self.na_batch(tool, arguments)
             if name == 'model_file':

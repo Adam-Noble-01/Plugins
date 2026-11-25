@@ -105,6 +105,7 @@ module Na__ValeLantern
             TagManager         = Na__ValeLantern::Na__Importer::Na__TagManager
             MaterialManager    = Na__ValeLantern::Na__Importer::Na__MaterialManager
             ConfigLoader       = Na__ValeLantern::Na__Importer::Na__ConfigLoader
+            DataLibBridge      = Na__ValeLantern::Na__Importer::Na__DataLibBridge
             EdgeSoftener       = Na__ValeLantern::Na__Importer::Na__EdgeSoftener
             DefinitionRegistry = Na__ValeLantern::Na__Importer::Na__DefinitionRegistry
 
@@ -198,6 +199,7 @@ module Na__ValeLantern
                 na_merge_coplanar_faces(entities) if options['MergeCoplanarFaces'] != false
                 na_orient_outward(entities)       if options['OrientSolidsOutward'] != false
                 EdgeSoftener.na_soften_for_tag(entities, part['TagKey'])
+                na_paint_hard_edges(model, entities, part['TagKey'])
 
                 instance = na_add_instance(parent_entities, definition, placement[:Frame])
                 if instance.nil?
@@ -336,6 +338,7 @@ module Na__ValeLantern
                 na_merge_coplanar_faces(entities) if options['MergeCoplanarFaces'] != false
                 na_orient_outward(entities)       if options['OrientSolidsOutward'] != false
                 EdgeSoftener.na_soften_for_tag(entities, part['TagKey'])
+                na_paint_hard_edges(Sketchup.active_model, entities, part['TagKey'])
 
                 na_finish_instance(group, part, part_name)
                 if DebugTools.na_verbose?
@@ -471,18 +474,200 @@ module Na__ValeLantern
             end
             private_class_method :na_build_caps
 
-            # HELPER FUNCTION | Add one cap face, tolerating a refusal
+            # HELPER FUNCTION | Add one cap face, falling back to 2D ear-clipping
             # ------------------------------------------------------------
+            # A mitred ring whose vertices sit a fraction of a millimetre outside
+            # SketchUp's strict planar tolerance causes add_face(points) to raise
+            # and would otherwise leave an open-ended, non-manifold tube. When a
+            # single polygon face is refused on 4 or more vertices, ear-clip the
+            # ring into triangles projected onto its Newell average plane and
+            # soften only the internal diagonals.
             def self.na_add_cap(entities, ring_points)
                 points = na_dedupe_points(ring_points)
                 return nil if points.length < NA_MIN_RING_POINTS
 
-                entities.add_face(points)
-            rescue StandardError => e
-                DebugTools.na_detail("Cap face refused: #{e.message}")
-                nil
+                begin
+                    face = entities.add_face(points)
+                    return face if face
+                rescue StandardError => e
+                    DebugTools.na_detail("Planar cap face refused (#{e.message}) - triangulating cap ring.")
+                end
+
+                return nil if points.length < 4
+
+                na_triangulate_cap(entities, points)
             end
             private_class_method :na_add_cap
+
+            # HELPER FUNCTION | Triangulate a slightly non-planar cap ring by ear clipping
+            # ------------------------------------------------------------
+            def self.na_triangulate_cap(entities, points)
+                normal = na_newell_normal(points)
+                return nil if normal.nil?
+
+                u_axis = normal.axes[0]
+                v_axis = normal.axes[1]
+                origin = points.first
+
+                pts_2d = points.map do |pt|
+                    vec = pt - origin
+                    [vec.dot(u_axis), vec.dot(v_axis)]
+                end
+
+                area_2d = na_polygon_area_2d(pts_2d)
+                order   = (0...points.length).to_a
+                flipped = area_2d < 0.0
+                order.reverse! if flipped
+
+                triangles = []
+                diagonals = []
+                guard     = order.length * order.length
+
+                while order.length > 3 && guard > 0
+                    guard -= 1
+                    ear_pos = na_find_ear_index(order, pts_2d)
+                    break if ear_pos.nil?
+
+                    n       = order.length
+                    i_prev  = order[(ear_pos - 1) % n]
+                    i_curr  = order[ear_pos]
+                    i_next  = order[(ear_pos + 1) % n]
+
+                    tri = flipped ? [points[i_prev], points[i_next], points[i_curr]] : [points[i_prev], points[i_curr], points[i_next]]
+                    triangles << tri
+                    diagonals << [points[i_prev], points[i_next]]
+                    order.delete_at(ear_pos)
+                end
+
+                if order.length == 3
+                    tri = flipped ? [points[order[0]], points[order[2]], points[order[1]]] : [points[order[0]], points[order[1]], points[order[2]]]
+                    triangles << tri
+                end
+
+                return nil if triangles.empty?
+
+                created_faces = []
+                triangles.each do |tri|
+                    begin
+                        face = entities.add_face(tri)
+                        created_faces << face if face
+                    rescue StandardError => e
+                        DebugTools.na_detail("Cap triangle refused: #{e.message}")
+                    end
+                end
+
+                # Soften only internal cap diagonals so the closed solid reads cleanly
+                # without disturbing any perimeter wall edge.
+                diagonals.each do |p_a, p_b|
+                    edge = na_find_edge_between(entities, p_a, p_b)
+                    next unless edge && edge.valid?
+                    next unless edge.faces.length == 2
+                    edge.smooth = true
+                    edge.soft   = true
+                end
+
+                created_faces.first
+            rescue StandardError => e
+                DebugTools.na_detail("Cap triangulation refused: #{e.message}")
+                nil
+            end
+            private_class_method :na_triangulate_cap
+
+            # HELPER FUNCTION | Newell average plane normal of a 3D vertex ring
+            # ------------------------------------------------------------
+            def self.na_newell_normal(points)
+                nx = 0.0
+                ny = 0.0
+                nz = 0.0
+                count = points.length
+
+                count.times do |i|
+                    a = points[i]
+                    b = points[(i + 1) % count]
+                    nx += (a.y - b.y) * (a.z + b.z)
+                    ny += (a.z - b.z) * (a.x + b.x)
+                    nz += (a.x - b.x) * (a.y + b.y)
+                end
+
+                vec = Geom::Vector3d.new(nx, ny, nz)
+                return nil if vec.length < 1e-9
+                vec.normalize
+            end
+            private_class_method :na_newell_normal
+
+            # HELPER FUNCTION | Signed area of a 2D polygon ring
+            # ------------------------------------------------------------
+            def self.na_polygon_area_2d(pts_2d)
+                sum   = 0.0
+                count = pts_2d.length
+                count.times do |i|
+                    a = pts_2d[i]
+                    b = pts_2d[(i + 1) % count]
+                    sum += (a[0] * b[1]) - (b[0] * a[1])
+                end
+                sum * 0.5
+            end
+            private_class_method :na_polygon_area_2d
+
+            # HELPER FUNCTION | Find an ear index in a CCW 2D polygon ring
+            # ------------------------------------------------------------
+            def self.na_find_ear_index(order, pts_2d)
+                n = order.length
+
+                n.times do |pos|
+                    a = pts_2d[order[(pos - 1) % n]]
+                    b = pts_2d[order[pos]]
+                    c = pts_2d[order[(pos + 1) % n]]
+
+                    cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+                    next if cross <= 1e-9
+
+                    contains_other = false
+                    order.each_with_index do |idx, k|
+                        next if k == pos || k == ((pos - 1) % n) || k == ((pos + 1) % n)
+                        if na_point_in_triangle_2d?(pts_2d[idx], a, b, c)
+                            contains_other = true
+                            break
+                        end
+                    end
+                    return pos unless contains_other
+                end
+
+                # Fallback for nearly collinear vertices: pick the first non-reflex corner.
+                n.times do |pos|
+                    a = pts_2d[order[(pos - 1) % n]]
+                    b = pts_2d[order[pos]]
+                    c = pts_2d[order[(pos + 1) % n]]
+                    cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+                    return pos if cross >= -1e-9
+                end
+
+                nil
+            end
+            private_class_method :na_find_ear_index
+
+            # HELPER FUNCTION | Whether 2D point p sits inside CCW triangle (a, b, c)
+            # ------------------------------------------------------------
+            def self.na_point_in_triangle_2d?(p, a, b, c)
+                c1 = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+                c2 = (c[0] - b[0]) * (p[1] - b[1]) - (c[1] - b[1]) * (p[0] - b[0])
+                c3 = (a[0] - c[0]) * (p[1] - c[1]) - (a[1] - c[1]) * (p[0] - c[0])
+                c1 >= -1e-9 && c2 >= -1e-9 && c3 >= -1e-9
+            end
+            private_class_method :na_point_in_triangle_2d?
+
+            # HELPER FUNCTION | Locate an edge connecting two 3D points
+            # ------------------------------------------------------------
+            def self.na_find_edge_between(entities, p_a, p_b)
+                entities.grep(Sketchup::Edge).find do |edge|
+                    next false unless edge.valid?
+                    s = edge.start.position
+                    e = edge.end.position
+                    (s.distance(p_a) < NA_POINT_MERGE_INCH && e.distance(p_b) < NA_POINT_MERGE_INCH) ||
+                        (s.distance(p_b) < NA_POINT_MERGE_INCH && e.distance(p_a) < NA_POINT_MERGE_INCH)
+                end
+            end
+            private_class_method :na_find_edge_between
 
             # HELPER FUNCTION | Turn one hole ring into a hole in its cap
             # ------------------------------------------------------------
@@ -617,6 +802,38 @@ module Na__ValeLantern
                 0.0
             end
             private_class_method :na_signed_volume
+
+            # HELPER FUNCTION | Paint hard visible prism edges to SSOT MTE colours
+            # ------------------------------------------------------------
+            # Runs once per shared definition immediately after EdgeSoftener so
+            # softened facet creases stay unpainted while crisp architectural
+            # arrises take L20 (structural base) or L40 (roof, bars, glazing,
+            # joinery). Leaves any already-painted edge untouched.
+            def self.na_paint_hard_edges(model, entities, tag_key)
+                return 0 unless model && ConfigLoader.na_edge_colours_enabled?
+
+                material_name = ConfigLoader.na_edge_material_name_for(tag_key)
+                return 0 if material_name.nil? || material_name.empty?
+
+                material = DataLibBridge.na_palette_edge_material(model, material_name)
+                return 0 unless material
+
+                painted = 0
+                entities.grep(Sketchup::Edge).each do |edge|
+                    next unless edge.valid?
+                    next if edge.soft? || edge.hidden?
+                    next unless edge.material.nil?
+
+                    edge.material = material
+                    painted += 1
+                end
+
+                painted
+            rescue StandardError => e
+                DebugTools.na_detail("Prism edge colouring refused: #{e.message}")
+                0
+            end
+            private_class_method :na_paint_hard_edges
 
 # endregion -------------------------------------------------------------------
 

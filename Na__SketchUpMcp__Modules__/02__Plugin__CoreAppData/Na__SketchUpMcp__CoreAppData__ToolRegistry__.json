@@ -19,12 +19,15 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.39",
+        "version": "1.0.41",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
     },
     "property_since": {
+        "view_capture.hide_tags": "1.0.41",
+        "view_capture.match_photo_overlay": "1.0.41",
+        "solid_boolean.keep_id": "1.0.41",
         "point_cloud_slice.frame": "1.0.19",
         "point_cloud_heightmap.frame": "1.0.19",
         "agent_outliner.action=threads": "1.0.23",
@@ -527,6 +530,41 @@
             }
         },
         {
+            "name": "geometry_faces",
+            "title": "Face Loops",
+            "runs_on": "bridge",
+            "handler_key": "geometry_faces",
+            "mutates": false,
+            "timeout_s": 120,
+            "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Face#outer_loop", "Sketchup::Face#loops", "Sketchup::Face#normal", "Sketchup::Face#area", "Sketchup::Loop#vertices"],
+            "description": "Read faces as world geometry, the loops agents used to write in ruby_eval: for every face of the named solids, its outer loop (and holes) in world points, its world normal, plane_offset (normal . point, so the face lies on n.x*x + n.y*y + n.z*z = plane_offset), world area, material, tag, and the part it sits in (the groups below the solid). ids (groups, components or faces) and/or names (Outliner names at any depth; a * matches any characters). Filter with box {min, max} (box_mode overlap, the default: the face's box meets it; inside: every outer point is in it) and facing (a direction; facing_tolerance degrees, default 5): e.g. the sloped faces of a roof over one gablet. Nested groups are read through their own placements, so faces in moved, rotated and scaled groups come back where they really are. Faces and groups that are hidden, or on hidden tags, are skipped unless include_hidden. max_faces (default 500, up to 5000) caps the reply; matched says how many there were. Read only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ids": {"$use": "ids", "description": "Groups, components or faces to read."},
+                    "names": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 200, "description": "Outliner names of groups or components, at any depth (a * matches any characters)."},
+                    "box": {
+                        "type": "object",
+                        "properties": {
+                            "min": {"$use": "point", "description": "The box's smallest x, y, z (world)."},
+                            "max": {"$use": "point", "description": "The box's largest x, y, z (world)."}
+                        },
+                        "required": ["min", "max"],
+                        "additionalProperties": false
+                    },
+                    "box_mode": {"type": "string", "enum": ["overlap", "inside"], "description": "overlap (default): the face's world box meets the box; inside: every outer point is in it."},
+                    "facing": {"$use": "direction", "description": "Only faces whose world normal points this way (within facing_tolerance)."},
+                    "facing_tolerance": {"type": "number", "minimum": 0, "maximum": 90, "description": "Degrees (default 5)."},
+                    "include_hidden": {"type": "boolean", "description": "Read hidden faces and groups, and those on hidden tags, too (default false)."},
+                    "include_holes": {"type": "boolean", "description": "Give each face's holes (inner loops) too (default true)."},
+                    "max_faces": {"type": "integer", "minimum": 1, "maximum": 5000, "description": "Default 500."},
+                    "units": {"$use": "units"}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
             "name": "geometry_draw",
             "title": "Draw Geometry",
             "runs_on": "bridge",
@@ -766,7 +804,7 @@
             "timeout_s": 300,
             "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
             "api": ["Sketchup::Group#union", "Sketchup::Group#subtract", "Sketchup::Group#intersect", "Sketchup::Group#trim", "Sketchup::Group#split", "Sketchup::Group#outer_shell", "Sketchup::Group#manifold?"],
-            "description": "Solid Tools (SketchUp Pro/Studio). target_id is the solid you keep; tool_ids are the other solids, applied in turn. union / intersect / outer_shell merge them; subtract cuts the tools out of the target (result = target minus tools; tools are consumed unless keep_tools); trim cuts the target by the tools and keeps the tools; split returns up to three solids (overlap, target minus tool, tool minus target). All operands must be manifold groups/components in the same parent. The result is a NEW group that inherits the target's name, tag, material, shadow settings and attributes (new id: use the returned id). If the result would be empty or the target would vanish, nothing changes and you get an error instead. Pass every tool in one call (tool_ids) rather than one call per tool. Checked before SketchUp runs: a non-solid operand is described (open edges, internal faces), an inside-out one is refused, and tools that do not reach the target are skipped. SketchUp's engine is slow on dense curved meshes (thousands of faces can take 30 s or more) and can fail or leave holes there: let cutters pass 1 mm beyond the faces they cut and keep segment counts modest.",
+            "description": "Solid Tools (SketchUp Pro/Studio). target_id is the solid you keep; tool_ids are the other solids, applied in turn. union / intersect / outer_shell merge them; subtract cuts the tools out of the target (result = target minus tools; tools are consumed unless keep_tools); trim cuts the target by the tools and keeps the tools; split returns up to three solids (overlap, target minus tool, tool minus target). All operands must be manifold groups/components in the same parent. The result is a NEW group that inherits the target's name, tag, material, shadow settings and attributes (new id: use the returned id), unless keep_id. keep_id: true (union and subtract, a group target) works on a COPY and puts the result's faces back into the target, so its id, name, tag, attributes and axes survive (what scenes, notes and other sessions hold); edge colours are kept (a new edge on an old one between the same faces keeps its colour, other new edges take the tools' colour or the target's commonest edge colour), and a face that will not add again, or a textured one, is placed and exploded instead; the result must be a solid. If the result would be empty or the target would vanish, nothing changes and you get an error instead. Pass every tool in one call (tool_ids) rather than one call per tool. Checked before SketchUp runs: a non-solid operand is described (open edges, internal faces), an inside-out one is refused, and tools that do not reach the target are skipped. SketchUp's engine is slow on dense curved meshes (thousands of faces can take 30 s or more) and can fail or leave holes there: let cutters pass 1 mm beyond the faces they cut and keep segment counts modest.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -774,6 +812,7 @@
                     "target_id": {"$use": "id", "description": "The solid being kept / cut."},
                     "tool_ids": {"$use": "ids", "description": "Cutters / other solids."},
                     "keep_tools": {"type": "boolean", "description": "Keep a copy of the tool solids (default false)."},
+                    "keep_id": {"type": "boolean", "description": "union / subtract on a group: the target keeps its persistent id, name, tag and attributes (default false: a new group, new id)."},
                     "result_name": {"type": "string", "description": "Outliner name for the result (default: the target's name; an unnamed target gives e.g. \"Cut solid 4000 x 215 x 2400\")."}
                 },
                 "required": ["operation", "target_id", "tool_ids"],
@@ -1326,14 +1365,16 @@
             "mutates": true,
             "timeout_s": 60,
             "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
-            "api": ["Sketchup::Layers#add", "Sketchup::Layers#remove", "Sketchup::Layer#visible=", "Sketchup::Layer#color=", "Sketchup::Layer#name=", "Sketchup::Model#active_layer="],
-            "description": "Tags (layers). action: create (name or names; optional visible, color, line_style, folder), create_standard (name or names from Adam's Tags SSOT, made by his TagUtils with the SSOT line style, colour and metadata; a name not in the SSOT is refused; existing tags are left as they are unless update_existing), update (name + new_name / visible / color / line_style / folder, \"\" folder = top level), delete (name or names; contents move to Untagged unless delete_contents:true), set_active, isolate (show only these tags), show_all, create_folder / delete_folder (folder path like \"Site/Existing\"; deleting keeps its tags). Untagged cannot be renamed, deleted or hidden. To tag entities use entity_set_properties tag.",
+            "api": ["Sketchup::Layers#add", "Sketchup::Layers#remove", "Sketchup::Layer#visible=", "Sketchup::Layer#color=", "Sketchup::Layer#name=", "Sketchup::Model#active_layer=", "Sketchup::Page#use_hidden_layers?", "Sketchup::Page#set_visibility"],
+            "description": "Tags (layers). action: create (name or names; optional visible, color, line_style, folder), create_standard (name or names from Adam's Tags SSOT, made by his TagUtils with the SSOT line style, colour and metadata; a name not in the SSOT is refused; existing tags are left as they are unless update_existing), mirror_visibility (source_tag + name/names; mirrors source_tag's current model visibility and per-scene visibility across every scene that saves hidden layers; pass create_standard:true to create missing SSOT split tags such as 21__..25__ in the same atomic step), update (name + new_name / visible / color / line_style / folder, \"\" folder = top level), delete (name or names; contents move to Untagged unless delete_contents:true), set_active, isolate (show only these tags), show_all, create_folder / delete_folder (folder path like \"Site/Existing\"; deleting keeps its tags). Untagged cannot be renamed, deleted or hidden. To tag entities use entity_set_properties tag.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["create", "create_standard", "update", "delete", "set_active", "isolate", "show_all", "create_folder", "delete_folder"]},
+                    "action": {"type": "string", "enum": ["create", "create_standard", "mirror_visibility", "update", "delete", "set_active", "isolate", "show_all", "create_folder", "delete_folder"]},
                     "name": {"type": "string"},
                     "names": {"type": "array", "items": {"type": "string"}},
+                    "source_tag": {"type": "string", "description": "mirror_visibility: existing tag whose model and per-scene visibility is copied onto name/names (e.g. \"20__ProposedBuilding\")."},
+                    "create_standard": {"type": "boolean", "description": "mirror_visibility: create any missing target tags from the Tags SSOT via TagUtils before mirroring visibility."},
                     "new_name": {"type": "string"},
                     "visible": {"type": "boolean"},
                     "color": {"type": "string", "description": "\"#RRGGBB\"."},
@@ -1445,8 +1486,8 @@
             "mutates": false,
             "timeout_s": 120,
             "annotations": {"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false},
-            "api": ["Sketchup::View#write_image", "Sketchup::View#camera="],
-            "description": "See the model: renders the view to an image and returns it to you. Use it to check your work after modelling, and before describing a model. Default 1280 x 800 PNG (smaller costs fewer tokens). Optional camera / standard_view / zoom / zoom_ids aim the shot and the user's view is restored afterwards (restore_view:false leaves it); scene activates that scene first (it stays active). save_path also saves the file (overwrite to replace). transparent background (png), line_scale for thicker lines in large images. include_point_cloud: true also draws Adam's point clouds on show over the image, each with its own look and clip box, exactly where they sit on screen (Na Point Cloud Viewer 0.14.1; the result's point_cloud says what was drawn), so you can check your model against the scan.",
+            "api": ["Sketchup::View#write_image", "Sketchup::View#camera=", "Sketchup::Layer#visible="],
+            "description": "See the model: renders the view to an image and returns it to you. Use it to check your work after modelling, and before describing a model. Default 1280 x 800 PNG (smaller costs fewer tokens). Optional camera / standard_view / zoom / zoom_ids aim the shot and the user's view is restored afterwards (restore_view:false leaves it); scene activates that scene first (it stays active). save_path also saves the file (overwrite to replace). transparent background (png), line_scale for thicker lines in large images. include_point_cloud: true also draws Adam's point clouds on show over the image, each with its own look and clip box, exactly where they sit on screen (Na Point Cloud Viewer 0.14.1; the result's point_cloud says what was drawn), so you can check your model against the scan. hide_tags hides those tags for this capture only (drawing planes, reference images) and shows them again, leaving no undo step. A Match Photo scene (PMnn__) draws its photo over every capture whatever camera is passed, and SketchUp's API cannot hide it: the result's match_photo says so, with a warning when you passed a camera; ask Adam to click a plain scene (never switch his scene yourself), or pass match_photo_overlay: true when you want the photo.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1463,6 +1504,8 @@
                     "zoom_ids": {"$use": "ids"},
                     "scene": {"type": "string"},
                     "restore_view": {"type": "boolean"},
+                    "hide_tags": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 500, "description": "Tags hidden for this capture only, then shown again (no undo step). A * matches any characters, e.g. \"06__Drawings*\". Unknown names and Untagged are refused."},
+                    "match_photo_overlay": {"type": "boolean", "description": "In a Match Photo scene: true when you want its photo in the capture (no warning). Default false when a camera is passed (the photo is still drawn: SketchUp cannot hide it; the result warns), true without one."},
                     "include_point_cloud": {"type": "boolean", "description": "Also draw the point clouds on show over the image (Na Point Cloud Viewer 0.14.1+; from 0.14.5 a scene's cloud look is applied first, and captures over 12 MP keep no clouds, with a warning)."},
                     "save_path": {"type": "string"},
                     "overwrite": {"type": "boolean"},
@@ -1776,7 +1819,7 @@
                 "Sketchup::Entities#add_instance",
                 "UI::HtmlDialog#execute_script"
             ],
-            "description": "Create, change and maintain Element Assembly Studio Pro windows, exterior doors (single, double, bifold, sliding), interior doors and cabinets through the dialog's own build pipelines: each build or rebuild is ONE undo step with the plugin's own name (e.g. 'Create Window', 'Update Bifold Door'). action: build (type and/or preset, values on top; placed into opening {wall_id, index} (from entity_studio openings) or {point_a, point_b, point_d}: fit (default true) sizes it as Measure Opening would, height less the cill; or at position + direction (along the wall, left to right seen from outside); cabinets take run {point_a, point_b, side (a point on the room side)} and run_offset mm; name gives the name tail; dry_run checks everything and builds nothing); update (instance_id: values merged onto its stored ones, or preset (keep_size default true), reset (keys back to a new element's), opening refits the size only; never moves it; every copy of the definition changes; returns the changed values; dry_run); rename (instance_id, name: the tail after the coded head); export_dxf (file: absolute .dxf; from instance_id, preset or type; windows and single / double doors; overwrite); save_preset (name agreed with Adam first; from instance_id, preset or type plus values), update_preset (code: name / description / keywords and/or values or instance_id; keeps a .bak), archive_preset / restore_preset (code: moved to and from the archive, never deleted), refresh_preview (code; dialog open), open_dialog (instance_id selects it so the dialog shows it), reload. values use the dialog's keys (entity_studio parameters lists them with ranges): out-of-range values, unknown keys and options the dialog does not offer are refused. A panel of an assembly run keeps the width and height its run gives it (change those with assembly_run_edit). Builds go at the model root. Not allowed in batch_execute.",
+            "description": "Create, edit and maintain Element Assembly Studio Pro windows, exterior doors (single, double, bifold, sliding), interior doors and cabinets via the dialog's own pipelines: one undo step per call. action: build (type and/or preset + values; placed into opening {wall_id, index} or {point_a, point_b, point_d} with fit default true, or position + direction; cabinets take run {point_a, point_b, side} + run_offset mm; name tail; dry_run); update (instance_id + values, preset (keep_size default true), reset, or opening to refit size only; never moves it; updates all shared copies; dry_run); rename (instance_id, name tail); place_copies (instance_id + stations [{position, rotation_z_deg or direction, name, tag}]; places N shared copies in one undo step with ConfiguratorInfo preserved; dry_run); export_dxf (file: absolute .dxf; instance_id/preset/type; overwrite); save_preset (name agreed with Adam first; instance_id/preset/type + values); update_preset (code: name/description/keywords/values/instance_id; keeps .bak); archive_preset / restore_preset (code); refresh_preview (code; dialog open); open_dialog (instance_id selects it); reload. Out-of-range or unknown values are refused. Run-owned panels keep run sizes (use assembly_run_edit). Builds at model root. Not allowed in batch_execute.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1786,6 +1829,7 @@
                             "build",
                             "update",
                             "rename",
+                            "place_copies",
                             "export_dxf",
                             "save_preset",
                             "update_preset",
@@ -1824,7 +1868,41 @@
                     },
                     "instance_id": {
                         "$use": "id",
-                        "description": "update / rename / export_dxf / save_preset / update_preset / open_dialog: a placed element."
+                        "description": "update / rename / place_copies / export_dxf / save_preset / update_preset / open_dialog: a placed element."
+                    },
+                    "stations": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "place_copies: list of target placements for shared copies of instance_id's definition.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "position": {
+                                    "$use": "point",
+                                    "description": "World origin for this copy (in current units, default mm)."
+                                },
+                                "rotation_z_deg": {
+                                    "type": "number",
+                                    "description": "Counter-clockwise Z rotation in degrees (default 0). Ignored if direction is supplied."
+                                },
+                                "direction": {
+                                    "$use": "vector",
+                                    "description": "Optional horizontal wall direction (left to right seen from outside); overrides rotation_z_deg."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Optional instance name for this bay copy."
+                                },
+                                "tag": {
+                                    "type": "string",
+                                    "description": "Optional SketchUp tag name (defaults to the source instance's tag)."
+                                }
+                            },
+                            "required": [
+                                "position"
+                            ],
+                            "additionalProperties": false
+                        }
                     },
                     "opening": {
                         "type": "object",
@@ -4867,6 +4945,882 @@
                     "path",
                     "corners",
                     "rectangle"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "match_photo_solve",
+            "title": "Match Photo: Solve the Camera",
+            "runs_on": "server",
+            "handler_key": "match_photo_solve",
+            "mutates": false,
+            "timeout_s": 200,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [],
+            "description": "SketchUp's Match Photo done by numbers, as Adam does it by hand: two or more red (x) and two or more green (y) lines on the photo's two faces (the longest, farthest apart), blue (z) verticals, the origin on a known corner and a second known point for the scale. Each rough line (two clicks, pixels from the photo's top left) is snapped sub-pixel to its edge on an enhanced copy (denoised, texture damped, CLAHE contrast; sharpened for display only). The lens's distortion, and with principal_point \"solve\" a cropped photo's centre of view, are fitted with the camera and kept only at three sigma. The camera comes from the vanishing points, then is refined on every line: lines with through (CAD) are world-known, the unknown face's lines give their direction, free solves a coordinate within its range. checks (features the fit did not use, with the CAD's numbers) and measures (a pixel, or where two lines cross, onto a plane) come with plus or minus from refits; over 25 mm is an ACCURACY STOP. Writes the photo for the scene with the fitted lines on it, dotted, for Adam to check, shows it, and returns scene_arguments for match_photo_edit create. Runs in the server (numpy, SciPy, OpenCV); SketchUp is not needed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "photo": {
+                        "type": "string",
+                        "description": "Absolute path of the site photo (JPEG or PNG). Never changed."
+                    },
+                    "lines": {
+                        "type": "array",
+                        "minItems": 4,
+                        "maxItems": 80,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "R1, G1, B1 ... (origin, scale, checks and measures name lines by it)."
+                                },
+                                "axis": {
+                                    "type": "string",
+                                    "enum": [
+                                        "x",
+                                        "y",
+                                        "z"
+                                    ],
+                                    "description": "x red, y green, z blue, as SketchUp's axes."
+                                },
+                                "note": {
+                                    "type": "string"
+                                },
+                                "source": {
+                                    "type": "string",
+                                    "enum": [
+                                        "cad",
+                                        "massing",
+                                        "model",
+                                        "photo"
+                                    ],
+                                    "description": "Where its world numbers come from; outliers are named by it."
+                                },
+                                "rough": {
+                                    "type": "array",
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "minItems": 2,
+                                        "maxItems": 2
+                                    },
+                                    "description": "Two clicks on the line, within w px of its edge."
+                                },
+                                "segments": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "maxItems": 12,
+                                    "items": {
+                                        "type": "array",
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                        }
+                                    },
+                                    "description": "Several rough pieces of one straight line (two windows' cills)."
+                                },
+                                "px": {
+                                    "type": "array",
+                                    "minItems": 3,
+                                    "maxItems": 2000,
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "minItems": 2,
+                                        "maxItems": 2
+                                    },
+                                    "description": "Measured pixels on the line, instead of snapping."
+                                },
+                                "sign": {
+                                    "type": "integer",
+                                    "enum": [
+                                        -1,
+                                        0,
+                                        1
+                                    ],
+                                    "description": "+1 dark to light going down (a level line) or right (a vertical), -1 the reverse, 0 either."
+                                },
+                                "w": {
+                                    "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 40,
+                                    "description": "How far from the rough line to look (px, default 6)."
+                                },
+                                "step": {
+                                    "type": "number",
+                                    "minimum": 0.5,
+                                    "maximum": 20
+                                },
+                                "min_strength": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                    "description": "Samples weaker than this share of the line's edge are dropped (0.35)."
+                                },
+                                "allow_drift": {
+                                    "type": "boolean",
+                                    "description": "Bypass the 25 deg snap-drift refusal when a rough click is deliberately approximate."
+                                },
+                                "through": {
+                                    "$use": "point",
+                                    "description": "A world point on the line (mm): it is world-known (CAD). Leave out for direction only."
+                                },
+                                "free": {
+                                    "type": "string",
+                                    "enum": [
+                                        "x",
+                                        "y",
+                                        "z",
+                                        "xy",
+                                        "xz",
+                                        "yz"
+                                    ],
+                                    "description": "Coordinates of through to solve (a fascia's depth: y)."
+                                },
+                                "range": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                        },
+                                        "y": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                        },
+                                        "z": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "minItems": 2,
+                                            "maxItems": 2
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Allowed values for a free coordinate, e.g. {\"y\": [14455, 15055]}."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "axis"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "Adam's axis bars as lines."
+                    },
+                    "origin": {
+                        "type": "object",
+                        "properties": {
+                            "world": {
+                                "$use": "point"
+                            },
+                            "lines": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2
+                            }
+                        },
+                        "required": [
+                            "world",
+                            "lines"
+                        ],
+                        "additionalProperties": false,
+                        "description": "The known corner: two line ids crossing there, and its world point."
+                    },
+                    "scale": {
+                        "type": "object",
+                        "properties": {
+                            "world": {
+                                "$use": "point"
+                            },
+                            "lines": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2
+                            }
+                        },
+                        "required": [
+                            "world",
+                            "lines"
+                        ],
+                        "additionalProperties": false,
+                        "description": "A second known point (Adam's known size)."
+                    },
+                    "points": {
+                        "type": "array",
+                        "maxItems": 60,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "note": {
+                                    "type": "string"
+                                },
+                                "source": {
+                                    "type": "string",
+                                    "enum": [
+                                        "cad",
+                                        "massing",
+                                        "model",
+                                        "photo"
+                                    ]
+                                },
+                                "world": {
+                                    "$use": "point"
+                                },
+                                "px": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                }
+                            },
+                            "required": [
+                                "world",
+                                "px"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "World-known points with their pixels."
+                    },
+                    "checks": {
+                        "type": "array",
+                        "maxItems": 60,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "note": {
+                                    "type": "string"
+                                },
+                                "px": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "lines": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "plane": {
+                                    "type": "object",
+                                    "properties": {
+                                        "axis": {
+                                            "type": "string",
+                                            "enum": [
+                                                "x",
+                                                "y",
+                                                "z"
+                                            ],
+                                            "description": "A plane square to an axis: x = value, y = value or z = value."
+                                        },
+                                        "value": {
+                                            "type": "number",
+                                            "description": "Where it crosses that axis (mm)."
+                                        },
+                                        "point": {
+                                            "$use": "point",
+                                            "description": "Or any plane: a point on it (mm) ..."
+                                        },
+                                        "normal": {
+                                            "$use": "direction",
+                                            "description": "... and its normal."
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "{axis, value} or {point, normal}."
+                                },
+                                "expect": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x": {
+                                            "type": "number"
+                                        },
+                                        "y": {
+                                            "type": "number"
+                                        },
+                                        "z": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            },
+                            "required": [
+                                "plane",
+                                "expect"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "Features the fit did not use, read onto a plane, with what the CAD says (mm)."
+                    },
+                    "measures": {
+                        "type": "array",
+                        "maxItems": 80,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "note": {
+                                    "type": "string"
+                                },
+                                "px": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "lines": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                },
+                                "plane": {
+                                    "type": "object",
+                                    "properties": {
+                                        "axis": {
+                                            "type": "string",
+                                            "enum": [
+                                                "x",
+                                                "y",
+                                                "z"
+                                            ],
+                                            "description": "A plane square to an axis: x = value, y = value or z = value."
+                                        },
+                                        "value": {
+                                            "type": "number",
+                                            "description": "Where it crosses that axis (mm)."
+                                        },
+                                        "point": {
+                                            "$use": "point",
+                                            "description": "Or any plane: a point on it (mm) ..."
+                                        },
+                                        "normal": {
+                                            "$use": "direction",
+                                            "description": "... and its normal."
+                                        }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "{axis, value} or {point, normal}."
+                                },
+                                "critical": {
+                                    "type": "boolean",
+                                    "description": "Counts for the ACCURACY STOP (default true)."
+                                }
+                            },
+                            "required": [
+                                "plane"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "Readings: a pixel (or two lines' crossing) onto a plane, each with its plus or minus."
+                    },
+                    "derived": {
+                        "type": "array",
+                        "maxItems": 60,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "note": {
+                                    "type": "string"
+                                },
+                                "a": {
+                                    "type": "string"
+                                },
+                                "b": {
+                                    "type": "string"
+                                },
+                                "axis": {
+                                    "type": "string",
+                                    "enum": [
+                                        "x",
+                                        "y",
+                                        "z",
+                                        "distance"
+                                    ]
+                                },
+                                "critical": {
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "a",
+                                "b"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "b minus a along an axis (or the distance) between two measures, with its own plus or minus."
+                    },
+                    "f_equiv_mm": {
+                        "type": "number",
+                        "minimum": 5,
+                        "maximum": 400,
+                        "description": "35 mm equivalent focal length when the EXIF has none."
+                    },
+                    "principal_point": {
+                        "type": "string",
+                        "enum": [
+                            "centre",
+                            "solve"
+                        ],
+                        "description": "\"solve\" tests for a cropped photo (default centre)."
+                    },
+                    "lens": {
+                        "type": "string",
+                        "enum": [
+                            "auto",
+                            "none"
+                        ],
+                        "description": "Lens distortion: fitted and kept at three sigma (auto), or none."
+                    },
+                    "lens_lambda": {
+                        "type": "number",
+                        "minimum": -0.5,
+                        "maximum": 0.5,
+                        "description": "A known division-model lambda instead."
+                    },
+                    "enhance": {
+                        "type": "object",
+                        "properties": {
+                            "off": {
+                                "type": "boolean"
+                            },
+                            "denoise": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 30
+                            },
+                            "texture_damping": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                            },
+                            "clahe": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 10
+                            },
+                            "sharpen": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 3
+                            },
+                            "denoise_max_mp": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 100
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "Image enhancement (defaults denoise 4, texture_damping 0.5, clahe 2, sharpen 0.8)."
+                    },
+                    "overlay": {
+                        "type": "object",
+                        "properties": {
+                            "off": {
+                                "type": "boolean"
+                            },
+                            "opacity": {
+                                "type": "number",
+                                "minimum": 0.1,
+                                "maximum": 1
+                            },
+                            "extend": {
+                                "type": "boolean"
+                            },
+                            "labels": {
+                                "type": "boolean"
+                            },
+                            "horizon": {
+                                "type": "boolean"
+                            },
+                            "legend": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "The agent's lines drawn on the scene photo (on by default)."
+                    },
+                    "uncertainty": {
+                        "type": "object",
+                        "properties": {
+                            "refits": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 400
+                            },
+                            "max_seconds": {
+                                "type": "number",
+                                "minimum": 1,
+                                "maximum": 150
+                            },
+                            "pick_sigma_px": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 10
+                            },
+                            "seed": {
+                                "type": "integer"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "Refits for the plus or minus (default 60, within 30 s)."
+                    },
+                    "suggest": {
+                        "type": "object",
+                        "properties": {
+                            "min_length_px": {
+                                "type": "number",
+                                "minimum": 5
+                            },
+                            "max_angle_deg": {
+                                "type": "number",
+                                "minimum": 0.05,
+                                "maximum": 5
+                            },
+                            "max_per_axis": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 40
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "Long segments OpenCV detects that point at a vanishing point, suggested as extra lines."
+                    },
+                    "auto_lines": {
+                        "type": "boolean",
+                        "description": "Use the suggested lines too, as direction-only lines (default false)."
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": [
+                            "jpg",
+                            "png"
+                        ]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The scene the photo is for (PM01__<View>__): the files are named after it."
+                    },
+                    "out_dir": {
+                        "type": "string",
+                        "description": "Folder for the files (default <job>/01__ReferenceFiles/12__Photos__MatchPhoto)."
+                    },
+                    "timeout_s": {
+                        "type": "number",
+                        "minimum": 10,
+                        "maximum": 600
+                    }
+                },
+                "required": [
+                    "photo",
+                    "lines",
+                    "origin",
+                    "scale"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "match_photo",
+            "title": "Match Photo Scenes",
+            "runs_on": "bridge",
+            "handler_key": "match_photo",
+            "mutates": false,
+            "timeout_s": 60,
+            "annotations": {
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Camera#aspect_ratio",
+                "Sketchup::Camera#fov_is_height?",
+                "Sketchup::Camera#is_2d?",
+                "Sketchup::Model#raytest"
+            ],
+            "description": "Read SketchUp Match Photo scenes. list: every scene with a Match Photo camera (2D, with the photo's aspect ratio), and the record match_photo_edit keeps on its own. camera: one scene's camera as a pinhole on its photo (eye, target, up, vertical field of view, focal in pixels, principal point at the photo's middle) and in pe_camera_fit.py's cam.json format (save_path), with the photo's size from the record, photo or width_px: so a Match Photo Adam aligned by hand can be measured with. project: world points to photo pixels through a scene's camera (expect_px gives the misses). measure: photo pixels to world points, onto the model (a ray test: the point, the entity hit and what one pixel spans there) or onto a plane. Pixels are the scene photo's, u right and v down from its top left. Read-only.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "list",
+                            "camera",
+                            "project",
+                            "measure"
+                        ]
+                    },
+                    "scene": {
+                        "type": "string",
+                        "description": "The Match Photo scene's name (list gives them)."
+                    },
+                    "photo": {
+                        "type": "string",
+                        "description": "The scene's photo, for its pixel size when match_photo_edit did not make the scene."
+                    },
+                    "width_px": {
+                        "type": "integer",
+                        "minimum": 16,
+                        "description": "Or the photo's width in pixels."
+                    },
+                    "points": {
+                        "$use": "points",
+                        "description": "project: world points."
+                    },
+                    "expect_px": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        },
+                        "description": "project: where each point is on the photo, for the misses."
+                    },
+                    "pixels": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2
+                        },
+                        "description": "measure: photo pixels [u, v]."
+                    },
+                    "onto": {
+                        "type": "string",
+                        "enum": [
+                            "model",
+                            "plane"
+                        ],
+                        "description": "measure: the first face the ray hits (default), or a plane."
+                    },
+                    "plane": {
+                        "type": "object",
+                        "properties": {
+                            "axis": {
+                                "type": "string",
+                                "enum": [
+                                    "x",
+                                    "y",
+                                    "z"
+                                ],
+                                "description": "A plane square to an axis: x = value, y = value or z = value."
+                            },
+                            "value": {
+                                "type": "number",
+                                "description": "Where it crosses that axis (mm)."
+                            },
+                            "point": {
+                                "$use": "point",
+                                "description": "Or any plane: a point on it (mm) ..."
+                            },
+                            "normal": {
+                                "$use": "direction",
+                                "description": "... and its normal."
+                            }
+                        },
+                        "additionalProperties": false,
+                        "description": "{axis, value} or {point, normal}."
+                    },
+                    "save_path": {
+                        "type": "string",
+                        "description": "camera: also write the cam.json here (refused if it exists unless overwrite)."
+                    },
+                    "overwrite": {
+                        "type": "boolean"
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "match_photo_edit",
+            "title": "Match Photo Scene Edit",
+            "runs_on": "bridge",
+            "handler_key": "match_photo_edit",
+            "mutates": true,
+            "timeout_s": 120,
+            "annotations": {
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": false
+            },
+            "api": [
+                "Sketchup::Pages#add_matchphoto_page",
+                "Sketchup::Camera#fov_is_height?",
+                "Sketchup::View#screen_coords",
+                "Sketchup::ImageRep#load_file"
+            ],
+            "description": "Make, update or delete a native SketchUp Match Photo scene (Pages#add_matchphoto_page): the photo behind the model, the scene listed as a matched photo. create: name (PM01__<View>__), photo (match_photo_solve's files.scene_photo: upright, undistorted, marked up), camera (eye, target, up, fov_v_deg: scene_arguments.camera), tests (world points with their pixels) and record. SketchUp must keep the camera (vertical field of view, the photo's aspect) and its own projection is read back at every test point and nine spread over the photo: over max_miss_px (0.05) the scene is refused and rolled back. The record is kept on the scene. Refuses an existing name, and a photo SketchUp would show turned (EXIF rotation). update: a new camera for a scene this tool made. delete: only scenes this tool made. create shows the new scene, as SketchUp's own Match Photo does (activate: false puts the user back on their scene and camera). One undo step.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "create",
+                            "update",
+                            "delete"
+                        ]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The scene: PM01__<View>__ (the scene lexicon's photomatch prefix)."
+                    },
+                    "photo": {
+                        "type": "string",
+                        "description": "create: the photo the scene shows (match_photo_solve's files.scene_photo)."
+                    },
+                    "camera": {
+                        "type": "object",
+                        "properties": {
+                            "eye": {
+                                "$use": "point"
+                            },
+                            "target": {
+                                "$use": "point"
+                            },
+                            "up": {
+                                "$use": "direction"
+                            },
+                            "fov_v_deg": {
+                                "type": "number",
+                                "minimum": 1,
+                                "maximum": 170,
+                                "description": "Vertical field of view."
+                            }
+                        },
+                        "required": [
+                            "eye",
+                            "target",
+                            "up",
+                            "fov_v_deg"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "tests": {
+                        "type": "array",
+                        "maxItems": 60,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "world": {
+                                    "$use": "point"
+                                },
+                                "px": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                }
+                            },
+                            "required": [
+                                "world",
+                                "px"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "description": "World points and where the camera puts them on the photo (scene_arguments.tests)."
+                    },
+                    "record": {
+                        "type": "object",
+                        "description": "Kept on the scene (scene_arguments.record)."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The scene's description."
+                    },
+                    "max_miss_px": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 50,
+                        "description": "Largest miss allowed (default 0.05 px)."
+                    },
+                    "activate": {
+                        "type": "boolean",
+                        "description": "create: show the new scene (default true, as SketchUp does), or false to keep the view as it was."
+                    },
+                    "units": {
+                        "$use": "units"
+                    }
+                },
+                "required": [
+                    "action",
+                    "name"
                 ],
                 "additionalProperties": false
             }

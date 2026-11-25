@@ -28,6 +28,21 @@
 # given. A camera override is restored afterwards, so capturing never moves the
 # user's view.
 #
+# HIDE_TAGS (1.0.41, Cooper 62712): tags hidden for the capture only. A tag's
+# visibility is an undo step of its own, so the hiding runs inside an operation
+# that is always aborted (Na__CommandRouter__WithAbortedOperation) and the tags
+# are shown again in an ensure; inside a batch the batch's own operation holds it.
+#
+# MATCH PHOTO SCENES (1.0.41): while a Match Photo scene is active SketchUp
+# draws its photo over every capture, whatever camera is set. Tested 25-Nov-2026
+# in a test model: View#camera= (the view's camera or a new one), zoom_extents,
+# a temporary scene added inside an aborted operation (it inherits the photo)
+# and a transparent background (the photo still shows through the faces) all
+# keep it, RenderingOptions has no key for it, and only another scene (Adam's
+# call) or an orbit by hand ends it. So the capture says so: the result's
+# match_photo, and a warning when a camera was passed and match_photo_overlay
+# is not true.
+#
 # =============================================================================
 
 require 'time'
@@ -62,6 +77,9 @@ module Na__SketchUpMcp
             'shaded_with_textures' => 'renderTextures:',
             'monochrome'           => 'renderMonochrome:'
         }.freeze
+
+        # A Match Photo scene's name (the scene lexicon's PM01__<View>__, held loosely: PM02__ is enough).
+        NA_MATCH_PHOTO_SCENE = /\APM\d{2,3}__/.freeze
 
         NA_SHADOW_SHORTCUTS = {
             'on' => 'DisplayShadows', 'light' => 'Light', 'dark' => 'Dark',
@@ -335,10 +353,15 @@ module Na__SketchUpMcp
             height = Na__Params.Na__Params__Integer(params, 'height', Na__ConfigLoader.Na__ConfigLoader__Get('defaults', 'capture_height', 800).to_i, min: 64, max: max_pixels)
             format = Na__Params.Na__Params__Enum(params, 'format', %w[png jpg], 'png')
             path = na_capture_path(params, format)
+            # Refused before anything changes: an unknown tag, or Untagged.
+            tags_to_hide = na_tags_to_hide(model, params)
 
             na_activate_scene(model, params['scene']) if params['scene']
             saved_camera = na_camera_copy(view.camera)
             overridden = na_camera_requested?(params)
+            # After the scene: it sets the tags' visibility, and it may be a Match Photo scene.
+            hidden_layers, already_hidden = tags_to_hide.partition(&:visible?)
+            photo_scene = na_match_photo_scene(model)
             render_seconds = 0.0
             begin
                 self.Na__Handlers__View__ApplyCamera(params, ctx) if overridden
@@ -349,9 +372,12 @@ module Na__SketchUpMcp
                     transparent: format == 'png' && Na__Params.Na__Params__Boolean(params, 'transparent', false)
                 }
                 options[:scale_factor] = Na__Params.Na__Params__Number(params, 'line_scale', 1.0, min: 0.1, max: 10.0) if Na__Params.Na__Params__Has(params, 'line_scale')
-                render_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-                ok = view.write_image(options)
-                render_seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - render_started
+                ok = na_with_tags_hidden(hidden_layers, ctx) do
+                    render_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+                    written = view.write_image(options)
+                    render_seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - render_started
+                    written
+                end
                 raise Na__McpError.new('operation_failed', 'SketchUp could not write the image.', 'Try a smaller width/height.') unless ok && File.exist?(path)
 
                 if Na__Params.Na__Params__Boolean(params, 'include_point_cloud', false)
@@ -377,14 +403,90 @@ module Na__SketchUpMcp
             end
             bytes = File.size(path)
             with_cloud = cloud && cloud['composited'] ? ", with #{cloud['names'].join(' and ')} drawn over it" : ''
+            with_tags = hidden_layers.empty? ? '' : ", #{hidden_layers.length} tag#{hidden_layers.length == 1 ? '' : 's'} hidden for it"
+            with_photo = photo_scene ? ", under the Match Photo scene's photo" : ''
             result = {
                 'image_file' => path, 'mime_type' => format == 'png' ? 'image/png' : 'image/jpeg',
                 'keep_file'  => Na__Params.Na__Params__Has(params, 'save_path'), 'width' => width, 'height' => height,
                 'bytes' => bytes, 'render_seconds' => render_seconds.round(2), 'camera' => camera, 'units' => ctx[:unit],
-                'summary' => "Captured #{width} x #{height} #{format} (#{(bytes / 1024.0).round} KB) in #{render_seconds.round(1)} s#{with_cloud}."
+                'summary' => "Captured #{width} x #{height} #{format} (#{(bytes / 1024.0).round} KB) in #{render_seconds.round(1)} s#{with_tags}#{with_cloud}#{with_photo}."
             }
             result['point_cloud'] = cloud if cloud
+            unless tags_to_hide.empty?
+                result['hidden_tags'] = hidden_layers.map { |layer| Na__EntityResolver.Na__EntityResolver__TagDisplayName(layer) }
+                result['already_hidden'] = already_hidden.map { |layer| Na__EntityResolver.Na__EntityResolver__TagDisplayName(layer) } unless already_hidden.empty?
+            end
+            na_report_match_photo(result, photo_scene, model, params, overridden, ctx) if photo_scene
             result
+        end
+
+        # hide_tags (1.0.41): the tags named (a * or ? matches any characters), refused
+        # when one is unknown or is Untagged, which can never be hidden.
+        def self.na_tags_to_hide(model, params)
+            names = Na__Params.Na__Params__Array(params, 'hide_tags', nil, max_items: 500)
+            return [] if names.nil?
+
+            untagged = model.layers[0]
+            layers = names.flat_map do |name|
+                name = name.to_s
+                if Na__EntityResolver.Na__EntityResolver__IsUntagged(name)
+                    raise Na__McpError.new('invalid_params', 'hide_tags: Untagged cannot be hidden.',
+                                           'Name the tags to hide; objects on Untagged stay visible.')
+                end
+                matches = if name.include?('*') || name.include?('?')
+                              model.layers.select { |layer| layer != untagged && File.fnmatch(name, layer.name) }
+                          else
+                              [model.layers[name]].compact
+                          end
+                if matches.empty?
+                    raise Na__McpError.new('not_found', "hide_tags: no tag #{name.include?('*') || name.include?('?') ? 'matches' : 'is named'} '#{name}'.",
+                                           'List tags with collection_list collection="tags" (in hide_tags a * matches any characters).')
+                end
+                matches
+            end
+            layers.uniq
+        end
+
+        # The tags are hidden for the block only, in an operation that is always aborted, and
+        # shown again in an ensure (inside a batch that is what puts them back).
+        def self.na_with_tags_hidden(layers, ctx)
+            return yield if layers.empty?
+
+            Na__CommandRouter.Na__CommandRouter__WithAbortedOperation(ctx, 'MCP: Capture View (tags hidden)') do
+                begin
+                    layers.each { |layer| layer.visible = false }
+                    yield
+                ensure
+                    layers.each { |layer| layer.visible = true if layer.valid? }
+                end
+            end
+        end
+
+        # How the active scene shows as a Match Photo scene, or nil: its name (PMnn__), the
+        # record match_photo_edit keeps on its scenes, or a 2D camera kept at a photo's
+        # aspect ratio (what Pages#add_matchphoto_page leaves).
+        def self.na_match_photo_scene(model)
+            page = model.pages.selected_page
+            return nil unless page
+            return 'name' if page.name =~ NA_MATCH_PHOTO_SCENE
+            return 'record' if page.attribute_dictionary(Na__Handlers__MatchPhoto::NA_MP_DICTIONARY, false)
+
+            camera = page.camera
+            camera && camera.is_2d? && camera.aspect_ratio.to_f > 0.0 ? 'camera' : nil
+        end
+
+        # match_photo_overlay defaults to false when a camera is passed (the agent wants the
+        # model) and true without one (the view as Adam sees it, photo and all).
+        def self.na_report_match_photo(result, photo_scene, model, params, overridden, ctx)
+            scene = model.pages.selected_page.name
+            wanted = Na__Params.Na__Params__Has(params, 'match_photo_overlay') ? Na__Params.Na__Params__Boolean(params, 'match_photo_overlay', false) : !overridden
+            result['match_photo'] = { 'scene' => scene, 'detected_by' => photo_scene, 'photo_drawn' => true, 'camera_passed' => overridden }
+            return if wanted
+
+            ctx[:warnings] << "The active scene '#{scene}' is a Match Photo scene, so SketchUp drew its photo over this capture: it does so " \
+                              'whatever camera is set, and its Ruby API cannot hide the photo (tested 25-Nov-2026). Switching scenes is ' \
+                              "Adam's call: ask him to click a plain scene tab (or orbit once by hand) before you check geometry, or pass " \
+                              'match_photo_overlay: true when you want the photo.'
         end
 
         # include_point_cloud (1.0.13): the Point Cloud Viewer's seam draws the

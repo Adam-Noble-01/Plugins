@@ -3,6 +3,34 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.7.9 - 25-Nov-2026 - Wide Double Interior Doors (up to 3000 mm), Traditional Round Doorknob, Stepped Georgian Architrave, and SSOT Edge Colours on Interior Door Solids
+
+### Context
+Adam, 25-Nov-2026, on Telfer-Smith 64481 (Hollinwell Golf Club interior modelling): "use element studio pro for interior doors (see your MCP) if it cant achieve the excat doors and styles update the plugin to be able to". The real clubhouse doors are traditional Georgian six-panel single and double doors (`1695 x 2100 mm` double doors on the Mixed Lounge Back wall, `855 x 2100 mm` Ladies and `900 x 2100 mm` Male Lounge single doors) fitted with round brass doorknobs on circular roses and bold stepped classical architraves.
+
+### Fixed: Double Interior Doors Wider Than 1500 mm
+- `Na__DoorConfig__OpeningWidth_mm` previously capped at `1500 mm`, so both the dialog and `entity_studio_edit build` refused standard UK double interior doors (`1600 to 2400 mm`, including Telfer-Smith's `1695 mm` pair).
+- Raised the `Na__DoorConfig__OpeningWidth_mm` slider maximum from `1500` to `3000 mm` (`min: 600, step: 5, default: 850`) in `40__System__InteriorDoorSystem/...UiSystem__Config__.js` and regenerated `02__AppData/Na__AssemblyStudio__ParameterCatalogue__.json`.
+
+### New: Traditional Georgian Interior Door Assets
+- **Handle (`Na__InteriorDoor__Handle__RoundKnob`):** mid-poly 16-segment closed manifold lathe mesh (58 mm circular rose, turned neck, 54 mm round Georgian doorknob, 62 mm projection) with full `Plan2D`, `Elevation2D`, and `Mesh3D` blocks and `OffsetX_mm: +-55` (centred on a 95 mm lock stile, clearing the meeting stile cleanly on double doors). Available in Brass, Bronze, Chrome, Brushed Steel, and Satin Nickel.
+- **Architrave (`Na__Asset__Plan2D__Architrave__TraditionalStepped__w95mm_x_d25mm`):** three-step 95 mm wide x 25 mm deep classical Georgian architrave profile discovered automatically by `AssetLibrary.na_list_assets(:architraves)` in both the dialog and MCP.
+
+### Changed: Interior Door Solids Painted From SSOT at Build (Edge Gate)
+- Added `na_apply_standard_edge_colours` in `Na__InteriorDoorSystem::Na__GeometryEngine` (both `na_create_door` and `na_update_door`): paints lining (`Na__Lining__Container`), front/back architraves (`Na__Architrave__*`), and closed/open door panel solids (`Na__DoorPanel__Solid`) with `MTE103__LineColour__DarkGrey__L40`, and 2D swing arcs (`Na__DoorSwing__2D`) with `MTE104__LineColour__MidGrey__L60`, leaving `ROT` red pivot helpers untouched (matching V2.7.6 cabinetry edge painting).
+
+### Files Changed
+- `40__System__InteriorDoorSystem/`: `...UiSystem__Config__.js`, `...GeometryEngine__.rb`.
+- `04__Data__AssetLibrary/InteriorDoor__Handles__/Na__InteriorDoor__Handle__RoundKnob__.json` (new).
+- `04__Data__AssetLibrary/InteriorDoor__Architraves__/Na__Asset__Plan2D__Architrave__TraditionalStepped__w95mm_x_d25mm__.json` (new).
+- `02__AppData/Na__AssemblyStudio__ParameterCatalogue__.json` (regenerated), `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (`2.7.9`).
+
+### Validation Checklist
+- [ ] Reload Scripts (or restart SketchUp); open Interior Doors tab: Opening Width reaches 3000 mm for double doors.
+- [ ] Select Panel Design "Classical Six-Panel", Handle "Traditional Round Doorknob on Rose" (Brass), Architrave "Traditional Stepped Architrave 95x25": builds a 1695 x 2100 mm Double door cleanly with 0 unpainted edges.
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.7.8 - 23-Nov-2026 - Handleless Doors: a Finger Groove in the Back, a Gap Under the Worktop, Downstands; a Gap Behind the Fronts; an Appliance Stack of Four With a Filler Below
 
 ### Context

@@ -676,6 +676,125 @@ module Na__McpOperations
     private_class_method :na_rename
     # ---------------------------------------------------------------
 
+    # FUNCTION | Place Shared Rotated / Tagged Copies of One Master Element
+    # ------------------------------------------------------------
+    # Adds N ComponentInstances sharing source.definition at the requested
+    # stations in one atomic undoable operation, copying every instance-level
+    # attribute dictionary (ConfiguratorInfo etc.) so every bay copy stays
+    # first-class to entity_studio elements, inspect, and the dialog.
+    def self.na_place_copies(params)
+        source, element = na_require_element(params)
+        stations = params['resolved_stations']
+        unless stations.is_a?(Array) && !stations.empty?
+            na_refuse('invalid_params', 'place_copies needs a non-empty stations array.',
+                      'Pass stations: [{position: [x, y, z], rotation_z_deg: 0, name: "...", tag: "..."}].')
+        end
+
+        planned = stations.each_with_index.map do |station, idx|
+            origin = station['position_point']
+            if station['direction_vector']
+                dir  = station['direction_vector']
+                flat = Geom::Vector3d.new(dir.x, dir.y, 0)
+                if flat.length < 1.0e-6
+                    na_refuse('invalid_params', "stations[#{idx}].direction must run along the floor.", 'e.g. [1, 0, 0].')
+                end
+                xaxis = flat.normalize
+                yaxis = Z_AXIS * xaxis
+                tr    = Geom::Transformation.axes(origin, xaxis, yaxis, Z_AXIS)
+                rot_z = (Math.atan2(xaxis.y, xaxis.x) * 180.0 / Math::PI).round(3)
+            else
+                rot_z = station['rotation_z_deg'].to_f
+                tr    = Geom::Transformation.translation(origin - ORIGIN) *
+                        Geom::Transformation.rotation(ORIGIN, Z_AXIS, rot_z * Math::PI / 180.0)
+            end
+            {
+                'transform'      => tr,
+                'origin_mm'      => na_mm(origin),
+                'rotation_z_deg' => rot_z,
+                'name'           => station['name'].to_s.strip,
+                'tag'            => station['tag'].to_s.strip
+            }
+        end
+
+        if params['dry_run'] == true
+            return {
+                'dry_run'        => true,
+                'source_id'      => source.persistent_id,
+                'id'             => element['id'],
+                'type'           => element['product'],
+                'definition'     => source.definition.name,
+                'copies_planned' => planned.length,
+                'stations'       => planned.map { |row| row.reject { |k, _| k == 'transform' } },
+                'summary'        => "Would place #{planned.length} shared copy/copies of #{element['id']} (#{source.definition.name}). Nothing changed (dry run)."
+            }
+        end
+
+        model    = Sketchup.active_model
+        created  = []
+        warnings = []
+        model.start_operation('Place Shared Assembly Copies', true)
+        begin
+            planned.each do |row|
+                copy = model.entities.add_instance(source.definition, row['transform'])
+                copy.name     = row['name'].empty? ? source.name : row['name']
+                copy.material = source.material if source.material
+
+                if row['tag'].empty?
+                    copy.layer = source.layer
+                else
+                    layer = model.layers[row['tag']]
+                    unless layer
+                        layer = model.layers.add(row['tag'])
+                        warnings << "Tag '#{row['tag']}' did not exist and was created plain (use tag_manage create_standard first for SSOT styling)."
+                    end
+                    copy.layer = layer
+                end
+
+                na_copy_instance_attributes(source, copy)
+                created << copy
+            end
+            model.commit_operation
+        rescue StandardError
+            model.abort_operation
+            raise
+        end
+
+        {
+            'source_id'       => source.persistent_id,
+            'id'              => element['id'],
+            'type'            => element['product'],
+            'definition'      => source.definition.name,
+            'copies_created'  => created.length,
+            'total_copies'    => source.definition.instances.length,
+            'created_objects' => created,
+            'warnings'        => warnings,
+            'summary'         => "Placed #{created.length} shared copy/copies of #{element['id']} (#{source.definition.name}); " \
+                                 "#{source.definition.instances.length} total instance(s) share this definition."
+        }
+    rescue Na__AssemblyStudio::Na__McpOperationsError
+        raise
+    rescue StandardError => error
+        na_refuse('operation_failed', "Placing shared copies failed: #{error.message}", 'The operation was aborted; nothing was added.')
+    end
+    private_class_method :na_place_copies
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Duplicate Instance-Level Attribute Dictionaries
+    # ------------------------------------------------------------
+    def self.na_copy_instance_attributes(source, target)
+        dictionaries = source.attribute_dictionaries
+        return unless dictionaries
+
+        dictionaries.each do |dict|
+            dict_name = dict.name
+            dict.each do |key, value|
+                target.set_attribute(dict_name, key, value)
+            end
+        end
+    end
+    private_class_method :na_copy_instance_attributes
+    # ---------------------------------------------------------------
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

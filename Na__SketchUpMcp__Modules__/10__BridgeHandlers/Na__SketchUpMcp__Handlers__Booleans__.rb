@@ -37,6 +37,12 @@
 # After it runs, a failure names the cutter that failed and the likely causes,
 # and a result that is not a solid is reported at once.
 #
+# KEEP_ID (1.0.41, Cooper 62712): union and subtract on a group can keep the
+# target's persistent id. The boolean runs on a COPY of the target, and
+# Na__Transplant puts the result's faces back into the original group (L692),
+# keeping Adam's edge colours (L1152) and falling back to place-and-explode on a
+# sliver face (L1465). The whitecard kits each carried their own copy of that.
+#
 # =============================================================================
 
 module Na__SketchUpMcp
@@ -47,6 +53,9 @@ module Na__SketchUpMcp
 # -----------------------------------------------------------------------------
 
         NA_OPERATIONS = %w[union subtract intersect trim split outer_shell].freeze
+
+        # keep_id puts ONE result back into the target, so only these (1.0.41).
+        NA_KEEP_ID_OPERATIONS = %w[union subtract].freeze
 
         # Operations whose cutters must reach the target to do anything (union/outer_shell merge apart solids).
         NA_NEEDS_OVERLAP = %w[subtract intersect trim split].freeze
@@ -95,13 +104,17 @@ module Na__SketchUpMcp
                                   '(30 s or more) and can fail or leave holes there.'
             end
             keep_tools = Na__Params.Na__Params__Boolean(params, 'keep_tools', false)
+            keep_id = Na__Params.Na__Params__Boolean(params, 'keep_id', false)
+            na_check_keep_id(operation, target, model) if keep_id
             properties = na_capture_properties(target)
             target_id = target.persistent_id
+            # keep_id: the engine works on a copy, so the target itself is untouched until the transplant.
+            operand = keep_id ? na_copy(target) : target
 
             started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
             result, failed_tool_id = case operation
                                      when 'split' then [na_split(target, tools.first, keep_tools, ctx), tools.first.persistent_id]
-                                     else na_sequence(operation, target, tools, keep_tools)
+                                     else na_sequence(operation, operand, tools, keep_tools)
                                      end
             seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
 
@@ -110,6 +123,8 @@ module Na__SketchUpMcp
             na_warn_slow(seconds, faces, ctx)
 
             result_name = Na__Params.Na__Params__String(params, 'result_name', nil)
+            return na_keep_id_finish(results.first, target, result_name, operation, seconds, ctx) if keep_id
+
             # split yields three pieces of the same parts; each carries the target's properties.
             (operation == 'split' ? results : [results.first]).each do |piece|
                 na_restore_properties(piece, properties, result_name)
@@ -148,6 +163,49 @@ module Na__SketchUpMcp
                 return [nil, tool_id] if current.nil?
             end
             [current, nil]
+        end
+
+        # keep_id (1.0.41): only union and subtract, only a closed group (a component's
+        # definition may have other copies, and an open group's entities are world).
+        def self.na_check_keep_id(operation, target, model)
+            unless NA_KEEP_ID_OPERATIONS.include?(operation)
+                raise Na__McpError.new('invalid_params', "keep_id works with union and subtract (one result to put back), not #{operation}.",
+                                       "Drop keep_id for #{operation}: its result is a new group with a new id.")
+            end
+            unless target.is_a?(Sketchup::Group)
+                raise Na__McpError.new('invalid_params',
+                                       "keep_id needs a group as the target; id #{target.persistent_id} is a component instance, and other copies may share its definition.",
+                                       'Run it without keep_id, or make the target a group first.')
+            end
+            return unless Na__Coordinates.Na__Coordinates__InstanceIsOpen(model, target)
+
+            raise Na__McpError.new('context_error', "Target #{target.persistent_id} is open for editing, so keep_id cannot put the result back into it.",
+                                   'Close it first: context_set with action close_all (or close), or ask the user to leave the group.')
+        end
+
+        # keep_id: the result's geometry goes back into the target, which keeps its id,
+        # name, tag, material, attributes and axes; the result group is erased.
+        def self.na_keep_id_finish(result, target, result_name, operation, seconds, ctx)
+            unless result.manifold?
+                raise Na__McpError.new('operation_failed',
+                                       "keep_id: SketchUp's engine left the #{operation} result open (#{Na__SolidHealth.Na__SolidHealth__Describe(result)}), " \
+                                       "so it was not put back into target #{target.persistent_id}. Nothing was changed.",
+                                       'Retry with cutters that pass 1 mm beyond the faces they cut, or run it without keep_id to see the broken result.')
+            end
+
+            report = Na__Transplant.Na__Transplant__Into(target, result)
+            target.name = result_name if result_name
+            Na__Creation.Na__Creation__EnsureName(target, {}, NA_RESULT_KINDS.fetch(operation, 'Solid'), ctx)
+            ctx[:warnings] << "keep_id: #{report['fallback']}." if report['fallback']
+            {
+                'operation'  => operation,
+                'seconds'    => seconds.round(2),
+                'kept_id'    => true,
+                'result'     => [Na__Serializer.Na__Serializer__Summary(target, ctx, nil, true)],
+                'transplant' => report,
+                'summary'    => "#{operation} complete: the result is back in target #{target.persistent_id}, which keeps its id, name, tag and " \
+                                "attributes (#{report['method']}; #{report['edge_colours']['kept']} edge colours kept)."
+            }
         end
 
         # The engine returned nothing although every operand is a solid and reaches the target.

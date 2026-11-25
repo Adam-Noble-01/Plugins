@@ -18,6 +18,25 @@ never to be any.
 
 
 # ---------------------------------------------------------
+### Vale Lantern Importer - Version 1.6.0 - 25-Nov-2026
+#### FEATURE - Native SSOT Prism Edge Colours, Manifold Solid Healing, and Safe Edit-Context Reload
+
+Brings imported roof lanterns to zero unpainted edges and 100% manifold solid leaves on import and reload without any manual post-processing pass.
+
+- **Native SSOT prism edge colours (`Config.json`, `ConfigLoader`, `DataLibBridge`, `PrismBuilder`):**
+  - Added `Na__ValeLantern__Importer__Config__EdgeColours` (`ConfigVersion: 1.6.0`) mapping base structural members (`buildersUpstand`, `headBeam`, `eavesExtrusion`, `leadFlashing`) to `MTE102__LineColour__SoftBlack__L20` and all remaining roof/glazebar/glazing/joinery families to `MTE103__LineColour__DarkGrey__L40`.
+  - Added `DataLibBridge.na_palette_edge_material(model, material_name)` reading `Na__DataLib__CoreIndex__EdgeMaterials` so edge materials share the exact same SSOT names and RGB values used by `Na__EdgeUtil__PaintDeepNestedEdges` and Element Assembly Studio Pro.
+  - `PrismBuilder.na_paint_hard_edges` runs once per shared definition immediately after `EdgeSoftener.na_soften_for_tag`, painting only hard visible edges (`!soft? && !hidden? && material.nil?`). Authored meshes (`MeshBuilder`) keep their own replayed edge styles untouched.
+- **Manifold mitred prism caps (`PrismBuilder`):**
+  - Added 2D ear-clipping cap triangulation fallback (`na_triangulate_cap`) in `na_add_cap` when SketchUp refuses a single planar face on a mitred 4+ vertex ring (e.g. `HeadBeam` and `LeadFlashing`). Internal cap diagonals are softened so the closed solid stays clean and passes `manifold? == true`.
+- **Internal diaphragm pruning on authored meshes (`MeshBuilder`):**
+  - Added `na_prune_internal_diaphragms` to remove internal septum faces whose every edge touches 3 or more faces (such as the internal circular disk inside `RidgeBlock`), restoring `manifold? == true` without ever touching exterior shell faces. Runs on both freshly built and reused `AssetId` definitions.
+- **Edit-context safety and live config refresh on reload (`LanternReloader`):**
+  - Calls `ConfigLoader.na_reset` at the start of `na_reload` so edits to `Na__ValeLantern__Importer__Config.json` take effect immediately on reload.
+  - Calls `na_close_edit_context_for(model, definition)` before clearing `definition.entities`, preventing an active edit context inside the reloaded lantern from being invalidated during rebuild.
+
+
+# ---------------------------------------------------------
 ### Vale Lantern Importer - Version 1.5.0 - 12-Aug-2026
 #### FEATURE - Reload on the Right Click Menu
 

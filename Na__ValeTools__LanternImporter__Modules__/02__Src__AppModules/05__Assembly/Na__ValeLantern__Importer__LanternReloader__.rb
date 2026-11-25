@@ -111,6 +111,8 @@ module Na__ValeLantern
                     return false
                 end
 
+                ConfigLoader.na_reset
+
                 unless ConfigLoader.na_reload_in_place?
                     DebugTools.na_error('Reload in place is switched off in the importer config.')
                     return false
@@ -260,6 +262,11 @@ module Na__ValeLantern
                 choices  = na_choices_for(container, definition, source_path)
                 placings = na_placement_count(definition)
 
+                # Close any open edit context that passes through the definition
+                # being cleared, so definition.entities.clear! never destroys the
+                # user's active edit container.
+                na_close_edit_context_for(model, definition)
+
                 DebugTools.na_reset_tally
                 model.start_operation(NA_OPERATION_NAME, true)
 
@@ -302,6 +309,23 @@ module Na__ValeLantern
                 end
             end
             private_class_method :na_rebuild
+
+            # HELPER FUNCTION | Close active edit contexts inside the reloaded lantern
+            # ------------------------------------------------------------
+            def self.na_close_edit_context_for(model, definition)
+                guard = NA_MAX_TREE_DEPTH
+                while guard > 0
+                    path = model.active_path
+                    break unless path.is_a?(Array) && !path.empty?
+                    break unless path.any? { |ent| na_definition_of(ent) == definition }
+
+                    model.close_active
+                    guard -= 1
+                end
+            rescue StandardError => e
+                DebugTools.na_detail("Active edit context could not be closed: #{e.message}")
+            end
+            private_class_method :na_close_edit_context_for
 
             # HELPER FUNCTION | Every definition nested under one container definition
             # ------------------------------------------------------------

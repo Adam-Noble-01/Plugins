@@ -29,7 +29,7 @@ module Na__SketchUpMcp
 # REGION | Constants
 # -----------------------------------------------------------------------------
 
-        NA_ACTIONS = %w[create create_standard update delete set_active isolate show_all create_folder delete_folder].freeze
+        NA_ACTIONS = %w[create create_standard mirror_visibility update delete set_active isolate show_all create_folder delete_folder].freeze
         NA_DATALIB_FOLDER = File.expand_path('../../Na__Common__DataLib__CoreSuEntityStandards', __dir__).freeze
         NA_SSOT_TAGS_FILE = File.join(NA_DATALIB_FOLDER, 'Na__DataLib__CoreIndex__Tags__.json').freeze
         NA_SSOT_EDGES_FILE = File.join(NA_DATALIB_FOLDER, 'Na__DataLib__CoreIndex__EdgeMaterials__.json').freeze
@@ -44,9 +44,10 @@ module Na__SketchUpMcp
             model = ctx[:model]
             action = Na__Params.Na__Params__Enum(params, 'action', NA_ACTIONS, nil, required: true)
             case action
-            when 'create'        then na_create(model, params, ctx)
-            when 'create_standard' then na_create_standard(model, params, ctx)
-            when 'update'        then na_update(model, params, ctx)
+            when 'create'            then na_create(model, params, ctx)
+            when 'create_standard'   then na_create_standard(model, params, ctx)
+            when 'mirror_visibility' then na_mirror_visibility(model, params, ctx)
+            when 'update'            then na_update(model, params, ctx)
             when 'delete'        then na_delete(model, params)
             when 'set_active'    then na_set_active(model, params)
             when 'isolate'       then na_isolate(model, params)
@@ -145,6 +146,54 @@ module Na__SketchUpMcp
             ctx[:warnings] << 'Na Noble3d Modelling Tools (TagUtils) is not loaded: tags took the SSOT line style and colour only, without its metadata.' unless tag_utils
             { 'created' => created, 'updated' => updated, 'existing' => existing, 'ssot_version' => (payload['meta'] || {})['version'],
               'summary' => "Created #{created.length} SSOT tag(s)#{updated.empty? ? '' : ", updated #{updated.length}"}#{existing.empty? ? '' : "; #{existing.length} already in the model, left as they are"}." }
+        end
+
+        # Mirror one source tag's current model visibility and per-scene visibility onto
+        # one or more target tags (optionally creating missing SSOT tags first). Skips
+        # scenes that do not save hidden layers so page.layers is never read when nil.
+        def self.na_mirror_visibility(model, params, ctx)
+            source_name  = Na__Params.Na__Params__String(params, 'source_tag', nil, required: true)
+            source_layer = na_require_tag(model, source_name)
+            target_names = na_names(params)
+
+            created_report = nil
+            if Na__Params.Na__Params__Boolean(params, 'create_standard', false)
+                created_report = na_create_standard(model, params, ctx)
+            end
+
+            target_layers = target_names.map do |name|
+                layer = na_require_tag(model, name)
+                na_refuse_untagged(model, layer, 'visibility-mirrored')
+                layer
+            end
+
+            source_visible = source_layer.visible?
+            target_layers.each { |layer| layer.visible = source_visible }
+
+            scenes_updated = 0
+            scenes_skipped = 0
+            model.pages.each do |page|
+                unless page.use_hidden_layers? && page.layers
+                    scenes_skipped += 1
+                    next
+                end
+
+                source_hidden = page.layers.include?(source_layer)
+                target_layers.each { |layer| page.set_visibility(layer, !source_hidden) }
+                scenes_updated += 1
+            end
+
+            result = {
+                'source_tag'     => Na__EntityResolver.Na__EntityResolver__TagDisplayName(source_layer),
+                'source_visible' => source_visible,
+                'targets'        => target_names,
+                'scenes_updated' => scenes_updated,
+                'scenes_skipped' => scenes_skipped,
+                'summary'        => "Mirrored '#{source_name}' visibility onto #{target_names.length} tag(s) across #{scenes_updated} scene(s)" \
+                                    "#{scenes_skipped > 0 ? " (#{scenes_skipped} scene(s) without saved layer visibility skipped)" : ''}."
+            }
+            result['create_standard'] = created_report if created_report
+            result
         end
 
         # { 'Tag__SketchUpName' => [entry key, entry data] } for every entry at any depth.

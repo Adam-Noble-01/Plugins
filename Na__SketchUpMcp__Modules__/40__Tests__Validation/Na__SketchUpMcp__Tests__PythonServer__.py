@@ -37,6 +37,7 @@ NA_SERVER_MAIN = os.path.join(NA_SERVER_DIR, 'Na__SketchUpMcp__Server__Main__.py
 sys.path.insert(0, NA_SERVER_DIR)
 
 import Na__SketchUpMcp__Server__BridgeClient__ as Na__BridgeClientModule  # noqa: E402
+NA_MODULES_ROOT_FOR_TESTS = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 NA_PNG_1X1 = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
 
@@ -236,7 +237,7 @@ class NaMcpServerTests(unittest.TestCase):
 
     def test_tools_list(self):
         tools = self.session.request('tools/list')['result']['tools']
-        self.assertEqual(len(tools), 79)
+        self.assertEqual(len(tools), 83)
         for tool in tools:
             self.assertEqual(tool['inputSchema']['type'], 'object')
             self.assertNotIn('$use', json.dumps(tool['inputSchema']))
@@ -294,6 +295,41 @@ class NaMcpServerTests(unittest.TestCase):
         self.assertEqual(edit['wrapper']['required'], ['name'])
         self.assertIn('near', tools['profile_tracer']['inputSchema']['properties'])
         self.assertIn('confirm', tools['profile_tracer_library']['inputSchema']['properties'])
+
+    def test_match_photo_tools(self):
+        # 1.0.40: Match Photo by numbers. match_photo_solve runs in the server (the vision worker, a child process);
+        # match_photo reads scenes, match_photo_edit makes them (one undo step).
+        tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
+        for name in ('match_photo_solve', 'match_photo', 'match_photo_edit'):
+            self.assertIn(name, tools)
+            self.assertLessEqual(len(tools[name]['description']), 2048)
+            self.assertFalse(tools[name]['inputSchema']['additionalProperties'])
+        self.assertEqual(tools['match_photo_solve']['inputSchema']['required'], ['photo', 'lines', 'origin', 'scale'])
+        self.assertTrue(tools['match_photo']['annotations']['readOnlyHint'])
+        self.assertFalse(tools['match_photo_edit']['annotations']['readOnlyHint'])
+        self.assertEqual(tools['match_photo_edit']['inputSchema']['properties']['action']['enum'], ['create', 'update', 'delete'])
+        line = tools['match_photo_solve']['inputSchema']['properties']['lines']['items']
+        self.assertEqual(line['properties']['axis']['enum'], ['x', 'y', 'z'])
+        self.assertIn('range', line['properties'])
+
+    def test_match_photo_solve_refuses_a_missing_photo_without_sketchup(self):
+        arguments = {'photo': os.path.join(self.temp_dir, 'no_such_photo.jpg'),
+                     'lines': [{'id': 'R%d' % i, 'axis': 'x', 'rough': [[0, i], [9, i]]} for i in range(4)],
+                     'origin': {'world': [0, 0, 0], 'lines': ['R0', 'R1']}, 'scale': {'world': [1, 0, 0], 'lines': ['R0', 'R2']}}
+        response = self.session.call('match_photo_solve', arguments)
+        self.assertTrue(response['result']['isError'])
+        self.assertIn('file_error', self.text(response))
+
+    def test_match_photo_worker_selftest(self):
+        # The worker's own end-to-end test (a synthetic house through a known camera, lens and crop), when this Python
+        # has numpy, SciPy and OpenCV; skipped where it does not (the server itself needs none of them).
+        worker = os.path.join(NA_MODULES_ROOT_FOR_TESTS, '35__VisionWorker__Python', 'Na__SketchUpMcp__VisionWorker__MatchPhoto__.py')
+        deps = subprocess.run([sys.executable, worker, '--deps'], capture_output=True, text=True, timeout=60)
+        info = json.loads(deps.stdout or '{}')
+        if not (info.get('numpy') and info.get('cv2') and info.get('scipy')):
+            self.skipTest('numpy, SciPy or OpenCV missing for %s' % sys.executable)
+        done = subprocess.run([sys.executable, worker, '--selftest'], capture_output=True, text=True, timeout=240)
+        self.assertIn('==> OK', done.stdout, done.stdout[-2000:] + done.stderr[-2000:])
 
     def test_truevision_glb_builder_tools(self):
         tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}

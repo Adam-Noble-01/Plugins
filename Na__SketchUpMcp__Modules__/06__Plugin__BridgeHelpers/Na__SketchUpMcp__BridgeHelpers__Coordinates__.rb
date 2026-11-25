@@ -144,6 +144,16 @@ module Na__SketchUpMcp
             self.Na__Coordinates__PlacementForPath(model, container_path + [instance])
         end
 
+        # from's definition coordinates -> to's, for two instances in ONE parent
+        # collection (1.0.41, solid_boolean keep_id). Both #transformation values are
+        # reported in that parent's space, open or closed, so the open-context
+        # correction cancels: true(to)^-1 * true(from) = to.transformation^-1 *
+        # from.transformation. Neither may be open itself: an open instance's
+        # entities report world coordinates (the caller refuses that case).
+        def self.Na__Coordinates__SiblingToSibling(from_instance, to_instance)
+            to_instance.transformation.inverse * from_instance.transformation
+        end
+
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

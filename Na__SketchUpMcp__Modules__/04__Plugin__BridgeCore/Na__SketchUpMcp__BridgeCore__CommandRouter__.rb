@@ -60,6 +60,7 @@ module Na__SketchUpMcp
             'selection_set'         => [:Na__Handlers__Selection,    :Na__Handlers__Selection__Set],
             'context_set'           => [:Na__Handlers__Selection,    :Na__Handlers__Selection__ContextSet],
             'geometry_measure'      => [:Na__Handlers__Measure,      :Na__Handlers__Measure__Measure],
+            'geometry_faces'        => [:Na__Handlers__Measure,      :Na__Handlers__Measure__Faces],
             'geometry_draw'         => [:Na__Handlers__Geometry,     :Na__Handlers__Geometry__Draw],
             'geometry_create_solid' => [:Na__Handlers__Primitives,   :Na__Handlers__Primitives__CreateSolid],
             'geometry_create_mesh'  => [:Na__Handlers__Geometry,     :Na__Handlers__Geometry__CreateMesh],
@@ -120,7 +121,9 @@ module Na__SketchUpMcp
             'model_snapshot'        => [:Na__Handlers__ModelDiff,     :Na__Handlers__ModelDiff__Snapshot],
             'model_diff'            => [:Na__Handlers__ModelDiff,     :Na__Handlers__ModelDiff__Diff],
             'image_rectify'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Rectify],
-            'image_flatten'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Flatten]
+            'image_flatten'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Flatten],
+            'match_photo'           => [:Na__Handlers__MatchPhoto,     :Na__Handlers__MatchPhoto__Read],
+            'match_photo_edit'      => [:Na__Handlers__MatchPhoto,     :Na__Handlers__MatchPhoto__Edit]
         }.freeze
 
         # Bridge commands that are not MCP tools in the registry.
@@ -241,6 +244,25 @@ module Na__SketchUpMcp
                 model.abort_operation
                 raise
             ensure
+                ctx[:in_operation] = false
+            end
+        end
+
+        # Runs the block inside one undo operation that is ALWAYS aborted (1.0.41:
+        # view_capture hide_tags), so a change made only for a moment leaves no undo
+        # step: a tag's visibility is an undo step of its own (tested 25-Nov-2026).
+        # Inside an operation already open for this request (a batch) the block runs
+        # in it, so the caller must put back what it changed itself.
+        def self.Na__CommandRouter__WithAbortedOperation(ctx, operation_name)
+            return yield if ctx[:in_operation]
+
+            model = ctx[:model]
+            model.start_operation(operation_name, true)
+            ctx[:in_operation] = true
+            begin
+                yield
+            ensure
+                model.abort_operation
                 ctx[:in_operation] = false
             end
         end

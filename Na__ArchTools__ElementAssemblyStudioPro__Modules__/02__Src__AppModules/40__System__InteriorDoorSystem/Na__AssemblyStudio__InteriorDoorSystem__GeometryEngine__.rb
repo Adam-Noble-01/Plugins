@@ -45,6 +45,7 @@ require_relative 'Na__AssemblyStudio__InteriorDoorSystem__FuseLiningParts__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DoorAssemblyComposer__'
 require_relative 'Na__AssemblyStudio__InteriorDoorSystem__DataSerializer__'
 require_relative '../03__AppUtils/Na__AssemblyStudio__AppUtils__TagManager__'
+require_relative '../02__AppData/Na__AssemblyStudio__AppData__EdgeColourManager__'
 
 module Na__AssemblyStudio
 module Na__InteriorDoorSystem
@@ -63,6 +64,7 @@ module Na__InteriorDoorSystem
         DoorAssemblyComposer= Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DoorAssemblyComposer
         DataSerializer      = Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DataSerializer
         TagManager          = Na__AssemblyStudio::Na__AppUtils::Na__TagManager
+        EdgeColourManager   = Na__AssemblyStudio::Na__AppData::Na__EdgeColourManager
         InsertionFrame      = Na__AssemblyStudio::Na__GeometryHelpers::Na__InsertionFrame              # <-- Wall-aware insertion transform helper
 
 # endregion -------------------------------------------------------------------
@@ -108,6 +110,8 @@ module Na__InteriorDoorSystem
                 if config["Na__DoorConfig__CreateOpenStateCopy"] != false
                     DoorAssemblyComposer.na_compose_open_state_copy(config, closed_assembly, door_entities)
                 end
+
+                na_apply_standard_edge_colours(door_entities)
 
                 tag_proposed_doors     = TagManager.na_get_or_create_tag(:proposed_doors)
                 instance_transform     = na_resolve_insertion_transform(insertion_frame)
@@ -167,6 +171,8 @@ module Na__InteriorDoorSystem
                 if config["Na__DoorConfig__CreateOpenStateCopy"] != false
                     DoorAssemblyComposer.na_compose_open_state_copy(config, closed_assembly, definition.entities)
                 end
+
+                na_apply_standard_edge_colours(definition.entities)
 
                 DebugTools.na_debug_geometry("Updated door definition: #{definition.name}")
                 true
@@ -248,6 +254,39 @@ module Na__InteriorDoorSystem
             nil
         end
         private_class_method :na_lookup_material
+        # ---------------------------------------------------------------
+
+        # HELPER FUNCTION | Paint All Door Solid and Swing Edges From SSOT
+        # ------------------------------------------------------------
+        # Paints lining, architraves, and door panel solids DarkGrey L40
+        # (matching panel design linework and V2.7.6 cabinetry solids) and
+        # 2D swing arcs MidGrey L60 so every built interior door passes the
+        # edge-colour gate with zero unpainted edges. ROT pivot helpers keep
+        # their red colour untouched.
+        def self.na_apply_standard_edge_colours(door_entities)
+            return unless door_entities
+
+            dark_grey = EdgeColourManager::NA_DEFAULT_DARK_GREY_KEY
+            mid_grey  = "MTE104__LineColour__MidGrey__L60"
+
+            door_entities.grep(Sketchup::Group).each do |group|
+                next unless group.valid?
+                name = group.name.to_s
+                if name == "Na__Lining__Container" || name.start_with?("Na__Architrave__")
+                    EdgeColourManager.na_apply_edge_colour_to_group(group, dark_grey)
+                elsif name == "Na__DoorSwing__2D"
+                    EdgeColourManager.na_apply_edge_colour_to_group(group, mid_grey)
+                elsif name.start_with?("MOD")
+                    group.entities.grep(Sketchup::Group).each do |part|
+                        next unless part.valid? && part.name.to_s == "Na__DoorPanel__Solid"
+                        EdgeColourManager.na_apply_edge_colour_to_group(part, dark_grey)
+                    end
+                end
+            end
+        rescue StandardError => e
+            DebugTools.na_debug_warn("Edge colour application on interior door skipped: #{e.message}")
+        end
+        private_class_method :na_apply_standard_edge_colours
         # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------

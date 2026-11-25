@@ -1,0 +1,2697 @@
+{
+  "meta"  :  {
+    "fileName"  :  "PRF90093__Vale__Entablature__Abbasi__BeltonGutter__h350mm.json",
+    "description"  :  "Profile saved through the Na SketchUp MCP (Na__ProfileTools__ProfilePathTracer).",
+    "version"  :  "1.0.0",
+    "lastUpdated"  :  "24-Nov-2026",
+    "namingConvention"  :  "All custom keys use Na__ prefixed three-stage naming.",
+    "fieldPrefixes"  :  {
+      "Na__Asset__"  :  "Top-level asset metadata and content blocks",
+      "Na__Geometry__"  :  "Geometry fields and coordinate metadata",
+      "Na__PanelPlacement__"  :  "Reserved placement metadata"
+    },
+    "Meta_ProfileTimestamp"  :  "24-Nov-2026__12:25",
+    "Meta_ProfileShortName"  :  "Vg Entablature Abbasi",
+    "Meta_ProfileKeywords"  :  [
+      "Vale",
+      "Orangery",
+      "Entablature",
+      "Gutter",
+      "Eaves Gutter",
+      "Belton",
+      "Abbasi",
+      "Bespoke"
+    ]
+  },
+  "Na__Asset__Metadata"  :  {
+    "Na__Asset__Name"  :  "Vale__Entablature__Abbasi__BeltonGutter__h350mm",
+    "Na__Asset__ShortName"  :  "Vg Entablature Abbasi",
+    "Na__Asset__Code"  :  "PRF90093__Vale__Entablature__Abbasi__BeltonGutter__h350mm",
+    "Na__Asset__Type"  :  "Profile2D",
+    "Na__Asset__Description"  :  "Bespoke Vale entablature with its eaves gutter: a 49 band (127.4 proud), a frieze (135.2), an R18 cove and R18 ovolo cornice to a 232.3 soffit ledge, an R12.5 cove and a Belton-type ogee gutter lip (R31 / R35) to 305 proud; 350 high. Traced from the Vale CAD for 64589 Abbasi (24-Nov-2026): the Front and Left elevations draw it end-on and agree to 0.02 mm; the built test sweep matched both within 1.6 mm at every 5 mm (na_profile_vs_cad). Datum 0,0 = the outer wall plane at the soffit, outward -y; the back sits on the wall face (no back block). The column shafts stand 18 behind the datum. The CAD's four R1 roundings were dropped. Saved on the MANAGER's ruling for Adam's review.",
+    "Na__Asset__Notes"  :  "Saved through the Na SketchUp MCP from a trace or a reshaped profile.",
+    "Na__Asset__Has2dPlan"  :  false,
+    "Na__Asset__Has2dElevation"  :  false,
+    "Na__Asset__Has2dProfile"  :  true,
+    "Na__Asset__Has3d"  :  true,
+    "Na__Asset__Supplier"  :  "",
+    "Na__Asset__SupplierProductCode"  :  "",
+    "Na__Asset__SupplierPrice_GBP"  :  "",
+    "Na__PanelPlacement__DefaultHeight_mm"  :  null,
+    "Na__PanelPlacement__RightHand"  :  {
+      "Na__PanelPlacement__OffsetX_mm"  :  null,
+      "Na__PanelPlacement__OffsetY_mm"  :  null,
+      "Na__PanelPlacement__ScaleX"  :  null
+    },
+    "Na__PanelPlacement__LeftHand"  :  {
+      "Na__PanelPlacement__OffsetX_mm"  :  null,
+      "Na__PanelPlacement__OffsetY_mm"  :  null,
+      "Na__PanelPlacement__ScaleX"  :  null
+    },
+    "Na__Asset__AvailableFinishes"  :  []
+  },
+  "Na__Asset__Profile2D"  :  {
+    "Na__Geometry__OriginNote"  :  "Local 0,0 = the datum set in the Draw Profile editor.",
+    "Na__Geometry__CoordSystem"  :  "Y=profile horizontal axis, Z=profile vertical axis | Units=mm",
+    "Na__Geometry__Vertices"  :  [
+      {
+        "VertexId"  :  "V001",
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  0.0
+      },
+      {
+        "VertexId"  :  "V002",
+        "PosY_mm"  :  -127.4,
+        "PosZ_mm"  :  0.0
+      },
+      {
+        "VertexId"  :  "V003",
+        "PosY_mm"  :  -127.4,
+        "PosZ_mm"  :  48.9
+      },
+      {
+        "VertexId"  :  "V004",
+        "PosY_mm"  :  -135.2,
+        "PosZ_mm"  :  48.9
+      },
+      {
+        "VertexId"  :  "V005",
+        "PosY_mm"  :  -135.2,
+        "PosZ_mm"  :  180.0
+      },
+      {
+        "VertexId"  :  "V006",
+        "PosY_mm"  :  -143.19,
+        "PosZ_mm"  :  180.0
+      },
+      {
+        "VertexId"  :  "V007",
+        "PosY_mm"  :  -143.34,
+        "PosZ_mm"  :  182.35
+      },
+      {
+        "VertexId"  :  "V008",
+        "PosY_mm"  :  -143.8,
+        "PosZ_mm"  :  184.66
+      },
+      {
+        "VertexId"  :  "V009",
+        "PosY_mm"  :  -144.56,
+        "PosZ_mm"  :  186.89
+      },
+      {
+        "VertexId"  :  "V010",
+        "PosY_mm"  :  -145.6,
+        "PosZ_mm"  :  189.0
+      },
+      {
+        "VertexId"  :  "V011",
+        "PosY_mm"  :  -146.91,
+        "PosZ_mm"  :  190.96
+      },
+      {
+        "VertexId"  :  "V012",
+        "PosY_mm"  :  -148.46,
+        "PosZ_mm"  :  192.73
+      },
+      {
+        "VertexId"  :  "V013",
+        "PosY_mm"  :  -150.23,
+        "PosZ_mm"  :  194.28
+      },
+      {
+        "VertexId"  :  "V014",
+        "PosY_mm"  :  -152.19,
+        "PosZ_mm"  :  195.59
+      },
+      {
+        "VertexId"  :  "V015",
+        "PosY_mm"  :  -154.3,
+        "PosZ_mm"  :  196.63
+      },
+      {
+        "VertexId"  :  "V016",
+        "PosY_mm"  :  -156.53,
+        "PosZ_mm"  :  197.39
+      },
+      {
+        "VertexId"  :  "V017",
+        "PosY_mm"  :  -158.84,
+        "PosZ_mm"  :  197.85
+      },
+      {
+        "VertexId"  :  "V018",
+        "PosY_mm"  :  -161.19,
+        "PosZ_mm"  :  198.0
+      },
+      {
+        "VertexId"  :  "V019",
+        "PosY_mm"  :  -161.19,
+        "PosZ_mm"  :  206.0
+      },
+      {
+        "VertexId"  :  "V020",
+        "PosY_mm"  :  -163.54,
+        "PosZ_mm"  :  206.15
+      },
+      {
+        "VertexId"  :  "V021",
+        "PosY_mm"  :  -165.85,
+        "PosZ_mm"  :  206.61
+      },
+      {
+        "VertexId"  :  "V022",
+        "PosY_mm"  :  -168.08,
+        "PosZ_mm"  :  207.37
+      },
+      {
+        "VertexId"  :  "V023",
+        "PosY_mm"  :  -170.19,
+        "PosZ_mm"  :  208.41
+      },
+      {
+        "VertexId"  :  "V024",
+        "PosY_mm"  :  -172.15,
+        "PosZ_mm"  :  209.72
+      },
+      {
+        "VertexId"  :  "V025",
+        "PosY_mm"  :  -173.92,
+        "PosZ_mm"  :  211.27
+      },
+      {
+        "VertexId"  :  "V026",
+        "PosY_mm"  :  -175.47,
+        "PosZ_mm"  :  213.04
+      },
+      {
+        "VertexId"  :  "V027",
+        "PosY_mm"  :  -176.78,
+        "PosZ_mm"  :  215.0
+      },
+      {
+        "VertexId"  :  "V028",
+        "PosY_mm"  :  -177.82,
+        "PosZ_mm"  :  217.11
+      },
+      {
+        "VertexId"  :  "V029",
+        "PosY_mm"  :  -178.58,
+        "PosZ_mm"  :  219.34
+      },
+      {
+        "VertexId"  :  "V030",
+        "PosY_mm"  :  -179.04,
+        "PosZ_mm"  :  221.65
+      },
+      {
+        "VertexId"  :  "V031",
+        "PosY_mm"  :  -179.19,
+        "PosZ_mm"  :  224.0
+      },
+      {
+        "VertexId"  :  "V032",
+        "PosY_mm"  :  -179.19,
+        "PosZ_mm"  :  225.0
+      },
+      {
+        "VertexId"  :  "V033",
+        "PosY_mm"  :  -232.3,
+        "PosZ_mm"  :  225.0
+      },
+      {
+        "VertexId"  :  "V034",
+        "PosY_mm"  :  -232.3,
+        "PosZ_mm"  :  262.5
+      },
+      {
+        "VertexId"  :  "V035",
+        "PosY_mm"  :  -232.41,
+        "PosZ_mm"  :  264.13
+      },
+      {
+        "VertexId"  :  "V036",
+        "PosY_mm"  :  -232.73,
+        "PosZ_mm"  :  265.74
+      },
+      {
+        "VertexId"  :  "V037",
+        "PosY_mm"  :  -233.25,
+        "PosZ_mm"  :  267.28
+      },
+      {
+        "VertexId"  :  "V038",
+        "PosY_mm"  :  -233.97,
+        "PosZ_mm"  :  268.75
+      },
+      {
+        "VertexId"  :  "V039",
+        "PosY_mm"  :  -234.88,
+        "PosZ_mm"  :  270.11
+      },
+      {
+        "VertexId"  :  "V040",
+        "PosY_mm"  :  -235.96,
+        "PosZ_mm"  :  271.34
+      },
+      {
+        "VertexId"  :  "V041",
+        "PosY_mm"  :  -237.19,
+        "PosZ_mm"  :  272.42
+      },
+      {
+        "VertexId"  :  "V042",
+        "PosY_mm"  :  -238.55,
+        "PosZ_mm"  :  273.32
+      },
+      {
+        "VertexId"  :  "V043",
+        "PosY_mm"  :  -240.02,
+        "PosZ_mm"  :  274.05
+      },
+      {
+        "VertexId"  :  "V044",
+        "PosY_mm"  :  -241.56,
+        "PosZ_mm"  :  274.57
+      },
+      {
+        "VertexId"  :  "V045",
+        "PosY_mm"  :  -243.17,
+        "PosZ_mm"  :  274.89
+      },
+      {
+        "VertexId"  :  "V046",
+        "PosY_mm"  :  -244.8,
+        "PosZ_mm"  :  275.0
+      },
+      {
+        "VertexId"  :  "V047",
+        "PosY_mm"  :  -244.8,
+        "PosZ_mm"  :  287.5
+      },
+      {
+        "VertexId"  :  "V048",
+        "PosY_mm"  :  -248.13,
+        "PosZ_mm"  :  287.68
+      },
+      {
+        "VertexId"  :  "V049",
+        "PosY_mm"  :  -251.41,
+        "PosZ_mm"  :  288.21
+      },
+      {
+        "VertexId"  :  "V050",
+        "PosY_mm"  :  -254.63,
+        "PosZ_mm"  :  289.1
+      },
+      {
+        "VertexId"  :  "V051",
+        "PosY_mm"  :  -257.72,
+        "PosZ_mm"  :  290.32
+      },
+      {
+        "VertexId"  :  "V052",
+        "PosY_mm"  :  -260.67,
+        "PosZ_mm"  :  291.87
+      },
+      {
+        "VertexId"  :  "V053",
+        "PosY_mm"  :  -263.44,
+        "PosZ_mm"  :  293.73
+      },
+      {
+        "VertexId"  :  "V054",
+        "PosY_mm"  :  -265.99,
+        "PosZ_mm"  :  295.87
+      },
+      {
+        "VertexId"  :  "V055",
+        "PosY_mm"  :  -268.29,
+        "PosZ_mm"  :  298.27
+      },
+      {
+        "VertexId"  :  "V056",
+        "PosY_mm"  :  -270.33,
+        "PosZ_mm"  :  300.91
+      },
+      {
+        "VertexId"  :  "V057",
+        "PosY_mm"  :  -272.07,
+        "PosZ_mm"  :  303.75
+      },
+      {
+        "VertexId"  :  "V058",
+        "PosY_mm"  :  -273.49,
+        "PosZ_mm"  :  306.76
+      },
+      {
+        "VertexId"  :  "V059",
+        "PosY_mm"  :  -274.59,
+        "PosZ_mm"  :  309.91
+      },
+      {
+        "VertexId"  :  "V060",
+        "PosY_mm"  :  -275.72,
+        "PosZ_mm"  :  313.22
+      },
+      {
+        "VertexId"  :  "V061",
+        "PosY_mm"  :  -277.18,
+        "PosZ_mm"  :  316.4
+      },
+      {
+        "VertexId"  :  "V062",
+        "PosY_mm"  :  -278.95,
+        "PosZ_mm"  :  319.41
+      },
+      {
+        "VertexId"  :  "V063",
+        "PosY_mm"  :  -281.01,
+        "PosZ_mm"  :  322.23
+      },
+      {
+        "VertexId"  :  "V064",
+        "PosY_mm"  :  -283.33,
+        "PosZ_mm"  :  324.84
+      },
+      {
+        "VertexId"  :  "V065",
+        "PosY_mm"  :  -285.91,
+        "PosZ_mm"  :  327.19
+      },
+      {
+        "VertexId"  :  "V066",
+        "PosY_mm"  :  -288.71,
+        "PosZ_mm"  :  329.28
+      },
+      {
+        "VertexId"  :  "V067",
+        "PosY_mm"  :  -291.7,
+        "PosZ_mm"  :  331.08
+      },
+      {
+        "VertexId"  :  "V068",
+        "PosY_mm"  :  -294.86,
+        "PosZ_mm"  :  332.58
+      },
+      {
+        "VertexId"  :  "V069",
+        "PosY_mm"  :  -298.15,
+        "PosZ_mm"  :  333.75
+      },
+      {
+        "VertexId"  :  "V070",
+        "PosY_mm"  :  -301.54,
+        "PosZ_mm"  :  334.58
+      },
+      {
+        "VertexId"  :  "V071",
+        "PosY_mm"  :  -305.0,
+        "PosZ_mm"  :  335.08
+      },
+      {
+        "VertexId"  :  "V072",
+        "PosY_mm"  :  -305.0,
+        "PosZ_mm"  :  350.0
+      },
+      {
+        "VertexId"  :  "V073",
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  350.0
+      }
+    ],
+    "Na__Geometry__Edges"  :  [
+      {
+        "EdgeId"  :  "E001",
+        "StartVertex"  :  "V001",
+        "EndVertex"  :  "V002"
+      },
+      {
+        "EdgeId"  :  "E002",
+        "StartVertex"  :  "V002",
+        "EndVertex"  :  "V003"
+      },
+      {
+        "EdgeId"  :  "E003",
+        "StartVertex"  :  "V003",
+        "EndVertex"  :  "V004"
+      },
+      {
+        "EdgeId"  :  "E004",
+        "StartVertex"  :  "V004",
+        "EndVertex"  :  "V005"
+      },
+      {
+        "EdgeId"  :  "E005",
+        "StartVertex"  :  "V005",
+        "EndVertex"  :  "V006"
+      },
+      {
+        "EdgeId"  :  "E006",
+        "StartVertex"  :  "V006",
+        "EndVertex"  :  "V007"
+      },
+      {
+        "EdgeId"  :  "E007",
+        "StartVertex"  :  "V007",
+        "EndVertex"  :  "V008"
+      },
+      {
+        "EdgeId"  :  "E008",
+        "StartVertex"  :  "V008",
+        "EndVertex"  :  "V009"
+      },
+      {
+        "EdgeId"  :  "E009",
+        "StartVertex"  :  "V009",
+        "EndVertex"  :  "V010"
+      },
+      {
+        "EdgeId"  :  "E010",
+        "StartVertex"  :  "V010",
+        "EndVertex"  :  "V011"
+      },
+      {
+        "EdgeId"  :  "E011",
+        "StartVertex"  :  "V011",
+        "EndVertex"  :  "V012"
+      },
+      {
+        "EdgeId"  :  "E012",
+        "StartVertex"  :  "V012",
+        "EndVertex"  :  "V013"
+      },
+      {
+        "EdgeId"  :  "E013",
+        "StartVertex"  :  "V013",
+        "EndVertex"  :  "V014"
+      },
+      {
+        "EdgeId"  :  "E014",
+        "StartVertex"  :  "V014",
+        "EndVertex"  :  "V015"
+      },
+      {
+        "EdgeId"  :  "E015",
+        "StartVertex"  :  "V015",
+        "EndVertex"  :  "V016"
+      },
+      {
+        "EdgeId"  :  "E016",
+        "StartVertex"  :  "V016",
+        "EndVertex"  :  "V017"
+      },
+      {
+        "EdgeId"  :  "E017",
+        "StartVertex"  :  "V017",
+        "EndVertex"  :  "V018"
+      },
+      {
+        "EdgeId"  :  "E018",
+        "StartVertex"  :  "V018",
+        "EndVertex"  :  "V019"
+      },
+      {
+        "EdgeId"  :  "E019",
+        "StartVertex"  :  "V019",
+        "EndVertex"  :  "V020"
+      },
+      {
+        "EdgeId"  :  "E020",
+        "StartVertex"  :  "V020",
+        "EndVertex"  :  "V021"
+      },
+      {
+        "EdgeId"  :  "E021",
+        "StartVertex"  :  "V021",
+        "EndVertex"  :  "V022"
+      },
+      {
+        "EdgeId"  :  "E022",
+        "StartVertex"  :  "V022",
+        "EndVertex"  :  "V023"
+      },
+      {
+        "EdgeId"  :  "E023",
+        "StartVertex"  :  "V023",
+        "EndVertex"  :  "V024"
+      },
+      {
+        "EdgeId"  :  "E024",
+        "StartVertex"  :  "V024",
+        "EndVertex"  :  "V025"
+      },
+      {
+        "EdgeId"  :  "E025",
+        "StartVertex"  :  "V025",
+        "EndVertex"  :  "V026"
+      },
+      {
+        "EdgeId"  :  "E026",
+        "StartVertex"  :  "V026",
+        "EndVertex"  :  "V027"
+      },
+      {
+        "EdgeId"  :  "E027",
+        "StartVertex"  :  "V027",
+        "EndVertex"  :  "V028"
+      },
+      {
+        "EdgeId"  :  "E028",
+        "StartVertex"  :  "V028",
+        "EndVertex"  :  "V029"
+      },
+      {
+        "EdgeId"  :  "E029",
+        "StartVertex"  :  "V029",
+        "EndVertex"  :  "V030"
+      },
+      {
+        "EdgeId"  :  "E030",
+        "StartVertex"  :  "V030",
+        "EndVertex"  :  "V031"
+      },
+      {
+        "EdgeId"  :  "E031",
+        "StartVertex"  :  "V031",
+        "EndVertex"  :  "V032"
+      },
+      {
+        "EdgeId"  :  "E032",
+        "StartVertex"  :  "V032",
+        "EndVertex"  :  "V033"
+      },
+      {
+        "EdgeId"  :  "E033",
+        "StartVertex"  :  "V033",
+        "EndVertex"  :  "V034"
+      },
+      {
+        "EdgeId"  :  "E034",
+        "StartVertex"  :  "V034",
+        "EndVertex"  :  "V035"
+      },
+      {
+        "EdgeId"  :  "E035",
+        "StartVertex"  :  "V035",
+        "EndVertex"  :  "V036"
+      },
+      {
+        "EdgeId"  :  "E036",
+        "StartVertex"  :  "V036",
+        "EndVertex"  :  "V037"
+      },
+      {
+        "EdgeId"  :  "E037",
+        "StartVertex"  :  "V037",
+        "EndVertex"  :  "V038"
+      },
+      {
+        "EdgeId"  :  "E038",
+        "StartVertex"  :  "V038",
+        "EndVertex"  :  "V039"
+      },
+      {
+        "EdgeId"  :  "E039",
+        "StartVertex"  :  "V039",
+        "EndVertex"  :  "V040"
+      },
+      {
+        "EdgeId"  :  "E040",
+        "StartVertex"  :  "V040",
+        "EndVertex"  :  "V041"
+      },
+      {
+        "EdgeId"  :  "E041",
+        "StartVertex"  :  "V041",
+        "EndVertex"  :  "V042"
+      },
+      {
+        "EdgeId"  :  "E042",
+        "StartVertex"  :  "V042",
+        "EndVertex"  :  "V043"
+      },
+      {
+        "EdgeId"  :  "E043",
+        "StartVertex"  :  "V043",
+        "EndVertex"  :  "V044"
+      },
+      {
+        "EdgeId"  :  "E044",
+        "StartVertex"  :  "V044",
+        "EndVertex"  :  "V045"
+      },
+      {
+        "EdgeId"  :  "E045",
+        "StartVertex"  :  "V045",
+        "EndVertex"  :  "V046"
+      },
+      {
+        "EdgeId"  :  "E046",
+        "StartVertex"  :  "V046",
+        "EndVertex"  :  "V047"
+      },
+      {
+        "EdgeId"  :  "E047",
+        "StartVertex"  :  "V047",
+        "EndVertex"  :  "V048"
+      },
+      {
+        "EdgeId"  :  "E048",
+        "StartVertex"  :  "V048",
+        "EndVertex"  :  "V049"
+      },
+      {
+        "EdgeId"  :  "E049",
+        "StartVertex"  :  "V049",
+        "EndVertex"  :  "V050"
+      },
+      {
+        "EdgeId"  :  "E050",
+        "StartVertex"  :  "V050",
+        "EndVertex"  :  "V051"
+      },
+      {
+        "EdgeId"  :  "E051",
+        "StartVertex"  :  "V051",
+        "EndVertex"  :  "V052"
+      },
+      {
+        "EdgeId"  :  "E052",
+        "StartVertex"  :  "V052",
+        "EndVertex"  :  "V053"
+      },
+      {
+        "EdgeId"  :  "E053",
+        "StartVertex"  :  "V053",
+        "EndVertex"  :  "V054"
+      },
+      {
+        "EdgeId"  :  "E054",
+        "StartVertex"  :  "V054",
+        "EndVertex"  :  "V055"
+      },
+      {
+        "EdgeId"  :  "E055",
+        "StartVertex"  :  "V055",
+        "EndVertex"  :  "V056"
+      },
+      {
+        "EdgeId"  :  "E056",
+        "StartVertex"  :  "V056",
+        "EndVertex"  :  "V057"
+      },
+      {
+        "EdgeId"  :  "E057",
+        "StartVertex"  :  "V057",
+        "EndVertex"  :  "V058"
+      },
+      {
+        "EdgeId"  :  "E058",
+        "StartVertex"  :  "V058",
+        "EndVertex"  :  "V059"
+      },
+      {
+        "EdgeId"  :  "E059",
+        "StartVertex"  :  "V059",
+        "EndVertex"  :  "V060"
+      },
+      {
+        "EdgeId"  :  "E060",
+        "StartVertex"  :  "V060",
+        "EndVertex"  :  "V061"
+      },
+      {
+        "EdgeId"  :  "E061",
+        "StartVertex"  :  "V061",
+        "EndVertex"  :  "V062"
+      },
+      {
+        "EdgeId"  :  "E062",
+        "StartVertex"  :  "V062",
+        "EndVertex"  :  "V063"
+      },
+      {
+        "EdgeId"  :  "E063",
+        "StartVertex"  :  "V063",
+        "EndVertex"  :  "V064"
+      },
+      {
+        "EdgeId"  :  "E064",
+        "StartVertex"  :  "V064",
+        "EndVertex"  :  "V065"
+      },
+      {
+        "EdgeId"  :  "E065",
+        "StartVertex"  :  "V065",
+        "EndVertex"  :  "V066"
+      },
+      {
+        "EdgeId"  :  "E066",
+        "StartVertex"  :  "V066",
+        "EndVertex"  :  "V067"
+      },
+      {
+        "EdgeId"  :  "E067",
+        "StartVertex"  :  "V067",
+        "EndVertex"  :  "V068"
+      },
+      {
+        "EdgeId"  :  "E068",
+        "StartVertex"  :  "V068",
+        "EndVertex"  :  "V069"
+      },
+      {
+        "EdgeId"  :  "E069",
+        "StartVertex"  :  "V069",
+        "EndVertex"  :  "V070"
+      },
+      {
+        "EdgeId"  :  "E070",
+        "StartVertex"  :  "V070",
+        "EndVertex"  :  "V071"
+      },
+      {
+        "EdgeId"  :  "E071",
+        "StartVertex"  :  "V071",
+        "EndVertex"  :  "V072"
+      },
+      {
+        "EdgeId"  :  "E072",
+        "StartVertex"  :  "V072",
+        "EndVertex"  :  "V073"
+      },
+      {
+        "EdgeId"  :  "E073",
+        "StartVertex"  :  "V073",
+        "EndVertex"  :  "V001"
+      }
+    ],
+    "Na__Geometry__Faces"  :  [
+      {
+        "FaceId"  :  "F001",
+        "OuterLoopVertices"  :  [
+          "V001",
+          "V002",
+          "V003",
+          "V004",
+          "V005",
+          "V006",
+          "V007",
+          "V008",
+          "V009",
+          "V010",
+          "V011",
+          "V012",
+          "V013",
+          "V014",
+          "V015",
+          "V016",
+          "V017",
+          "V018",
+          "V019",
+          "V020",
+          "V021",
+          "V022",
+          "V023",
+          "V024",
+          "V025",
+          "V026",
+          "V027",
+          "V028",
+          "V029",
+          "V030",
+          "V031",
+          "V032",
+          "V033",
+          "V034",
+          "V035",
+          "V036",
+          "V037",
+          "V038",
+          "V039",
+          "V040",
+          "V041",
+          "V042",
+          "V043",
+          "V044",
+          "V045",
+          "V046",
+          "V047",
+          "V048",
+          "V049",
+          "V050",
+          "V051",
+          "V052",
+          "V053",
+          "V054",
+          "V055",
+          "V056",
+          "V057",
+          "V058",
+          "V059",
+          "V060",
+          "V061",
+          "V062",
+          "V063",
+          "V064",
+          "V065",
+          "V066",
+          "V067",
+          "V068",
+          "V069",
+          "V070",
+          "V071",
+          "V072",
+          "V073"
+        ]
+      }
+    ],
+    "Na__Geometry__Curves"  :  [
+      {
+        "CurveId"  :  "C001",
+        "CurveType"  :  "Arc",
+        "Segments"  :  12,
+        "VertexIds"  :  [
+          "V006",
+          "V007",
+          "V008",
+          "V009",
+          "V010",
+          "V011",
+          "V012",
+          "V013",
+          "V014",
+          "V015",
+          "V016",
+          "V017",
+          "V018"
+        ],
+        "Radius_mm"  :  18.0
+      },
+      {
+        "CurveId"  :  "C002",
+        "CurveType"  :  "Arc",
+        "Segments"  :  12,
+        "VertexIds"  :  [
+          "V019",
+          "V020",
+          "V021",
+          "V022",
+          "V023",
+          "V024",
+          "V025",
+          "V026",
+          "V027",
+          "V028",
+          "V029",
+          "V030",
+          "V031"
+        ],
+        "Radius_mm"  :  18.0
+      },
+      {
+        "CurveId"  :  "C003",
+        "CurveType"  :  "Arc",
+        "Segments"  :  12,
+        "VertexIds"  :  [
+          "V034",
+          "V035",
+          "V036",
+          "V037",
+          "V038",
+          "V039",
+          "V040",
+          "V041",
+          "V042",
+          "V043",
+          "V044",
+          "V045",
+          "V046"
+        ],
+        "Radius_mm"  :  12.5
+      },
+      {
+        "CurveId"  :  "C004",
+        "CurveType"  :  "Arc",
+        "Segments"  :  12,
+        "VertexIds"  :  [
+          "V047",
+          "V048",
+          "V049",
+          "V050",
+          "V051",
+          "V052",
+          "V053",
+          "V054",
+          "V055",
+          "V056",
+          "V057",
+          "V058",
+          "V059"
+        ],
+        "Radius_mm"  :  31.0
+      },
+      {
+        "CurveId"  :  "C005",
+        "CurveType"  :  "Arc",
+        "Segments"  :  12,
+        "VertexIds"  :  [
+          "V059",
+          "V060",
+          "V061",
+          "V062",
+          "V063",
+          "V064",
+          "V065",
+          "V066",
+          "V067",
+          "V068",
+          "V069",
+          "V070",
+          "V071"
+        ],
+        "Radius_mm"  :  35.01
+      }
+    ]
+  },
+  "Na__Asset__Mesh3D"  :  {
+    "Na__Geometry__OriginNote"  :  "Local 0,0,0 = clicked 00__OriginPoint helper location.",
+    "Na__Geometry__CoordSystem"  :  "Right-handed | X=profile-width surrogate, Y=profile-height surrogate, Z=0 | Units=mm",
+    "Na__Geometry__BoundingBox"  :  {
+      "Na__Geometry__MinX_mm"  :  -305.0,
+      "Na__Geometry__MaxX_mm"  :  0.0,
+      "Na__Geometry__MinY_mm"  :  0.0,
+      "Na__Geometry__MaxY_mm"  :  350.0,
+      "Na__Geometry__MinZ_mm"  :  0.0,
+      "Na__Geometry__MaxZ_mm"  :  0.0
+    },
+    "Na__Geometry__Counts"  :  {
+      "Na__Geometry__VertexCount"  :  73,
+      "Na__Geometry__FaceCount"  :  1,
+      "Na__Geometry__EdgeCount"  :  73,
+      "Na__Geometry__HardEdgeCount"  :  73,
+      "Na__Geometry__SoftEdgeCount"  :  0,
+      "Na__Geometry__SmoothEdgeCount"  :  0
+    },
+    "Na__Geometry__Vertices"  :  [
+      {
+        "VertexId"  :  "V001",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V001",
+        "PosX_mm"  :  0.0,
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V002",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V002",
+        "PosX_mm"  :  -127.4,
+        "PosY_mm"  :  0.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V003",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V003",
+        "PosX_mm"  :  -127.4,
+        "PosY_mm"  :  48.9,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V004",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V004",
+        "PosX_mm"  :  -135.2,
+        "PosY_mm"  :  48.9,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V005",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V005",
+        "PosX_mm"  :  -135.2,
+        "PosY_mm"  :  180.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V006",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V006",
+        "PosX_mm"  :  -143.19,
+        "PosY_mm"  :  180.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V007",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V007",
+        "PosX_mm"  :  -143.34,
+        "PosY_mm"  :  182.35,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V008",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V008",
+        "PosX_mm"  :  -143.8,
+        "PosY_mm"  :  184.66,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V009",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V009",
+        "PosX_mm"  :  -144.56,
+        "PosY_mm"  :  186.89,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V010",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V010",
+        "PosX_mm"  :  -145.6,
+        "PosY_mm"  :  189.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V011",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V011",
+        "PosX_mm"  :  -146.91,
+        "PosY_mm"  :  190.96,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V012",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V012",
+        "PosX_mm"  :  -148.46,
+        "PosY_mm"  :  192.73,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V013",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V013",
+        "PosX_mm"  :  -150.23,
+        "PosY_mm"  :  194.28,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V014",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V014",
+        "PosX_mm"  :  -152.19,
+        "PosY_mm"  :  195.59,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V015",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V015",
+        "PosX_mm"  :  -154.3,
+        "PosY_mm"  :  196.63,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V016",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V016",
+        "PosX_mm"  :  -156.53,
+        "PosY_mm"  :  197.39,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V017",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V017",
+        "PosX_mm"  :  -158.84,
+        "PosY_mm"  :  197.85,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V018",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V018",
+        "PosX_mm"  :  -161.19,
+        "PosY_mm"  :  198.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V019",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V019",
+        "PosX_mm"  :  -161.19,
+        "PosY_mm"  :  206.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V020",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V020",
+        "PosX_mm"  :  -163.54,
+        "PosY_mm"  :  206.15,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V021",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V021",
+        "PosX_mm"  :  -165.85,
+        "PosY_mm"  :  206.61,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V022",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V022",
+        "PosX_mm"  :  -168.08,
+        "PosY_mm"  :  207.37,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V023",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V023",
+        "PosX_mm"  :  -170.19,
+        "PosY_mm"  :  208.41,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V024",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V024",
+        "PosX_mm"  :  -172.15,
+        "PosY_mm"  :  209.72,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V025",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V025",
+        "PosX_mm"  :  -173.92,
+        "PosY_mm"  :  211.27,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V026",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V026",
+        "PosX_mm"  :  -175.47,
+        "PosY_mm"  :  213.04,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V027",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V027",
+        "PosX_mm"  :  -176.78,
+        "PosY_mm"  :  215.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V028",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V028",
+        "PosX_mm"  :  -177.82,
+        "PosY_mm"  :  217.11,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V029",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V029",
+        "PosX_mm"  :  -178.58,
+        "PosY_mm"  :  219.34,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V030",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V030",
+        "PosX_mm"  :  -179.04,
+        "PosY_mm"  :  221.65,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V031",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V031",
+        "PosX_mm"  :  -179.19,
+        "PosY_mm"  :  224.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V032",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V032",
+        "PosX_mm"  :  -179.19,
+        "PosY_mm"  :  225.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V033",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V033",
+        "PosX_mm"  :  -232.3,
+        "PosY_mm"  :  225.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V034",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V034",
+        "PosX_mm"  :  -232.3,
+        "PosY_mm"  :  262.5,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V035",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V035",
+        "PosX_mm"  :  -232.41,
+        "PosY_mm"  :  264.13,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V036",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V036",
+        "PosX_mm"  :  -232.73,
+        "PosY_mm"  :  265.74,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V037",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V037",
+        "PosX_mm"  :  -233.25,
+        "PosY_mm"  :  267.28,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V038",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V038",
+        "PosX_mm"  :  -233.97,
+        "PosY_mm"  :  268.75,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V039",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V039",
+        "PosX_mm"  :  -234.88,
+        "PosY_mm"  :  270.11,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V040",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V040",
+        "PosX_mm"  :  -235.96,
+        "PosY_mm"  :  271.34,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V041",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V041",
+        "PosX_mm"  :  -237.19,
+        "PosY_mm"  :  272.42,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V042",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V042",
+        "PosX_mm"  :  -238.55,
+        "PosY_mm"  :  273.32,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V043",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V043",
+        "PosX_mm"  :  -240.02,
+        "PosY_mm"  :  274.05,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V044",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V044",
+        "PosX_mm"  :  -241.56,
+        "PosY_mm"  :  274.57,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V045",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V045",
+        "PosX_mm"  :  -243.17,
+        "PosY_mm"  :  274.89,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V046",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V046",
+        "PosX_mm"  :  -244.8,
+        "PosY_mm"  :  275.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V047",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V047",
+        "PosX_mm"  :  -244.8,
+        "PosY_mm"  :  287.5,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V048",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V048",
+        "PosX_mm"  :  -248.13,
+        "PosY_mm"  :  287.68,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V049",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V049",
+        "PosX_mm"  :  -251.41,
+        "PosY_mm"  :  288.21,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V050",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V050",
+        "PosX_mm"  :  -254.63,
+        "PosY_mm"  :  289.1,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V051",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V051",
+        "PosX_mm"  :  -257.72,
+        "PosY_mm"  :  290.32,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V052",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V052",
+        "PosX_mm"  :  -260.67,
+        "PosY_mm"  :  291.87,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V053",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V053",
+        "PosX_mm"  :  -263.44,
+        "PosY_mm"  :  293.73,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V054",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V054",
+        "PosX_mm"  :  -265.99,
+        "PosY_mm"  :  295.87,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V055",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V055",
+        "PosX_mm"  :  -268.29,
+        "PosY_mm"  :  298.27,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V056",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V056",
+        "PosX_mm"  :  -270.33,
+        "PosY_mm"  :  300.91,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V057",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V057",
+        "PosX_mm"  :  -272.07,
+        "PosY_mm"  :  303.75,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V058",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V058",
+        "PosX_mm"  :  -273.49,
+        "PosY_mm"  :  306.76,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V059",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V059",
+        "PosX_mm"  :  -274.59,
+        "PosY_mm"  :  309.91,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V060",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V060",
+        "PosX_mm"  :  -275.72,
+        "PosY_mm"  :  313.22,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V061",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V061",
+        "PosX_mm"  :  -277.18,
+        "PosY_mm"  :  316.4,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V062",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V062",
+        "PosX_mm"  :  -278.95,
+        "PosY_mm"  :  319.41,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V063",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V063",
+        "PosX_mm"  :  -281.01,
+        "PosY_mm"  :  322.23,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V064",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V064",
+        "PosX_mm"  :  -283.33,
+        "PosY_mm"  :  324.84,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V065",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V065",
+        "PosX_mm"  :  -285.91,
+        "PosY_mm"  :  327.19,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V066",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V066",
+        "PosX_mm"  :  -288.71,
+        "PosY_mm"  :  329.28,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V067",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V067",
+        "PosX_mm"  :  -291.7,
+        "PosY_mm"  :  331.08,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V068",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V068",
+        "PosX_mm"  :  -294.86,
+        "PosY_mm"  :  332.58,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V069",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V069",
+        "PosX_mm"  :  -298.15,
+        "PosY_mm"  :  333.75,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V070",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V070",
+        "PosX_mm"  :  -301.54,
+        "PosY_mm"  :  334.58,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V071",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V071",
+        "PosX_mm"  :  -305.0,
+        "PosY_mm"  :  335.08,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V072",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V072",
+        "PosX_mm"  :  -305.0,
+        "PosY_mm"  :  350.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      },
+      {
+        "VertexId"  :  "V073",
+        "VertexName"  :  "Na__ProfileMesh__Vertex__V073",
+        "PosX_mm"  :  0.0,
+        "PosY_mm"  :  350.0,
+        "PosZ_mm"  :  0.0,
+        "Normal_X"  :  0.0,
+        "Normal_Y"  :  0.0,
+        "Normal_Z"  :  1.0
+      }
+    ],
+    "Na__Geometry__Faces"  :  [
+      {
+        "FaceId"  :  "F001",
+        "FaceName"  :  "Na__ProfileMesh__Face__F001",
+        "OuterLoop_VertexIds"  :  [
+          "V001",
+          "V002",
+          "V003",
+          "V004",
+          "V005",
+          "V006",
+          "V007",
+          "V008",
+          "V009",
+          "V010",
+          "V011",
+          "V012",
+          "V013",
+          "V014",
+          "V015",
+          "V016",
+          "V017",
+          "V018",
+          "V019",
+          "V020",
+          "V021",
+          "V022",
+          "V023",
+          "V024",
+          "V025",
+          "V026",
+          "V027",
+          "V028",
+          "V029",
+          "V030",
+          "V031",
+          "V032",
+          "V033",
+          "V034",
+          "V035",
+          "V036",
+          "V037",
+          "V038",
+          "V039",
+          "V040",
+          "V041",
+          "V042",
+          "V043",
+          "V044",
+          "V045",
+          "V046",
+          "V047",
+          "V048",
+          "V049",
+          "V050",
+          "V051",
+          "V052",
+          "V053",
+          "V054",
+          "V055",
+          "V056",
+          "V057",
+          "V058",
+          "V059",
+          "V060",
+          "V061",
+          "V062",
+          "V063",
+          "V064",
+          "V065",
+          "V066",
+          "V067",
+          "V068",
+          "V069",
+          "V070",
+          "V071",
+          "V072",
+          "V073"
+        ],
+        "InnerLoops"  :  [],
+        "Normal"  :  [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "Area_mm2"  :  null,
+        "MaterialName"  :  ""
+      }
+    ],
+    "Na__Geometry__Edges"  :  [
+      {
+        "EdgeId"  :  "E001",
+        "StartVertex"  :  "V001",
+        "EndVertex"  :  "V002",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E002",
+        "StartVertex"  :  "V002",
+        "EndVertex"  :  "V003",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E003",
+        "StartVertex"  :  "V003",
+        "EndVertex"  :  "V004",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E004",
+        "StartVertex"  :  "V004",
+        "EndVertex"  :  "V005",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E005",
+        "StartVertex"  :  "V005",
+        "EndVertex"  :  "V006",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E006",
+        "StartVertex"  :  "V006",
+        "EndVertex"  :  "V007",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E007",
+        "StartVertex"  :  "V007",
+        "EndVertex"  :  "V008",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E008",
+        "StartVertex"  :  "V008",
+        "EndVertex"  :  "V009",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E009",
+        "StartVertex"  :  "V009",
+        "EndVertex"  :  "V010",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E010",
+        "StartVertex"  :  "V010",
+        "EndVertex"  :  "V011",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E011",
+        "StartVertex"  :  "V011",
+        "EndVertex"  :  "V012",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E012",
+        "StartVertex"  :  "V012",
+        "EndVertex"  :  "V013",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E013",
+        "StartVertex"  :  "V013",
+        "EndVertex"  :  "V014",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E014",
+        "StartVertex"  :  "V014",
+        "EndVertex"  :  "V015",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E015",
+        "StartVertex"  :  "V015",
+        "EndVertex"  :  "V016",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E016",
+        "StartVertex"  :  "V016",
+        "EndVertex"  :  "V017",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E017",
+        "StartVertex"  :  "V017",
+        "EndVertex"  :  "V018",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E018",
+        "StartVertex"  :  "V018",
+        "EndVertex"  :  "V019",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E019",
+        "StartVertex"  :  "V019",
+        "EndVertex"  :  "V020",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E020",
+        "StartVertex"  :  "V020",
+        "EndVertex"  :  "V021",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E021",
+        "StartVertex"  :  "V021",
+        "EndVertex"  :  "V022",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E022",
+        "StartVertex"  :  "V022",
+        "EndVertex"  :  "V023",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E023",
+        "StartVertex"  :  "V023",
+        "EndVertex"  :  "V024",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E024",
+        "StartVertex"  :  "V024",
+        "EndVertex"  :  "V025",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E025",
+        "StartVertex"  :  "V025",
+        "EndVertex"  :  "V026",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E026",
+        "StartVertex"  :  "V026",
+        "EndVertex"  :  "V027",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E027",
+        "StartVertex"  :  "V027",
+        "EndVertex"  :  "V028",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E028",
+        "StartVertex"  :  "V028",
+        "EndVertex"  :  "V029",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E029",
+        "StartVertex"  :  "V029",
+        "EndVertex"  :  "V030",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E030",
+        "StartVertex"  :  "V030",
+        "EndVertex"  :  "V031",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E031",
+        "StartVertex"  :  "V031",
+        "EndVertex"  :  "V032",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E032",
+        "StartVertex"  :  "V032",
+        "EndVertex"  :  "V033",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E033",
+        "StartVertex"  :  "V033",
+        "EndVertex"  :  "V034",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E034",
+        "StartVertex"  :  "V034",
+        "EndVertex"  :  "V035",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E035",
+        "StartVertex"  :  "V035",
+        "EndVertex"  :  "V036",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E036",
+        "StartVertex"  :  "V036",
+        "EndVertex"  :  "V037",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E037",
+        "StartVertex"  :  "V037",
+        "EndVertex"  :  "V038",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E038",
+        "StartVertex"  :  "V038",
+        "EndVertex"  :  "V039",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E039",
+        "StartVertex"  :  "V039",
+        "EndVertex"  :  "V040",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E040",
+        "StartVertex"  :  "V040",
+        "EndVertex"  :  "V041",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E041",
+        "StartVertex"  :  "V041",
+        "EndVertex"  :  "V042",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E042",
+        "StartVertex"  :  "V042",
+        "EndVertex"  :  "V043",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E043",
+        "StartVertex"  :  "V043",
+        "EndVertex"  :  "V044",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E044",
+        "StartVertex"  :  "V044",
+        "EndVertex"  :  "V045",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E045",
+        "StartVertex"  :  "V045",
+        "EndVertex"  :  "V046",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E046",
+        "StartVertex"  :  "V046",
+        "EndVertex"  :  "V047",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E047",
+        "StartVertex"  :  "V047",
+        "EndVertex"  :  "V048",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E048",
+        "StartVertex"  :  "V048",
+        "EndVertex"  :  "V049",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E049",
+        "StartVertex"  :  "V049",
+        "EndVertex"  :  "V050",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E050",
+        "StartVertex"  :  "V050",
+        "EndVertex"  :  "V051",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E051",
+        "StartVertex"  :  "V051",
+        "EndVertex"  :  "V052",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E052",
+        "StartVertex"  :  "V052",
+        "EndVertex"  :  "V053",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E053",
+        "StartVertex"  :  "V053",
+        "EndVertex"  :  "V054",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E054",
+        "StartVertex"  :  "V054",
+        "EndVertex"  :  "V055",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E055",
+        "StartVertex"  :  "V055",
+        "EndVertex"  :  "V056",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E056",
+        "StartVertex"  :  "V056",
+        "EndVertex"  :  "V057",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E057",
+        "StartVertex"  :  "V057",
+        "EndVertex"  :  "V058",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E058",
+        "StartVertex"  :  "V058",
+        "EndVertex"  :  "V059",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E059",
+        "StartVertex"  :  "V059",
+        "EndVertex"  :  "V060",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E060",
+        "StartVertex"  :  "V060",
+        "EndVertex"  :  "V061",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E061",
+        "StartVertex"  :  "V061",
+        "EndVertex"  :  "V062",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E062",
+        "StartVertex"  :  "V062",
+        "EndVertex"  :  "V063",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E063",
+        "StartVertex"  :  "V063",
+        "EndVertex"  :  "V064",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E064",
+        "StartVertex"  :  "V064",
+        "EndVertex"  :  "V065",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E065",
+        "StartVertex"  :  "V065",
+        "EndVertex"  :  "V066",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E066",
+        "StartVertex"  :  "V066",
+        "EndVertex"  :  "V067",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E067",
+        "StartVertex"  :  "V067",
+        "EndVertex"  :  "V068",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E068",
+        "StartVertex"  :  "V068",
+        "EndVertex"  :  "V069",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E069",
+        "StartVertex"  :  "V069",
+        "EndVertex"  :  "V070",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E070",
+        "StartVertex"  :  "V070",
+        "EndVertex"  :  "V071",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E071",
+        "StartVertex"  :  "V071",
+        "EndVertex"  :  "V072",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E072",
+        "StartVertex"  :  "V072",
+        "EndVertex"  :  "V073",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      },
+      {
+        "EdgeId"  :  "E073",
+        "StartVertex"  :  "V073",
+        "EndVertex"  :  "V001",
+        "IsSoft"  :  false,
+        "IsSmooth"  :  false,
+        "IsHidden"  :  false,
+        "CastsShadows"  :  true,
+        "EdgeMaterialName"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourId"  :  "MTE103__LineColour__DarkGrey__L40",
+        "EdgeColourHex"  :  "#666666"
+      }
+    ]
+  }
+}

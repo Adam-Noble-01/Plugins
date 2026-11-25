@@ -161,6 +161,7 @@ module Na__ValeLantern
 
                 existing = model.definitions[name]
                 if existing
+                    na_prune_internal_diaphragms(existing.entities, name)
                     DebugTools.na_detail("Reusing existing definition '#{name}'")
                     return existing
                 end
@@ -182,10 +183,11 @@ module Na__ValeLantern
                     return nil
                 end
 
+                pruned = na_prune_internal_diaphragms(definition.entities, name)
                 styled = na_apply_edge_styles(definition.entities, vertices, entry['Edges'], name)
 
                 definition.set_attribute(NA_ATTRIBUTE_DICTIONARY, 'AssetId', entry['AssetId'].to_s)
-                DebugTools.na_detail("Built definition '#{name}' (#{built} faces, #{styled} edges styled)")
+                DebugTools.na_detail("Built definition '#{name}' (#{built} faces, #{pruned} internal diaphragm(s) pruned, #{styled} edges styled)")
                 DebugTools.na_count('Component definitions')
                 definition
             end
@@ -252,6 +254,37 @@ module Na__ValeLantern
                 built
             end
             private_class_method :na_build_faces
+
+            # HELPER FUNCTION | Remove internal diaphragm faces that break manifoldness
+            # ------------------------------------------------------------
+            # Authored turned components occasionally carry an internal septum
+            # face dividing two joined sections, so every edge around that face
+            # touches 3 faces (upper exterior wall, lower exterior wall, and the
+            # septum itself). Erasing only faces whose every edge has 3 or more
+            # adjacent faces restores a clean manifold solid without ever opening
+            # an exterior surface.
+            def self.na_prune_internal_diaphragms(entities, definition_name)
+                pruned = 0
+
+                entities.grep(Sketchup::Face).each do |face|
+                    next unless face.valid?
+                    edges = face.edges
+                    next if edges.empty?
+                    next unless edges.all? { |edge| edge.valid? && edge.faces.length >= 3 }
+
+                    face.erase!
+                    pruned += 1
+                end
+
+                if pruned > 0
+                    DebugTools.na_detail("Definition '#{definition_name}': pruned #{pruned} internal diaphragm face(s).")
+                end
+                pruned
+            rescue StandardError => e
+                DebugTools.na_detail("Internal diaphragm prune skipped for '#{definition_name}': #{e.message}")
+                0
+            end
+            private_class_method :na_prune_internal_diaphragms
 
             # HELPER FUNCTION | Resolve one index loop to deduplicated points
             # ------------------------------------------------------------

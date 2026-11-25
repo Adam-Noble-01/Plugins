@@ -39,6 +39,7 @@ module Na__ValeVisionCloudSync
             na_safe_require(sync_dir, '09__AuraSync/Na__ValeVisionCloudSync__AuraSync__')
             na_safe_require(sync_dir, '10__VegetationSync/Na__ValeVisionCloudSync__VegetationSync__')
             na_safe_require(sync_dir, '11__EntourageSync/Na__ValeVisionCloudSync__EntourageSync__')
+            na_safe_require(sync_dir, '12__FurnishingsSync/Na__ValeVisionCloudSync__FurnishingsSync__')
 
             @na_feature_modules_loaded = true
             true

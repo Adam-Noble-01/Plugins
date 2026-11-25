@@ -55,6 +55,7 @@ module Na__ValeLantern
             NA_CONFIG_FILE_NAME = 'Na__ValeLantern__Importer__Config.json'.freeze
 
             NA_BLOCK_SOFTEN       = 'Na__ValeLantern__Importer__Config__SoftenEdges'.freeze
+            NA_BLOCK_EDGE_COLOURS = 'Na__ValeLantern__Importer__Config__EdgeColours'.freeze
             NA_BLOCK_CONTAINERS   = 'Na__ValeLantern__Importer__Config__Containers'.freeze
             NA_BLOCK_RELOAD       = 'Na__ValeLantern__Importer__Config__Reload'.freeze
             NA_BLOCK_CONTEXT_MENU = 'Na__ValeLantern__Importer__Config__ContextMenu'.freeze
@@ -66,6 +67,16 @@ module Na__ValeLantern
                     'Enabled'     => false,
                     'DefaultRule' => { 'Soften' => false, 'AngleDegrees' => 22.5, 'SmoothNormals' => true, 'SoftenCoplanar' => false },
                     'Rules'       => []
+                },
+                NA_BLOCK_EDGE_COLOURS => {
+                    'Enabled'         => true,
+                    'DefaultMaterial' => 'MTE103__LineColour__DarkGrey__L40',
+                    'Overrides'       => {
+                        'buildersUpstand' => 'MTE102__LineColour__SoftBlack__L20',
+                        'headBeam'        => 'MTE102__LineColour__SoftBlack__L20',
+                        'eavesExtrusion'  => 'MTE102__LineColour__SoftBlack__L20',
+                        'leadFlashing'    => 'MTE102__LineColour__SoftBlack__L20'
+                    }
                 },
                 NA_BLOCK_CONTAINERS => {
                     'RootAsComponent'           => true,
@@ -272,6 +283,37 @@ module Na__ValeLantern
                 @na_soften_index = index
             end
             private_class_method :na_soften_index
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Prism Edge Colours - Public API
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Whether prism hard edges are painted to SSOT MTE colours
+            # ------------------------------------------------------------
+            def self.na_edge_colours_enabled?
+                na_get_or(true, NA_BLOCK_EDGE_COLOURS, 'Enabled') == true
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | SSOT MTE edge material name for one prism TagKey
+            # ------------------------------------------------------------
+            # @param tag_key [String, nil] The part's TagKey
+            # @return [String, nil] MTE material name, or nil when disabled
+            def self.na_edge_material_name_for(tag_key)
+                return nil unless na_edge_colours_enabled?
+
+                overrides = na_get_or({}, NA_BLOCK_EDGE_COLOURS, 'Overrides')
+                if overrides.is_a?(Hash) && !tag_key.nil?
+                    chosen = overrides[tag_key.to_s]
+                    return chosen.to_s unless chosen.nil? || chosen.to_s.empty?
+                end
+
+                default_name = na_get_or('MTE103__LineColour__DarkGrey__L40', NA_BLOCK_EDGE_COLOURS, 'DefaultMaterial').to_s
+                default_name.empty? ? nil : default_name
+            end
+            # ---------------------------------------------------------------
 
 # endregion -------------------------------------------------------------------
 

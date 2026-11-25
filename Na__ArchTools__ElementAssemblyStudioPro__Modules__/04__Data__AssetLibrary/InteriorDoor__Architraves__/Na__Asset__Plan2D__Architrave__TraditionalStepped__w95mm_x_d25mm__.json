@@ -1,0 +1,211 @@
+{
+  "meta": {
+    "fileName": "Na__Asset__Plan2D__Architrave__TraditionalStepped__w95mm_x_d25mm__.json",
+    "description": "Traditional stepped classical Georgian/Edwardian architrave profile (95 mm wide x 25 mm deep) for Element Assembly Studio Pro interior doors.",
+    "version": "1.0.0",
+    "lastUpdated": "25-Nov-2026",
+    "namingConvention": "All custom keys prefixed Na__. Three-stage form Na__Section__SubSection__FieldName.",
+    "fieldPrefixes": {
+      "Na__Asset__": "Top-level asset metadata and content blocks",
+      "Na__Geometry__": "Geometry-related sub-fields (BoundingBox, Counts, OriginNote, CoordSystem)",
+      "Na__PanelPlacement__": "Door-panel mounting transforms (RH/LH handing, vertical datum)"
+    }
+  },
+  "Na__Asset__Metadata": {
+    "Na__Asset__Name": "Traditional Stepped Architrave 95x25",
+    "Na__Asset__Code": "NA__ARC__PLAN2D__002",
+    "Na__Asset__Type": "Architrave",
+    "Na__Asset__Description": "Traditional three-step classical Georgian architrave profile (95 mm wide by 25 mm projection) for period interior doors.",
+    "Na__Asset__Notes": "Consumed by Na__ArchitraveBuilder when ArchitraveProfileKey is set to Na__Asset__Plan2D__Architrave__TraditionalStepped__w95mm_x_d25mm.",
+    "Na__Asset__Has2dPlan": true,
+    "Na__Asset__Has2dElevation": false,
+    "Na__Asset__Has2dProfile": false,
+    "Na__Asset__Has3d": false,
+    "Na__Asset__Supplier": "",
+    "Na__Asset__SupplierProductCode": "",
+    "Na__Asset__SupplierPrice_GBP": "",
+    "Na__PanelPlacement__DefaultHeight_mm": null,
+    "Na__PanelPlacement__RightHand": {
+      "Na__PanelPlacement__OffsetX_mm": null,
+      "Na__PanelPlacement__OffsetY_mm": null,
+      "Na__PanelPlacement__ScaleX": null
+    },
+    "Na__PanelPlacement__LeftHand": {
+      "Na__PanelPlacement__OffsetX_mm": null,
+      "Na__PanelPlacement__OffsetY_mm": null,
+      "Na__PanelPlacement__ScaleX": null
+    },
+    "Na__Asset__AvailableFinishes": []
+  },
+  "Na__Asset__Plan2D": {
+    "Na__Geometry__OriginNote": "Local 0,0 = inner back corner against lining reveal.",
+    "Na__Geometry__CoordSystem": "XY plane | X=outward (negative), Y=projection (negative) | Units=mm | Z discarded",
+    "Na__Geometry__BoundingBox": {
+      "Na__Geometry__MinX_mm": -95.0,
+      "Na__Geometry__MaxX_mm": 0.0,
+      "Na__Geometry__MinY_mm": -25.0,
+      "Na__Geometry__MaxY_mm": 0.0,
+      "Na__Geometry__Width_mm": 95.0,
+      "Na__Geometry__Height_mm": 25.0
+    },
+    "Na__Geometry__Counts": {
+      "Na__Geometry__EdgeCount": 9,
+      "Na__Geometry__ArcCount": 0,
+      "Na__Geometry__LineCount": 9,
+      "Na__Geometry__PolygonCount": 1,
+      "Na__Geometry__CircleCount": 0
+    },
+    "Na__Geometry__Paths": [
+      {
+        "PathType": "Polygon",
+        "VertexName": "",
+        "Vertices_mm": [
+          {
+            "X": 0.0,
+            "Y": 0.0
+          },
+          {
+            "X": -95.0,
+            "Y": 0.0
+          },
+          {
+            "X": -95.0,
+            "Y": -25.0
+          },
+          {
+            "X": -78.0,
+            "Y": -25.0
+          },
+          {
+            "X": -70.0,
+            "Y": -20.0
+          },
+          {
+            "X": -42.0,
+            "Y": -20.0
+          },
+          {
+            "X": -36.0,
+            "Y": -15.0
+          },
+          {
+            "X": -12.0,
+            "Y": -15.0
+          },
+          {
+            "X": 0.0,
+            "Y": -10.0
+          }
+        ]
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": 0.0,
+          "Y": 0.0
+        },
+        "End_mm": {
+          "X": -95.0,
+          "Y": 0.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -95.0,
+          "Y": 0.0
+        },
+        "End_mm": {
+          "X": -95.0,
+          "Y": -25.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -95.0,
+          "Y": -25.0
+        },
+        "End_mm": {
+          "X": -78.0,
+          "Y": -25.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -78.0,
+          "Y": -25.0
+        },
+        "End_mm": {
+          "X": -70.0,
+          "Y": -20.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -70.0,
+          "Y": -20.0
+        },
+        "End_mm": {
+          "X": -42.0,
+          "Y": -20.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -42.0,
+          "Y": -20.0
+        },
+        "End_mm": {
+          "X": -36.0,
+          "Y": -15.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -36.0,
+          "Y": -15.0
+        },
+        "End_mm": {
+          "X": -12.0,
+          "Y": -15.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": -12.0,
+          "Y": -15.0
+        },
+        "End_mm": {
+          "X": 0.0,
+          "Y": -10.0
+        }
+      },
+      {
+        "PathType": "Line",
+        "VertexName": "",
+        "Start_mm": {
+          "X": 0.0,
+          "Y": -10.0
+        },
+        "End_mm": {
+          "X": 0.0,
+          "Y": 0.0
+        }
+      }
+    ]
+  }
+}
