@@ -19,7 +19,7 @@
     "server": {
         "name": "sketchup",
         "title": "Na SketchUp MCP",
-        "version": "1.0.41",
+        "version": "1.0.42",
         "description": "Inspect, model, paint, tag, view and capture a live SketchUp 2026 model. Built by Noble Architecture.",
         "instructions_file": "85__Docs__AgentReference/Na__SketchUpMcp__ServerInstructions__.md",
         "guide_file": "85__Docs__AgentReference/Na__SketchUpMcp__AgentGuide__.md"
@@ -272,6 +272,46 @@
                 "properties": {
                     "pid": {"type": "integer", "description": "The window's pid (sketchup_status instances)."},
                     "discard_unsaved_changes": {"type": "boolean", "description": "Close even with unsaved changes, losing them (default false). Only with the user's explicit agreement."},
+                    "timeout_s": {"type": "integer", "minimum": 5, "maximum": 300, "description": "Seconds to wait for it to close (default 60)."}
+                },
+                "required": ["pid"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "sketchup_scratch_open",
+            "title": "Open Scratch Window",
+            "runs_on": "server",
+            "handler_key": "sketchup_scratch_open",
+            "mutates": false,
+            "timeout_s": 900,
+            "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+            "api": ["Sketchup::Entities#erase_entities", "Sketchup::DefinitionList#purge_unused", "Sketchup::Materials#purge_unused", "Sketchup::Model#path"],
+            "description": "Open a BLANK scratch SketchUp window that is nobody's work, for converters, trials and staging: a fresh copy of SketchUp's own Simple template (Temp01a) in this plugin's ScratchWindows folder, opened in a new window (about 13 s warm, up to 2 min cold), with its scale figure erased and the definitions and materials it leaves purged, in one undo step. Returns its pid. Windows already open, and their unsaved work, are never touched. select (default true) switches this server to it, so later calls go there and not into the user's model; scripts pass the pid. Never save it. Close it with sketchup_scratch_close as soon as you are done (every SketchUp holds a lot of memory).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "select": {"type": "boolean", "description": "Switch this server to the scratch window (default true)."},
+                    "timeout_s": {"type": "integer", "minimum": 10, "maximum": 900, "description": "Seconds to wait for the new window's bridge (default 240)."}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "sketchup_scratch_close",
+            "title": "Close Scratch Window",
+            "runs_on": "server",
+            "handler_key": "sketchup_scratch_close",
+            "mutates": false,
+            "timeout_s": 330,
+            "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false},
+            "api": ["Sketchup::Model#close", "Sketchup.quit", "UI.start_timer"],
+            "description": "Close a scratch window that sketchup_scratch_open opened, without a prompt and without saving: its changes are thrown away. Refused for any other window (use sketchup_close_window), for a reused pid, and when another model has been opened into it (that may be someone's work). Waits until it has gone, deletes the scratch copy, and puts this server back on the window it used before. force:true ends the scratch process only when its bridge does not answer.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "pid": {"type": "integer", "description": "The scratch window's pid (from sketchup_scratch_open)."},
+                    "force": {"type": "boolean", "description": "End the scratch process when its bridge does not answer (default false)."},
                     "timeout_s": {"type": "integer", "minimum": 5, "maximum": 300, "description": "Seconds to wait for it to close (default 60)."}
                 },
                 "required": ["pid"],

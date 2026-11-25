@@ -46,6 +46,10 @@
 # 05-Nov-2026 - Version 1.5.0
 # - The Sync Entourage tab, as above: a Place callback and a block in the path status.
 #
+# 25-Nov-2026 - Version 1.5.1 (Cloud Sync 0.7.2)
+# - The Sync Furnishings tab, as above: a Place callback (na_vvcs_furn_place) and a block in
+#   the path status. Its sync never unlocks the ValeVision 3D Update cards either.
+#
 # =============================================================================
 
 require 'json'

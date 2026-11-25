@@ -5,7 +5,7 @@ VALEDESIGNSUITE - VALEVISION CLOUD SYNC HTMLDIALOG UI LAYOUT
 
 FILE       : Na__ValeVisionCloudSync__UiLayout__.html
 PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
-             Sync Aura, Sync Vegetation, Sync Entourage and Settings tabs rendered
+             Sync Aura, Sync Vegetation, Sync Entourage, Sync Furnishings and Settings tabs rendered
              in HTML (purpose-built sync plugin, not a generic tool launcher, so
              tabs are defined in markup not generated from JSON)
 =============================================================================
@@ -62,6 +62,8 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
                     onclick="Na__Vvcs__ShowTab('vegetation', this)">Sync Vegetation</button>
             <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('entourage', this)">Sync Entourage</button>
+            <button class="naVvcs__TabButton"
+                    onclick="Na__Vvcs__ShowTab('furnishings', this)">Sync Furnishings</button>
             <button class="naVvcs__TabButton"
                     onclick="Na__Vvcs__ShowTab('settings', this)">Settings</button>
         </nav>
@@ -370,6 +372,69 @@ PURPOSE    : Shell markup; placeholders for inlined CSS/JS; Sync ValeVision 3D,
                     <h3 class="naVvcs__Report__Title">Last Entourage Sync Report</h3>
                     <div class="naVvcs__Report__Steps" id="naVvcsEntReportSteps"></div>
                     <div class="naVvcs__Report__Summary" id="naVvcsEntReportSummary"></div>
+                </div>
+
+            </section>
+
+            <!-- ------------------------------------------------------------ -->
+
+
+            <!-- ------------------------------------------------------------ -->
+            <!-- UI SECTION | Sync Furnishings Tab (0.7.2) -->
+            <!-- ------------------------------------------------------------ -->
+
+            <section id="tab-furnishings" class="naVvcs__TabPanel">
+
+                <!-- Furnishings status summary -->
+                <div class="naVvcs__ProjectStatus">
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Signed In As</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsFurnUser">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Library Project</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsFurnLibraryProject">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Proxies</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsFurnProxies">-</span>
+                    </div>
+                    <div class="naVvcs__ProjectStatus__Row">
+                        <span class="naVvcs__ProjectStatus__Label">Last Sync</span>
+                        <span class="naVvcs__ProjectStatus__Value" id="naVvcsFurnLastSync">-</span>
+                    </div>
+                </div>
+
+                <!-- Furnishings sync action -->
+                <div class="naVvcs__ActionGroup">
+                    <h3 class="naVvcs__ActionGroup__Title">Sync Actions</h3>
+
+                    <button type="button" class="naVvcs__ActionCard naVvcs__ActionCard--primary" data-na-requires-furn="true"
+                            onclick="Na__Vvcs__RunSyncAction('furn_sync')">
+                        <span class="naVvcs__ActionCard__Icon">&#9654;</span>
+                        <span class="naVvcs__ActionCard__Body">
+                            <span class="naVvcs__ActionCard__Label">Sync Furnishings With ValeVision 3D</span>
+                            <span class="naVvcs__ActionCard__Desc">No export: furniture placed in ValeVision comes in as the real library components, and pieces on the proxy tag moved, turned, added or deleted here go back. ValeVision wins a clash. A piece keeps its real size: a scaled or mirrored one is left out.</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Placing a new proxy -->
+                <div class="naVvcs__SettingsGroup">
+                    <h3 class="naVvcs__SettingsGroup__Title">Place A Piece</h3>
+                    <p class="naVvcs__SettingsGroup__Desc">
+                        Click a piece, then click in the model. It goes on the proxy tag and becomes a piece in ValeVision 3D
+                        at the next sync. A library component already in the model joins too once you put it on that tag.
+                        Close any open group first: proxies live at the model root.
+                    </p>
+                    <div class="naVvcs__VegAssets" id="naVvcsFurnAssets"></div>
+                </div>
+
+                <!-- Last furnishings sync report (hidden until one runs) -->
+                <div class="naVvcs__Report" id="naVvcsFurnReport" style="display:none;">
+                    <h3 class="naVvcs__Report__Title">Last Furnishings Sync Report</h3>
+                    <div class="naVvcs__Report__Steps" id="naVvcsFurnReportSteps"></div>
+                    <div class="naVvcs__Report__Summary" id="naVvcsFurnReportSummary"></div>
                 </div>
 
             </section>

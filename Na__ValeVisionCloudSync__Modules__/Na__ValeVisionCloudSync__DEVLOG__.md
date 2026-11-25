@@ -1,5 +1,35 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.7.2 - 25-Nov-2026 - Sync Furnishings: a Project's Furniture as the Real Library Components, Both Ways
+
+### Overview
+**Asked for by Adam,** 25-Nov-2026, with the ValeVision 3D Furnishings system (its plan of record is the app's `ValeVision__PLAN__FurnishingsSystem__.md`, section 5.6). His answer 9: SketchUp both ways now. A new tab, **Sync Furnishings**, beside Sync Entourage and built the same way: Ruby reads and writes raw poses, the Python holds every conversion and the merge, and the base goes in the model's `ValeVision__CloudExport` dictionary inside the one operation, so an Undo puts both back together.
+
+### What It Does
+- **A proxy is the real library component,** not a figure built here: its definition loaded from the core component library file the furnishings library names (`Asset__Source`), at the model root, on `05__ValeVision__FurnishingsProxies` (AppConfig `furnishings.proxy_tag`, in the GLB builder's skip range, so it never goes into the model's GLBs: ValeVision draws the piece from its own library). Provisional, as the other proxy tags: not yet a DataLib standard tag. Hidden in the `IMG##` scenes.
+- **What counts as a proxy:** a root instance on the proxy tag, or one already stamped with a piece's Uid. Its asset is the code in its definition's `Na__ValeVisionCloudSync__FurnishingsAsset`, or the core library code its definition's name starts with, so a library component Adam drags in and puts on the proxy tag joins at the next sync. The same component on its own element tag (`28__ProposedBuilding__Furniture`) is model and is never touched. The instance carries `Na__ValeVisionCloudSync__FurnishingsItem` (`Uid`, `ProjectId`).
+- **The sync** reads the project's `Furnishings__SceneData` through ValeVision 3D's placed-assets routes with the Sync Aura tab's kept session (`GET scene-assets/working?system=Furnishings`) and writes through `POST scene-assets/save` with what it read as the base. The server finds the sync's changes item by item, so who placed what (Owners, Changes, Remove My Changes) is recorded under the signed-in person, a piece someone else changed meanwhile is never overwritten, and an Employee may sync. A new Uid somebody else took meanwhile is renumbered by the server, and the stamps follow.
+- **The three-way merge** against the base (`furnishings_base`, `furnishings_base_project`, `furnishings_last_sync`): changed on one side goes to the other; changed on both, **ValeVision wins** and the report names it. A piece's turn is the red axis about Z, a tenth of a degree, 0 to 360 (Sync Aura's own normaliser); position whole mm, three = (su.x, su.z, -su.y).
+- **A piece keeps its real size:** a scaled or mirrored proxy is left where it is, out of ValeVision, and the report names it. A tilted one keeps only its turn.
+- **A new piece from SketchUp** takes the next F Uid above any either side has used, and its asset's pin is the library's row for its latest version, as the app pins it. **A piece new in the app** is placed in SketchUp from its core library `.skp`.
+- **Place A Piece** in the tab loads the component and starts SketchUp's own component tool; the piece lands on the proxy tag (only pieces placed from the tab; one placed from the component browser keeps the tag the person gives it).
+- **On unless switched off:** a project with no key counts as on, and only `Enabled: false` is refused (Adam's answer 8).
+
+### Files Changed
+- New: `04__Plugin__SyncFeatures/12__FurnishingsSync/Na__ValeVisionCloudSync__FurnishingsSync__.rb` (0.0.1) and `.py` (0.0.1)
+- `07__SyncOrchestrator` (2.3.1): the scope and its label. `...DialogManager__.rb` (1.5.1): the Place callback, the status block, `furn_` never unlocks the Update cards. `...ConfigLoader__.rb`: `Na__ValeVisionCloudSync__FurnishingsPaths`. `...ModuleLoaders__Main__.rb`. AppConfig: the `furnishings` block
+- `05__Plugin__UserInterface`: the tab in `UiLayout`, `UiBridge` (1.5.1). `Styles` is unchanged: the list of pieces uses the list of plants' classes
+
+### Verified (25-Nov-2026)
+- **The merge by numbers,** 32 checks: the frames off the origin both ways, turns, the first sync, nothing to do, a turn that only rounds, moved each way, a clash, deleted each way, new in the app, scaled and mirrored refused, an undone stamp, a copy, a swap, an asset not in the library.
+- **The real script live against a sandbox of the real API** (the agent's own testing server, port 8044, fake users, no real data), 16 checks: a first sync on no key writes the piece and its pin exactly as plan 5.2 says, recorded under the signed-in Employee; the second sync finds nothing; moved in the app comes to SketchUp; moved in SketchUp goes to the app; a scaled proxy refused; a new table in the app named with its core library `.skp`; deleted in SketchUp; switched off refused in words; a dead session refused in words.
+- **Real SketchUp 2027, in a scratch window of the agent's own** (a copy of the Simple template, never saved, closed after), the whole Ruby path against the same sandbox, 13 checks: the app's table placed as the real `18_3012` component at SketchUp (3000, -1000, 0) mm turned 90 on the proxy tag, named as the app names it, the base kept; moved and turned in SketchUp reaches the app as [500, 0, -700] at 30; a tub chair put on the proxy tag becomes F0002 with its pin and its stamp; deleted in the app taken out; a second sync matches; one Undo puts the proxy and the base back together.
+- All 22 Ruby files compile under SketchUp's Ruby 3.2.2; `su_lint` clean; the dialog script parses.
+
+### Not Verified
+- The dialog's page in a browser (the tab, its card and its list): only parsed. The Place button's component tool, which needs a click in a real window.
+- A sync from a real project model through the dialog's own Run path (project paths and the library resolution), on real data: never run, by design.
+
 ## Version 0.7.1 - 06-Nov-2026 - A Scene's Target Is Captured Where ValeVision 3D Can Orbit About It
 
 ### Overview

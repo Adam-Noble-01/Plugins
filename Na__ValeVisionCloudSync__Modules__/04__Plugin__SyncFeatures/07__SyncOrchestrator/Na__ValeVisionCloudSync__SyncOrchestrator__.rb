@@ -24,6 +24,10 @@
 # -----------------------------------------------------------------------------
 #
 # DEVELOPMENT LOG:
+# 25-Nov-2026 - Version 2.3.1 (Cloud Sync 0.7.2)
+# - The Sync Furnishings tab's scope (furn_sync) goes to Na__FurnishingsSync, which runs
+#   its own checks and its own Python (12__FurnishingsSync).
+#
 # 05-Nov-2026 - Version 2.3.0
 # - The Sync Entourage tab's scope (ent_sync) goes to Na__EntourageSync, which runs
 #   its own checks and its own Python (11__EntourageSync).

@@ -35,6 +35,10 @@
     // - The Sync Entourage tab, as above: its status rows, its card, its list of figures
     //   to place, its own report.
     //
+    // 25-Nov-2026 - Version 1.5.1 (Cloud Sync 0.7.2)
+    // - The Sync Furnishings tab, as above: its status rows, its card, its list of pieces
+    //   to place by category, its own report.
+    //
     // =============================================================================
 
 
@@ -53,6 +57,7 @@
     var NA_VVCS_REQUIRES_AURA_SELECTOR = '.naVvcs__ActionCard[data-na-requires-aura="true"]'; // <-- The two Sync Aura cards
     var NA_VVCS_REQUIRES_VEG_SELECTOR  = '.naVvcs__ActionCard[data-na-requires-veg="true"]';  // <-- The Sync Vegetation card
     var NA_VVCS_REQUIRES_ENT_SELECTOR  = '.naVvcs__ActionCard[data-na-requires-ent="true"]';  // <-- The Sync Entourage card
+    var NA_VVCS_REQUIRES_FURN_SELECTOR = '.naVvcs__ActionCard[data-na-requires-furn="true"]'; // <-- The Sync Furnishings card
 
     // endregion -------------------------------------------------------------------
 
@@ -128,12 +133,13 @@
         var isAura = actionId.indexOf('aura_') === 0;
         var isVeg  = actionId.indexOf('veg_') === 0;
         var isEnt  = actionId.indexOf('ent_') === 0;
+        var isFurn = actionId.indexOf('furn_') === 0;
         // <-- Update actions are locked until a full Sync Project has succeeded once
-        if (!isAura && !isVeg && !isEnt && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
+        if (!isAura && !isVeg && !isEnt && !isFurn && actionId !== 'sync_project' && !naVvcsState.firstSyncComplete) {
             na__vvcs__setStatus('Run a full Sync Project To ValeVision 3D first.', 'warning');
             return;
         }
-        if ((isAura || isVeg || isEnt) && !naVvcsState.auraSignedIn) {
+        if ((isAura || isVeg || isEnt || isFurn) && !naVvcsState.auraSignedIn) {
             na__vvcs__setStatus('Sign in first (top of the Sync Aura tab).', 'warning');
             return;
         }
@@ -271,6 +277,14 @@
         window.sketchup.na_vvcs_ent_place(String(assetId));
     }
 
+    function Na__Vvcs__FurnPlace(assetId) {
+        if (!window.sketchup || !window.sketchup.na_vvcs_furn_place) {
+            na__vvcs__setStatus('SketchUp bridge unavailable.', 'error');
+            return;
+        }
+        window.sketchup.na_vvcs_furn_place(String(assetId));
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -299,6 +313,7 @@
         na__vvcs__renderAuraStatus(pathData.aura || null, pathData.library || null);
         na__vvcs__renderVegetationStatus(pathData.vegetation || null, pathData.library || null);
         na__vvcs__renderEntourageStatus(pathData.entourage || null, pathData.library || null);
+        na__vvcs__renderFurnishingsStatus(pathData.furnishings || null, pathData.library || null);
 
         var modelNameEl  = document.getElementById('naVvcsModelName');
         var projectRootEl = document.getElementById('naVvcsProjectRoot');
@@ -516,6 +531,58 @@
         }
     }
 
+    // FUNCTION | The Sync Furnishings Tab: Status Rows and the Pieces to Place, by Category
+    // ------------------------------------------------------------
+    function na__vvcs__renderFurnishingsStatus(furn, library) {
+        var userEl    = document.getElementById('naVvcsFurnUser');
+        var libraryEl = document.getElementById('naVvcsFurnLibraryProject');
+        var proxiesEl = document.getElementById('naVvcsFurnProxies');
+        var lastEl    = document.getElementById('naVvcsFurnLastSync');
+        var assetsEl  = document.getElementById('naVvcsFurnAssets');
+        var base      = 'naVvcs__ProjectStatus__Value';
+        var signedIn  = !!(furn && furn.signed_in);
+
+        if (userEl) {
+            userEl.textContent = signedIn
+                ? (furn.user_name || 'Signed in') + (furn.user_level ? ' (' + furn.user_level + ')' : '')
+                : 'Not signed in: sign in at the top of the Sync Aura tab (the same Vale sign-in)';
+            userEl.className = base + (signedIn ? '' : ' ' + base + '--error');
+        }
+        if (libraryEl) {
+            if (!library)              { libraryEl.textContent = '-'; libraryEl.className = base; }
+            else if (library.error)    { libraryEl.textContent = library.error; libraryEl.className = base + ' ' + base + '--error'; }
+            else if (!library.exists)  { libraryEl.textContent = library.rel + ': not in the Project Library yet (sync it to ValeVision 3D first)'; libraryEl.className = base + ' ' + base + '--error'; }
+            else                       { libraryEl.textContent = library.rel + ' (furnishings are on unless an admin switches them off in ValeVision 3D\'s Dev Tools)'; libraryEl.className = base; }
+        }
+        if (proxiesEl) {
+            proxiesEl.textContent = furn
+                ? String(furn.proxies || 0) + ' in the model: ' + String(furn.linked || 0) + ' linked to ValeVision' + (furn.proxy_tag ? ', on ' + furn.proxy_tag : '')
+                : '-';
+        }
+        if (lastEl) {
+            lastEl.textContent = furn && furn.last_sync
+                ? furn.last_sync + (furn.base_project ? ' (' + furn.base_project + ')' : '')
+                : 'Never';
+        }
+        if (assetsEl) {
+            var assets = furn && Array.isArray(furn.assets) ? furn.assets : [];
+            assetsEl.innerHTML = assets.length === 0
+                ? '<p class="naVvcs__SettingsGroup__Desc">The furnishings library was not found on this PC, or holds nothing yet.</p>'
+                : assets.map(function(asset) {
+                    return '<button type="button" class="naVvcs__Btn naVvcs__VegAssets__Item" data-na-asset="' + na__vvcs__escHtml(asset.id) + '">'
+                        + '<span class="naVvcs__VegAssets__Name">' + na__vvcs__escHtml(asset.name) + '</span>'
+                        + '<span class="naVvcs__VegAssets__Size">' + na__vvcs__escHtml(String(asset.category || '') + ', ' + String(asset.width_mm) + ' x ' + String(asset.depth_mm) + ' x ' + String(asset.height_mm) + ' mm') + '</span>'
+                        + '</button>';
+                }).join('');
+            var items = assetsEl.querySelectorAll('.naVvcs__VegAssets__Item');
+            for (var i = 0; i < items.length; i += 1) {
+                items[i].addEventListener('click', function(event) {
+                    Na__Vvcs__FurnPlace(event.currentTarget.getAttribute('data-na-asset'));
+                });
+            }
+        }
+    }
+
     // endregion -------------------------------------------------------------------
 
 
@@ -525,7 +592,7 @@
 
     function na__vvcs__renderReport(report) {
         var scope     = String(report.scope || report.action_id || '');
-        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : (scope.indexOf('veg_') === 0 ? 'naVvcsVegReport' : (scope.indexOf('ent_') === 0 ? 'naVvcsEntReport' : 'naVvcsReport'));   // <-- Each tab shows its own last report
+        var prefix    = scope.indexOf('aura_') === 0 ? 'naVvcsAuraReport' : (scope.indexOf('veg_') === 0 ? 'naVvcsVegReport' : (scope.indexOf('ent_') === 0 ? 'naVvcsEntReport' : (scope.indexOf('furn_') === 0 ? 'naVvcsFurnReport' : 'naVvcsReport')));   // <-- Each tab shows its own last report
         var reportEl  = document.getElementById(prefix);
         var stepsEl   = document.getElementById(prefix + 'Steps');
         var summaryEl = document.getElementById(prefix + 'Summary');
@@ -641,6 +708,12 @@
         for (var ei = 0; ei < entCards.length; ei += 1) {
             entCards[ei].disabled = lockAura;                                   // <-- One Vale sign-in for every tab
             entCards[ei].title    = lockAura ? 'Sign in first (top of the Sync Aura tab).' : '';
+        }
+
+        var furnCards = document.querySelectorAll(NA_VVCS_REQUIRES_FURN_SELECTOR);
+        for (var fi = 0; fi < furnCards.length; fi += 1) {
+            furnCards[fi].disabled = lockAura;                                  // <-- One Vale sign-in for every tab
+            furnCards[fi].title    = lockAura ? 'Sign in first (top of the Sync Aura tab).' : '';
         }
     }
 

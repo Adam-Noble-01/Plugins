@@ -44,6 +44,7 @@ import time
 
 import Na__SketchUpMcp__Server__BridgeClient__ as Na__BridgeClientModule
 import Na__SketchUpMcp__Server__MatchPhoto__ as Na__MatchPhotoModule
+import Na__SketchUpMcp__Server__ScratchWindow__ as Na__ScratchWindow
 import Na__SketchUpMcp__Server__SchemaValidator__ as Na__SchemaValidator
 import Na__SketchUpMcp__Server__WindowLauncher__ as Na__WindowLauncher
 
@@ -111,7 +112,11 @@ class Na__ToolRunner:
             if name == 'sketchup_open_window':
                 return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Open(self.na_bridge, arguments))
             if name == 'sketchup_close_window':
-                return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Close(self.na_bridge, arguments))
+                return self.na_close_window(arguments)
+            if name == 'sketchup_scratch_open':                      # 1.0.42: a blank window that is nobody's work
+                return na_success_result(Na__ScratchWindow.Na__ScratchWindow__Open(self.na_bridge, arguments))
+            if name == 'sketchup_scratch_close':
+                return na_success_result(Na__ScratchWindow.Na__ScratchWindow__Close(self.na_bridge, arguments))
             if name == 'match_photo_solve':                          # 1.0.40: the vision worker, no SketchUp needed
                 try:
                     return na_success_result(Na__MatchPhotoModule.Na__MatchPhoto__Solve(arguments, tool.get('timeout_s', 200) - 10))
@@ -206,6 +211,18 @@ class Na__ToolRunner:
                 return na_result_from_response(response, extra)
             time.sleep(interval)
 
+    # --- sketchup_close_window ----------------------------------------------------------
+
+    def na_close_window(self, arguments):
+        """sketchup_close_window; a scratch window's refusal names sketchup_scratch_close (1.0.42)."""
+        try:
+            return na_success_result(Na__WindowLauncher.Na__WindowLauncher__Close(self.na_bridge, arguments))
+        except Na__BridgeClientModule.Na__BridgeError as error:
+            if error.na_code == 'unsaved_changes' and Na__ScratchWindow.Na__ScratchWindow__IsScratch(arguments.get('pid')):
+                return na_error_result(error.na_code, error.na_message + ' It is a scratch window.',
+                                       'Close it with sketchup_scratch_close pid %s, which throws its changes away.' % arguments.get('pid'))
+            raise
+
     # --- sketchup_status -------------------------------------------------------------
 
     def na_status(self, tool, arguments):
@@ -223,6 +240,9 @@ class Na__ToolRunner:
             'model_path': item.get('model_path'), 'sketchup_version': item.get('sketchup_version'), 'live': item.get('live'),
             'selected': in_use == item.get('pid')
         } for item in windows]
+        for entry in instances:                             # 1.0.42: windows sketchup_scratch_open made
+            if entry['live'] and Na__ScratchWindow.Na__ScratchWindow__IsScratch(entry['pid']):
+                entry['scratch'] = True
 
         payload = {'server': self.na_server_facts, 'instances': instances}
         current = [item for item in windows if item['live'] and item.get('pid') == in_use]
