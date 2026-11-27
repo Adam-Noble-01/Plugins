@@ -103,8 +103,9 @@ module Na__ValeLantern
             # @param file_path [String, nil] Skip the picker by passing a path
             # @param target [Sketchup::ComponentInstance, Sketchup::Group, nil]
             #        Skip the target resolution by passing the root container
+            # @param choice_overrides [Hash, nil] Optional overrides (e.g. :WhitecardMaterials)
             # @return [Boolean] true when a lantern was rebuilt
-            def self.na_reload(file_path = nil, target = nil)
+            def self.na_reload(file_path = nil, target = nil, choice_overrides = nil)
                 model = Sketchup.active_model
                 unless model
                     DebugTools.na_error('There is no open model to reload into.')
@@ -138,7 +139,7 @@ module Na__ValeLantern
 
                 return false unless na_identity_agrees?(container, definition, payload)
 
-                na_rebuild(model, container, definition, payload, chosen)
+                na_rebuild(model, container, definition, payload, chosen, choice_overrides)
             end
             # ---------------------------------------------------------------
 
@@ -258,8 +259,8 @@ module Na__ValeLantern
 
             # HELPER FUNCTION | Clear, release and rebuild, as one operation
             # ------------------------------------------------------------
-            def self.na_rebuild(model, container, definition, payload, source_path)
-                choices  = na_choices_for(container, definition, source_path)
+            def self.na_rebuild(model, container, definition, payload, source_path, choice_overrides = nil)
+                choices  = na_choices_for(container, definition, source_path, choice_overrides)
                 placings = na_placement_count(definition)
 
                 # Close any open edit context that passes through the definition
@@ -687,16 +688,26 @@ module Na__ValeLantern
             #
             # A lantern imported before version 1.4.0 carries neither stamp and
             # falls to the metal alone, which is what those imports built.
-            def self.na_choices_for(container, definition, source_path)
-                unless ConfigLoader.na_reload_preserves_choices?
-                    return { :BuildModel => true, :BuildSettingOut => false, :SourceFilePath => source_path }
-                end
-
-                {
-                    :BuildModel      => na_read_stamp(container, definition, 'BuiltModel')      != false,
-                    :BuildSettingOut => na_read_stamp(container, definition, 'BuiltSettingOut') == true,
-                    :SourceFilePath  => source_path
-                }
+            def self.na_choices_for(container, definition, source_path, choice_overrides = nil)
+                overrides = choice_overrides.is_a?(Hash) ? choice_overrides : {}
+                base = unless ConfigLoader.na_reload_preserves_choices?
+                           {
+                               :BuildModel         => true,
+                               :BuildSettingOut    => false,
+                               :WhitecardMaterials => ConfigLoader.na_whitecard_mode?,
+                               :SourceFilePath     => source_path
+                           }
+                       else
+                           stamped_wc = na_read_stamp(container, definition, 'WhitecardMaterials')
+                           wc_val = stamped_wc.nil? ? ConfigLoader.na_whitecard_mode? : (stamped_wc == true)
+                           {
+                               :BuildModel         => na_read_stamp(container, definition, 'BuiltModel')      != false,
+                               :BuildSettingOut    => na_read_stamp(container, definition, 'BuiltSettingOut') == true,
+                               :WhitecardMaterials => wc_val,
+                               :SourceFilePath     => source_path
+                           }
+                       end
+                base.merge(overrides)
             end
             private_class_method :na_choices_for
 

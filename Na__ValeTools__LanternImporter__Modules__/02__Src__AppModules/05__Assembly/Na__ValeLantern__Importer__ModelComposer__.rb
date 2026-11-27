@@ -81,10 +81,13 @@ module Na__ValeLantern
 # -----------------------------------------------------------------------------
 
             DebugTools         = Na__ValeLantern::Na__Importer::Na__DebugTools
+            Units              = Na__ValeLantern::Na__Importer::Na__Units
             PayloadReader      = Na__ValeLantern::Na__Importer::Na__PayloadReader
+            DataLibBridge      = Na__ValeLantern::Na__Importer::Na__DataLibBridge
             TagManager         = Na__ValeLantern::Na__Importer::Na__TagManager
             MaterialManager    = Na__ValeLantern::Na__Importer::Na__MaterialManager
             ConfigLoader       = Na__ValeLantern::Na__Importer::Na__ConfigLoader
+            EdgeSoftener       = Na__ValeLantern::Na__Importer::Na__EdgeSoftener
             DefinitionRegistry = Na__ValeLantern::Na__Importer::Na__DefinitionRegistry
             PrismBuilder       = Na__ValeLantern::Na__Importer::Na__PrismBuilder
             MeshBuilder        = Na__ValeLantern::Na__Importer::Na__MeshBuilder
@@ -204,10 +207,16 @@ module Na__ValeLantern
             # same hash differently from an import.
             def self.na_resolve_choices(choices)
                 given = choices.is_a?(Hash) ? choices : {}
+                whitecard = if given.key?(:WhitecardMaterials)
+                                given[:WhitecardMaterials] == true
+                            else
+                                ConfigLoader.na_whitecard_mode?
+                            end
                 {
-                    :BuildModel      => given.fetch(:BuildModel, true) != false,
-                    :BuildSettingOut => given.fetch(:BuildSettingOut, false) == true,
-                    :SourceFilePath  => given[:SourceFilePath]
+                    :BuildModel         => given.fetch(:BuildModel, true) != false,
+                    :BuildSettingOut    => given.fetch(:BuildSettingOut, false) == true,
+                    :WhitecardMaterials => whitecard,
+                    :SourceFilePath     => given[:SourceFilePath]
                 }
             end
             private_class_method :na_resolve_choices
@@ -230,6 +239,7 @@ module Na__ValeLantern
                 na_apply_model_options(model, options)
 
                 TagManager.na_prepare_tags(model_block['Tags'])
+                MaterialManager.na_set_whitecard_mode(wanted[:WhitecardMaterials] == true)
                 MaterialManager.na_prepare_materials(model_block['Materials'])
                 MeshBuilder.na_prepare_definitions(model_block['Definitions']) if wanted[:BuildModel]
 
@@ -449,9 +459,10 @@ module Na__ValeLantern
                 na_stamp(entity, 'PitchDegrees',  lantern['PitchDegrees'])
                 na_stamp(entity, 'Quantity',      lantern['Quantity'])
 
-                na_stamp(entity, 'BuiltModel',      wanted[:BuildModel])
-                na_stamp(entity, 'BuiltSettingOut', wanted[:BuildSettingOut])
-                na_stamp(entity, 'BuiltAtLocal',    na_local_timestamp)
+                na_stamp(entity, 'BuiltModel',         wanted[:BuildModel])
+                na_stamp(entity, 'BuiltSettingOut',    wanted[:BuildSettingOut])
+                na_stamp(entity, 'WhitecardMaterials', wanted[:WhitecardMaterials])
+                na_stamp(entity, 'BuiltAtLocal',       na_local_timestamp)
 
                 return unless ConfigLoader.na_remembers_source_file?
                 na_stamp(entity, 'SourceFilePath', wanted[:SourceFilePath])                         # <-- What the reload picker opens on
@@ -505,11 +516,224 @@ module Na__ValeLantern
                         DebugTools.na_warn("Assembly '#{name}': every part was refused - container removed.")
                         na_close_empty_container(model, container, definition)
                     else
+                        if assembly['Key'].to_s == 'roofFrame' && ConfigLoader.na_merge_ridge_capping?
+                            na_merge_ridge_capping_assembly(model, entities)
+                        end
                         DebugTools.na_info("Assembly '#{name}': #{built} of #{parts.length} part(s) built.")
                     end
                 end
             end
             private_class_method :na_build_assemblies
+
+            # HELPER FUNCTION | Merge RidgeCapping + touching RidgeEndCaps into one solid
+            # ------------------------------------------------------------
+            # Runs on copies first so an unexpected solid-engine refusal leaves the
+            # original parts untouched. Softens and smooths butt-plane seam edges
+            # without ever erasing curved seam edges (keeping manifold? == true).
+            def self.na_merge_ridge_capping_assembly(model, assembly_entities)
+                cappings = []
+                end_caps = []
+
+                assembly_entities.each do |entity|
+                    next unless entity.is_a?(Sketchup::ComponentInstance) || entity.is_a?(Sketchup::Group)
+                    role = entity.get_attribute(NA_ATTRIBUTE_DICTIONARY, 'PartRole').to_s
+                    if role == 'ridgeCapping' || entity.name.to_s =~ /\ARidgeCapping__\d+\z/
+                        cappings << entity
+                    elsif role == 'ridgeEndCap' || entity.name.to_s =~ /\ARidgeEndCap__\d+\z/
+                        end_caps << entity
+                    end
+                end
+
+                return 0 if cappings.empty? || end_caps.empty?
+
+                reach_in       = Units.na_mm_to_inch(5.0)
+                butt_tol_in    = Units.na_mm_to_inch(ConfigLoader.na_merge_butt_tolerance_mm)
+                seam_angle_rad = ConfigLoader.na_merge_seam_angle_degrees * Math::PI / 180.0
+                merged_count   = 0
+
+                cappings.each_with_index do |capping, idx|
+                    next unless capping.valid?
+                    cbb = capping.bounds
+                    touching_caps = end_caps.select { |cap| cap.valid? && na_bounds_touch?(cbb, cap.bounds, reach_in) }
+                    next if touching_caps.empty?
+
+                    operands = [capping] + touching_caps
+                    unless operands.all?(&:manifold?)
+                        bad = operands.reject(&:manifold?).map(&:name).join(', ')
+                        DebugTools.na_warn("Ridge capping merge skipped (non-manifold operand(s): #{bad}).")
+                        next
+                    end
+
+                    axis      = (cbb.width >= cbb.height) ? :x : :y
+                    plane_min = (axis == :x) ? cbb.min.x : cbb.min.y
+                    plane_max = (axis == :x) ? cbb.max.x : cbb.max.y
+
+                    work_capping = na_clone_solid(assembly_entities, capping)
+                    work_caps    = touching_caps.map { |cap| na_clone_solid(assembly_entities, cap) }
+                    current      = work_capping
+                    failed       = false
+
+                    work_caps.each do |wc|
+                        if current.nil? || !current.valid? || wc.nil? || !wc.valid?
+                            failed = true
+                            break
+                        end
+                        current = current.outer_shell(wc)
+                    end
+
+                    if failed || current.nil? || !current.valid? || !current.manifold?
+                        DebugTools.na_warn("Ridge capping outer_shell did not yield a manifold solid for '#{capping.name}' - originals kept.")
+                        current.erase! if current && current.valid?
+                        ([work_capping] + work_caps).each { |w| w.erase! if w && w.valid? }
+                        next
+                    end
+
+                    saved_layer    = capping.layer
+                    saved_material = capping.material
+                    saved_attrs    = na_read_vgh_attributes(capping)
+                    old_def        = capping.is_a?(Sketchup::ComponentInstance) ? capping.definition : nil
+                    source_names   = operands.map(&:name)
+
+                    operands.each { |orig| orig.erase! if orig.valid? }
+                    end_caps -= touching_caps
+
+                    if old_def && !old_def.deleted? &&
+                       old_def.get_attribute(NA_ATTRIBUTE_DICTIONARY, 'RecordType').to_s == 'ValeLanternPartDefinition' &&
+                       old_def.count_used_instances.zero?
+                        DefinitionRegistry.na_discard_definition(model, old_def)
+                    end
+
+                    merged_name = format('%s__%02d', ConfigLoader.na_merge_part_name_prefix, idx + 1)
+                    merged = if ConfigLoader.na_container_is_component?(:Part)
+                                 inst = current.to_component
+                                 DefinitionRegistry.na_adopt_part_definition(model, inst.definition, ConfigLoader.na_merge_family_name, 'ridgeCapping')
+                                 inst
+                             else
+                                 current
+                             end
+                    merged.name     = merged_name
+                    merged.layer    = saved_layer if saved_layer
+                    merged.material = saved_material if saved_material && !MaterialManager.na_whitecard_mode?
+
+                    na_stamp_all(merged, saved_attrs)
+                    na_stamp(merged, 'PartRole',    'ridgeCappingAssembly')
+                    na_stamp(merged, 'MergedParts', source_names.length)
+                    na_stamp(merged, 'MergedFrom',  source_names.join(', '))
+
+                    merged_ents = merged.is_a?(Sketchup::ComponentInstance) ? merged.definition.entities : merged.entities
+                    merged_ents.grep(Sketchup::Face).each do |face|
+                        next unless face.valid?
+                        face.material      = nil
+                        face.back_material = nil
+                    end
+
+                    seam_softened = na_soften_ridge_butt_seams(
+                        merged_ents, merged.transformation, axis, plane_min, plane_max, butt_tol_in, seam_angle_rad
+                    )
+                    EdgeSoftener.na_soften_for_tag(merged_ents, 'ridgeCapping')
+                    na_paint_merged_hard_edges(model, merged_ents, 'ridgeCapping')
+
+                    face_count = merged_ents.grep(Sketchup::Face).length
+                    DebugTools.na_info(
+                        "Merged #{source_names.join(' + ')} into '#{merged_name}' " \
+                        "(#{face_count} faces, manifold=#{merged.manifold?}, #{seam_softened} butt seam edge(s) softened)."
+                    )
+                    merged_count += 1
+                end
+
+                merged_count
+            rescue StandardError => e
+                DebugTools.na_warn("Ridge capping merge skipped (#{e.class}): #{e.message}")
+                0
+            end
+            private_class_method :na_merge_ridge_capping_assembly
+
+            # HELPER FUNCTION | Clone a Group or ComponentInstance inside its parent
+            # ------------------------------------------------------------
+            def self.na_clone_solid(parent_entities, entity)
+                return entity.copy if entity.is_a?(Sketchup::Group)
+                parent_entities.add_instance(entity.definition, entity.transformation)
+            end
+            private_class_method :na_clone_solid
+
+            # HELPER FUNCTION | Whether two bounding boxes touch or overlap within tol
+            # ------------------------------------------------------------
+            def self.na_bounds_touch?(bb_a, bb_b, tol)
+                bb_a.min.x <= bb_b.max.x + tol && bb_a.max.x >= bb_b.min.x - tol &&
+                    bb_a.min.y <= bb_b.max.y + tol && bb_a.max.y >= bb_b.min.y - tol &&
+                    bb_a.min.z <= bb_b.max.z + tol && bb_a.max.z >= bb_b.min.z - tol
+            end
+            private_class_method :na_bounds_touch?
+
+            # HELPER FUNCTION | Read all VghLantern attributes off an entity
+            # ------------------------------------------------------------
+            def self.na_read_vgh_attributes(entity)
+                dict = entity.attribute_dictionary(NA_ATTRIBUTE_DICTIONARY, false)
+                return {} unless dict
+                out = {}
+                dict.each_pair { |k, v| out[k.to_s] = v }
+                out
+            rescue StandardError
+                {}
+            end
+            private_class_method :na_read_vgh_attributes
+
+            # HELPER FUNCTION | Soften/smooth curved butt-plane seam edges (never erase!)
+            # ------------------------------------------------------------
+            def self.na_soften_ridge_butt_seams(entities, transform, axis, plane_min, plane_max, tol_in, max_angle_rad)
+                softened = 0
+                entities.grep(Sketchup::Edge).each do |edge|
+                    next unless edge.valid?
+                    faces = edge.faces
+                    next unless faces.length == 2 && faces[0].valid? && faces[1].valid?
+
+                    p1 = edge.start.position.transform(transform)
+                    p2 = edge.end.position.transform(transform)
+                    c1 = (axis == :x) ? p1.x : p1.y
+                    c2 = (axis == :x) ? p2.x : p2.y
+
+                    on_min = (c1 - plane_min).abs <= tol_in && (c2 - plane_min).abs <= tol_in
+                    on_max = (c1 - plane_max).abs <= tol_in && (c2 - plane_max).abs <= tol_in
+                    next unless on_min || on_max
+
+                    angle = faces[0].normal.angle_between(faces[1].normal)
+                    next if angle > max_angle_rad
+
+                    edge.soft     = true
+                    edge.smooth   = true
+                    edge.material = nil
+                    softened     += 1
+                end
+                softened
+            end
+            private_class_method :na_soften_ridge_butt_seams
+
+            # HELPER FUNCTION | Paint unpainted hard visible edges on a merged solid
+            # ------------------------------------------------------------
+            def self.na_paint_merged_hard_edges(model, entities, tag_key)
+                return 0 unless model && ConfigLoader.na_edge_colours_enabled?
+
+                material_name = ConfigLoader.na_edge_material_name_for(tag_key)
+                return 0 if material_name.nil? || material_name.empty?
+
+                material = DataLibBridge.na_palette_edge_material(model, material_name)
+                return 0 unless material
+
+                painted = 0
+                entities.grep(Sketchup::Edge).each do |edge|
+                    next unless edge.valid?
+                    if edge.soft? || edge.hidden?
+                        edge.material = nil if edge.material
+                        next
+                    end
+                    next unless edge.material.nil?
+
+                    edge.material = material
+                    painted += 1
+                end
+                painted
+            end
+            private_class_method :na_paint_merged_hard_edges
 
             # HELPER FUNCTION | Build every part of one assembly
             # ------------------------------------------------------------

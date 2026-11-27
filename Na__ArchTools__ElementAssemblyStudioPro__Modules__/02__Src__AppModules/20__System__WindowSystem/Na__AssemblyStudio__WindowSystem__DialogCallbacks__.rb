@@ -2175,15 +2175,20 @@ module Na__AssemblyStudio
             # measured Z height before the value is forwarded to the
             # dialog. Returns 0 when:
             #   - the user has toggled "Include Cill" OFF, OR
-            #   - the frame is bottom-frameless (frame_bottom == 0), OR
-            #   - `has_cill` is missing AND the user has no live config
-            #     (defensive: treat unknown state as no cill so we do
-            #     not invent a phantom 50mm deduction).
-            # Otherwise returns the configured `cill_height_mm` (50mm
-            # default when the key is missing on a positive `has_cill`).
+            #   - an exterior door mode is active AND the frame bottom
+            #     threshold is 0 (exterior door composers omit Na_Cill
+            #     without a bottom threshold), OR
+            #   - `has_cill` is missing (defensive).
+            # V2.7.10: Windows (casement/sash) build Na_Cill whenever
+            # `has_cill` is true, including when `frame_bottom_thickness_mm`
+            # is 0 (sash/casement seated directly on the cill).
             def self.na_resolve_cill_subtraction_mm(wc, frame_bottom_thickness_mm)
                 return 0 unless wc["has_cill"] == true
-                return 0 unless frame_bottom_thickness_mm > 0
+                is_ext_door = wc["ext_single_door_mode"] == true ||
+                              wc["double_door_mode"] == true ||
+                              wc["sliding_mode"] == true ||
+                              wc["multifold_mode"] == true
+                return 0 if is_ext_door && frame_bottom_thickness_mm <= 0
                 (wc["cill_height_mm"] || 50).to_f
             end
             private_class_method :na_resolve_cill_subtraction_mm

@@ -67,6 +67,7 @@ class NaFakeBridge:
         self.pick_polls = 0                 # 1.0.30: looks at a waiting input_pick
         self.pick_never = False
         self.proposal_polls = 0
+        self.on_eval = None                 # 1.0.42: a function(params) giving ruby_eval's value (None: the echo)
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind(('127.0.0.1', 0))
         self.server.listen(8)
@@ -125,6 +126,14 @@ class NaFakeBridge:
         if command == 'sketchup_status':
             return {'id': rid, 'ok': True, 'result': {'sketchup': {'version': '26.2.243'}, 'model': {'title': self.live_title, 'modified': self.modified}}}
         if command == 'view_capture':
+            requested = params.get('save_path') or params.get('output_path')
+            if requested:
+                path = os.path.abspath(requested)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'wb') as handle:
+                    handle.write(NA_PNG_1X1)
+                return {'id': rid, 'ok': True, 'result': {'image_file': path, 'saved_to': path, 'keep_file': True,
+                                                           'mime_type': 'image/png', 'width': 1, 'height': 1}}
             path = os.path.join(self.connections_dir, 'capture.png')
             with open(path, 'wb') as handle:
                 handle.write(NA_PNG_1X1)
@@ -137,6 +146,8 @@ class NaFakeBridge:
             done = not self.pick_never and self.pick_polls >= 3
             return {'id': rid, 'ok': True, 'result': {'pick_id': 'pick_1', 'status': 'done' if done else 'waiting',
                                                        'points': [[10.0, 20.0, 0.0]] if done else [], 'seen_action': params.get('action')}}
+        if command == 'ruby_eval' and self.on_eval:
+            return {'id': rid, 'ok': True, 'result': {'result': 'true', 'value': self.on_eval(params)}}
         if command == 'proposal_preview' and params.get('action') == 'status':
             self.proposal_polls += 1
             answered = self.proposal_polls >= 2
@@ -237,7 +248,7 @@ class NaMcpServerTests(unittest.TestCase):
 
     def test_tools_list(self):
         tools = self.session.request('tools/list')['result']['tools']
-        self.assertEqual(len(tools), 83)
+        self.assertEqual(len(tools), 89)
         for tool in tools:
             self.assertEqual(tool['inputSchema']['type'], 'object')
             self.assertNotIn('$use', json.dumps(tool['inputSchema']))
@@ -484,6 +495,137 @@ class NaMcpServerTests(unittest.TestCase):
         self.assertEqual(len(images), 1)
         self.assertEqual(base64.b64decode(images[0]['data']), NA_PNG_1X1)
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir, 'capture.png')))
+        payload = json.loads(blocks[0]['text'])
+        self.assertNotIn('image_file', payload)
+        self.assertNotIn('saved_to', payload)
+
+    def test_view_capture_save_path_keeps_file_and_returns_saved_to_and_image_file(self):
+        target = os.path.join(self.temp_dir, 'nested', 'shots', 'front.png')
+        response = self.session.call('view_capture', {'width': 64, 'height': 64, 'save_path': target})
+        self.assertFalse(response['result']['isError'], self.text(response))
+        blocks = response['result']['content']
+        images = [block for block in blocks if block['type'] == 'image']
+        self.assertEqual(len(images), 1)
+        self.assertTrue(os.path.isfile(target))
+        payload = json.loads(blocks[0]['text'])
+        self.assertEqual(payload['saved_to'], os.path.abspath(target))
+        self.assertEqual(payload['image_file'], os.path.abspath(target))
+        self.assertNotIn('keep_file', payload)
+
+        # output_path alias behaves the same
+        target2 = os.path.join(self.temp_dir, 'nested2', 'alias.png')
+        response2 = self.session.call('view_capture', {'width': 64, 'height': 64, 'output_path': target2})
+        self.assertFalse(response2['result']['isError'], self.text(response2))
+        payload2 = json.loads(response2['result']['content'][0]['text'])
+        self.assertTrue(os.path.isfile(target2))
+        self.assertEqual(payload2['saved_to'], os.path.abspath(target2))
+        self.assertEqual(payload2['image_file'], os.path.abspath(target2))
+
+    def test_dxf_import_schema_and_roundtrip(self):
+        good = self.session.call('dxf_import', {'path': 'C:/tmp/site.dxf', 'show_summary': False, 'check_dxf_header': True, 'operation_name': 'Import Site DXF'})
+        self.assertFalse(good['result']['isError'], self.text(good))
+        payload = json.loads(self.text(good))
+        self.assertEqual(payload['echo_command'], 'dxf_import')
+        self.assertEqual(payload['echo_params']['path'], 'C:/tmp/site.dxf')
+        self.assertEqual(payload['echo_params']['operation_name'], 'Import Site DXF')
+
+        missing_path = self.session.call('dxf_import', {})
+        self.assertTrue(missing_path['result']['isError'])
+        self.assertIn('path', self.text(missing_path))
+
+        bad_arg = self.session.call('dxf_import', {'path': 'C:/tmp/site.dxf', 'scale': 25.4})
+        self.assertTrue(bad_arg['result']['isError'])
+        self.assertIn('unknown argument(s) scale', self.text(bad_arg))
+
+    def test_wall_opening_edit_and_edge_colour_audit_schemas_and_roundtrip(self):
+        tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
+        self.assertIn('wall_opening_edit', tools)
+        self.assertIn('edge_colour_audit', tools)
+        self.assertFalse(tools['wall_opening_edit']['annotations']['readOnlyHint'])
+        self.assertTrue(tools['edge_colour_audit']['annotations']['readOnlyHint'])
+        self.assertLessEqual(len(tools['wall_opening_edit']['description']), 2048)
+        self.assertLessEqual(len(tools['edge_colour_audit']['description']), 2048)
+
+        # wall_opening_edit roundtrip with plane + span + z
+        good_cut = self.session.call('wall_opening_edit', {
+            'wall_id': 42,
+            'plane': {'axis': 'x', 'value_mm': 9110, 'depth_mm': 250, 'outside': [1, 0, 0]},
+            'openings': [{'span': [5995, 7195], 'z': [1215, 2890]}],
+            'keep_id': True,
+            'expected_volume_delta_mm3': -502500000
+        })
+        self.assertFalse(good_cut['result']['isError'], self.text(good_cut))
+        payload = json.loads(self.text(good_cut))
+        self.assertEqual(payload['echo_command'], 'wall_opening_edit')
+        self.assertEqual(payload['echo_params']['wall_id'], 42)
+        self.assertEqual(payload['echo_params']['plane']['axis'], 'x')
+
+        # wall_opening_edit rejects empty openings and unknown arguments
+        empty_openings = self.session.call('wall_opening_edit', {'wall_id': 42, 'openings': []})
+        self.assertTrue(empty_openings['result']['isError'])
+        bad_wall_arg = self.session.call('wall_opening_edit', {'wall_id': 42, 'openings': [{'min': [0, 0, 0], 'max': [1, 1, 1]}], 'bogus': 1})
+        self.assertTrue(bad_wall_arg['result']['isError'])
+        self.assertIn('unknown argument(s) bogus', self.text(bad_wall_arg))
+
+        # edge_colour_audit roundtrip with ids and without ids
+        audit_ids = self.session.call('edge_colour_audit', {'ids': [10, 20], 'only_issues': True, 'limit': 50})
+        self.assertFalse(audit_ids['result']['isError'], self.text(audit_ids))
+        audit_payload = json.loads(self.text(audit_ids))
+        self.assertEqual(audit_payload['echo_command'], 'edge_colour_audit')
+        self.assertEqual(audit_payload['echo_params']['ids'], [10, 20])
+        self.assertTrue(audit_payload['echo_params']['only_issues'])
+
+        audit_all = self.session.call('edge_colour_audit', {})
+        self.assertFalse(audit_all['result']['isError'], self.text(audit_all))
+
+        # entity_studio openings plane & entity_studio_edit build parent_id/instance_name roundtrip
+        es_openings = self.session.call('entity_studio', {
+            'action': 'openings', 'wall_id': 42,
+            'plane': {'axis': 'x', 'value_mm': 9110, 'outside': [1, 0, 0]}
+        })
+        self.assertFalse(es_openings['result']['isError'], self.text(es_openings))
+        es_build = self.session.call('entity_studio_edit', {
+            'action': 'build', 'type': 'casement',
+            'opening': {'wall_id': 42, 'index': 0, 'plane': {'axis': 'x', 'value_mm': 9110, 'outside': [1, 0, 0]}},
+            'parent_id': 99, 'instance_name': 'SUB__ClubhouseWing__Window__Front__01', 'dry_run': True
+        })
+        self.assertFalse(es_build['result']['isError'], self.text(es_build))
+        es_build_payload = json.loads(self.text(es_build))
+        self.assertEqual(es_build_payload['echo_params']['parent_id'], 99)
+        self.assertEqual(es_build_payload['echo_params']['instance_name'], 'SUB__ClubhouseWing__Window__Front__01')
+
+    def test_cad_fidelity_audit_schema_and_roundtrip(self):
+        tools = {tool['name']: tool for tool in self.session.request('tools/list')['result']['tools']}
+        self.assertIn('cad_fidelity_audit', tools)
+        tool = tools['cad_fidelity_audit']
+        self.assertTrue(tool['annotations']['readOnlyHint'])
+        self.assertTrue(tool['annotations']['idempotentHint'])
+        self.assertLessEqual(len(tool['description']), 2048)
+
+        good = self.session.call('cad_fidelity_audit', {
+            'cad_group': 'CAD__FrontElevation__HostDwelling',
+            'model_targets': ['10__ExistingBuilding', 29080037],
+            'plane': 'y',
+            'band_depth': 350.0,
+            'tol_mm': 6.0,
+            'regions': [{'name': 'W-F3', 'u0': 9700, 'u1': 11500, 'z0': 3500, 'z1': 5800}],
+        })
+        self.assertFalse(good['result']['isError'], self.text(good))
+        payload = json.loads(self.text(good))
+        self.assertEqual(payload['echo_command'], 'cad_fidelity_audit')
+        self.assertEqual(payload['echo_params']['cad_group'], 'CAD__FrontElevation__HostDwelling')
+        self.assertEqual(payload['echo_params']['model_targets'], ['10__ExistingBuilding', 29080037])
+        self.assertEqual(payload['echo_params']['regions'][0]['name'], 'W-F3')
+
+        # Missing model_targets or empty model_targets or unknown arg must fail schema validation
+        missing_targets = self.session.call('cad_fidelity_audit', {'cad_group': 123})
+        self.assertTrue(missing_targets['result']['isError'])
+        empty_targets = self.session.call('cad_fidelity_audit', {'cad_group': 123, 'model_targets': []})
+        self.assertTrue(empty_targets['result']['isError'])
+        bad_arg = self.session.call('cad_fidelity_audit', {'cad_group': 123, 'model_targets': [456], 'bogus': True})
+        self.assertTrue(bad_arg['result']['isError'])
+        self.assertIn('unknown argument(s) bogus', self.text(bad_arg))
+
 
     def test_export_option_check(self):
         response = self.session.call('model_file', {'action': 'export', 'path': 'C:/tmp/a.obj', 'options': {'units': 'mm', 'make_it_nice': True}})
@@ -695,6 +837,38 @@ class NaBridgeVersionTests(unittest.TestCase):
         self.assertFalse(response['result']['isError'])
         self.assertEqual(self.work(), ['entity_studio_edit'])
 
+    def test_view_capture_output_path_refused_on_older_bridge(self):
+        self.start('1.0.42')
+        response = self.session.call('view_capture', {'width': 64, 'height': 64, 'output_path': os.path.join(self.temp_dir, 'old.png')})
+        text = response['result']['content'][0]['text']
+        self.assertTrue(response['result']['isError'])
+        self.assertIn('needs 1.0.43', text)
+        self.assertIn('Reload Plugin Data', text)
+        self.assertEqual(self.work(), [])
+        # save_path still works on 1.0.42 (backward compatibility)
+        compat = self.session.call('view_capture', {'width': 64, 'height': 64, 'save_path': os.path.join(self.temp_dir, 'compat.png')})
+        self.assertFalse(compat['result']['isError'])
+        self.assertEqual(self.work(), ['view_capture'])
+
+    def test_v1_0_44_additions_refused_on_older_bridge(self):
+        self.start('1.0.43')
+        for name, arguments in (
+            ('entity_studio', {'action': 'openings', 'wall_id': 1, 'plane': {'axis': 'x', 'value_mm': 9110}}),
+            ('entity_studio_edit', {'action': 'build', 'type': 'casement', 'parent_id': 77, 'dry_run': True}),
+            ('entity_studio_edit', {'action': 'build', 'type': 'casement', 'parent_path': [1, 77], 'dry_run': True}),
+            ('entity_studio_edit', {'action': 'build', 'type': 'casement', 'instance_name': 'SUB__Win__01', 'dry_run': True})
+        ):
+            response = self.session.call(name, arguments)
+            text = response['result']['content'][0]['text']
+            self.assertTrue(response['result']['isError'], name)
+            self.assertIn('needs 1.0.44', text)
+            self.assertIn('Reload Plugin Data', text)
+        self.assertEqual(self.work(), [])
+        # Existing entity_studio openings without plane still runs on 1.0.43
+        compat = self.session.call('entity_studio', {'action': 'openings', 'wall_id': 1})
+        self.assertFalse(compat['result']['isError'])
+        self.assertEqual(self.work(), ['entity_studio'])
+
 
 
 class NaWindowChoiceTests(unittest.TestCase):
@@ -706,7 +880,9 @@ class NaWindowChoiceTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp(prefix='na_mcp_windows_')
         os.environ['NA_SKETCHUP_MCP_CONNECTIONS_DIR'] = self.temp_dir
+        os.environ['NA_SKETCHUP_MCP_SCRATCH_DIR'] = os.path.join(self.temp_dir, 'ScratchWindows')
         os.environ.pop('NA_SKETCHUP_MCP_PID', None)
+        self.children = []
         self.bridges = []
         self.sessions = []
         self.first = self.window(self.FIRST, '09', 'First Model')
@@ -717,7 +893,12 @@ class NaWindowChoiceTests(unittest.TestCase):
             session.close()
         for bridge in self.bridges:
             bridge.stop()
+        for child in self.children:
+            if child.poll() is None:
+                child.kill()
+            child.wait(timeout=10)
         os.environ.pop('NA_SKETCHUP_MCP_CONNECTIONS_DIR', None)
+        os.environ.pop('NA_SKETCHUP_MCP_SCRATCH_DIR', None)
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def window(self, pid, hour, title, **options):
@@ -973,6 +1154,141 @@ class NaWindowChoiceTests(unittest.TestCase):
         self.assertFalse(result['isError'])
         quit_calls = [request for request in second.requests if request['command'] == 'ruby_eval']
         self.assertIn('close(true)', quit_calls[0]['params']['code'])
+
+    # --- 1.0.42: sketchup_scratch_open / sketchup_scratch_close ----------------------------
+
+    def scratch_window(self, modified=True, model_path=None, created=None, selected_before=None):
+        """A running stand-in process with a fake bridge, a scratch copy and its ledger record, as sketchup_scratch_open leaves them."""
+        import Na__SketchUpMcp__Server__ScratchWindow__ as Na__ScratchWindow
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])
+        self.children.append(child)
+        folder = Na__ScratchWindow.Na__ScratchWindow__Dir()
+        os.makedirs(folder, exist_ok=True)
+        copy = os.path.join(folder, 'Na__SketchUpMcp__ScratchWindow__20261125-180000__abc123.skp')
+        with open(copy, 'wb') as handle:
+            handle.write(b'skp')
+        record = {'pid': child.pid, 'model_path': copy, 'template': 'Temp01a - Simple.skp', 'prepared': True,
+                  'process_created': Na__ScratchWindow.na_process_created(child.pid) if created is None else created,
+                  'selected_before': selected_before}
+        Na__ScratchWindow.na_write_ledger(record)
+        bridge = self.window(child.pid, '11', 'Na__SketchUpMcp__ScratchWindow__20261125-180000__abc123',
+                             model_path=copy if model_path is None else model_path, modified=modified)
+        return child, bridge, copy, Na__ScratchWindow.na_ledger_path(child.pid)
+
+    def scratch_close(self, session, **arguments):
+        return session.call('sketchup_scratch_close', arguments)['result']
+
+    def test_scratch_close_refuses_a_window_it_did_not_open(self):
+        second = self.window(self.SECOND, '10', 'Adams Model', modified=True)
+        result = self.scratch_close(self.session(), pid=self.SECOND)
+        self.assertTrue(result['isError'])
+        self.assertIn('not_scratch', result['content'][0]['text'])
+        self.assertNotIn('ruby_eval', self.commands(second))
+
+    def test_scratch_close_discards_and_quits_its_own_window_then_tidies(self):
+        child, bridge, copy, ledger = self.scratch_window(selected_before=self.FIRST)
+        sent = []
+
+        def on_eval(params):
+            sent.append(params)
+            child.kill()
+            return True
+        bridge.on_eval = on_eval
+        session = self.session()
+        self.status(session, select_pid=child.pid)
+        result = self.scratch_close(session, pid=child.pid, timeout_s=10)
+        self.assertFalse(result['isError'], result['content'][0]['text'])
+        payload = json.loads(result['content'][0]['text'])
+        self.assertTrue(payload['closed'])
+        self.assertEqual(payload['method'], 'bridge')
+        self.assertEqual(payload['selected_pid'], self.FIRST)
+        self.assertEqual(len(sent), 1)
+        self.assertIn('close(true)', sent[0]['code'])
+        self.assertIn('Sketchup.quit', sent[0]['code'])
+        self.assertIn('if na_is_scratch', sent[0]['code'])
+        self.assertIs(sent[0]['transaction'], False)
+        self.assertFalse(os.path.exists(copy))
+        self.assertFalse(os.path.exists(ledger))
+        self.assertEqual(self.status(session)['selected_pid'], self.FIRST)
+
+    def test_scratch_close_refuses_when_another_model_was_opened_into_it(self):
+        other = os.path.join(self.temp_dir, 'RB05__Model.skp')
+        child, bridge, copy, ledger = self.scratch_window(model_path=other)
+        bridge.on_eval = lambda params: True
+        result = self.scratch_close(self.session(), pid=child.pid)
+        self.assertTrue(result['isError'])
+        self.assertIn('not_scratch', result['content'][0]['text'])
+        self.assertIn('RB05__Model.skp', result['content'][0]['text'])
+        self.assertNotIn('ruby_eval', self.commands(bridge))
+        self.assertIsNone(child.poll())
+        self.assertTrue(os.path.exists(ledger))
+
+    def test_scratch_close_refuses_a_reused_pid_and_clears_the_record(self):
+        child, bridge, copy, ledger = self.scratch_window(created=1)
+        result = self.scratch_close(self.session(), pid=child.pid)
+        self.assertTrue(result['isError'])
+        self.assertIn('another process', result['content'][0]['text'])
+        self.assertNotIn('ruby_eval', self.commands(bridge))
+        self.assertIsNone(child.poll())
+        self.assertFalse(os.path.exists(ledger))
+
+    def test_scratch_close_of_a_window_already_gone_only_tidies(self):
+        child, bridge, copy, ledger = self.scratch_window()
+        child.kill()
+        child.wait(timeout=10)
+        bridge.stop()
+        payload = json.loads(self.scratch_close(self.session(), pid=child.pid)['content'][0]['text'])
+        self.assertTrue(payload['already_closed'])
+        self.assertFalse(os.path.exists(copy))
+        self.assertFalse(os.path.exists(ledger))
+
+    def test_scratch_close_without_force_never_ends_a_silent_window(self):
+        child, bridge, copy, ledger = self.scratch_window()
+        bridge.stop()
+        result = self.scratch_close(self.session(), pid=child.pid)
+        self.assertTrue(result['isError'])
+        self.assertIn('force:true', result['content'][0]['text'])
+        self.assertIsNone(child.poll())
+
+    def test_scratch_close_force_ends_only_the_recorded_process(self):
+        child, bridge, copy, ledger = self.scratch_window()
+        bridge.stop()
+        result = self.scratch_close(self.session(), pid=child.pid, force=True, timeout_s=10)
+        self.assertFalse(result['isError'], result['content'][0]['text'])
+        payload = json.loads(result['content'][0]['text'])
+        self.assertTrue(payload['closed'])
+        self.assertEqual(payload['method'], 'force')
+        self.assertIsNotNone(child.wait(timeout=10))
+        self.assertFalse(os.path.exists(copy))
+
+    def test_close_window_on_a_scratch_window_names_the_scratch_tool(self):
+        child, bridge, copy, ledger = self.scratch_window(modified=True)
+        result = self.close_window(self.session(), pid=child.pid)
+        self.assertTrue(result['isError'])
+        self.assertIn('sketchup_scratch_close', result['content'][0]['text'])
+        self.assertNotIn('ruby_eval', self.commands(bridge))
+
+    def test_status_marks_scratch_windows(self):
+        child, bridge, copy, ledger = self.scratch_window()
+        instances = {item['pid']: item for item in self.status(self.session())['instances']}
+        self.assertTrue(instances[child.pid].get('scratch'))
+        self.assertNotIn('scratch', instances[self.FIRST])
+
+    def test_scratch_template_and_ruby_guard(self):
+        import Na__SketchUpMcp__Server__ScratchWindow__ as Na__ScratchWindow
+        root = os.path.join(self.temp_dir, 'SketchUp')
+        exe = os.path.join(root, 'SketchUp.exe')
+        self.assertIsNone(Na__ScratchWindow.Na__ScratchWindow__Template(exe))
+        for language in ('fr', 'en-US'):
+            folder = os.path.join(root, 'resources', language, 'Templates')
+            os.makedirs(folder)
+            with open(os.path.join(folder, 'Temp01a - Simple.skp'), 'wb') as handle:
+                handle.write(b'skp')
+            self.assertEqual(Na__ScratchWindow.Na__ScratchWindow__Template(exe), os.path.join(folder, 'Temp01a - Simple.skp'))
+        self.assertEqual(Na__ScratchWindow.na_ruby_string("a'b\\c#{x}"), "'a\\'b\\\\c#{x}'")
+        code = Na__ScratchWindow.na_erase_code('C:\\x.skp')
+        self.assertIn("raise 'This window is not the scratch copy", code.split('erase_entities')[0])
+        self.assertIn('purge_unused', code)
 
 # endregion -------------------------------------------------------------------
 

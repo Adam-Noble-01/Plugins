@@ -435,14 +435,18 @@ def na_extract_images(node):
                     size = os.path.getsize(path)
                     if size > NA_MAX_IMAGE_BYTES:
                         item['image_note'] = 'Image is %d bytes; too large to return inline. Saved at %s.' % (size, path)
+                        if item.get('keep_file'):
+                            item['saved_to'] = path
                     else:
                         with open(path, 'rb') as handle:
                             images.append({'type': 'image', 'data': base64.b64encode(handle.read()).decode('ascii'), 'mimeType': item['mime_type']})
                         if not item.get('keep_file'):
                             os.remove(path)
                             item.pop('image_file', None)
+                            item.pop('saved_to', None)
                         else:
-                            item['saved_to'] = item.pop('image_file')
+                            item['saved_to'] = path
+                            item['image_file'] = path
                 except OSError as error:
                     item['image_note'] = 'Could not read the capture: %s' % error
                 item.pop('keep_file', None)

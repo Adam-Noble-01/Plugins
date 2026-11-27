@@ -62,6 +62,7 @@ module Na__SketchUpMcp
                 arguments['wall_object']   = wall
                 arguments['wall_to_world'] = to_world
                 na_outside(params, arguments, ctx, '')
+                na_plane(params, arguments, ctx, '') if Na__Params.Na__Params__Has(params, 'plane')
             end
             ctx[:slow_reported] = true if NA_SLOW_ACTIONS.include?(action)
             result = na_forward(ctx) { operations.Na__AssemblyStudio__McpRead(action, arguments) }
@@ -85,6 +86,12 @@ module Na__SketchUpMcp
             na_run(params, arguments, ctx) if Na__Params.Na__Params__Has(params, 'run')
             if Na__Params.Na__Params__Has(params, 'run_offset')
                 arguments['run_offset_mm'] = Na__Units.Na__Units__ToInches(params['run_offset'], ctx[:unit], 'run_offset') * 25.4
+            end
+            if action == 'build'
+                na_parent(params, arguments, ctx) if Na__Params.Na__Params__Has(params, 'parent_id')
+                if Na__Params.Na__Params__Has(params, 'instance_name')
+                    arguments['instance_name'] = Na__Params.Na__Params__String(params, 'instance_name', '', allow_empty: true)
+                end
             end
             ctx[:slow_reported] = true if NA_SLOW_ACTIONS.include?(action)
             result = na_forward(ctx) { operations.Na__AssemblyStudio__McpEdit(action, arguments) }
@@ -150,6 +157,7 @@ module Na__SketchUpMcp
                     'index'         => Na__Params.Na__Params__Integer(opening, 'index', nil, required: true, min: 0)
                 }
                 na_outside(opening, spec, ctx, 'opening.')
+                na_plane(opening, spec, ctx, 'opening.') if Na__Params.Na__Params__Has(opening, 'plane')
                 arguments['opening_wall'] = spec
                 return
             end
@@ -199,6 +207,58 @@ module Na__SketchUpMcp
                 end
                 row
             end
+        end
+
+        # plane: optional vertical face plane filter for multi-wing compound wall solids (1.0.44).
+        def self.na_plane(source, arguments, ctx, label_prefix)
+            raw = Na__Params.Na__Params__Hash(source, 'plane', nil, required: true)
+            spec = {}
+            if Na__Params.Na__Params__Has(raw, 'axis')
+                spec[:axis] = Na__Params.Na__Params__Enum(raw, 'axis', %w[x y], nil, required: true)
+            end
+            if Na__Params.Na__Params__Has(raw, 'value_mm')
+                spec[:value_in] = Na__Params.Na__Params__Number(raw, 'value_mm', nil, required: true) / 25.4
+            elsif Na__Params.Na__Params__Has(raw, 'value')
+                spec[:value_in] = Na__Units.Na__Units__ToInches(raw['value'], ctx[:unit], "#{label_prefix}plane.value")
+            end
+            if Na__Params.Na__Params__Has(raw, 'normal')
+                spec[:normal] = Na__Units.Na__Units__Direction(raw['normal'], "#{label_prefix}plane.normal")
+            end
+            if Na__Params.Na__Params__Has(raw, 'point')
+                spec[:point] = Na__Units.Na__Units__Point(raw['point'], ctx[:unit], "#{label_prefix}plane.point")
+            end
+            if Na__Params.Na__Params__Has(raw, 'outside')
+                spec[:outside] = Na__Units.Na__Units__Direction(raw['outside'], "#{label_prefix}plane.outside")
+            end
+            if Na__Params.Na__Params__Has(raw, 'tolerance_mm')
+                spec[:tolerance_in] = Na__Params.Na__Params__Number(raw, 'tolerance_mm', nil, required: true, min: 0.01) / 25.4
+            elsif Na__Params.Na__Params__Has(raw, 'tolerance')
+                spec[:tolerance_in] = Na__Units.Na__Units__Positive(raw['tolerance'], ctx[:unit], "#{label_prefix}plane.tolerance")
+            end
+            if Na__Params.Na__Params__Has(raw, 'thickness_mm')
+                spec[:thickness_in] = Na__Params.Na__Params__Number(raw, 'thickness_mm', nil, required: true, min: 1.0) / 25.4
+            elsif Na__Params.Na__Params__Has(raw, 'thickness')
+                spec[:thickness_in] = Na__Units.Na__Units__Positive(raw['thickness'], ctx[:unit], "#{label_prefix}plane.thickness")
+            end
+            arguments['plane_spec'] = spec
+        end
+
+        # parent_id: optional target container to reparent the built element into atomically (1.0.44).
+        def self.na_parent(params, arguments, ctx)
+            parent_id = Na__Params.Na__Params__Integer(params, 'parent_id', nil, required: true, min: 0)
+            return if parent_id.zero?
+
+            parent_path = Na__Params.Na__Params__Has(params, 'parent_path') ? Na__Params.Na__Params__IdArray(params, 'parent_path') : nil
+            container = Na__Coordinates.Na__Coordinates__ResolveContainer(ctx[:model], parent_id, parent_path, ctx[:warnings])
+            owner = container[:owner]
+            if owner && !owner.definition.group? && owner.definition.instances.length > 1
+                raise Na__McpError.new('shared_parent',
+                                       "The destination component '#{owner.definition.name}' is used #{owner.definition.instances.length} times: building into it would appear in every copy.",
+                                       'Make it unique first (component_manage make_unique), or pass a group parent_id.')
+            end
+            arguments['parent_entities'] = container[:entities]
+            arguments['parent_to_world'] = container[:to_world]
+            arguments['parent_label']    = container[:label]
         end
 
         # The build pipelines place at the model root, so a build waits for it

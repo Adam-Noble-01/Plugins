@@ -86,6 +86,9 @@ require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__OffsetBand
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__ModelDiff__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__PhotoReference__'
 require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__MatchPhoto__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__WallOpening__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__EdgeAudit__'
+require_relative '../../10__BridgeHandlers/Na__SketchUpMcp__Handlers__CadFidelity__'
 
 # User interface and maintenance
 require_relative '../../03__Plugin__CoreAppLogic/Na__SketchUpMcp__CoreAppLogic__DialogManager__'

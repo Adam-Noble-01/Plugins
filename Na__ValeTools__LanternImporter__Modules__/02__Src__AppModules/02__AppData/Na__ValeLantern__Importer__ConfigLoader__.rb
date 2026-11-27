@@ -54,11 +54,14 @@ module Na__ValeLantern
 
             NA_CONFIG_FILE_NAME = 'Na__ValeLantern__Importer__Config.json'.freeze
 
-            NA_BLOCK_SOFTEN       = 'Na__ValeLantern__Importer__Config__SoftenEdges'.freeze
-            NA_BLOCK_EDGE_COLOURS = 'Na__ValeLantern__Importer__Config__EdgeColours'.freeze
-            NA_BLOCK_CONTAINERS   = 'Na__ValeLantern__Importer__Config__Containers'.freeze
-            NA_BLOCK_RELOAD       = 'Na__ValeLantern__Importer__Config__Reload'.freeze
-            NA_BLOCK_CONTEXT_MENU = 'Na__ValeLantern__Importer__Config__ContextMenu'.freeze
+            NA_BLOCK_SOFTEN        = 'Na__ValeLantern__Importer__Config__SoftenEdges'.freeze
+            NA_BLOCK_EDGE_COLOURS  = 'Na__ValeLantern__Importer__Config__EdgeColours'.freeze
+            NA_BLOCK_CONTAINERS    = 'Na__ValeLantern__Importer__Config__Containers'.freeze
+            NA_BLOCK_RELOAD        = 'Na__ValeLantern__Importer__Config__Reload'.freeze
+            NA_BLOCK_CONTEXT_MENU  = 'Na__ValeLantern__Importer__Config__ContextMenu'.freeze
+            NA_BLOCK_SOLID_MERGING = 'Na__ValeLantern__Importer__Config__SolidMerging'.freeze
+            NA_BLOCK_MESH_PERF     = 'Na__ValeLantern__Importer__Config__MeshPerformance'.freeze
+            NA_BLOCK_MATERIALS     = 'Na__ValeLantern__Importer__Config__Materials'.freeze
 
             # Structural defaults only. See the header for why the softening table
             # is not mirrored here.
@@ -99,6 +102,21 @@ module Na__ValeLantern
                 },
                 NA_BLOCK_CONTEXT_MENU => {
                     'Enabled' => true
+                },
+                NA_BLOCK_SOLID_MERGING => {
+                    'MergeRidgeCappingAndEndCaps' => true,
+                    'SeamSoftenAngleDegrees'      => 22.5,
+                    'ButtPlaneToleranceMm'        => 0.25,
+                    'MergedPartNamePrefix'        => 'RidgeCappingAssembly',
+                    'MergedFamilyName'            => 'RidgeCappingAssembly'
+                },
+                NA_BLOCK_MESH_PERF => {
+                    'UsePolygonMeshForDenseTriangles' => true,
+                    'PolygonMeshFaceThreshold'        => 64,
+                    'PaintUnpaintedMeshHardEdges'     => true
+                },
+                NA_BLOCK_MATERIALS => {
+                    'WhitecardMode' => false
                 }
             }.freeze
 
@@ -440,6 +458,80 @@ module Na__ValeLantern
             # right click and nothing else.
             def self.na_context_menu_enabled?
                 na_get_or(true, NA_BLOCK_CONTEXT_MENU, 'Enabled') != false
+            end
+            # ---------------------------------------------------------------
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | Solid Merging, Mesh Performance and Materials — Public API
+# -----------------------------------------------------------------------------
+
+            # FUNCTION | Whether RidgeCapping and touching RidgeEndCaps merge via outer_shell
+            # ------------------------------------------------------------
+            def self.na_merge_ridge_capping?
+                na_get_or(true, NA_BLOCK_SOLID_MERGING, 'MergeRidgeCappingAndEndCaps') != false
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Maximum dihedral angle (degrees) softened along the merged butt plane
+            # ------------------------------------------------------------
+            def self.na_merge_seam_angle_degrees
+                value = na_get_or(22.5, NA_BLOCK_SOLID_MERGING, 'SeamSoftenAngleDegrees').to_f
+                value > 0.0 ? value : 22.5
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Distance tolerance (mm) for detecting edges on the ridge butt planes
+            # ------------------------------------------------------------
+            def self.na_merge_butt_tolerance_mm
+                value = na_get_or(0.25, NA_BLOCK_SOLID_MERGING, 'ButtPlaneToleranceMm').to_f
+                value > 0.0 ? value : 0.25
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Instance name prefix for the merged ridge capping assembly
+            # ------------------------------------------------------------
+            def self.na_merge_part_name_prefix
+                name = na_get_or('RidgeCappingAssembly', NA_BLOCK_SOLID_MERGING, 'MergedPartNamePrefix').to_s.strip
+                name.empty? ? 'RidgeCappingAssembly' : name
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Family token for the merged ridge capping assembly definition
+            # ------------------------------------------------------------
+            def self.na_merge_family_name
+                name = na_get_or('RidgeCappingAssembly', NA_BLOCK_SOLID_MERGING, 'MergedFamilyName').to_s.strip
+                name.empty? ? 'RidgeCappingAssembly' : name
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Whether dense triangle/quad meshes use Geom::PolygonMesh#fill_from_mesh
+            # ------------------------------------------------------------
+            def self.na_use_polygon_mesh?
+                na_get_or(true, NA_BLOCK_MESH_PERF, 'UsePolygonMeshForDenseTriangles') != false
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Minimum face count before MeshBuilder switches to PolygonMesh batching
+            # ------------------------------------------------------------
+            def self.na_polygon_mesh_threshold
+                value = na_get_or(64, NA_BLOCK_MESH_PERF, 'PolygonMeshFaceThreshold').to_i
+                value > 0 ? value : 64
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Whether unpainted hard visible mesh edges receive the default SSOT edge colour
+            # ------------------------------------------------------------
+            def self.na_paint_unpainted_mesh_hard_edges?
+                na_get_or(true, NA_BLOCK_MESH_PERF, 'PaintUnpaintedMeshHardEdges') != false
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Default whitecard material mode (glass-only faces, nil elsewhere)
+            # ------------------------------------------------------------
+            def self.na_whitecard_mode?
+                na_get_or(false, NA_BLOCK_MATERIALS, 'WhitecardMode') == true
             end
             # ---------------------------------------------------------------
 

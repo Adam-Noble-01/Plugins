@@ -3,7 +3,7 @@
 
     "Na__ValeLantern__Importer__Config__Meta": {
         "ConfigName"        : "Na__ValeLantern__Importer__Config",
-        "ConfigVersion"     : "1.6.0",
+        "ConfigVersion"     : "1.7.0",
         "ConfigVersionNote" : "Tracks the plugin version that introduced the current shape of this file. A key added here is readable by an older plugin, which simply ignores it; a key REMOVED needs the plugin's fallback defaults checked first, because a missing key falls back rather than failing.",
         "ReloadNote"        : "Read through Na__ConfigLoader.na_get / na_soften_rule_for, never by parsing this file directly. The loader caches on first read and is reset by every run of the plugin loader and every lantern reload, so an edit here is picked up without restarting SketchUp."
     },
@@ -31,13 +31,17 @@
             { "Key": "ridgeFlashing",     "Label": "Ridge Lead Flashing",       "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "ridgeCappingBlock", "Label": "Ridge Capping Block",       "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "ridgeCapping",      "Label": "Ridge Aluminium Cap",       "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "ridgeEndCap",       "Label": "Ridge Aluminium End Cap",   "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "ridgeBlock",        "Label": "Ridge Octagonal Block",     "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipCore",           "Label": "Hip Aluminium Core",        "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipBeam",           "Label": "Hip Beam Timber",           "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipBlocking",       "Label": "Hip Blocking",              "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "hipFlashing",       "Label": "Hip Lead Flashing",         "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipEndCapBoard",    "Label": "Hip Eaves Corner Closure",  "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "hipApexCowl",       "Label": "Hip Apex Lead Cowl",        "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "verge",             "Label": "Verge",                     "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "glazeBarCap",       "Label": "Glazebar Caps",             "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
+            { "Key": "glazeBarEndCap",    "Label": "Glazebar End Caps",         "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "glazeBarCore",      "Label": "Glazebar Cores",            "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "glazeBarTrim",      "Label": "Glazebar Trims",            "Soften": true,  "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
             { "Key": "glazing",           "Label": "Glazing Units",             "Soften": false, "AngleDegrees": 22.5, "SmoothNormals": true, "SoftenCoplanar": false },
@@ -123,5 +127,26 @@
         "DetectionNote" : "Detection is on the RecordType stamp the importer writes onto the lantern itself, read off the clicked entity or its definition and climbed if the click was on something nested. Constant time, so there is nothing to cache and no model level register to go stale when a lantern is deleted, pasted in from another model, or arrives inside an imported building.",
 
         "ItemsNote" : "Two items. 'Reload Lantern Json...' opens the file picker. 'Regenerate Lantern from <file>' appears only when the lantern remembers the file it was built from AND that file is still on disk, and skips the picker - which is acceptable precisely because the filename is in the label, so the user is told exactly what the picker would have told them, one click earlier."
+    },
+
+    "Na__ValeLantern__Importer__Config__SolidMerging": {
+        "MergeRidgeCappingAndEndCaps" : true,
+        "SeamSoftenAngleDegrees"      : 22.5,
+        "ButtPlaneToleranceMm"        : 0.25,
+        "MergedPartNamePrefix"        : "RidgeCappingAssembly",
+        "MergedFamilyName"            : "RidgeCappingAssembly",
+        "SolidMergingNote"            : "Merges each RidgeCapping prism with its touching RidgeEndCap instances inside 02__RoofFrame via SketchUp outer_shell into one closed manifold solid, then softens and smooths the butt-plane seam edges without ever erasing curved seam edges (keeping manifold? true). Eliminates the visible butt joint between the ridge cap and end caps by default on every SketchUp import and reload without changing the Lantern Designer web app."
+    },
+
+    "Na__ValeLantern__Importer__Config__MeshPerformance": {
+        "UsePolygonMeshForDenseTriangles" : true,
+        "PolygonMeshFaceThreshold"        : 64,
+        "PaintUnpaintedMeshHardEdges"     : true,
+        "MeshPerformanceNote"             : "When an authored or procedural mesh definition carries at least PolygonMeshFaceThreshold faces with no inner loops and no hidden faces (all triangles or quads, such as HipApexCowl with 35,904 triangles), MeshBuilder builds it via Geom::PolygonMesh + Entities#fill_from_mesh instead of per-face add_face calls, cutting build time from minutes to under a second while replaying every authored edge flag verbatim. PaintUnpaintedMeshHardEdges paints remaining unpainted hard visible edges on procedural meshes to the default SSOT MTE edge colour without overwriting authored HasOwnMaterial colours."
+    },
+
+    "Na__ValeLantern__Importer__Config__Materials": {
+        "WhitecardMode"     : false,
+        "WhitecardModeNote" : "Default false preserves full VGH paint/lead/powder-coat swatches on standalone lantern imports. Set true (or pass choices[:WhitecardMaterials] = true from MCP/Ruby) for Vale MaxModels and Whitecards so non-glass parts stay unpainted (nil) and only SSOT MAT###__ glazing (MAT101__Glass__ClearDefault) is applied to front and back faces of lantern glass panels."
     }
 }

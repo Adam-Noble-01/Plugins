@@ -5,7 +5,7 @@ These are instructions for AI coding agents working **on** this plugin: Codex / 
 
 ## What This Is
 
-A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 83 tools, and every SketchUp API call it makes is checked against the official API index.
+A local MCP server that lets any MCP client inspect and edit the model open in SketchUp 2026 on Windows. It has 89 tools, and every SketchUp API call it makes is checked against the official API index.
 
 ```
 MCP client --stdio--> Python server (30__McpServer__Python, stdlib only)
@@ -264,6 +264,16 @@ python 35__VisionWorker__Python/Na__SketchUpMcp__VisionWorker__MatchPhoto__.py -
 - **`view_capture hide_tags`.** A tag's visibility is an undo step of its own, so the tags are hidden inside `Na__CommandRouter__WithAbortedOperation` (an operation that is always aborted) and shown again in an ensure. Inside a batch the batch's own operation holds it.
 - **Match Photo scenes.** The API cannot hide a Match Photo scene's photo: `View#camera=` (the view's camera or a new one), `zoom_extents`, a temporary scene (it inherits the photo) and a transparent background all keep it, and RenderingOptions has no key for it (tested 25-Nov-2026). `view_capture` reports `match_photo` and warns when a camera was passed; `match_photo_overlay: true` silences the warning. Never switch the user's scene to get round it.
 - **`geometry_faces`** (read only, `Handlers__Measure`): world face loops through `Na__Serializer__ToWorld`, world normals, `plane_offset`, area, filtered by a world box or a direction; what SketchUp shows (`Na__Handlers__PointCloud.na_shown?`) unless `include_hidden`.
+
+## Scratch Windows (1.0.42: sketchup_scratch_open, sketchup_scratch_close)
+- **Why.** ValeVision 3D's `vv3d_furnishings_import_skp` and live trials need an EMPTY window that is nobody's work. On 25-Nov-2026 a WORKER made one by hand five times, about two minutes each with one hung close (the 3D skill's lesson L1570).
+- **Where.** `30__McpServer__Python/Na__SketchUpMcp__Server__ScratchWindow__.py`, server side only (no bridge change). It opens through `Na__WindowLauncher__Open` and talks to the new window's own bridge with `na_window_request`, as `sketchup_close_window` does.
+- **Open.** A fresh copy of `Temp01a - Simple.skp` (beside the SketchUp.exe this server belongs to, `resources\en-US\Templates`, else any language folder) in `91__UserConfig__LocalOnly/ScratchWindows`, named `Na__SketchUpMcp__ScratchWindow__<stamp>__<hex>.skp`, so the title bar says what it is. The window's bridge then erases every root entity (the scale figure) and purges unused definitions and materials in ONE undo step, guarded in Ruby by a check that the open model is that copy. `select` defaults to true: a later call then lands in the scratch window, never in Adam's model.
+- **The ledger.** `Na__SketchUpMcp__Scratch__<pid>.json` beside the copies: pid, the process's creation time (`GetProcessTimes`), the copy's path and the window the server used before. It is the only proof of ownership: a window without a record, a pid whose creation time differs (Windows reused it) or a window whose open model is no longer the copy is refused `not_scratch` before anything is sent to it. Stale records are cleared, with their copies, on the next open.
+- **Close.** `Model#close(true)` then `Sketchup.quit` on a timer from the window's own bridge (Ruby eval must be on there), behind the same Ruby path check; never saved. Once the process has gone, the copy and its record are deleted and a server that used the window goes back to the one it used before. `force: true` ends the process with `TerminateProcess`, only when its bridge does not answer and the record proves it; a refusal (read-only, eval off) is never forced.
+- **Elsewhere.** `sketchup_status` marks a scratch window `scratch: true`; `sketchup_close_window` on one names `sketchup_scratch_close` in its refusal.
+- **Tests.** PythonServer runs the close path against a real stand-in process (a sleeping Python child that the fake bridge ends on the quit call): the refusals, the reused pid, a window already gone, force, the reselect and the tidy-up. Opening is proved live only (it starts SketchUp).
+- **CLI.** `python 30__McpServer__Python/Na__SketchUpMcp__Server__ScratchWindow__.py open | close <pid> [--force] | list`, for a session whose MCP client has not been restarted.
 
 ## Live Testing Without Leaving a Trace
 - The user's SketchUp is live and may hold paid work. Only read, or use **zero-trace batches**. Never save, open or close their models.

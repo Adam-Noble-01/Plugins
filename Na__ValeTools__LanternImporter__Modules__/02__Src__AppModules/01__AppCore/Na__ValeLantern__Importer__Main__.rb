@@ -249,7 +249,7 @@ module Na__ValeLantern
             # @param file_path [String, nil] Skip the picker by passing a path
             # @param target [Sketchup::ComponentInstance, Sketchup::Group, nil]
             # @return [Boolean] true when a lantern was rebuilt
-            def self.na_reload_lantern(file_path = nil, target = nil)
+            def self.na_reload_lantern(file_path = nil, target = nil, choices = nil)
                 reloader = Na__ValeLantern::Na__Importer::Na__LanternReloader
 
                 unless Sketchup.active_model
@@ -257,7 +257,7 @@ module Na__ValeLantern
                     return false
                 end
 
-                reloader.na_reload(file_path, target)
+                reloader.na_reload(file_path, target, choices)
             end
             # ---------------------------------------------------------------
 
@@ -400,17 +400,17 @@ module Na__ValeLantern
     # ------------------------------------------------------------
     # The lantern does not move, every copy of it regenerates, and it is one
     # undo step. Which lantern is taken from the selection where there is one.
-    def self.na_reload_lantern(file_path = nil, target = nil)
-        Na__ValeLantern::Na__Importer::Na__Main.na_reload_lantern(file_path, target)
+    def self.na_reload_lantern(file_path = nil, target = nil, choices = nil)
+        Na__ValeLantern::Na__Importer::Na__Main.na_reload_lantern(file_path, target, choices)
     end
 
     # FUNCTION | The same reload with per part console reporting
     # ------------------------------------------------------------
-    def self.na_reload_lantern_verbose(file_path = nil, target = nil)
+    def self.na_reload_lantern_verbose(file_path = nil, target = nil, choices = nil)
         debug_tools = Na__ValeLantern::Na__Importer::Na__DebugTools
         debug_tools.na_set_verbose(true)
         begin
-            Na__ValeLantern::Na__Importer::Na__Main.na_reload_lantern(file_path, target)
+            Na__ValeLantern::Na__Importer::Na__Main.na_reload_lantern(file_path, target, choices)
         ensure
             debug_tools.na_set_verbose(false)
         end

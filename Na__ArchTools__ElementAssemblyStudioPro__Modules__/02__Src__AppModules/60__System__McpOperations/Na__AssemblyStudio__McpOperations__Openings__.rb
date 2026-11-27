@@ -62,19 +62,25 @@ module Na__McpOperations
     # @param to_world  [Geom::Transformation] the wall's definition -> world
     # @param outside   [Geom::Vector3d, Geom::Point3d, nil] which side is out
     # @param model_center [Geom::Point3d, nil] the default's reference point
+    # @param plane     [Hash, nil] optional face_plane filter for multi-wing /
+    #                  compound wall solids: { axis: 'x'|'y', value_in: Float,
+    #                  normal: Vector3d, point: Point3d, outside: Vector3d,
+    #                  tolerance_in: Float, thickness_in: Float } (V2.7.10)
     # @return [Hash] { frame:, thickness:, openings: [...] } (inches)
-    def self.Na__AssemblyStudio__WallOpenings(wall, to_world, outside: nil, model_center: nil)
+    def self.Na__AssemblyStudio__WallOpenings(wall, to_world, outside: nil, model_center: nil, plane: nil)
         faces = wall.definition.entities.grep(Sketchup::Face)
         na_refuse('wrong_type', "#{wall.name.to_s.empty? ? wall.definition.name : wall.name} holds no faces of its own.",
                   'Pass the group or component whose faces are the wall (not a container around it).') if faces.empty?
 
         world_faces = faces.map { |face| na_world_face(face, to_world) }
+        return na_plane_openings(wall, world_faces, plane, outside, model_center) if plane.is_a?(Hash)
+
         main = world_faces.max_by { |row| row[:area] }
         normal = main[:normal]
         up = Geom::Vector3d.new(0, 0, 1)
         if normal.dot(up).abs > 0.5
-            na_refuse('wrong_type', 'That object\'s biggest face is not vertical, so it is not a wall.',
-                      'Pass a wall: a solid whose two biggest faces are its vertical sides.')
+            na_refuse('wrong_type', 'That object\'s biggest face is not vertical, so it is not a single-wall solid.',
+                      'For a multi-wing compound wall solid (e.g. SUB__<Building>__Walls), pass plane: {axis: "x"|"y", value_mm: <coord>, outside: [nx, ny, nz]}.')
         end
 
         horizontal = Geom::Vector3d.new(normal.x, normal.y, 0).normalize
@@ -120,6 +126,171 @@ module Na__McpOperations
             openings:  openings
         }
     end
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Openings on One Vertical Plane of a Compound Wall Solid (V2.7.10)
+    # ------------------------------------------------------------
+    # Lets openings work directly on multi-wing SUB__<Building>__Walls solids
+    # whose largest face is horizontal (roof/floor) or that carry several
+    # perpendicular wall wings in one manifold shell.
+    def self.na_plane_openings(wall, world_faces, plane, outside, model_center)
+        up = Geom::Vector3d.new(0, 0, 1)
+        horizontal, plane_v, plane_label = na_resolve_plane_frame(plane)
+        tol = (plane[:tolerance_in] || (5.0 / 25.4)).to_f
+        expected_depth = plane[:thickness_in] ? plane[:thickness_in].to_f : nil
+        along = up * horizontal
+        along.normalize!
+
+        plane_faces = world_faces.select do |row|
+            next false unless row[:normal].dot(horizontal).abs > 0.99
+
+            row[:outer].all? { |point| ((point.x * horizontal.x + point.y * horizontal.y) - plane_v).abs <= tol }
+        end
+        if plane_faces.empty?
+            wall_name = wall.name.to_s.empty? ? wall.definition.name : wall.name
+            avail = na_describe_vertical_planes(world_faces)
+            na_refuse('not_found', "No vertical wall face on #{wall_name} lies on #{plane_label} (±#{(tol * 25.4).round(1)}mm).",
+                      avail.empty? ? 'Check the wall coordinates with geometry_measure bounds.' : "Largest vertical planes on this solid: #{avail}.")
+        end
+
+        chosen_outside = plane[:outside] || outside
+        out = if chosen_outside
+                  na_outside_direction(horizontal, chosen_outside, model_center, plane_faces)
+              else
+                  largest = plane_faces.max_by { |row| row[:area] }
+                  largest[:normal].dot(horizontal) >= 0 ? horizontal.clone : horizontal.reverse
+              end
+
+        outer_faces = plane_faces.select { |row| row[:normal].dot(out) > 0.99 }
+        outer_faces = plane_faces if outer_faces.empty?
+
+        outer_face_edges = {}
+        inner_loop_edges = {}
+        outer_faces.each do |row|
+            row[:edges].each { |edge| outer_face_edges[edge] = true }
+            row[:face].loops.each do |loop|
+                next if loop.outer?
+
+                loop.edges.each { |edge| inner_loop_edges[edge] = true }
+            end
+        end
+
+        coords = lambda do |point|
+            [point.x * along.x + point.y * along.y,
+             point.x * horizontal.x + point.y * horizontal.y,
+             point.z]
+        end
+        outer_coords = outer_faces.flat_map { |row| row[:outer].map { |point| coords.call(point) } }
+        u_min, u_max = outer_coords.map { |c| c[0] }.minmax
+        w_min, w_max = outer_coords.map { |c| c[2] }.minmax
+        plane_out_v  = out.dot(horizontal) >= 0 ? plane_v : -plane_v
+
+        reveals = world_faces.select do |row|
+            next false if row[:normal].dot(horizontal).abs > NA_OPENING_PARALLEL_TOLERANCE
+
+            plane_u = row[:normal].dot(along).abs > 0.99
+            plane_w = row[:normal].dot(up).abs > 0.99
+            next false unless plane_u || plane_w
+            next false unless row[:edges].any? { |edge| outer_face_edges[edge] }
+
+            out_vals = row[:points].map { |point| point.x * out.x + point.y * out.y }
+            o_min, o_max = out_vals.minmax
+            next false unless (o_max - plane_out_v).abs <= tol
+
+            local_depth = o_max - o_min
+            next false unless local_depth > NA_OPENING_LENGTH_TOLERANCE * 2
+            if expected_depth
+                depth_tol = [tol, NA_OPENING_LENGTH_TOLERANCE * 2].max
+                next false unless (local_depth - expected_depth).abs <= depth_tol
+            end
+
+            next true if row[:edges].any? { |edge| inner_loop_edges[edge] }
+
+            position = plane_u ? coords.call(row[:points].first)[0] : coords.call(row[:points].first)[2]
+            low, high = plane_u ? [u_min, u_max] : [w_min, w_max]
+            position > low + NA_OPENING_LENGTH_TOLERANCE && position < high - NA_OPENING_LENGTH_TOLERANCE
+        end
+
+        openings = na_group_reveals(reveals).filter_map do |group|
+            next nil if group.length < 3
+
+            points = group.flat_map { |row| row[:points] }.map { |point| coords.call(point) }
+            ou_min, ou_max = points.map { |c| c[0] }.minmax
+            ov_min, ov_max = points.map { |c| c[1] }.minmax
+            ow_min, ow_max = points.map { |c| c[2] }.minmax
+            next nil if (ou_max - ou_min) < 2.0 || (ow_max - ow_min) < 2.0
+
+            sill = group.any? { |row| row[:normal].dot(up).abs > 0.99 && (coords.call(row[:points].first)[2] - ow_min).abs < NA_OPENING_LENGTH_TOLERANCE }
+            na_opening_record(ou_min, ou_max, ow_min, ow_max, ov_min, ov_max, along, horizontal, out, sill ? 'hole' : 'notch')
+        end
+
+        right = up * out
+        openings.sort_by! { |row| [(row[:point_a] - ORIGIN).dot(right).round(3), row[:sill_z]] }
+        thickness = if !openings.empty?
+                        depths = openings.map { |row| row[:depth] }.sort
+                        depths[depths.length / 2]
+                    elsif expected_depth
+                        expected_depth
+                    else
+                        0.0
+                    end
+        {
+            frame:     { along: along, normal: horizontal, outside: out, up: up },
+            thickness: thickness,
+            extent:    { along: [u_min, u_max], height: [w_min, w_max] },
+            openings:  openings,
+            plane:     plane_label
+        }
+    end
+    private_class_method :na_plane_openings
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Turn a Plane Filter Spec Into [horizontal_unit, offset_in, label]
+    # ------------------------------------------------------------
+    def self.na_resolve_plane_frame(plane)
+        axis = plane[:axis].to_s.downcase
+        if axis == 'x' || axis == 'y'
+            na_refuse('invalid_params', 'plane with axis needs value (or value_mm).', 'e.g. plane: {axis: "x", value_mm: 9110, outside: [1, 0, 0]}.') if plane[:value_in].nil?
+            horizontal = axis == 'x' ? Geom::Vector3d.new(1, 0, 0) : Geom::Vector3d.new(0, 1, 0)
+            val_in = plane[:value_in].to_f
+            return [horizontal, val_in, "#{axis.upcase} = #{(val_in * 25.4).round(1)}mm"]
+        end
+
+        if plane[:normal].is_a?(Geom::Vector3d) && plane[:point].is_a?(Geom::Point3d)
+            flat = Geom::Vector3d.new(plane[:normal].x, plane[:normal].y, 0)
+            na_refuse('invalid_params', 'plane.normal must be horizontal (a vertical wall plane).', 'e.g. normal: [1, 0, 0] or axis: "x".') if flat.length < 1.0e-6
+            horizontal = flat.normalize
+            val_in = plane[:point].x * horizontal.x + plane[:point].y * horizontal.y
+            return [horizontal, val_in, "normal #{horizontal.to_a.map { |v| v.round(3) }} @ #{(val_in * 25.4).round(1)}mm"]
+        end
+
+        na_refuse('invalid_params', 'plane needs {axis: "x"|"y", value_mm: <number>} (or {normal, point}).',
+                  'e.g. plane: {axis: "x", value_mm: 9110, outside: [1, 0, 0]}.')
+    end
+    private_class_method :na_resolve_plane_frame
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Summarise the Largest Vertical Face Planes on a Solid
+    # ------------------------------------------------------------
+    def self.na_describe_vertical_planes(world_faces)
+        buckets = Hash.new(0.0)
+        world_faces.each do |row|
+            n = row[:normal]
+            next if n.z.abs > 0.1
+
+            if n.x.abs > 0.99
+                x_mm = (row[:outer].first.x * 25.4).round
+                dir  = n.x > 0 ? '+X' : '-X'
+                buckets["X=#{x_mm}mm (#{dir})"] += row[:area]
+            elsif n.y.abs > 0.99
+                y_mm = (row[:outer].first.y * 25.4).round
+                dir  = n.y > 0 ? '+Y' : '-Y'
+                buckets["Y=#{y_mm}mm (#{dir})"] += row[:area]
+            end
+        end
+        buckets.sort_by { |_label, area| -area }.first(6).map(&:first).join(', ')
+    end
+    private_class_method :na_describe_vertical_planes
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | A Face in World Space: Points, Normal, Area

@@ -3,6 +3,32 @@
 
 
 # =============================================================================
+## Element Assembly Studio Pro | V2.7.10 - 26-Nov-2026 - Auto-Painted Na_Cill Edges, Cills With Zero Bottom Frame, Compound-Wall Plane Filter, and Single-Step Build Reparent + Instance Naming
+
+### Context
+Adam, 26-Nov-2026, following the Telfer-Smith 64481 Clubhouse Wing windows build: approved four targeted fixes and MCP upgrades to eliminate post-build Ruby fixups and multi-step reparent/rename sequences.
+
+### Fixed: Horned and Plain `Na_Cill` Edges Left Unpainted
+- `Na__EdgeColourPainter.na_part_for_group_name` previously did not match `Na_Cill` / `Na_Cill_*`, leaving 24 edges unpainted (`nil`) on horned cills (and 12 on plain cills).
+- Mapped `Na_Cill` / `Na_Cill_*` to the `casement` edge-colour slot (`edge_colour_casement_id`, defaulting to `MTE103__LineColour__DarkGrey__L40`), giving 0 unpainted edges out of the box across windows and exterior doors.
+
+### Fixed: `has_cill: true` With `frame_bottom_thickness_mm == 0`
+- `Na__WindowSystem::Na__GeometryEngine` (`na_create_window_geometry` and `na_apply_cill_lift`) and `Na__DialogCallbacks.na_resolve_cill_subtraction_mm` now build and lift `Na_Cill` on windows (casement and sash) whenever `has_cill` is `true`, even when `frame_bottom_thickness_mm == 0` (traditional sash/casement seated directly on the cill).
+- Exterior doors (`single`, `double`, `bifold`, `sliding`) keep omitting `Na_Cill` when `frame_bottom_thickness_mm == 0` (flush thresholds), and `McpOperations__Elements` now emits an explicit warning in `dry_run` and build results when `has_cill: true` is paired with `frame_bottom_thickness_mm == 0` on an exterior door.
+
+### New: Optional `plane` Filter on `openings` (Multi-Wing Compound Wall Solids)
+- `Na__AssemblyStudio__WallOpenings` now accepts an optional `plane` spec (`axis: "x"|"y"` + `value_in`, or `normal` + `point`, plus optional `outside`, `tolerance_in`, `thickness_in`) so `entity_studio openings` and `entity_studio_edit build` (`opening: {wall_id, index, plane}`) detect window holes and door notches directly on multi-wing compound `SUB__<Building>__Walls` solids whose largest face is horizontal.
+
+### New: Atomic `parent_id` + `instance_name` on `entity_studio_edit build`
+- `na_build` now accepts optional `parent_entities` / `parent_to_world` / `parent_label` (resolved from `parent_id` by the MCP handler) and `instance_name`, wrapping pipeline creation, reparenting (with attribute preservation and exact world coordinates), and instance naming inside one `Na__OperationScope` undo step.
+
+### Files Changed
+- `20__System__WindowSystem/`: `...EdgeColourPainter__.rb`, `...GeometryEngine__.rb`, `...DialogCallbacks__.rb`.
+- `60__System__McpOperations/`: `...Openings__.rb`, `...Elements__.rb`.
+- `02__AppData/Na__AssemblyStudio__AppConfig__Main.json` (`2.7.10`).
+
+
+# =============================================================================
 ## Element Assembly Studio Pro | V2.7.9 - 25-Nov-2026 - Wide Double Interior Doors (up to 3000 mm), Traditional Round Doorknob, Stepped Georgian Architrave, and SSOT Edge Colours on Interior Door Solids
 
 ### Context

@@ -101,6 +101,10 @@ module Geom
         def to_a
             [@x, @y, @z]
         end
+
+        def transform(tr)
+            tr * self
+        end
     end
 
     class Vector3d < Point3d; end
@@ -133,6 +137,7 @@ NA_ROOT = $NA_MODULES_ROOT
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__CommandRouter__.rb
     04__Plugin__BridgeCore/Na__SketchUpMcp__BridgeCore__SocketServer__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__Status__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__ModelFile__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__PointCloud__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__View__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__Geometry__.rb
@@ -141,6 +146,9 @@ NA_ROOT = $NA_MODULES_ROOT
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__AgentOutliner__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__ProfileTracer__.rb
     10__BridgeHandlers/Na__SketchUpMcp__Handlers__MatchPhoto__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__WallOpening__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__EdgeAudit__.rb
+    10__BridgeHandlers/Na__SketchUpMcp__Handlers__CadFidelity__.rb
 ].each { |relative| load File.join(NA_ROOT, relative) }
 
 # Keep test connection files and settings out of the real 91__UserConfig__LocalOnly.
@@ -1560,6 +1568,382 @@ na_check('transplant: an index of many edges finds each one, and only it') do
         found = TP.Na__Transplant__Find(index, record[:a], middle, [tp_up])
         found && found[:material] == record[:material]
     end
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | DXF Import and view_capture save_path (1.0.43)
+# -----------------------------------------------------------------------------
+
+MF = Na__SketchUpMcp::Na__Handlers__ModelFile
+VW = Na__SketchUpMcp::Na__Handlers__View
+
+na_check('view_capture: save_path auto-creates nested parent folders and output_path aliases it (1.0.43)') do
+    root = Dir.mktmpdir('na_mcp_vc_1043_')
+    nested = File.join(root, 'a', 'b', 'c', 'shot.png')
+    nested2 = File.join(root, 'x', 'y', 'alias_shot')
+    existing = File.join(root, 'already.png')
+    File.write(existing, 'png')
+    p1 = VW.na_capture_path({ 'save_path' => nested }, 'png')
+    p2 = VW.na_capture_path({ 'output_path' => nested2 }, 'png')
+    ok = p1 == File.expand_path(nested) && File.directory?(File.dirname(p1)) &&
+         p2 == File.expand_path("#{nested2}.png") && File.directory?(File.dirname(p2)) &&
+         VW.na_requested_save_path({}).nil? &&
+         VW.na_requested_save_path({ 'save_path' => nil, 'output_path' => nil }).nil? &&
+         na_refuses('file_error') { VW.na_capture_path({ 'save_path' => existing }, 'png') } &&
+         VW.na_capture_path({ 'save_path' => existing, 'overwrite' => true }, 'png') == File.expand_path(existing) &&
+         na_refuses('invalid_params') { VW.na_capture_path({ 'save_path' => nested, 'output_path' => nested2 }, 'png') }
+    FileUtils.rm_rf(root)
+    ok
+end
+
+na_check('dxf_import: ASCII DXF header parser reads INSUNITS, MEASUREMENT, EXTMIN, EXTMAX and ignores sentinels (1.0.43)') do
+    dir = Dir.mktmpdir('na_mcp_dxf_1043_')
+    cowell_like = File.join(dir, 'cowell_like.dxf')
+    File.write(cowell_like, [
+        '0', 'SECTION', '2', 'HEADER',
+        '9', '$MEASUREMENT', '70', '0',
+        '9', '$INSUNITS', '70', '1',
+        '9', '$EXTMIN', '10', '100.5', '20', '200.25', '30', '0.0',
+        '9', '$EXTMAX', '10', '79052.5', '20', '27115.25', '30', '0.0',
+        '0', 'ENDSEC', '0', 'EOF'
+    ].join("\n") + "\n")
+    h1 = MF.Na__Handlers__ModelFile__ParseDxfHeader(cowell_like)
+
+    sentinel_dxf = File.join(dir, 'sentinel.dxf')
+    File.write(sentinel_dxf, [
+        '0', 'SECTION', '2', 'HEADER',
+        '9', '$INSUNITS', '70', '4',
+        '9', '$MEASUREMENT', '70', '1',
+        '9', '$EXTMIN', '10', '1.0E+20', '20', '1.0E+20', '30', '1.0E+20',
+        '9', '$EXTMAX', '10', '-1.0E+20', '20', '-1.0E+20', '30', '-1.0E+20',
+        '0', 'ENDSEC', '0', 'EOF'
+    ].join("\n") + "\n")
+    h2 = MF.Na__Handlers__ModelFile__ParseDxfHeader(sentinel_dxf)
+
+    binary_dxf = File.join(dir, 'bin.dxf')
+    File.binwrite(binary_dxf, "AutoCAD Binary DXF\r\n\x1a\x00dummy")
+    h3 = MF.Na__Handlers__ModelFile__ParseDxfHeader(binary_dxf)
+
+    dwg_file = File.join(dir, 'plan.dwg')
+    File.binwrite(dwg_file, 'AC1032')
+    h4 = MF.Na__Handlers__ModelFile__ParseDxfHeader(dwg_file)
+
+    ok = h1['parsed'] == true && h1['insunits'] == 1 && h1['insunits_name'] == 'inches' &&
+         h1['measurement'] == 0 && h1['measurement_name'] == 'imperial' &&
+         na_close(h1['extmin'], [100.5, 200.25, 0.0]) &&
+         na_close(h1['extmax'], [79052.5, 27115.25, 0.0]) &&
+         na_close(h1['extents_span'], [78952.0, 26915.0, 0.0]) &&
+         h2['parsed'] == true && h2['insunits'] == 4 && h2['extmin'].nil? && h2['extmax'].nil? && h2['extents_span'].nil? &&
+         h3['parsed'] == false && h3['format'] == 'dxf_binary' &&
+         h4['parsed'] == false && h4['format'] == 'dwg'
+    FileUtils.rm_rf(dir)
+    ok
+end
+
+na_check('dxf_import: unit mismatch detector flags INSUNITS=1 with mm extents and stays quiet on clean metric (1.0.43)') do
+    hdr_in_mm = { 'parsed' => true, 'insunits' => 1, 'insunits_name' => 'inches', 'measurement' => 0, 'measurement_name' => 'imperial',
+                  'extents_span' => [78952.0, 26915.0, 0.0] }
+    w_hdr = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_in_mm, [])
+    w_1to1 = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_in_mm, [{ 'size_mm' => [78952.0, 26915.0, 0.0] }])
+    w_25x = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_in_mm, [{ 'size_mm' => [78952.0 * 25.4, 26915.0 * 25.4, 0.0] }])
+
+    hdr_clean_mm = { 'parsed' => true, 'insunits' => 4, 'insunits_name' => 'mm', 'measurement' => 1, 'measurement_name' => 'metric',
+                     'extents_span' => [20000.0, 12000.0, 0.0] }
+    w_clean = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_clean_mm, [{ 'size_mm' => [20000.0, 12000.0, 0.0] }])
+
+    hdr_unitless = { 'parsed' => true, 'insunits' => 0, 'insunits_name' => 'unitless', 'measurement' => 1, 'measurement_name' => 'metric',
+                     'extents_span' => [20000.0, 12000.0, 0.0] }
+    w_unitless = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_unitless, [])
+
+    hdr_tiny_mm = { 'parsed' => true, 'insunits' => 4, 'insunits_name' => 'mm', 'measurement' => 1, 'measurement_name' => 'metric',
+                    'extents_span' => [25.0, 15.0, 0.0] }
+    w_tiny = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_tiny_mm, [{ 'size_mm' => [25.0, 15.0, 0.0] }])
+
+    hdr_conflict = { 'parsed' => true, 'insunits' => 1, 'insunits_name' => 'inches', 'measurement' => 1, 'measurement_name' => 'metric',
+                     'extents_span' => [120.0, 80.0, 0.0] }
+    w_conflict = MF.Na__Handlers__ModelFile__CheckDxfUnits(hdr_conflict, [])
+
+    w_hdr.to_s.include?('$INSUNITS=1') && w_1to1.to_s.include?('1:1 mm') &&
+        w_25x.to_s.include?('25.4x') && w_clean.nil? &&
+        w_unitless.to_s.include?('unitless') && w_tiny.to_s.include?('under 200') &&
+        w_conflict.to_s.include?('conflicts')
+end
+
+na_check('dxf_import: handler imports in one undo step, returns added bounds in mm and refuses bad files (1.0.43)') do
+    dir = Dir.mktmpdir('na_mcp_dxf_handler_')
+    dxf_path = File.join(dir, 'sample.dxf')
+    skp_path = File.join(dir, 'model.skp')
+    obj_path = File.join(dir, 'mesh.obj')
+    File.write(dxf_path, "0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n1\n9\n$MEASUREMENT\n70\n0\n9\n$EXTMIN\n10\n0\n20\n0\n30\n0\n9\n$EXTMAX\n10\n10000\n20\n5000\n30\n0\n0\nENDSEC\n0\nEOF\n")
+    File.write(skp_path, 'skp')
+    File.write(obj_path, 'obj')
+
+    fake_tr = Object.new
+    fake_tr.define_singleton_method(:to_a) { [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0] }
+    fake_tr.define_singleton_method(:*) { |pt| pt }
+    fake_bb = Object.new
+    fake_bb.define_singleton_method(:empty?) { false }
+    fake_bb.define_singleton_method(:corner) do |i|
+        Geom::Point3d.new((i & 1) == 0 ? 0.0 : (10_000.0 / 25.4), (i & 2) == 0 ? 0.0 : (5_000.0 / 25.4), 0.0)
+    end
+    fake_def = Sketchup::ComponentDefinition.new
+    fake_def.define_singleton_method(:name) { 'sample.dxf' }
+    fake_def.define_singleton_method(:persistent_id) { 9001 }
+    fake_def.define_singleton_method(:bounds) { fake_bb }
+    fake_inst = Sketchup::ComponentInstance.new
+    fake_inst.define_singleton_method(:persistent_id) { 9002 }
+    fake_inst.define_singleton_method(:name) { 'CAD_Import' }
+    fake_inst.define_singleton_method(:definition) { fake_def }
+    fake_inst.define_singleton_method(:transformation) { fake_tr }
+    fake_inst.define_singleton_method(:parent) { nil }
+    fake_inst.define_singleton_method(:bounds) { fake_bb }
+
+    fake_tools = Object.new
+    fake_tools.define_singleton_method(:active_tool_name) { 'SelectionTool' }
+
+    ops = []
+    import_calls = []
+    defs = []
+    ents = []
+    fake_model = Sketchup::Model.new
+    fake_model.define_singleton_method(:definitions) { defs }
+    fake_model.define_singleton_method(:active_entities) { ents }
+    fake_model.define_singleton_method(:entities) { ents }
+    fake_model.define_singleton_method(:tools) { fake_tools }
+    fake_model.define_singleton_method(:start_operation) { |name, _disable_ui| ops << [:start, name] }
+    fake_model.define_singleton_method(:commit_operation) { ops << [:commit] }
+    fake_model.define_singleton_method(:abort_operation) { ops << [:abort] }
+    fake_model.define_singleton_method(:import) do |path, opts|
+        import_calls << [path, opts]
+        defs << fake_def
+        ents << fake_inst
+        true
+    end
+
+    # Stub Identity so Na__Coordinates runs offline without Geom::Transformation
+    orig_id = Na__SketchUpMcp::Na__Coordinates.method(:Na__Coordinates__Identity)
+    Na__SketchUpMcp::Na__Coordinates.define_singleton_method(:Na__Coordinates__Identity) { fake_tr }
+    begin
+        ctx = { model: fake_model, unit: 'mm', warnings: [], in_operation: false, undo_name: nil, to_world_cache: {}, path_cache: {} }
+        res = MF.Na__Handlers__ModelFile__DxfImport({ 'path' => dxf_path, 'operation_name' => 'Import Sample DXF' }, ctx)
+        ctx2 = { model: fake_model, unit: 'mm', warnings: [], in_operation: false, undo_name: nil, to_world_cache: {}, path_cache: {} }
+        res_no_hdr = MF.Na__Handlers__ModelFile__DxfImport({ 'path' => dxf_path, 'check_dxf_header' => false }, ctx2)
+
+        item = res['added'].first
+        ok = res['ok'] == true &&
+             ops[0] == [:start, 'MCP: Import Sample DXF'] && ops[1] == [:commit] &&
+             ctx[:undo_name] == 'MCP: Import Sample DXF' &&
+             import_calls[0][1] == { show_summary: false } &&
+             res['added'].length == 1 &&
+             item['id'] == 9002 && item['type'] == 'ComponentInstance' &&
+             item['name'] == 'CAD_Import' && item['def_name'] == 'sample.dxf' &&
+             na_close(item['min_mm'], [0.0, 0.0, 0.0], 0.01) &&
+             na_close(item['max_mm'], [10000.0, 5000.0, 0.0], 0.01) &&
+             na_close(item['size_mm'], [10000.0, 5000.0, 0.0], 0.01) &&
+             res['dxf_header']['insunits'] == 1 &&
+             !res['unit_warning'].nil? && ctx[:warnings].include?(res['unit_warning']) &&
+             res_no_hdr['dxf_header'].nil? && res_no_hdr['unit_warning'].nil? &&
+             na_refuses('invalid_params') { MF.Na__Handlers__ModelFile__DxfImport({ 'path' => skp_path }, ctx) } &&
+             na_refuses('invalid_params') { MF.Na__Handlers__ModelFile__DxfImport({ 'path' => obj_path }, ctx) } &&
+             na_refuses('file_error') { MF.Na__Handlers__ModelFile__DxfImport({ 'path' => File.join(dir, 'missing.dxf') }, ctx) }
+    ensure
+        Na__SketchUpMcp::Na__Coordinates.define_singleton_method(:Na__Coordinates__Identity) { orig_id.call }
+        FileUtils.rm_rf(dir)
+    end
+    ok
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | 1.0.44: wall_opening_edit and edge_colour_audit pure helpers
+# -----------------------------------------------------------------------------
+
+WO = Na__SketchUpMcp::Na__Handlers__WallOpening
+EA = Na__SketchUpMcp::Na__Handlers__EdgeAudit
+
+na_check('wall_opening_edit: resolves plane+span+z and min/max+through_axis boxes with overcut (1.0.44)') do
+    to_in = lambda { |v, _lbl| v.to_f / 25.4 }
+    plane_x = { axis: 'x', value_in: 9110.0 / 25.4, depth_in: 250.0 / 25.4, out_sign: 1.0 }
+    cut = WO.Na__Handlers__WallOpening__ResolveOpeningBox(
+        { 'span' => [7195, 5995], 'z' => [1215, 2890] }, plane_x, 10.0 / 25.4, to_in
+    )
+    # X should run from (9110 - 250 - 10) = 8850 to (9110 + 10) = 9120
+    cut_mm_min = cut[:min].map { |v| (v * 25.4).round(2) }
+    cut_mm_max = cut[:max].map { |v| (v * 25.4).round(2) }
+
+    # Fill defaults to 0 overcut so it sits flush with the wall faces
+    fill = WO.Na__Handlers__WallOpening__ResolveOpeningBox(
+        { 'operation' => 'fill', 'span' => [5995, 7195], 'z' => [1215, 2890] }, plane_x, 10.0 / 25.4, to_in
+    )
+    fill_mm_min = fill[:min].map { |v| (v * 25.4).round(2) }
+    fill_mm_max = fill[:max].map { |v| (v * 25.4).round(2) }
+
+    # Explicit min/max with through_axis: 'y' expands Y by overcut
+    box = WO.Na__Handlers__WallOpening__ResolveOpeningBox(
+        { 'min' => [1000, 2000, 900], 'max' => [2200, 2250, 2400], 'through_axis' => 'y', 'overcut' => 15.0 },
+        nil, 10.0 / 25.4, to_in
+    )
+    box_mm_min = box[:min].map { |v| (v * 25.4).round(2) }
+    box_mm_max = box[:max].map { |v| (v * 25.4).round(2) }
+
+    cut[:operation] == 'cut' &&
+        na_close(cut_mm_min, [8850.0, 5995.0, 1215.0], 0.05) &&
+        na_close(cut_mm_max, [9120.0, 7195.0, 2890.0], 0.05) &&
+        fill[:operation] == 'fill' &&
+        na_close(fill_mm_min, [8860.0, 5995.0, 1215.0], 0.05) &&
+        na_close(fill_mm_max, [9110.0, 7195.0, 2890.0], 0.05) &&
+        na_close(box_mm_min, [1000.0, 1985.0, 900.0], 0.05) &&
+        na_close(box_mm_max, [2200.0, 2265.0, 2400.0], 0.05) &&
+        na_refuses('invalid_params') { WO.Na__Handlers__WallOpening__ResolveOpeningBox({ 'min' => [0, 0, 0], 'max' => [0, 100, 100] }, nil, 0.0, to_in) } &&
+        na_refuses('invalid_params') { WO.Na__Handlers__WallOpening__ResolveOpeningBox({ 'operation' => 'carve', 'min' => [0, 0, 0], 'max' => [1, 1, 1] }, nil, 0.0, to_in) }
+end
+
+na_check('edge_colour_audit: summarizes clean vs NIL/red helper rows with only_issues and limit (1.0.44)') do
+    clean_rows = [
+        { 'id' => 1, 'name' => 'Wall', 'edges' => 24, 'unpainted' => 0, 'red_edges' => 0,
+          'materials' => { 'MTE102__LineColour__SoftBlack__L20' => 24 } },
+        { 'id' => 2, 'name' => 'Window', 'edges' => 60, 'unpainted' => 0, 'red_edges' => 0,
+          'materials' => { 'MTE103__LineColour__DarkGrey__L40' => 40, 'MTE104__LineColour__MidGrey__L50' => 20 } }
+    ]
+    res_clean = EA.Na__Handlers__EdgeAudit__SummarizeTallies(clean_rows, only_issues: false, limit: 200)
+
+    dirty_rows = clean_rows + [
+        { 'id' => 3, 'name' => 'Na_Cill', 'edges' => 30, 'unpainted' => 24, 'red_edges' => 0,
+          'materials' => { 'NIL' => 24, 'MTE103__LineColour__DarkGrey__L40' => 6 } },
+        { 'id' => 4, 'name' => 'TempGuide', 'edges' => 8, 'unpainted' => 0, 'red_edges' => 8,
+          'materials' => { 'MTE201__LineColour__Red' => 8 } }
+    ]
+    res_issues = EA.Na__Handlers__EdgeAudit__SummarizeTallies(dirty_rows, only_issues: true, limit: 1)
+
+    res_clean['clean'] == true &&
+        res_clean['total_edges'] == 84 &&
+        res_clean['unpainted_edges'] == 0 &&
+        res_clean['groups_with_issues'] == 0 &&
+        res_clean['summary'].start_with?('Clean:') &&
+        res_issues['clean'] == false &&
+        res_issues['total_edges'] == 122 &&
+        res_issues['unpainted_edges'] == 24 &&
+        res_issues['red_edges'] == 8 &&
+        res_issues['groups_audited'] == 4 &&
+        res_issues['groups_with_issues'] == 2 &&
+        res_issues['groups'].length == 1 &&
+        res_issues['groups'][0]['name'] == 'Na_Cill' &&
+        res_issues['truncated'] == true &&
+        res_issues['summary'].start_with?('FAIL:')
+end
+
+# endregion -------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REGION | 1.0.45: cad_fidelity_audit pure geometry & two-way fidelity engine
+# -----------------------------------------------------------------------------
+
+CF = Na__SketchUpMcp::Na__Handlers__CadFidelity
+
+cf_rect = lambda do |u0, z0, u1, z1, y = 9860.0|
+    [
+        [u0, y, z0, u1, y, z0],
+        [u1, y, z0, u1, y, z1],
+        [u1, y, z1, u0, y, z1],
+        [u0, y, z1, u0, y, z0]
+    ]
+end
+
+na_check('cad_fidelity_audit: exact match passes and infers plane + depth clipping (1.0.45)') do
+    cad_3d = cf_rect.call(0.0, 0.0, 6000.0, 4000.0, 9860.0) + cf_rect.call(1000.0, 1000.0, 2200.0, 2600.0, 9860.0)
+    mod_3d = cad_3d.map { |e| [e[0] + 1.5, e[1] - 20.0, e[2] + 1.0, e[3] + 1.5, e[4] - 20.0, e[5] + 1.0] }
+    # Rear wall far outside depth band must be excluded cleanly
+    mod_3d += cf_rect.call(2000.0, 500.0, 3500.0, 3000.0, 15_000.0)
+
+    plane, coord = CF.Na__Handlers__CadFidelity__InferPlane(cad_3d)
+    cad_segs = CF.Na__Handlers__CadFidelity__ProjectEdges(cad_3d, plane: plane)
+    mod_segs = CF.Na__Handlers__CadFidelity__ProjectEdges(mod_3d, plane: plane, depth_range: [coord - 350.0, coord + 350.0])
+    res = CF.Na__Handlers__CadFidelity__CompareSegments(cad_segs, mod_segs, tol_mm: 6.0)
+
+    plane == 'y' && na_close([coord], [9860.0], 0.1) &&
+        res['pass'] == true &&
+        res['cad_to_model_pct'] == 100.0 &&
+        res['model_to_cad_pct'] == 100.0 &&
+        res['median_mm'] <= 2.0 &&
+        res['summary'].start_with?('PASS:')
+end
+
+na_check('cad_fidelity_audit: missing Porch surround fails Recall; synthetic quoins fail Precision (1.0.45)') do
+    base = cf_rect.call(0.0, 0.0, 6000.0, 3500.0) + cf_rect.call(600.0, 1000.0, 1800.0, 2600.0)
+    porch = cf_rect.call(2600.0, 0.0, 4400.0, 2900.0) + cf_rect.call(2800.0, 0.0, 4200.0, 2700.0)
+    cad_missing = CF.Na__Handlers__CadFidelity__ProjectEdges(base + porch, plane: 'y')
+    mod_missing = CF.Na__Handlers__CadFidelity__ProjectEdges(base, plane: 'y')
+    res_rec = CF.Na__Handlers__CadFidelity__CompareSegments(cad_missing, mod_missing, tol_mm: 6.0)
+
+    # Synthetic alternating blocks protruding well outside straight CAD jamb
+    cad_win = CF.Na__Handlers__CadFidelity__ProjectEdges(cf_rect.call(1000.0, 3500.0, 2200.0, 5400.0), plane: 'y')
+    quoins = []
+    [3500.0, 3850.0, 4200.0, 4550.0, 4900.0].each_with_index do |z0, idx|
+        w = idx.even? ? 180.0 : 90.0
+        quoins += cf_rect.call(1000.0 - w, z0, 1000.0, z0 + 280.0)
+        quoins += cf_rect.call(2200.0, z0, 2200.0 + w, z0 + 280.0)
+    end
+    mod_quoins = CF.Na__Handlers__CadFidelity__ProjectEdges(cf_rect.call(1000.0, 3500.0, 2200.0, 5400.0) + quoins, plane: 'y')
+    res_prec = CF.Na__Handlers__CadFidelity__CompareSegments(cad_win, mod_quoins, tol_mm: 6.0)
+
+    res_rec['pass'] == false && res_rec['cad_to_model_pct'] < 85.0 && res_rec['model_to_cad_pct'] >= 98.0 &&
+        !res_rec['uncovered_cad'].empty? &&
+        res_prec['pass'] == false && res_prec['cad_to_model_pct'] >= 98.0 && res_prec['model_to_cad_pct'] < 75.0 &&
+        !res_prec['extra_model'].empty?
+end
+
+na_check('cad_fidelity_audit: semicircular arch on Gothic opening, oversized wedge purlin, and regions (1.0.45)') do
+    # Gothic pointed arch vs semicircular arch
+    cx = 10_500.0
+    hw = 500.0
+    z_base = 6500.0
+    z_sp = 7350.0
+    z_apex = 8130.0
+    rise = z_apex - z_sp
+    rad = (hw * hw + rise * rise) / (2.0 * hw)
+    lcx = cx - hw + rad
+    rcx = cx + hw - rad
+    g_pts = [[cx - hw, z_base], [cx - hw, z_sp]]
+    ang_l1 = Math.atan2(z_apex - z_sp, cx - lcx)
+    (1..14).each { |i| a = Math::PI + (ang_l1 - Math::PI) * (i / 14.0); g_pts << [lcx + rad * Math.cos(a), z_sp + rad * Math.sin(a)] }
+    ang_r0 = Math.atan2(z_apex - z_sp, cx - rcx)
+    (1..14).each { |i| a = ang_r0 * (1.0 - i / 14.0); g_pts << [rcx + rad * Math.cos(a), z_sp + rad * Math.sin(a)] }
+    g_pts << [cx + hw, z_base]
+    gothic_segs = g_pts.each_cons(2).map { |a, b| [a[0], a[1], b[0], b[1]] } + [[g_pts.last[0], g_pts.last[1], g_pts.first[0], g_pts.first[1]]]
+
+    s_pts = [[cx - hw, z_base], [cx - hw, z_sp]]
+    (1..20).each { |i| a = Math::PI * (1.0 - i / 20.0); s_pts << [cx + hw * Math.cos(a), z_sp + hw * Math.sin(a)] }
+    s_pts << [cx + hw, z_base]
+    semi_segs = s_pts.each_cons(2).map { |a, b| [a[0], a[1], b[0], b[1]] } + [[s_pts.last[0], s_pts.last[1], s_pts.first[0], s_pts.first[1]]]
+
+    res_arch = CF.Na__Handlers__CadFidelity__CompareSegments(gothic_segs, semi_segs, tol_mm: 6.0)
+
+    # Oversized wedge purlin over rectangular CAD purlin
+    purlin_cad = CF.Na__Handlers__CadFidelity__ProjectEdges(cf_rect.call(12_000.0, 7400.0, 12_150.0, 7600.0), plane: 'y')
+    wedge = [[12_000.0, 7600.0, 12_150.0, 7600.0], [12_150.0, 7600.0, 12_470.0, 7480.0],
+             [12_470.0, 7480.0, 12_470.0, 7220.0], [12_470.0, 7220.0, 12_000.0, 7400.0], [12_000.0, 7400.0, 12_000.0, 7600.0]]
+    res_purlin = CF.Na__Handlers__CadFidelity__CompareSegments(purlin_cad, purlin_cad + wedge, tol_mm: 6.0)
+
+    # Named region breakdown: W1 exact, W2 shifted 45 mm
+    r_cad = CF.Na__Handlers__CadFidelity__ProjectEdges(cf_rect.call(1000.0, 1000.0, 2000.0, 2500.0) + cf_rect.call(5000.0, 1000.0, 6000.0, 2500.0), plane: 'y')
+    r_mod = CF.Na__Handlers__CadFidelity__ProjectEdges(cf_rect.call(1000.0, 1000.0, 2000.0, 2500.0) + cf_rect.call(5045.0, 1000.0, 6045.0, 2500.0), plane: 'y')
+    res_reg = CF.Na__Handlers__CadFidelity__CompareSegments(
+        r_cad, r_mod, tol_mm: 6.0,
+        regions: [
+            { 'name' => 'W1', 'u0' => 800.0, 'u1' => 2200.0, 'z0' => 800.0, 'z1' => 2700.0 },
+            { 'name' => 'W2', 'u0' => 4800.0, 'u1' => 6200.0, 'z0' => 800.0, 'z1' => 2700.0 }
+        ]
+    )
+    by_name = res_reg['regions'].each_with_object({}) { |r, h| h[r['name']] = r }
+
+    routes = Na__SketchUpMcp::Na__CommandRouter::NA_HANDLER_ROUTES
+    res_arch['pass'] == false && res_arch['cad_to_model_pct'] < 85.0 && res_arch['model_to_cad_pct'] < 85.0 &&
+        res_purlin['pass'] == false && res_purlin['model_to_cad_pct'] < 75.0 &&
+        by_name['W1']['pass'] == true && by_name['W2']['pass'] == false &&
+        routes['cad_fidelity_audit'] == [:Na__Handlers__CadFidelity, :Na__Handlers__CadFidelity__Audit]
 end
 
 # endregion -------------------------------------------------------------------

@@ -397,7 +397,7 @@ def Na__ScratchWindow__Close(bridge, arguments, poll_s=0.5):
         return result
 
     result['removed'] = na_remove_files(record)
-    result['summary'] = 'Closed scratch window pid %s in %s s without saving%s.' % (pid, result['seconds'], ' (process ended)' if method == 'force' else '')
+    result['summary'] = 'Closed scratch window pid %s in %s s without saving%s' % (pid, result['seconds'], ' (process ended)' if method == 'force' else '')
     if bridge.na_selected_pid == pid:
         before = record.get('selected_before')
         back = None
@@ -412,6 +412,7 @@ def Na__ScratchWindow__Close(bridge, arguments, poll_s=0.5):
             result['summary'] += '; this server is back on pid %s' % back
         else:
             result['next'] = 'This server was using that window: choose another with sketchup_status select_pid.'
+    result['summary'] += '.'
     return result
 
 

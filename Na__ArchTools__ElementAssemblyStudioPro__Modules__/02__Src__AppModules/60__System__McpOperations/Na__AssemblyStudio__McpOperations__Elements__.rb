@@ -277,7 +277,8 @@ module Na__McpOperations
 
         found = Na__AssemblyStudio__WallOpenings(wall, params['wall_to_world'] || wall.transformation,
                                                   outside: params['outside_vector'] || params['outside_point'],
-                                                  model_center: Sketchup.active_model.bounds.center)
+                                                  model_center: Sketchup.active_model.bounds.center,
+                                                  plane: params['plane_spec'])
         rows = found[:openings].each_with_index.map do |opening, index|
             {
                 'index'      => index,
@@ -294,14 +295,16 @@ module Na__McpOperations
                 'suggests'   => opening[:kind] == 'notch' ? 'a door (single, double, bifold, sliding or interior_door)' : 'a window (casement or sash)'
             }
         end
-        {
-            'wall'      => wall.name.to_s.empty? ? wall.definition.name : wall.name,
+        res = {
+            'wall'         => wall.name.to_s.empty? ? wall.definition.name : wall.name,
             'thickness_mm' => found[:thickness].to_mm.round(1),
-            'outside'   => found[:frame][:outside].to_a.map { |value| value.round(4) },
-            'openings'  => rows,
-            'summary'   => "#{rows.length} opening#{rows.length == 1 ? '' : 's'} in a #{found[:thickness].to_mm.round}mm wall, left to right seen from outside: " +
-                           rows.map { |row| "#{row['index']}: #{row['kind']} #{row['width_mm'].round}x#{row['height_mm'].round} at sill #{row['sill_z'].round}" }.join('; ') + '.'
+            'outside'      => found[:frame][:outside].to_a.map { |value| value.round(4) },
+            'openings'     => rows,
+            'summary'      => "#{rows.length} opening#{rows.length == 1 ? '' : 's'} in a #{found[:thickness].to_mm.round}mm wall#{found[:plane] ? " on #{found[:plane]}" : ''}, left to right seen from outside: " +
+                              rows.map { |row| "#{row['index']}: #{row['kind']} #{row['width_mm'].round}x#{row['height_mm'].round} at sill #{row['sill_z'].round}" }.join('; ') + '.'
         }
+        res['plane'] = found[:plane] if found[:plane]
+        res
     end
     private_class_method :na_openings
     # ---------------------------------------------------------------
@@ -319,15 +322,45 @@ module Na__McpOperations
         return na_plan_report(plan, 'Would build') if params['dry_run'] == true
 
         na_ensure_materials
-        instance = case plan['system']
-                   when 'window_family'
-                       Na__AssemblyStudio::Na__WindowSystem::Na__DialogCallbacks.na_pipeline_create(plan['root'], plan['frame'], name: plan['name'].to_s)
-                   when 'interior_door'
-                       Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DialogRouter.na_pipeline_create_door(plan['root'], plan['frame'])
-                   else
-                       Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__DialogRouter.na_pipeline_create(plan['root'], plan['transform'], 'Create Cabinet')
-                   end
-        na_result_for(instance, plan, 'Built')
+        parent_entities = params['parent_entities']
+        parent_to_world = params['parent_to_world']
+        instance_name   = params['instance_name'].to_s.strip
+        needs_post      = !parent_entities.nil? || !instance_name.empty?
+        op_scope        = defined?(Na__AssemblyStudio::Na__AppCore::Na__OperationScope) ? Na__AssemblyStudio::Na__AppCore::Na__OperationScope : nil
+        op_name         = NA_UNDO_NAMES[plan['product']] || 'Create Cabinet'
+
+        model = Sketchup.active_model
+        opened = needs_post && op_scope ? op_scope.na_start(model, op_name, true) : false
+        begin
+            build_block = lambda do
+                case plan['system']
+                when 'window_family'
+                    Na__AssemblyStudio::Na__WindowSystem::Na__DialogCallbacks.na_pipeline_create(plan['root'], plan['frame'], name: plan['name'].to_s)
+                when 'interior_door'
+                    Na__AssemblyStudio::Na__InteriorDoorSystem::Na__DialogRouter.na_pipeline_create_door(plan['root'], plan['frame'])
+                else
+                    Na__AssemblyStudio::Na__InteriorCabinetrySystem::Na__DialogRouter.na_pipeline_create(plan['root'], plan['transform'], 'Create Cabinet')
+                end
+            end
+
+            instance = opened ? op_scope.na_embed(&build_block) : build_block.call
+
+            if instance && instance.valid?
+                if parent_entities && parent_entities != model.entities
+                    instance = na_reparent_built_instance(instance, parent_entities, parent_to_world, instance_name)
+                elsif !instance_name.empty?
+                    instance.name = instance_name
+                end
+            end
+            op_scope.na_commit(model) if opened
+        rescue StandardError
+            op_scope.na_abort(model) if opened
+            raise
+        end
+
+        result = na_result_for(instance, plan, 'Built')
+        result['parent'] = params['parent_label'] if params['parent_label']
+        result
     rescue Na__AssemblyStudio::Na__McpOperationsError
         raise
     rescue StandardError => error
@@ -335,6 +368,24 @@ module Na__McpOperations
                   'Nothing was left behind (the build step was aborted). Check the values with dry_run, or read the Ruby Console.')
     end
     private_class_method :na_build
+    # ---------------------------------------------------------------
+
+    # HELPER FUNCTION | Move Newly Built Root Instance Into Target Container (V2.7.10)
+    # ------------------------------------------------------------
+    def self.na_reparent_built_instance(source, parent_entities, parent_to_world, instance_name)
+        inv = parent_to_world ? parent_to_world.inverse : Geom::Transformation.new
+        moved = parent_entities.add_instance(source.definition, inv * source.transformation)
+        moved.name             = instance_name.empty? ? source.name.to_s : instance_name
+        moved.layer            = source.layer
+        moved.material         = source.material if source.material
+        moved.casts_shadows    = source.casts_shadows?
+        moved.receives_shadows = source.receives_shadows?
+        moved.hidden           = source.hidden?
+        na_copy_instance_attributes(source, moved)
+        source.erase! if source.valid?
+        moved
+    end
+    private_class_method :na_reparent_built_instance
     # ---------------------------------------------------------------
 
     # HELPER FUNCTION | Everything a Build Needs, Checked Before Anything Changes
@@ -374,6 +425,10 @@ module Na__McpOperations
         fitted, = na_check_values(system, product_key, values, placement['fit']) unless placement['fit'].empty?
         values.merge!(fitted || {})
         warnings.concat(na_dialog_side_effects!(system, start, values, checked.keys))
+        if system == 'window_family' && %w[single double bifold sliding].include?(product_key) &&
+           values['has_cill'] == true && na_frame_sides(values)[:bottom] <= 0.0
+            warnings << "has_cill is true with frame_bottom_thickness_mm == 0: exterior #{product_key} doors skip Na_Cill without a bottom threshold rail (set frame_bottom_thickness_mm > 0 to build a cill, or has_cill: false)."
+        end
 
         errors = na_validation_errors(system, product_key, values)
         unless errors.empty?
@@ -384,9 +439,12 @@ module Na__McpOperations
         values = root[block] = na_json_numbers(values)
         name = params['name'].to_s.strip
         na_stamp_name!(system, root, name) unless name.empty?
+        placement_report = placement['report']
+        placement_report['parent']        = params['parent_label'] if params['parent_label']
+        placement_report['instance_name'] = params['instance_name'].to_s.strip unless params['instance_name'].to_s.strip.empty?
         {
             'system' => system, 'product' => product_key, 'root' => root, 'values' => values, 'name' => name,
-            'frame' => placement['frame'], 'transform' => placement['transform'], 'placement' => placement['report'],
+            'frame' => placement['frame'], 'transform' => placement['transform'], 'placement' => placement_report,
             'fit' => placement['fit'], 'set' => checked, 'warnings' => warnings, 'preset' => record && record['presetCode']
         }
     end
@@ -489,7 +547,8 @@ module Na__McpOperations
 
         wall  = spec['wall_object']
         found = Na__AssemblyStudio__WallOpenings(wall, spec['wall_to_world'], outside: spec['outside_vector'] || spec['outside_point'],
-                                                 model_center: Sketchup.active_model.bounds.center)
+                                                 model_center: Sketchup.active_model.bounds.center,
+                                                 plane: spec['plane_spec'])
         index = spec['index'].to_i
         opening = found[:openings][index]
         unless opening

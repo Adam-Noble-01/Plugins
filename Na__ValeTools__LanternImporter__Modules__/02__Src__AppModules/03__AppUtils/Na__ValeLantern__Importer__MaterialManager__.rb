@@ -40,14 +40,34 @@ module Na__ValeLantern
             DebugTools = Na__ValeLantern::Na__Importer::Na__DebugTools
 
             @na_materials_by_key = {}                                                               # <-- Key from the payload, Sketchup::Material out
+            @na_whitecard_mode   = false                                                            # <-- True: only SSOT MAT###__ glazing is created/painted; non-glass stays nil
 
-            NA_OPAQUE_ALPHA = 1.0                                                                   # <-- Anything at or above this needs no alpha set
+            NA_OPAQUE_ALPHA         = 1.0                                                           # <-- Anything at or above this needs no alpha set
+            NA_SSOT_MATERIAL_REGEX  = /\AMAT\d{3}__/.freeze                                         # <-- Indexed SSOT materials GLB Builder enriches on faces
+            NA_GLASS_MATERIAL_REGEX = /\AMAT101__/.freeze                                           # <-- Whitecard mode keeps ONLY glass (MAT101__) and drops timber/paint/lead
 
 # endregion -------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # REGION | Material Table Preparation — Public API
 # -----------------------------------------------------------------------------
+
+            # FUNCTION | Enable or disable whitecard mode for the current import
+            # ------------------------------------------------------------
+            # In whitecard mode only SSOT indexed glazing swatches (MAT###__) are
+            # prepared and applied; all non-glass parts remain unpainted (nil) so
+            # MaxModels and Whitecards never accumulate non-whitecard swatches.
+            def self.na_set_whitecard_mode(enabled)
+                @na_whitecard_mode = (enabled == true)
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Whether whitecard mode is active for the current import
+            # ------------------------------------------------------------
+            def self.na_whitecard_mode?
+                @na_whitecard_mode == true
+            end
+            # ---------------------------------------------------------------
 
             # FUNCTION | Create or adopt every material the payload declares
             # ------------------------------------------------------------
@@ -61,6 +81,7 @@ module Na__ValeLantern
                 return 0 unless model
 
                 swapped = 0
+                skipped_whitecard = 0
 
                 material_table.each do |entry|
                     next unless entry.is_a?(Hash)
@@ -70,13 +91,22 @@ module Na__ValeLantern
                     name     = resolved['Name']
                     next if key.nil? || name.nil? || name.to_s.empty?
 
+                    if @na_whitecard_mode && !name.to_s.match?(NA_GLASS_MATERIAL_REGEX)
+                        skipped_whitecard += 1
+                        next
+                    end
+
                     swapped += 1 if resolved['SsotApplied']
 
                     material = na_get_or_create_material(model, name.to_s, resolved)
                     @na_materials_by_key[key.to_s] = material if material
                 end
 
-                DebugTools.na_info("Materials prepared: #{@na_materials_by_key.length} (#{swapped} on the shared Na__DataLib swatch)")
+                if @na_whitecard_mode
+                    DebugTools.na_info("Materials prepared (whitecard mode): #{@na_materials_by_key.length} SSOT swatch(es), #{skipped_whitecard} non-glass swatch(es) skipped")
+                else
+                    DebugTools.na_info("Materials prepared: #{@na_materials_by_key.length} (#{swapped} on the shared Na__DataLib swatch)")
+                end
                 @na_materials_by_key.length
             end
             # ---------------------------------------------------------------
@@ -126,6 +156,31 @@ module Na__ValeLantern
             def self.na_material_for_key(key)
                 return nil if key.nil?
                 @na_materials_by_key[key.to_s]
+            end
+            # ---------------------------------------------------------------
+
+            # FUNCTION | Paint faces directly when the key resolves to an SSOT MAT###__ material
+            # ------------------------------------------------------------
+            # Na__TrueVision__GlbBuilder resolves materials FACE-ONLY
+            # (face.material || face.back_material) and intentionally ignores
+            # group/component container materials. Painting SSOT indexed swatches
+            # (such as MAT101__Glass__ClearDefault) directly onto every face
+            # ensures lantern glazing exports with PBR transparency into
+            # ProposedRoofs__MeshModel__.glb for ValeVision 3D MaxEngine.
+            def self.na_apply_ssot_face_material(entities, key)
+                return 0 unless entities
+
+                material = na_material_for_key(key)
+                return 0 unless material && material.name.to_s.match?(NA_SSOT_MATERIAL_REGEX)
+
+                painted = 0
+                entities.grep(Sketchup::Face).each do |face|
+                    next unless face.valid?
+                    face.material      = material
+                    face.back_material = material
+                    painted += 1
+                end
+                painted
             end
             # ---------------------------------------------------------------
 

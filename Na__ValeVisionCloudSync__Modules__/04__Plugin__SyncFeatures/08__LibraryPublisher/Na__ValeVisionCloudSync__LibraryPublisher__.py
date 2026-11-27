@@ -40,6 +40,14 @@ USAGE:
 -----------------------------------------------------------------------------
 
 DEVELOPMENT LOG:
+25-Nov-2026 - Version 1.0.2
+- Promote ProjectType and seed RenderEngine__Config on existing library records too.
+  When a project was pre-created in the Master Library by Lantern Designer
+  (ProjectType: "LanternDesign") or upgraded from Whitecard/Blockout to a __MaxModel
+  folder, syncing from SketchUp now promotes ProjectType to the folder's type and sets
+  RenderEngine__Config: {"RenderEngine__Active": "MaxEngine"} on MaxModel projects when
+  no explicit RenderEngine__Config has been saved yet.
+
 07-Oct-2026 - Version 1.0.1
 - GLB syncs keep one clean set. When the models change, the previous set in
   ValeVision3D/Content__3dModel__GlbFiles is zipped into its 00__Archive folder as
@@ -80,7 +88,7 @@ from pathlib import Path
 # REGION | Module Constants
 # -----------------------------------------------------------------------------
 
-NA__PUB__VERSION                = "1.0.1"
+NA__PUB__VERSION                = "1.0.2"
 NA__PUB__YEAR_PREFIX            = "ValeProjects__"                          # <-- Year folders in the library and in C:\01__ValeProjects
 NA__PUB__CONTENT_DELIVERED      = "10__ContentDelivered__Local"            # <-- SketchUp project: delivered content
 NA__PUB__GLB_SYNC               = "ValeVision__GlbFileSync"                # <-- SketchUp project: fresh GLBs (top level only)
@@ -643,12 +651,51 @@ def na_set_image_lists(record: dict, project: Path, images: list) -> list:
     return kept
 # ---------------------------------------------------------------
 
+# HELPER FUNCTION | Derive ProjectType From SketchUp Folder Suffix Or Local ProjectData
+# ------------------------------------------------------------
+def na_detect_project_type(project_root: Path):
+    m = NA__PUB__TYPE_PATTERN.match(project_root.name)
+    if m:
+        return m.group(1)
+    try:
+        _, doc = na_local_project_data(project_root)
+        meta = na_local_block(doc, "Project__MetaData") or {}
+        local_type = str(meta.get("Project__Type") or "").strip()
+        if local_type in ("Whitecard", "Blockout", "MaxModel"):
+            return local_type
+    except (OSError, ValueError):
+        pass
+    return None
+# ---------------------------------------------------------------
+
+# FUNCTION | Promote Existing Record ProjectType And Seed MaxEngine When Absent
+# ------------------------------------------------------------
+def na_sync_project_type_and_engine(record: dict, project_root: Path) -> list:
+    """Keep existing records aligned when a LanternDesign stub or Whitecard is synced as
+    a MaxModel (or Whitecard/Blockout). Never overwrites an explicit RenderEngine__Config."""
+    notes = []
+    detected = na_detect_project_type(project_root)
+    current = str(record.get("ProjectType") or "").strip()
+    if detected:
+        should_promote = (
+            not current
+            or current == "LanternDesign"
+            or (detected == "MaxModel" and current in ("Whitecard", "Blockout"))
+        )
+        if should_promote and current != detected:
+            record["ProjectType"] = detected
+            notes.append(f"ProjectType -> {detected}")
+    effective_type = str(record.get("ProjectType") or "").strip()
+    if effective_type == "MaxModel" and "RenderEngine__Config" not in record:
+        record["RenderEngine__Config"] = {"RenderEngine__Active": "MaxEngine"}
+        notes.append("RenderEngine -> MaxEngine")
+    return notes
+# ---------------------------------------------------------------
+
 # FUNCTION | A New Record (first sync of a project the library does not have yet)
 # ------------------------------------------------------------
 def na_new_record(args) -> dict:
-    folder = Path(args.project_root).name
-    m = NA__PUB__TYPE_PATTERN.match(folder)
-    project_type = m.group(1) if m else "Whitecard"
+    project_type = na_detect_project_type(Path(args.project_root)) or "Whitecard"
     code, _, name = args.library_id.partition("__")
     code = code.split("-")[-1]
     meta = {}
@@ -841,7 +888,7 @@ def na_sync(args) -> dict:
         rep.step("Update Project Record", False, f"{record_path.name} unreadable: {e}. Nothing was pushed.")
         return rep.finish()
     before = json.dumps(record, ensure_ascii=False, sort_keys=False)
-    notes = []
+    notes = na_sync_project_type_and_engine(record, Path(args.project_root))
     if images is not None:
         kept = na_set_image_lists(record, project, images)
         moved, orphaned = na_repoint_scene_thumbnails(record, images)

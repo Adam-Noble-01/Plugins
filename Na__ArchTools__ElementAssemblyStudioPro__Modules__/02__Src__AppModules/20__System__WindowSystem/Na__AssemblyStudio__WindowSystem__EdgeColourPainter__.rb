@@ -105,7 +105,9 @@ module Na__WindowSystem
             return 'fielded_panel' if name.include?('PanelLinework') ||
                                        name.include?('PanelGeometry') ||
                                        name.match?(/__Field__\d{3}/)
-            return 'casement' if name.start_with?('Na_Casement_') ||
+            return 'casement' if name == 'Na_Cill' ||
+                                   name.start_with?('Na_Cill_') ||
+                                   name.start_with?('Na_Casement_') ||
                                    name.include?('LeafJoinery') ||
                                    name.match?(/__Leaf\d{3}__(?:Stile|Rail|Field)/) ||
                                    name.start_with?('Na_DoorPanel_')

@@ -372,6 +372,43 @@ module Na__ValeLantern
             end
             # ---------------------------------------------------------------
 
+            # FUNCTION | Name and stamp a definition produced by solid merging
+            # ------------------------------------------------------------
+            # outer_shell + to_component yields a fresh ComponentDefinition whose
+            # name SketchUp picked ('Group#12'). Adopting it here gives it the
+            # same root-prefixed naming and RecordType stamp as every prism
+            # definition so LanternReloader releases it cleanly on reload.
+            #
+            # @param model [Sketchup::Model]
+            # @param definition [Sketchup::ComponentDefinition]
+            # @param family_name [String]
+            # @param tag_key [String, nil]
+            # @return [Sketchup::ComponentDefinition, nil]
+            def self.na_adopt_part_definition(model, definition, family_name, tag_key)
+                return nil unless model && definition && !definition.deleted?
+
+                family = family_name.to_s.strip
+                family = NA_FALLBACK_FAMILY.dup if family.empty?
+                index  = na_next_family_index(family)
+                base   = na_render_name(
+                    ConfigLoader.na_definition_name_template,
+                    'RootToken' => @na_root_token,
+                    'Family'    => family,
+                    'Index'     => format('%02d', index),
+                    'Name'      => family
+                )
+                definition.name = na_unique_definition_name(model, base)
+
+                na_stamp(definition, 'RecordType', NA_RECORD_PART)
+                na_stamp(definition, 'PartFamily', family)
+                na_stamp(definition, 'TagKey',     tag_key.to_s) unless tag_key.nil?
+                definition
+            rescue StandardError => e
+                DebugTools.na_detail("Merged part definition adoption refused: #{e.message}")
+                definition
+            end
+            # ---------------------------------------------------------------
+
             # FUNCTION | Create an empty, stamped definition for one container
             # ------------------------------------------------------------
             # The root lantern, an assembly, or a lazily created part group. These

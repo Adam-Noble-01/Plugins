@@ -18,6 +18,39 @@ never to be any.
 
 
 # ---------------------------------------------------------
+### Vale Lantern Importer - Version 1.7.0 - 26-Nov-2026
+#### FEATURE - Default Ridge Capping + End-Cap Solid Merge, Fast PolygonMesh Batch Build, and Whitecard Material Mode
+
+Eliminates the visible butt joint between ridge capping and ridge end caps by default on SketchUp import/reload, cuts dense triangle mesh build times from minutes to under a second, and adds optional whitecard material hygiene for Vale MaxModels.
+
+- **Default Ridge Capping + End-Cap merge (`Config.json`, `ConfigLoader`, `DefinitionRegistry`, `ModelComposer`):**
+  - Added `Na__ValeLantern__Importer__Config__SolidMerging` (`MergeRidgeCappingAndEndCaps: true` by default, `SeamSoftenAngleDegrees: 22.5`, `ButtPlaneToleranceMm: 0.25`, `ConfigVersion: 1.7.0`).
+  - After building `02__RoofFrame`, `ModelComposer.na_merge_ridge_capping_assembly` matches each `RidgeCapping` prism (`PartRole == 'ridgeCapping'`) with its touching `RidgeEndCap` instances (`PartRole == 'ridgeEndCap'`), clones operands safely, and merges them via SketchUp `outer_shell` into one closed manifold `ComponentInstance` (`RidgeCappingAssembly__01`, definition adopted and stamped `ValeLanternPartDefinition` via `DefinitionRegistry.na_adopt_part_definition` so `LanternReloader` releases it cleanly on future reloads).
+  - Softens and smooths butt-plane seam edges (within `ButtPlaneToleranceMm` of the ridge capping's two end planes and dihedral angle `<= SeamSoftenAngleDegrees`) without ever erasing curved seam edges, preserving `manifold? == true` while making the joint visually seamless.
+  - Leaves original parts untouched with a console warning if any operand is non-manifold or if SketchUp's solid engine declines.
+- **Fast `Geom::PolygonMesh` batch construction for dense triangle meshes (`Config.json`, `ConfigLoader`, `MeshBuilder`):**
+  - Added `Na__ValeLantern__Importer__Config__MeshPerformance` (`UsePolygonMeshForDenseTriangles: true`, `PolygonMeshFaceThreshold: 64`, `PaintUnpaintedMeshHardEdges: true`).
+  - Dense triangle/quad mesh definitions with no inner loops and no hidden faces (such as the beaten `HipApexCowl` `48_2131` with `35,904` triangles) now batch-build via `Geom::PolygonMesh` + `Entities#fill_from_mesh(mesh, true, Geom::PolygonMesh::NO_SMOOTH_OR_HIDE)` instead of per-face `Entities#add_face` (`O(N^2)`), cutting build time from ~150 s to ~1 s while replaying every authored edge flag verbatim.
+  - Optimised `MeshBuilder.na_apply_edge_styles` with per-vertex position caching and integer pair keys (`53,856` edges styled in milliseconds) and added `na_paint_unpainted_hard_edges` so procedural meshes without `HasOwnMaterial` receive the default SSOT MTE edge colour without overwriting authored edge colours.
+  - Added explicit `SoftenEdges.Rules` rows for the `v0.10.3` families (`ridgeEndCap`, `hipEndCapBoard`, `hipApexCowl`, `glazeBarEndCap`).
+- **Optional Whitecard Material Mode (`Config.json`, `ConfigLoader`, `MaterialManager`, `ModelComposer`, `LanternReloader`, `Main`):**
+  - Added `Na__ValeLantern__Importer__Config__Materials.WhitecardMode` (default `false` so standalone imports keep full VGH colour swatches) and per-call override `choices[:WhitecardMaterials] => true` on both `na_import` and `na_reload_lantern` (stamped on the root and preserved on reload).
+  - When enabled, only SSOT indexed glazing swatches (`MAT###__`, e.g. `MAT101__Glass__ClearDefault`) are created and painted onto both front and back faces of lantern glazing; all non-glass instances and faces remain unpainted (`nil`).
+
+
+# ---------------------------------------------------------
+### Vale Lantern Importer - Version 1.6.1 - 25-Nov-2026
+#### BUGFIX - Face-Level SSOT Material Application for GLB Export (ValeVision 3D MaxEngine)
+
+Fixes opaque whitecard roof lantern glazing in ValeVision 3D `MaxEngine`.
+
+- **Face-level SSOT material painting (`MaterialManager`, `PrismBuilder`):**
+  - `Na__TrueVision__GlbBuilder` resolves materials face-only (`face.material || face.back_material`) and ignores container/instance materials. Previously `MaterialManager.na_apply_material` painted `MAT101__Glass__ClearDefault` only onto the glazing component instance, leaving all inner faces unpainted (`nil`), so `ProposedRoofs__MeshModel__.glb` exported `0 material(s)` in `:indexed_only` mode.
+  - Added `MaterialManager.na_apply_ssot_face_material(entities, key)` matching `/\AMAT\d{3}__/` and painting `face.material` and `face.back_material` on every face inside the part definition/group.
+  - Wired into `PrismBuilder.na_build_as_component` and `PrismBuilder.na_build_as_group` right after `na_paint_hard_edges`, keeping instance-level painting unchanged for non-SSOT swatches.
+
+
+# ---------------------------------------------------------
 ### Vale Lantern Importer - Version 1.6.0 - 25-Nov-2026
 #### FEATURE - Native SSOT Prism Edge Colours, Manifold Solid Healing, and Safe Edit-Context Reload
 

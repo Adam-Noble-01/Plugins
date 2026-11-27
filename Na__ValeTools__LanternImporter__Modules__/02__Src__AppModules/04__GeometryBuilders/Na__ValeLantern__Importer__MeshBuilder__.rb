@@ -46,6 +46,7 @@ module Na__ValeLantern
 
             DebugTools      = Na__ValeLantern::Na__Importer::Na__DebugTools
             Units           = Na__ValeLantern::Na__Importer::Na__Units
+            ConfigLoader    = Na__ValeLantern::Na__Importer::Na__ConfigLoader
             TagManager      = Na__ValeLantern::Na__Importer::Na__TagManager
             MaterialManager = Na__ValeLantern::Na__Importer::Na__MaterialManager
             DataLibBridge   = Na__ValeLantern::Na__Importer::Na__DataLibBridge
@@ -162,6 +163,7 @@ module Na__ValeLantern
                 existing = model.definitions[name]
                 if existing
                     na_prune_internal_diaphragms(existing.entities, name)
+                    na_paint_unpainted_hard_edges(model, existing.entities, name)
                     DebugTools.na_detail("Reusing existing definition '#{name}'")
                     return existing
                 end
@@ -175,7 +177,11 @@ module Na__ValeLantern
                 end
 
                 definition = model.definitions.add(name)
-                built      = na_build_faces(definition.entities, vertices, faces, name)
+                built      = if na_can_use_polygon_mesh?(faces)
+                                 na_build_faces_polygon_mesh(definition.entities, vertices, faces, name)
+                             else
+                                 na_build_faces(definition.entities, vertices, faces, name)
+                             end
 
                 if built.zero?
                     DebugTools.na_warn("Definition '#{name}' built no faces - removed.")
@@ -183,15 +189,84 @@ module Na__ValeLantern
                     return nil
                 end
 
-                pruned = na_prune_internal_diaphragms(definition.entities, name)
-                styled = na_apply_edge_styles(definition.entities, vertices, entry['Edges'], name)
+                pruned  = na_prune_internal_diaphragms(definition.entities, name)
+                styled  = na_apply_edge_styles(definition.entities, vertices, entry['Edges'], name)
+                painted = na_paint_unpainted_hard_edges(model, definition.entities, name)
 
                 definition.set_attribute(NA_ATTRIBUTE_DICTIONARY, 'AssetId', entry['AssetId'].to_s)
-                DebugTools.na_detail("Built definition '#{name}' (#{built} faces, #{pruned} internal diaphragm(s) pruned, #{styled} edges styled)")
+                DebugTools.na_detail("Built definition '#{name}' (#{built} faces, #{pruned} internal diaphragm(s) pruned, #{styled} edges styled, #{painted} hard edges painted)")
                 DebugTools.na_count('Component definitions')
                 definition
             end
             private_class_method :na_build_definition
+
+            # HELPER FUNCTION | Whether a mesh definition can batch-build via PolygonMesh
+            # ------------------------------------------------------------
+            # Dense triangle/quad meshes with no inner loops and no hidden faces
+            # (such as the beaten HipApexCowl with 35,904 triangles) take over two
+            # minutes via per-face Entities#add_face (O(N^2) edge merging in Ruby)
+            # but build in under a second via Geom::PolygonMesh + fill_from_mesh.
+            def self.na_can_use_polygon_mesh?(faces)
+                return false unless ConfigLoader.na_use_polygon_mesh?
+                return false unless faces.is_a?(Array) && faces.length >= ConfigLoader.na_polygon_mesh_threshold
+
+                faces.all? do |face_entry|
+                    next false unless face_entry.is_a?(Hash)
+                    next false if face_entry['Hidden']
+                    inner = face_entry['Inner']
+                    next false if inner.is_a?(Array) && !inner.empty?
+                    outer = face_entry['Outer']
+                    outer.is_a?(Array) && (outer.length == 3 || outer.length == 4)
+                end
+            end
+            private_class_method :na_can_use_polygon_mesh?
+
+            # HELPER FUNCTION | Batch-build dense triangle/quad faces via PolygonMesh
+            # ------------------------------------------------------------
+            # Uses NO_SMOOTH_OR_HIDE so na_apply_edge_styles replays the exact
+            # authored soft/smooth/hidden flags from entry['Edges'] verbatim.
+            def self.na_build_faces_polygon_mesh(entities, vertices, faces, definition_name)
+                mesh = Geom::PolygonMesh.new(vertices.length, faces.length)
+                mesh_indices = vertices.map { |pt| pt ? mesh.add_point(pt) : nil }
+
+                added = 0
+                skipped = 0
+                faces.each do |face_entry|
+                    outer = face_entry['Outer']
+                    poly = []
+                    outer.each do |raw_idx|
+                        mi = mesh_indices[raw_idx.to_i]
+                        if mi.nil?
+                            poly = []
+                            break
+                        end
+                        poly << mi unless poly.last == mi
+                    end
+                    poly.pop if poly.length >= 2 && poly.first == poly.last
+                    if poly.length < NA_MIN_LOOP_POINTS || poly.uniq.length < NA_MIN_LOOP_POINTS
+                        skipped += 1
+                        next
+                    end
+
+                    mesh.add_polygon(poly)
+                    added += 1
+                end
+
+                return 0 if added.zero?
+
+                entities.fill_from_mesh(mesh, true, Geom::PolygonMesh::NO_SMOOTH_OR_HIDE)
+                built = entities.grep(Sketchup::Face).length
+                if skipped > 0
+                    DebugTools.na_warn("Definition '#{definition_name}': #{skipped} degenerate face(s) skipped in PolygonMesh build.")
+                end
+                DebugTools.na_info("Batch-built '#{definition_name}' via PolygonMesh (#{built} faces).")
+                built
+            rescue StandardError => e
+                DebugTools.na_warn("PolygonMesh build refused for '#{definition_name}' (#{e.message}) - falling back to add_face.")
+                entities.clear! if entities.length > 0
+                na_build_faces(entities, vertices, faces, definition_name)
+            end
+            private_class_method :na_build_faces_polygon_mesh
 
             # HELPER FUNCTION | Convert the payload vertex table to Geom::Point3d
             # ------------------------------------------------------------
@@ -359,31 +434,43 @@ module Na__ValeLantern
                 position_index = na_build_position_index(vertices)
                 return 0 if position_index.empty?
 
+                stride = vertices.length + 1
                 style_by_pair = {}
                 raw_edges.each do |record|
                     next unless record.is_a?(Hash)
                     index_a = record['A']
                     index_b = record['B']
                     next if index_a.nil? || index_b.nil?
-                    style_by_pair[[index_a.to_i, index_b.to_i].sort] = record
+                    a = index_a.to_i
+                    b = index_b.to_i
+                    pair_key = a < b ? (a * stride + b) : (b * stride + a)
+                    style_by_pair[pair_key] = record
                 end
                 return 0 if style_by_pair.empty?
 
                 model   = Sketchup.active_model
                 styled  = 0
                 unknown = 0
+                vertex_index_cache = {}
 
                 entities.grep(Sketchup::Edge).each do |edge|
                     next unless edge.valid?
 
-                    index_a = position_index[na_position_key(edge.start.position)]
-                    index_b = position_index[na_position_key(edge.end.position)]
+                    v_start = edge.start
+                    v_end   = edge.end
+                    index_a = vertex_index_cache.fetch(v_start.object_id) do
+                        vertex_index_cache[v_start.object_id] = position_index[na_position_key(v_start.position)]
+                    end
+                    index_b = vertex_index_cache.fetch(v_end.object_id) do
+                        vertex_index_cache[v_end.object_id] = position_index[na_position_key(v_end.position)]
+                    end
                     if index_a.nil? || index_b.nil?
                         unknown += 1
                         next
                     end
 
-                    record = style_by_pair[[index_a, index_b].sort]
+                    pair_key = index_a < index_b ? (index_a * stride + index_b) : (index_b * stride + index_a)
+                    record = style_by_pair[pair_key]
                     if record.nil?
                         unknown += 1
                         next
@@ -404,6 +491,38 @@ module Na__ValeLantern
                 0
             end
             private_class_method :na_apply_edge_styles
+
+            # HELPER FUNCTION | Paint unpainted hard visible mesh edges to SSOT colour
+            # ------------------------------------------------------------
+            # Procedural meshes (HipApexCowl, HipEndCapBoard, HipBlocking, HipFlashing)
+            # emit edge Soft/Smooth flags without HasOwnMaterial. Painting only hard,
+            # visible, unpainted edges gives them the standard SSOT dark-grey linework
+            # on import while leaving authored HasOwnMaterial edge colours untouched.
+            def self.na_paint_unpainted_hard_edges(model, entities, definition_name)
+                return 0 unless model && ConfigLoader.na_edge_colours_enabled?
+                return 0 unless ConfigLoader.na_paint_unpainted_mesh_hard_edges?
+
+                material_name = ConfigLoader.na_edge_material_name_for(nil)
+                return 0 if material_name.nil? || material_name.empty?
+
+                material = DataLibBridge.na_palette_edge_material(model, material_name)
+                return 0 unless material
+
+                painted = 0
+                entities.grep(Sketchup::Edge).each do |edge|
+                    next unless edge.valid?
+                    next if edge.soft? || edge.hidden?
+                    next unless edge.material.nil?
+
+                    edge.material = material
+                    painted += 1
+                end
+                painted
+            rescue StandardError => e
+                DebugTools.na_detail("Mesh hard edge colouring skipped for '#{definition_name}': #{e.message}")
+                0
+            end
+            private_class_method :na_paint_unpainted_hard_edges
 
             # HELPER FUNCTION | Apply one payload style record to one edge
             # ------------------------------------------------------------

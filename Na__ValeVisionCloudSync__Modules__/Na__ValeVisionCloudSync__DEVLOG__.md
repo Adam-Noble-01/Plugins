@@ -1,5 +1,15 @@
 # ValeVision Cloud Sync — Development Log
 
+## Version 0.7.3 - 25-Nov-2026 - Promote Existing LanternDesign / Whitecard Records to MaxModel and Seed MaxEngine on Sync
+
+### Overview
+**Reported by Adam,** 25-Nov-2026 (`64481__Telfer-Smith__MaxModel`): syncing a `__MaxModel` project that had been pre-created in the Master Library by Lantern Designer left `"ProjectType": "LanternDesign"` and omitted `"RenderEngine__Config"`, so ValeVision 3D booted in `PureEngine` whitecard instead of `MaxEngine` even though the GLBs carried `MAT101__Glass__ClearDefault`.
+
+### What Changed
+- `08__LibraryPublisher/Na__ValeVisionCloudSync__LibraryPublisher__.py` (1.0.2):
+  - Added `na_detect_project_type` (checks folder suffix `__Whitecard` / `__Blockout` / `__MaxModel`, falling back to `Project__MetaData.Project__Type` in local `00__ProjectData`).
+  - Added `na_sync_project_type_and_engine`, called during every sync update (not only `na_new_record`): promotes missing or `"LanternDesign"` `ProjectType` to the detected type, promotes `"Whitecard"` / `"Blockout"` to `"MaxModel"` when synced from a `__MaxModel` folder, and writes `"RenderEngine__Config": {"RenderEngine__Active": "MaxEngine"}` whenever `ProjectType == "MaxModel"` and no explicit `RenderEngine__Config` exists yet. Existing `RenderEngine__Config` choices saved on the server are never overwritten.
+
 ## Version 0.7.2 - 25-Nov-2026 - Sync Furnishings: a Project's Furniture as the Real Library Components, Both Ways
 
 ### Overview

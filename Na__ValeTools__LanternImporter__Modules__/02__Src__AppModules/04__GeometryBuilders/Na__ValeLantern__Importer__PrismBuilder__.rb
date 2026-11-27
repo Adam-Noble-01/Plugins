@@ -200,6 +200,7 @@ module Na__ValeLantern
                 na_orient_outward(entities)       if options['OrientSolidsOutward'] != false
                 EdgeSoftener.na_soften_for_tag(entities, part['TagKey'])
                 na_paint_hard_edges(model, entities, part['TagKey'])
+                MaterialManager.na_apply_ssot_face_material(entities, part['MaterialKey'])
 
                 instance = na_add_instance(parent_entities, definition, placement[:Frame])
                 if instance.nil?
@@ -339,6 +340,7 @@ module Na__ValeLantern
                 na_orient_outward(entities)       if options['OrientSolidsOutward'] != false
                 EdgeSoftener.na_soften_for_tag(entities, part['TagKey'])
                 na_paint_hard_edges(Sketchup.active_model, entities, part['TagKey'])
+                MaterialManager.na_apply_ssot_face_material(entities, part['MaterialKey'])
 
                 na_finish_instance(group, part, part_name)
                 if DebugTools.na_verbose?

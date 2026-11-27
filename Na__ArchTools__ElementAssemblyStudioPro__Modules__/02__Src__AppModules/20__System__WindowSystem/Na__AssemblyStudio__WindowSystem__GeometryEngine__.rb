@@ -841,8 +841,8 @@ module Na__WindowSystem
                 na_create_opening(entities, i, params, frame_material, glass_material)
             end
 
-            # Create cill
-            if params[:has_cill] && params[:frame_bottom_thickness] > 0
+            # Create cill (V2.7.10: supported whenever has_cill is true, including frame_bottom_thickness == 0)
+            if params[:has_cill]
                 GeometryBuilders.na_create_cill_geometry(
                     entities, params[:width], params[:cill_depth], params[:cill_height],
                     params[:frame_depth], cill_material, params[:frame_wall_inset], params[:cill_horns]
@@ -874,7 +874,6 @@ module Na__WindowSystem
         def self.na_apply_cill_lift(entities, params)
             return unless entities
             return unless params[:has_cill]
-            return unless params[:frame_bottom_thickness] > 0
 
             cill_height_in = params[:cill_height].to_f
             return if cill_height_in <= 0.0

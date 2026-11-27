@@ -50,6 +50,7 @@ module Na__SketchUpMcp
             'model_info'            => [:Na__Handlers__Model,        :Na__Handlers__Model__Info],
             'model_settings'        => [:Na__Handlers__Model,        :Na__Handlers__Model__Settings],
             'model_file'            => [:Na__Handlers__ModelFile,    :Na__Handlers__ModelFile__File],
+            'dxf_import'            => [:Na__Handlers__ModelFile,    :Na__Handlers__ModelFile__DxfImport],
             'model_purge'           => [:Na__Handlers__Model,        :Na__Handlers__Model__Purge],
             'entity_query'          => [:Na__Handlers__Query,        :Na__Handlers__Query__EntityQuery],
             'list_entities'         => [:Na__Handlers__Query,        :Na__Handlers__Query__EntityQuery],
@@ -123,7 +124,10 @@ module Na__SketchUpMcp
             'image_rectify'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Rectify],
             'image_flatten'         => [:Na__Handlers__PhotoReference, :Na__Handlers__PhotoReference__Flatten],
             'match_photo'           => [:Na__Handlers__MatchPhoto,     :Na__Handlers__MatchPhoto__Read],
-            'match_photo_edit'      => [:Na__Handlers__MatchPhoto,     :Na__Handlers__MatchPhoto__Edit]
+            'match_photo_edit'      => [:Na__Handlers__MatchPhoto,     :Na__Handlers__MatchPhoto__Edit],
+            'wall_opening_edit'     => [:Na__Handlers__WallOpening,    :Na__Handlers__WallOpening__Edit],
+            'edge_colour_audit'     => [:Na__Handlers__EdgeAudit,      :Na__Handlers__EdgeAudit__Audit],
+            'cad_fidelity_audit'    => [:Na__Handlers__CadFidelity,    :Na__Handlers__CadFidelity__Audit]
         }.freeze
 
         # Bridge commands that are not MCP tools in the registry.

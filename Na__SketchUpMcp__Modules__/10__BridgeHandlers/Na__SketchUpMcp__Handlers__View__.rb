@@ -402,15 +402,17 @@ module Na__SketchUpMcp
                                   'in the style also slow rendering.'
             end
             bytes = File.size(path)
+            keep_file = !na_requested_save_path(params).nil?
             with_cloud = cloud && cloud['composited'] ? ", with #{cloud['names'].join(' and ')} drawn over it" : ''
             with_tags = hidden_layers.empty? ? '' : ", #{hidden_layers.length} tag#{hidden_layers.length == 1 ? '' : 's'} hidden for it"
             with_photo = photo_scene ? ", under the Match Photo scene's photo" : ''
             result = {
                 'image_file' => path, 'mime_type' => format == 'png' ? 'image/png' : 'image/jpeg',
-                'keep_file'  => Na__Params.Na__Params__Has(params, 'save_path'), 'width' => width, 'height' => height,
+                'keep_file'  => keep_file, 'width' => width, 'height' => height,
                 'bytes' => bytes, 'render_seconds' => render_seconds.round(2), 'camera' => camera, 'units' => ctx[:unit],
                 'summary' => "Captured #{width} x #{height} #{format} (#{(bytes / 1024.0).round} KB) in #{render_seconds.round(1)} s#{with_tags}#{with_cloud}#{with_photo}."
             }
+            result['saved_to'] = path if keep_file
             result['point_cloud'] = cloud if cloud
             unless tags_to_hide.empty?
                 result['hidden_tags'] = hidden_layers.map { |layer| Na__EntityResolver.Na__EntityResolver__TagDisplayName(layer) }
@@ -519,12 +521,29 @@ module Na__SketchUpMcp
 
         NA_CAPTURE_EXTENSIONS = { 'png' => %w[.png], 'jpg' => %w[.jpg .jpeg] }.freeze
 
-        # save_path (1.0.17: its extension must match the format, as
-        # write_image picks its encoder from the extension) or a capture the
-        # server deletes once it has returned it.
+        # save_path (or alias output_path; 1.0.43 creates parent folders
+        # automatically, keeps the file and returns saved_to alongside
+        # image_file). Extension must match format (1.0.17) as write_image picks
+        # its encoder from the extension. Without save_path, writes a capture
+        # that the server deletes once it has returned it.
+        def self.na_requested_save_path(params)
+            has_save = Na__Params.Na__Params__Has(params, 'save_path')
+            has_out = Na__Params.Na__Params__Has(params, 'output_path')
+            return nil unless has_save || has_out
+
+            save_val = has_save ? Na__Params.Na__Params__String(params, 'save_path', nil, required: true) : nil
+            out_val = has_out ? Na__Params.Na__Params__String(params, 'output_path', nil, required: true) : nil
+            if has_save && has_out && File.expand_path(save_val) != File.expand_path(out_val)
+                raise Na__McpError.new('invalid_params', 'Both save_path and output_path were passed with different paths.',
+                                       'Pass save_path only.')
+            end
+            save_val || out_val
+        end
+
         def self.na_capture_path(params, format)
-            if Na__Params.Na__Params__Has(params, 'save_path')
-                path = File.expand_path(params['save_path'].to_s)
+            requested = na_requested_save_path(params)
+            if requested
+                path = File.expand_path(requested)
                 extension = File.extname(path)
                 if extension.empty?
                     path += ".#{format}"
@@ -532,9 +551,15 @@ module Na__SketchUpMcp
                     raise Na__McpError.new('invalid_params', "save_path ends #{extension}, but the image is a #{format.upcase}.",
                                            format == 'png' ? 'Give save_path a .png name (view_capture also saves .jpg with format: "jpg").' : 'Give save_path a .jpg name, or use format: "png".')
                 end
-                raise Na__McpError.new('file_error', "Folder does not exist: #{File.dirname(path)}.", nil) unless File.directory?(File.dirname(path))
                 if File.exist?(path) && !Na__Params.Na__Params__Boolean(params, 'overwrite', false)
                     raise Na__McpError.new('file_error', "#{path} already exists.", 'Pass overwrite: true or choose another save_path.')
+                end
+                parent_dir = File.dirname(path)
+                begin
+                    Na__PathResolver.Na__PathResolver__EnsureDirectory(parent_dir)
+                rescue SystemCallError => error
+                    raise Na__McpError.new('file_error', "Could not create folder #{parent_dir}: #{error.message}",
+                                           'Check the drive letter and folder permissions.')
                 end
 
                 return path

@@ -3,6 +3,118 @@
 
 ## Version History
 
+## Na SketchUp MCP | Version 1.0.45 - 27-Nov-2026 - Two-Way CAD Fidelity Audit (cad_fidelity_audit)
+
+- **Why** (Cowell 58110, 27-Nov-2026). Auditing built 3D elevations against placed vertical CAD drawings needed both directions checked in one fast read-only call rather than ad-hoc `ruby_eval` scripts:
+  - Recall (`CAD -> Model`) catches missing geometry (omitted Porch surrounds, missing lugs, missing purlins);
+  - Precision (`Model -> CAD`) catches hallucinated or generalised geometry (synthetic alternating-block surround templates, semicircular arches substituted onto pointed Gothic CAD openings, oversized wedge purlins).
+- **`cad_fidelity_audit`** (bridge, new, read-only; 89 tools). Dedicated two-way elevation fidelity audit in `Handlers__CadFidelity`:
+  - Accepts `cad_group` (persistent id or group name/substring), `model_targets` (one or more persistent ids, group names, or tag names), optional `plane` (`"x"` or `"y"`, auto-inferred from `cad_group` bounds if omitted), `depth_range` or `band_depth` (default `350.0` mm each side), `tol_mm` (default `6.0`), `min_edge_mm` (default `15.0`), `sample_step_mm` (default `15.0`), `min_recall` (default `90.0`), `min_precision` (default `90.0`), `max_median` (default `4.0`), optional `clip_pad_mm`, optional named `regions` (`[{name, u0, u1, z0, z1}]`), `include_hidden` (default `false`), `include_soft` (default `false`), `max_offenders` (default `15`), and `units`.
+  - Extracts visible world-space edges safely across closed, nested, and open groups via `Na__Coordinates__ReportedToWorld`, projects and clips segments onto the elevation plane, and scores exact two-way point-to-segment distances using a 2D spatial grid with exact fallback.
+  - Returns `pass`, `fail_reasons`, `cad_to_model_pct` (Recall), `model_to_cad_pct` (Precision), combined `median_mm`/`p90_mm`/`p95_mm`/`max_mm`, per-direction stats, per-region breakdown, top `uncovered_cad` and `extra_model` segment coordinates, and a concise `summary`.
+- **Where.** `Handlers__CadFidelity` (new), `CoreAppLoaders__Main`, `CommandRouter`, `ToolRegistry` (version `1.0.45`, 89 tools), `AppConfig` (`bridge_version` `1.0.45`), `Tests__BridgeCore`, `Tests__PythonServer`, `AGENTS.md`, `AgentGuide`.
+- **Versions.** `bridge_version` and `server.version` are `1.0.45`. 89 tools.
+- **Verified offline** (live SketchUp PID 333232 holding Cowell 0.4.0 left untouched):
+  - ValidateApiUsage passed (89 tools, 345 API dependencies, 60 Ruby files, 84 routes).
+  - RunRubyChecks: 61 of 61 Ruby files compile under Ruby 3.2.2; BridgeCore 216 passed, 0 failed (3 new checks covering exact-match pass + plane inference + depth clipping, missing Porch surround Recall fail, synthetic alternating-block Precision fail, semicircular arch on Gothic opening dual fail, oversized wedge purlin Precision fail, and per-region breakdown + routing).
+  - PythonServer: 84 tests OK (updated tool count to 89 and added `test_cad_fidelity_audit_schema_and_roundtrip`).
+  - `--check`: 89 tools on `1.0.45`; `node --check` passed; `su_lint.py --no-info`: 0 errors.
+- **Status:** IMPLEMENTED AND VERIFIED OFFLINE (live SketchUp window PID 333232 untouched).
+
+### Validation Checklist
+- [ ] Reload Plugin Data in SketchUp (`Extensions > Na SketchUp MCP > Reload Plugin Data`): status dialog shows bridge `1.0.45`.
+- [ ] Restart the MCP client: `sketchup_status` shows server `1.0.45` and 89 tools, with `cad_fidelity_audit` listed.
+- [ ] In a scratch window (`sketchup_scratch_open`) or read-only on a built model, call `cad_fidelity_audit` on a vertical `CAD__*Elevation*` group against `model_targets` and confirm Recall, Precision, median mm, and offender coordinates match `scripts/cad_fidelity_gate.py`.
+
+## Na SketchUp MCP | Version 1.0.44 - 26-Nov-2026 - wall_opening_edit, edge_colour_audit, and Entity Studio Plane/Reparent Upgrades
+
+- **Why** (Telfer-Smith 64481, 26-Nov-2026). Four friction points showed up during Clubhouse Wing window modelling and Orangery column detailing:
+  - cutting rectangular window openings or trimming jamb faces on a manifold wall solid required ad-hoc `ruby_eval` scripts with manual solid verification and edge repainting;
+  - checking SSOT edge-colour hygiene (`NIL` unpainted edges and stray `MTE201__LineColour__Red` helpers) across a finished assembly required ad-hoc `ruby_eval` audit scripts;
+  - `entity_studio {action: "openings"}` refused compound multi-wing `SUB__<Building>__Walls` solids whose largest face is horizontal;
+  - building a window into an opening, naming it and reparenting it into its building group took three separate tool calls and undo steps.
+- **`wall_opening_edit`** (bridge, new; 88 tools). Dedicated rectangular wall opening cutter and filler in `Handlers__WallOpening`:
+  - Accepts either explicit world boxes `{min, max, through_axis?, overcut?}` or wall-plane openings `{plane: {axis, value/value_mm, depth/depth_mm, outside}, span: [u0, u1], z: [z0, z1], overcut?}` with `operation: "cut" | "fill"`.
+  - Works on a copy of the manifold wall Group, verifies `manifold?` at every step, paints newly cut reveal faces and unpainted reveal edges using the wall's dominant materials (falling back to SSOT `MTE102__LineColour__SoftBlack__L20`), transplants back via `Na__Transplant` (`keep_id: true` by default) to preserve `persistent_id`, name, tag, material and attributes, verifies positive signed volume, non-zero volume delta (unless `allow_noop: true`) and optional `expected_volume_delta_mm3`, and rolls back the entire undo step automatically on any failure.
+- **`edge_colour_audit`** (bridge, new, read-only). Fast SSOT edge-colour audit in `Handlers__EdgeAudit`:
+  - Audits `ids` (or the whole model when omitted), deduplicating shared component definitions and returning `clean`, `total_edges`, `unpainted_edges`, `red_edges` (excluding `00__OriginPoint` helpers), overall `materials` tally and per-group breakdown (`only_issues`, `include_hidden`, `include_soft`, `max_depth`, `limit`).
+- **`entity_studio` and `entity_studio_edit` upgrades** (`Handlers__EntityStudio`, paired with Element Assembly Studio Pro `2.7.10`):
+  - Optional `plane` filter (`{axis: "x"|"y", value_mm/value, outside?, tolerance_mm?}` or `{normal, point, outside?}`) on `entity_studio {action: "openings"}` and `entity_studio_edit {opening: {wall_id, index, plane}}` so compound multi-wing `SUB__Walls` solids detect and fit openings directly without Ruby.
+  - Optional `parent_id` (or `parent_path`) and `instance_name` on `entity_studio_edit {action: "build"}`, reparenting and renaming the built assembly inside ONE atomic undoable step (`Na__OperationScope`) and reporting the target placement in `dry_run`.
+  - New `1.0.44` parameters gated in `property_since` (`entity_studio.plane`, `entity_studio_edit.parent_id`, `entity_studio_edit.parent_path`, `entity_studio_edit.instance_name`) alongside the two new tools.
+- **Where.** `Handlers__WallOpening` (new), `Handlers__EdgeAudit` (new), `Handlers__EntityStudio`, `CoreAppLoaders__Main`, `CommandRouter`, `ToolRegistry` (version `1.0.44`, 88 tools), `AppConfig` (`bridge_version` `1.0.44`), `Tests__BridgeCore`, `Tests__PythonServer`, `AGENTS.md`.
+- **Versions.** `bridge_version` and `server.version` are `1.0.44`. 88 tools.
+- **Status:** IMPLEMENTED AND VERIFIED OFFLINE (live SketchUp window holding Telfer-Smith left untouched).
+
+### Validation Checklist
+- [ ] Reload Scripts in Element Assembly Studio Pro (`2.7.10`) and Reload Plugin Data in Na SketchUp MCP (`Extensions > Na SketchUp MCP > Reload Plugin Data`): status dialog shows bridge `1.0.44`.
+- [ ] Restart the MCP client: `sketchup_status` shows server `1.0.44` and 88 tools, with `wall_opening_edit` and `edge_colour_audit` listed.
+- [ ] Test `entity_studio {action: "openings", wall_id, plane: {axis: "x", value_mm: ...}}` on a compound multi-wing `SUB__Walls` solid and `entity_studio_edit {action: "build", ..., parent_id, instance_name}` in a scratch window.
+- [ ] Test `wall_opening_edit` cut + undo and `edge_colour_audit` in a scratch window.
+
+## Na SketchUp MCP | Version 1.0.43 - 26-Nov-2026 - DXF Import With Unit Check (dxf_import) and view_capture save_path
+
+- **Why** (Cowell 58110, 26-Nov-2026). Two small gaps slowed down Step 01 CAD set-up and capture workflows:
+  - `AUDITED__CAD cowell.dxf` carried `$INSUNITS=1` (inches) and `$MEASUREMENT=0` (imperial) while its coordinates (`$EXTMIN` to `$EXTMAX`, `78,952 x 26,915`) were millimetres; importing cleanly with an automatic header unit check and world mm bounds readback needed a dedicated tool;
+  - `view_capture` with `save_path` refused when parent folders did not yet exist, did not accept an `output_path` alias, and the Python server popped `image_file` when setting `saved_to`.
+- **`dxf_import`** (bridge, new; 86 tools). Dedicated DXF/DWG importer in `Handlers__ModelFile`:
+  - Parameters: `path` (required `.dxf` or `.dwg`), `show_summary` (default `false`), `check_dxf_header` (default `true`), `operation_name` (default `"Import DXF"`, prefixed with `"MCP: "` unless already prefixed).
+  - Pure Ruby ASCII DXF header parser (`Na__Handlers__ModelFile__ParseDxfHeader`) reads `$INSUNITS`, `$MEASUREMENT`, `$EXTMIN` and `$EXTMAX` before importing (stopping at `ENDSEC`, skipping binary DXF and non-`.dxf` files cleanly, ignoring `1e20` uninitialised AutoCAD sentinels).
+  - Unit mismatch checker (`Na__Handlers__ModelFile__CheckDxfUnits`) detects `$INSUNITS=1` (inches) or `2` (feet) with millimetre-scale extents (and compares raw extents against imported `size_mm` to distinguish `1:1 mm` from `25.4x` scaling), `$INSUNITS=6` (metres) scaled `1000x`, `$INSUNITS=4` (mm) with tiny extents, `$INSUNITS=0` (unitless), and `$INSUNITS`/`$MEASUREMENT` header contradictions.
+  - Wraps `model.import(path, { show_summary: show_summary })` in one undo step (`Na__CommandRouter__WithOperation`) and returns `{ ok, path, added: [{ id, type, name, def_name, min_mm, max_mm, size_mm }], added_total, new_definitions, dxf_header, unit_warning, active_tool, summary }` using `Na__Serializer` and `Na__Units` for open-group-safe world mm bounds. Any `unit_warning` is also appended to `ctx[:warnings]`.
+  - Refuses `.skp` (pointing to `component_place skp_path`), non-DXF/DWG extensions (pointing to `model_file`), and missing files.
+- **`view_capture` `save_path` (and `output_path` alias)** (`Handlers__View` and `Server__ToolRunner`):
+  - Accepts `save_path` or alias `output_path` (refusing conflicting values if both are given; `view_capture.output_path` gated at `1.0.43` in `property_since`, leaving `save_path` backward compatible with older bridges).
+  - Automatically creates missing parent directories via `Na__PathResolver__EnsureDirectory` before writing, preserves the existing extension match and `overwrite: false` safety checks, keeps the file on disk (`keep_file: true`), and returns `saved_to` alongside `image_file` in both the Ruby bridge response and the Python MCP server response.
+  - Preserves 100% backward compatibility when `save_path` and `output_path` are omitted (temp file returned inline and deleted, neither `image_file` nor `saved_to` emitted).
+- **Where.** `Handlers__ModelFile` (`Na__Handlers__ModelFile__DxfImport`, `ParseDxfHeader`, `CheckDxfUnits`), `Handlers__View` (`na_requested_save_path`, auto-mkdir in `na_capture_path`, `saved_to` in result), `CommandRouter` (`dxf_import` route), `Server__ToolRunner` (`na_extract_images` keeps `image_file` alongside `saved_to` when `keep_file` is true), `ToolRegistry` (version `1.0.43`, 86 tools, `property_since`), `AppConfig` (`bridge_version` `1.0.43`), `Tests__BridgeCore`, `Tests__PythonServer`, `AGENTS.md`, `AgentGuide`, and the 3D skill's regenerated `references/tool-catalogue.md`.
+- **Versions.** `bridge_version` and `server.version` are `1.0.43`. 86 tools.
+- **Verified offline** (live SketchUp PID 705728 holding Cowell was not reloaded or touched):
+  - ValidateApiUsage passed (86 tools, 324 API dependencies, 57 Ruby files, 81 routes).
+  - RunRubyChecks: 58 of 58 Ruby files compile; BridgeCore 211 passed, 0 failed (4 new checks covering `view_capture` auto-mkdir + `output_path` alias, DXF ASCII/binary/sentinel header parsing, unit mismatch detection, and mocked `dxf_import` one-step undo + world mm bounds).
+  - Verified `Na__Handlers__ModelFile__ParseDxfHeader` and `CheckDxfUnits` read-only on real `AUDITED__CAD cowell.dxf` (`$INSUNITS=1`, `$MEASUREMENT=0`, span `78952.159 x 26914.933`, warning emitted).
+  - PythonServer: 81 tests OK (3 new tests: `save_path`/`output_path` keeping file + returning `saved_to` and `image_file`, `dxf_import` schema & roundtrip, and `output_path` older-bridge refusal via `property_since`).
+  - `--check`: 86 tools on 1.0.43; `node --check` passed; `su_lint.py --no-info`: 0 errors.
+- **Status:** IMPLEMENTED - NOT YET VERIFIED INSIDE LIVE SKETCHUP 2027 (left live Cowell window PID 705728 untouched during active modelling).
+
+### Validation Checklist
+- [ ] Reload Plugin Data in SketchUp (`Extensions > Na SketchUp MCP > Reload Plugin Data`): status dialog shows bridge 1.0.43.
+- [ ] Restart the MCP client (or Antigravity / Claude Code): `sketchup_status` shows server 1.0.43 and 86 tools, with `dxf_import` listed.
+- [ ] In a scratch window (`sketchup_scratch_open`), call `dxf_import` on a `.dxf` with `$INSUNITS=1` and mm extents: confirms one undo step (`MCP: Import DXF`), `added[0].size_mm` in mm, `dxf_header` populated, and `unit_warning` shown.
+- [ ] Call `view_capture` with `save_path` pointing inside a new subfolder that does not yet exist: confirms parent folder is created automatically, image stays on disk, and response includes both `saved_to` and `image_file`.
+- [ ] Call `view_capture` without `save_path`: confirms existing behaviour (inline image returned, temporary capture file deleted).
+
+## Na SketchUp MCP | Version 1.0.42 - 25-Nov-2026 - Scratch Windows: sketchup_scratch_open and sketchup_scratch_close
+
+- **Why** (ValeVision 3D Furnishings job, 25-Nov-2026). `vv3d_furnishings_import_skp` needs an EMPTY window that is nobody's work. A WORKER made one by hand five times, about two minutes each with one hung close: copy SketchUp 2027's `Temp01a - Simple.skp`, open the copy with the window launcher, erase its scale figure, then close it with `Model#close(true)` and `Sketchup.quit` from its own bridge, because `sketchup_close_window` refuses a window with unsaved changes (the 3D skill's lesson L1570). Now it is one call each way.
+- **`sketchup_scratch_open`** (server, new). Copies the Simple template beside this server's SketchUp.exe (`resources\en-US\Templates`, else any language folder) to `91__UserConfig__LocalOnly/ScratchWindows/Na__SketchUpMcp__ScratchWindow__<stamp>__<hex>.skp`, opens the copy in a new window through `Na__WindowLauncher__Open`, and has that window's own bridge erase every root entity (the figure, Colin) and purge the definitions and materials it leaves, in ONE undo step ("MCP: Scratch Window: Erase Scale Figure"). The Ruby first checks that the open model is the copy, so it can never erase in another model. Returns the pid, the copy's path, what was erased and what is left (0 entities, 0 definitions, 0 materials, 1 tag). `select` defaults to true, so later calls land in the scratch window and never in the user's model; `timeout_s` as `sketchup_open_window`.
+- **`sketchup_scratch_close`** (server, new). Closes a scratch window without a prompt and without saving, then deletes its copy and puts the server back on the window it used before. Refused (`not_scratch`), with nothing sent to the window:
+  - a pid with no scratch record (any window this tool did not open);
+  - a pid Windows has reused (its process creation time differs from the one recorded);
+  - a scratch window that now has another model open (that may be someone's work).
+  `force: true` ends the process (`TerminateProcess`) only when its bridge does not answer and the record proves it is the scratch window; a refusal such as read-only or Ruby eval off is never forced. A window already gone only has its copy and record cleared.
+- **The record.** `Na__SketchUpMcp__Scratch__<pid>.json` beside the copies (pid, creation time, copy, template, the window used before). Stale records are cleared, with their copies, on the next open.
+- **Also.** `sketchup_status` marks a scratch window `scratch: true`. `sketchup_close_window` on one says to use `sketchup_scratch_close`. Server instructions (2046 of 2048 characters: two lines shortened to make room), the agent guide's tool map and AGENTS.md (85 tools, a new section).
+- **Where.** The new `30__McpServer__Python/Na__SketchUpMcp__Server__ScratchWindow__.py` (with a CLI: `open`, `close <pid> [--force]`, `list`); `Server__ToolRunner__` (the two routes, the status mark, the close hint); the registry (two entries: 676 and 457 characters; their `api` lists name the Ruby they send). No bridge Ruby changed; `bridge_version` moves with the server as AGENTS.md asks.
+- **Versions.** `bridge_version` and `server.version` are `1.0.42`. 85 tools.
+- **Not part of this entry.** At 18:06 a commit "mINOR" swept this work part-done (the registry, the new module and the ToolRunner) together with other sessions' Cloud Sync edits. The test, docs, AppConfig and this entry came after it and are uncommitted.
+- **Verified offline.**
+  - ValidateApiUsage passed (85 tools).
+  - RunRubyChecks: 58 of 58 files compile; BridgeCore 207 of 207.
+  - PythonServer 78 OK (10 new: the close path against a real stand-in process, every refusal, force, reselect, the status mark, the close hint, the template finder and the Ruby quoting).
+  - `--check`: 85 tools on 1.0.42; `node --check` passed. The Ruby the tools send compiles (`su_ruby.py syntax`).
+- **Verified live** (the real MCP server over stdio, warm SketchUp 2027; the only other window was Adam's Telfer-Smith model, pid 37332, and it received pings and one read-only `sketchup_status` only).
+  - The manual recipe first: open 13.2 s, erase 26 ms in Ruby, close clean.
+  - Four open and close runs: open 16.4, 14.0, 17.4 and 16.2 s (the launch 11 to 13 s, the erase call 1.8 to 4.9 s while the new window finishes starting); close 2.1 to 2.2 s each. Each window, read through its own pid, had 0 root entities, 0 definitions and 0 materials; each copy was deleted; the server was back on pid 37332 after every close; the scratch folder was empty at the end.
+  - `sketchup_scratch_close` on pid 37332 was refused `not_scratch` without contacting that window. The window list before and after the runs was the same single window.
+- **Not yet verified:** a cold open (no SketchUp running: about 110 s by hand); `force` against a real hung SketchUp; the tools from a restarted MCP client's own tool list.
+
+### Validation Checklist
+- [ ] Restart the MCP client (or Claude Code): `sketchup_status` shows server 1.0.42 and 85 tools, with `sketchup_scratch_open` and `sketchup_scratch_close` listed.
+- [ ] Ask an agent for a scratch window: a new SketchUp opens titled `Na__SketchUpMcp__ScratchWindow__...`, empty, and your own windows are untouched.
+- [ ] Ask it to close the scratch window: it goes without a Save prompt, and `91__UserConfig__LocalOnly\ScratchWindows` is empty.
+- [ ] Ask it to close one of YOUR windows with `sketchup_scratch_close`: it refuses and leaves the window alone.
+
 ## Na SketchUp MCP | Version 1.0.41 - 25-Nov-2026 - solid_boolean keep_id, view_capture hide_tags and the Match Photo Warning, geometry_faces
 
 - **Why** (Cooper 62712, rebuilding the right rear gablet). Three gaps cost time on every whitecard job, and Adam asked which MCP tools would have made the job easier:
